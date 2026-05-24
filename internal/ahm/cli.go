@@ -431,7 +431,7 @@ func parseTask(path string, bucket string) (Task, error) {
 		title = headingTitle(body, id)
 	}
 	body = stripHeading(body, title)
-	return Task{
+	task := Task{
 		ID:        id,
 		Title:     title,
 		Status:    defaultString(meta["status"], "-"),
@@ -443,7 +443,11 @@ func parseTask(path string, bucket string) (Task, error) {
 		Path:      path,
 		Bucket:    bucket,
 		Body:      body,
-	}, nil
+	}
+	if err := validateTaskEnums(task, path); err != nil {
+		return Task{}, err
+	}
+	return task, nil
 }
 
 func parseFrontMatter(text string) (map[string]string, string) {
@@ -685,6 +689,9 @@ func parseTaskCreateArgs(argv []string) (taskCreateArgs, error) {
 		}
 	}
 	parsed.title = strings.Join(title, " ")
+	if err := validateTaskCreateEnums(parsed); err != nil {
+		return parsed, err
+	}
 	return parsed, nil
 }
 
@@ -792,6 +799,57 @@ func priorityRank(priority string) int {
 	default:
 		return 99
 	}
+}
+
+func validateTaskCreateEnums(parsed taskCreateArgs) error {
+	if !validTaskStatus(parsed.status) {
+		return usageError(enumError("status", parsed.status, statusOrder()))
+	}
+	if !validTaskPriority(parsed.priority) {
+		return usageError(enumError("priority", parsed.priority, priorityOrder()))
+	}
+	if !validTaskEffort(parsed.effort) {
+		return usageError(enumError("effort", parsed.effort, effortOrder()))
+	}
+	return nil
+}
+
+func validateTaskEnums(task Task, source string) error {
+	if !validTaskStatus(task.Status) {
+		return fmt.Errorf("%s: %s", source, enumError("status", task.Status, statusOrder()))
+	}
+	if !validTaskPriority(task.Priority) {
+		return fmt.Errorf("%s: %s", source, enumError("priority", task.Priority, priorityOrder()))
+	}
+	if !validTaskEffort(task.Effort) {
+		return fmt.Errorf("%s: %s", source, enumError("effort", task.Effort, effortOrder()))
+	}
+	return nil
+}
+
+func enumError(field string, value string, allowed []string) string {
+	return fmt.Sprintf("unsupported task %s %q (supported: %s)", field, value, strings.Join(allowed, ", "))
+}
+
+func validTaskStatus(status string) bool {
+	return containsString(statusOrder(), status)
+}
+
+func validTaskPriority(priority string) bool {
+	return containsString(priorityOrder(), priority)
+}
+
+func validTaskEffort(effort string) bool {
+	return containsString(effortOrder(), effort)
+}
+
+func containsString(values []string, value string) bool {
+	for _, item := range values {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }
 
 func (a app) taskShow(argv []string) error {
@@ -1152,4 +1210,12 @@ func bucketTitle(bucket string) string {
 
 func statusOrder() []string {
 	return []string{"Open", "Pending", "In Progress", "Blocked", "Tracking", "Completed", "Cancelled"}
+}
+
+func priorityOrder() []string {
+	return []string{"P0", "P1", "P2", "P3", "P4"}
+}
+
+func effortOrder() []string {
+	return []string{"XS", "S", "M", "L", "XL"}
 }

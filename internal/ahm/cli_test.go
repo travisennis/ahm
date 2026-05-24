@@ -1,6 +1,8 @@
 package ahm
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,6 +47,68 @@ func TestParseTaskCreateArgsAllowsFlagsAfterTitle(t *testing.T) {
 	}
 	if got.priority != "P1" {
 		t.Fatalf("priority = %q", got.priority)
+	}
+}
+
+func TestParseTaskCreateArgsRejectsUnsupportedEnums(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "status",
+			args: []string{"Smoke task", "--status", "Doing"},
+			want: `unsupported task status "Doing"`,
+		},
+		{
+			name: "priority",
+			args: []string{"Smoke task", "--priority", "P5"},
+			want: `unsupported task priority "P5"`,
+		},
+		{
+			name: "effort",
+			args: []string{"Smoke task", "--effort", "XXL"},
+			want: `unsupported task effort "XXL"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseTaskCreateArgs(tt.args)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseTaskRejectsUnsupportedEnums(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "001.md")
+	content := "---\n" +
+		"id: 001\n" +
+		"title: Bad Task\n" +
+		"status: Pending\n" +
+		"priority: Urgent\n" +
+		"effort: S\n" +
+		"labels: type:task\n" +
+		"exec_plan: -\n" +
+		"depends_on: []\n" +
+		"---\n" +
+		"# Bad Task\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := parseTask(path, "active")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), `unsupported task priority "Urgent"`) {
+		t.Fatalf("error = %q", err)
 	}
 }
 
