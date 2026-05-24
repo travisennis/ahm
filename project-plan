@@ -1,0 +1,17 @@
+# ahm project
+
+ahm stands for agent harness manager. 
+
+The files and workflows it would use are currently defined in agent-workflow-scaffold.
+
+However, I have several projects that I think have better UX/DX. The `managing-tickets` has a more comprehensive script for managing tickets, which we call tasks in `agent-workflow-scaffold`. Then the project `clawpatch` goes a step further, creating a full fledge cli that uses coding agents to investigate projects, indentify issues, and create findings.
+
+I'd like something self-contained like `clawpatch` that manages tasks like `managing-tickets`, but the actual files, workflows, and approach is something I want from `agent-workflow-scaffold`.
+
+I was thinking this would be a cli written in go.
+
+## References
+
+- /Users/travisennis/Projects/agentready/skills/agent-workflow-scaffold
+- /Users/travisennis/Projects/skills/personal-skills/skills/managing-tickets
+- /Users/travisennis/Projects/coding-agents/clawpatch
