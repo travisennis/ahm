@@ -308,10 +308,7 @@ func hashBytes(data []byte) string {
 }
 
 func (a app) status() error {
-	tasks, err := collectTasks(a.opts.root)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
+	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
 	status := map[string]any{
 		"root":              a.opts.root,
@@ -319,6 +316,7 @@ func (a app) status() error {
 		"installed":         metaErr == nil,
 		"installed_version": meta.Version,
 		"tasks":             taskCounts(tasks),
+		"validation":        validation,
 	}
 	return a.emit(status)
 }
@@ -327,6 +325,7 @@ func (a app) doctor() error {
 	_, goErr := exec.LookPath("go")
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
+	validation, _ := validateWorkflow(a.opts.root)
 	report := map[string]any{
 		"root":               a.opts.root,
 		"go_available":       goErr == nil,
@@ -334,8 +333,187 @@ func (a app) doctor() error {
 		"workflow_installed": metaErr == nil,
 		"installed_version":  meta.Version,
 		"template_version":   templates.Version,
+		"validation":         validation,
 	}
 	return a.emit(report)
+}
+
+type validationReport struct {
+	OK       bool                `json:"ok"`
+	Errors   []validationFinding `json:"errors"`
+	Warnings []validationFinding `json:"warnings"`
+}
+
+type validationFinding struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
+func validateWorkflow(root string) (validationReport, []Task) {
+	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}}
+	tasks := validateManagedFiles(root, &report)
+	validateTaskDependencies(root, tasks, &report)
+	report.OK = len(report.Errors) == 0
+	return report, tasks
+}
+
+func validateManagedFiles(root string, report *validationReport) []Task {
+	meta, metaErr := readMetadata(root)
+	if metaErr != nil {
+		report.addError("metadata_missing", ".agents/ahm.json", "workflow metadata is missing or unreadable")
+	} else {
+		for _, item := range templates.Files() {
+			validateManagedFile(root, meta, item, report)
+		}
+	}
+	return validateTaskFiles(root, report)
+}
+
+func validateManagedFile(root string, meta metadata, item templates.File, report *validationReport) {
+	data, err := os.ReadFile(filepath.Join(root, item.Target))
+	if errors.Is(err, os.ErrNotExist) {
+		report.addError("managed_file_missing", item.Target, "managed workflow file is missing")
+		return
+	}
+	if err != nil {
+		report.addError("managed_file_unreadable", item.Target, err.Error())
+		return
+	}
+	expected := meta.Files[item.Target]
+	if expected == "" {
+		report.addWarning("managed_file_untracked", item.Target, "managed workflow file is not recorded in metadata")
+		return
+	}
+	if hashBytes(data) != expected {
+		report.addWarning("managed_file_modified", item.Target, "managed workflow file hash differs from metadata")
+	}
+}
+
+func validateTaskFiles(root string, report *validationReport) []Task {
+	var tasks []Task
+	for _, bucket := range []string{"active", "completed", "cancelled"} {
+		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			report.addError("task_dir_unreadable", relPath(root, dir), err.Error())
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
+			validateTaskFrontMatter(root, path, report)
+			task, err := parseTask(path, bucket)
+			if err != nil {
+				report.addError("task_malformed", relPath(root, path), err.Error())
+				continue
+			}
+			tasks = append(tasks, task)
+		}
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		return taskLess(tasks[i].ID, tasks[j].ID)
+	})
+	return tasks
+}
+
+func validateTaskFrontMatter(root string, path string, report *validationReport) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		report.addError("task_unreadable", relPath(root, path), err.Error())
+		return
+	}
+	meta, _ := parseFrontMatter(string(data))
+	required := []string{"id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on"}
+	for _, field := range required {
+		if strings.TrimSpace(meta[field]) == "" {
+			report.addError("task_missing_field", relPath(root, path), "task front matter is missing "+field)
+		}
+	}
+}
+
+func validateTaskDependencies(root string, tasks []Task, report *validationReport) {
+	byID := map[string]Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	for _, task := range tasks {
+		for _, dep := range task.DependsOn {
+			if _, ok := byID[dep]; !ok {
+				report.addError("task_dependency_missing", relPath(root, task.Path), fmt.Sprintf("task %s depends on missing task %s", task.ID, dep))
+			}
+		}
+	}
+	for _, cycle := range taskDependencyCycles(tasks) {
+		report.addError("task_dependency_cycle", "", "dependency cycle: "+strings.Join(cycle, " -> "))
+	}
+}
+
+func taskDependencyCycles(tasks []Task) [][]string {
+	byID := map[string]Task{}
+	for _, task := range tasks {
+		if task.Status != "Completed" && task.Status != "Cancelled" {
+			byID[task.ID] = task
+		}
+	}
+	var cycles [][]string
+	visiting := map[string]bool{}
+	visited := map[string]bool{}
+	var dfs func(string, []string)
+	dfs = func(id string, path []string) {
+		if visiting[id] {
+			start := 0
+			for i, item := range path {
+				if item == id {
+					start = i
+					break
+				}
+			}
+			cycles = append(cycles, append(path[start:], id))
+			return
+		}
+		if visited[id] {
+			return
+		}
+		task, ok := byID[id]
+		if !ok {
+			return
+		}
+		visiting[id] = true
+		for _, dep := range task.DependsOn {
+			dfs(dep, append(path, id))
+		}
+		visiting[id] = false
+		visited[id] = true
+	}
+	for id := range byID {
+		dfs(id, nil)
+	}
+	return cycles
+}
+
+func (r *validationReport) addError(code string, path string, message string) {
+	r.Errors = append(r.Errors, validationFinding{Code: code, Path: path, Message: message})
+}
+
+func (r *validationReport) addWarning(code string, path string, message string) {
+	r.Warnings = append(r.Warnings, validationFinding{Code: code, Path: path, Message: message})
+}
+
+func relPath(root string, path string) string {
+	if root == "" || !filepath.IsAbs(path) {
+		return filepath.ToSlash(path)
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return filepath.ToSlash(path)
+	}
+	return filepath.ToSlash(rel)
 }
 
 func (a app) emit(value any) error {

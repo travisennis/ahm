@@ -112,6 +112,72 @@ func TestParseTaskRejectsUnsupportedEnums(t *testing.T) {
 	}
 }
 
+func TestStatusReportsValidationFindings(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "AGENTS.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".agents", "TASKS.md"), []byte("locally changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Pending", "depends_on: 999\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle A", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle B", "Pending", "depends_on: 002\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.status(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		`"ok": false`,
+		`"code": "managed_file_missing"`,
+		`"path": "AGENTS.md"`,
+		`"code": "managed_file_modified"`,
+		`"path": ".agents/TASKS.md"`,
+		`"code": "task_dependency_missing"`,
+		`task 001 depends on missing task 999`,
+		`"code": "task_dependency_cycle"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("status output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: []\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		`"workflow_installed": true`,
+		`"ok": false`,
+		`"code": "task_malformed"`,
+		`unsupported task status \"Doing\"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
