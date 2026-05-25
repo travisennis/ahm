@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,6 +176,37 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
+	root := t.TempDir()
+	var out strings.Builder
+	a := app{opts: options{root: root, dryRun: true}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	got := out.String()
+	for _, want := range []string{
+		"created:",
+		"  AGENTS.md",
+		"directories:",
+		"  .agents/.tasks/active",
+		"metadata:",
+		"  .agents/ahm.json",
+		"indexes:",
+		"  .agents/.tasks/active/index.md",
+		"  .agents/.tasks/cancelled/index.md",
+		"  .agents/.tasks/completed/index.md",
+		"  .agents/.tasks/index.md",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry-run wrote .agents directory, err = %v", err)
 	}
 }
 

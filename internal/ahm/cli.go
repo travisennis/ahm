@@ -238,13 +238,24 @@ func (a app) install(upgrade bool) error {
 			result["conflicts"] = append(result["conflicts"], item.Target)
 		}
 	}
-	if err := a.ensureWorkflowDirs(); err != nil {
+	dirs, err := a.ensureWorkflowDirs()
+	if err != nil {
 		return err
+	}
+	if a.opts.dryRun {
+		result["directories"] = dirs
 	}
 	if len(result["conflicts"]) == 0 {
 		meta.Version = templates.Version
 	}
-	if !a.opts.dryRun {
+	if a.opts.dryRun {
+		result["metadata"] = []string{".agents/ahm.json"}
+		indexes, err := a.indexWriteTargets()
+		if err != nil {
+			return err
+		}
+		result["indexes"] = indexes
+	} else {
 		if err := writeMetadata(root, meta); err != nil {
 			return err
 		}
@@ -255,7 +266,7 @@ func (a app) install(upgrade bool) error {
 	return a.emit(result)
 }
 
-func (a app) ensureWorkflowDirs() error {
+func (a app) ensureWorkflowDirs() ([]string, error) {
 	dirs := []string{
 		".agents/.tasks/active",
 		".agents/.tasks/completed",
@@ -270,15 +281,26 @@ func (a app) ensureWorkflowDirs() error {
 		".agents/skills/deslop",
 		"docs/adr",
 	}
+	var created []string
 	for _, dir := range dirs {
+		path := filepath.Join(a.opts.root, dir)
 		if a.opts.dryRun {
+			stat, err := os.Stat(path)
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				created = append(created, dir)
+			case err != nil:
+				return nil, err
+			case !stat.IsDir():
+				return nil, fmt.Errorf("%s exists and is not a directory", path)
+			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Join(a.opts.root, dir), 0o755); err != nil {
-			return err
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return created, nil
 }
 
 func readMetadata(root string) (metadata, error) {
@@ -526,7 +548,7 @@ func (a app) emit(value any) error {
 		return err
 	}
 	if m, ok := value.(map[string][]string); ok {
-		for _, key := range []string{"created", "updated", "skipped", "conflicts"} {
+		for _, key := range []string{"created", "updated", "skipped", "conflicts", "directories", "metadata", "indexes"} {
 			items := m[key]
 			if len(items) == 0 {
 				continue
@@ -1299,29 +1321,59 @@ func (a app) taskDepCycles() error {
 }
 
 func (a app) writeIndexes() error {
-	tasks, err := collectTasks(a.opts.root)
+	writes, err := a.indexWrites()
 	if err != nil {
 		return err
 	}
-	writes := map[string]string{
-		filepath.Join(a.opts.root, ".agents", ".tasks", "index.md"):              renderRootIndex(tasks),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "active", "index.md"):    renderBucketIndex(tasks, "active"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "completed", "index.md"): renderBucketIndex(tasks, "completed"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "cancelled", "index.md"): renderBucketIndex(tasks, "cancelled"),
-	}
-	for path, content := range writes {
+	paths := sortedKeys(writes)
+	for _, path := range paths {
 		if a.opts.dryRun {
-			fmt.Fprintln(a.out, path)
+			fmt.Fprintln(a.out, relPath(a.opts.root, path))
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(writes[path]), 0o644); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a app) indexWriteTargets() ([]string, error) {
+	writes, err := a.indexWrites()
+	if err != nil {
+		return nil, err
+	}
+	paths := sortedKeys(writes)
+	targets := make([]string, 0, len(paths))
+	for _, path := range paths {
+		targets = append(targets, relPath(a.opts.root, path))
+	}
+	return targets, nil
+}
+
+func (a app) indexWrites() (map[string]string, error) {
+	tasks, err := collectTasks(a.opts.root)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{
+		filepath.Join(a.opts.root, ".agents", ".tasks", "index.md"):              renderRootIndex(tasks),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "active", "index.md"):    renderBucketIndex(tasks, "active"),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "completed", "index.md"): renderBucketIndex(tasks, "completed"),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "cancelled", "index.md"): renderBucketIndex(tasks, "cancelled"),
+	}, nil
+}
+
+func sortedKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func renderRootIndex(tasks []Task) string {
