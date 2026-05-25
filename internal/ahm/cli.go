@@ -241,7 +241,9 @@ func (a app) install(upgrade bool) error {
 	if err := a.ensureWorkflowDirs(); err != nil {
 		return err
 	}
-	meta.Version = templates.Version
+	if len(result["conflicts"]) == 0 {
+		meta.Version = templates.Version
+	}
 	if !a.opts.dryRun {
 		if err := writeMetadata(root, meta); err != nil {
 			return err
