@@ -112,6 +112,71 @@ func TestParseTaskRejectsUnsupportedEnums(t *testing.T) {
 	}
 }
 
+func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Preserve Metadata", "Pending", "depends_on: []\n"+
+		"created: 2026-05-01\n"+
+		"updated: 2026-05-02\n"+
+		"parent: 000\n"+
+		"external_ref: gh-123\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"created: 2026-05-01",
+		"updated: 2026-05-02",
+		"parent: 000",
+		"external_ref: gh-123",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: []\n"+
+		"created: 2026-05-01\n"+
+		"updated: 2026-05-02\n"+
+		"parent: 000\n"+
+		"external_ref: gh-123\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"depends_on: 002",
+		"created: 2026-05-01",
+		"updated: 2026-05-02",
+		"parent: 000",
+		"external_ref: gh-123",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+		}
+	}
+}
+
 func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	tasks := []Task{
 		{ID: "001", Status: "Completed", Priority: "P1"},
@@ -138,5 +203,27 @@ func TestRenderRootIndex(t *testing.T) {
 	}
 	if !strings.Contains(index, "[002](active/002.md) - Ready") {
 		t.Fatalf("missing ready task:\n%s", index)
+	}
+}
+
+func writeTaskFile(t *testing.T, path string, id string, title string, status string, extraFrontMatter string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\n" +
+		"id: " + id + "\n" +
+		"title: " + title + "\n" +
+		"status: " + status + "\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:task\n" +
+		"exec_plan: -\n" +
+		extraFrontMatter +
+		"---\n" +
+		"# " + title + "\n\n" +
+		"## Summary\n\nTODO.\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -374,17 +374,21 @@ func (a app) emit(value any) error {
 }
 
 type Task struct {
-	ID        string
-	Title     string
-	Status    string
-	Priority  string
-	Effort    string
-	Labels    string
-	ExecPlan  string
-	DependsOn []string
-	Path      string
-	Bucket    string
-	Body      string
+	ID          string
+	Title       string
+	Status      string
+	Priority    string
+	Effort      string
+	Labels      string
+	ExecPlan    string
+	DependsOn   []string
+	Created     string
+	Updated     string
+	Parent      string
+	ExternalRef string
+	Path        string
+	Bucket      string
+	Body        string
 }
 
 func collectTasks(root string) ([]Task, error) {
@@ -432,17 +436,21 @@ func parseTask(path string, bucket string) (Task, error) {
 	}
 	body = stripHeading(body, title)
 	task := Task{
-		ID:        id,
-		Title:     title,
-		Status:    defaultString(meta["status"], "-"),
-		Priority:  defaultString(meta["priority"], "-"),
-		Effort:    defaultString(meta["effort"], "-"),
-		Labels:    defaultString(meta["labels"], "-"),
-		ExecPlan:  defaultString(meta["exec_plan"], "-"),
-		DependsOn: parseList(meta["depends_on"]),
-		Path:      path,
-		Bucket:    bucket,
-		Body:      body,
+		ID:          id,
+		Title:       title,
+		Status:      defaultString(meta["status"], "-"),
+		Priority:    defaultString(meta["priority"], "-"),
+		Effort:      defaultString(meta["effort"], "-"),
+		Labels:      defaultString(meta["labels"], "-"),
+		ExecPlan:    defaultString(meta["exec_plan"], "-"),
+		DependsOn:   parseList(meta["depends_on"]),
+		Created:     meta["created"],
+		Updated:     meta["updated"],
+		Parent:      meta["parent"],
+		ExternalRef: meta["external_ref"],
+		Path:        path,
+		Bucket:      bucket,
+		Body:        body,
 	}
 	if err := validateTaskEnums(task, path); err != nil {
 		return Task{}, err
@@ -717,6 +725,18 @@ func renderTask(task Task) string {
 	fmt.Fprintf(&b, "labels: %s\n", task.Labels)
 	fmt.Fprintf(&b, "exec_plan: %s\n", defaultString(task.ExecPlan, "-"))
 	fmt.Fprintf(&b, "depends_on: %s\n", formatList(task.DependsOn))
+	if task.Created != "" {
+		fmt.Fprintf(&b, "created: %s\n", task.Created)
+	}
+	if task.Updated != "" {
+		fmt.Fprintf(&b, "updated: %s\n", task.Updated)
+	}
+	if task.Parent != "" {
+		fmt.Fprintf(&b, "parent: %s\n", task.Parent)
+	}
+	if task.ExternalRef != "" {
+		fmt.Fprintf(&b, "external_ref: %s\n", task.ExternalRef)
+	}
 	fmt.Fprintln(&b, "---")
 	fmt.Fprintf(&b, "# %s\n\n", task.Title)
 	body := strings.TrimSpace(task.Body)
