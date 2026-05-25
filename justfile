@@ -2,6 +2,9 @@ golangci_lint_version := "v2.12.2"
 goreleaser_version := "v2.16.0"
 govulncheck_version := "v1.3.0"
 
+install:
+	go install -trimpath ./cmd/ahm
+
 build:
 	mkdir -p bin
 	go build -trimpath -o bin/ahm ./cmd/ahm
