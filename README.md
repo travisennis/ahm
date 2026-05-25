@@ -41,11 +41,30 @@ states otherwise.
 
 ## Development
 
-This machine did not have `go` on PATH when the project was bootstrapped. After
-installing Go 1.22 or newer, run:
+Install Go 1.22 or newer plus the local verification tools:
 
 ```bash
-go test ./...
-go vet ./...
-gofmt -w .
+just install-tools
 ```
+
+Use `just ci` for the read-only check suite that CI runs:
+
+```bash
+just ci
+```
+
+Use `just fix` for the mutating cleanup pass:
+
+```bash
+just fix
+```
+
+This repository uses `prek` with a pre-commit-compatible config:
+
+```bash
+prek install
+prek install --hook-type commit-msg
+```
+
+Commit messages and pull request titles must follow Conventional Commits, for
+example `feat: add release workflow` or `fix: handle missing task metadata`.

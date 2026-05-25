@@ -34,6 +34,7 @@ type app struct {
 	err  io.Writer
 }
 
+// Main runs the CLI and returns a process exit code.
 func Main(argv []string, stdout io.Writer, stderr io.Writer) int {
 	a := app{out: stdout, err: stderr}
 	if err := a.run(argv); err != nil {
@@ -373,6 +374,7 @@ func (a app) emit(value any) error {
 	return err
 }
 
+// Task is the parsed representation of a workflow task file.
 type Task struct {
 	ID          string
 	Title       string
@@ -438,11 +440,11 @@ func parseTask(path string, bucket string) (Task, error) {
 	task := Task{
 		ID:          id,
 		Title:       title,
-		Status:      defaultString(meta["status"], "-"),
-		Priority:    defaultString(meta["priority"], "-"),
-		Effort:      defaultString(meta["effort"], "-"),
-		Labels:      defaultString(meta["labels"], "-"),
-		ExecPlan:    defaultString(meta["exec_plan"], "-"),
+		Status:      defaultDash(meta["status"]),
+		Priority:    defaultDash(meta["priority"]),
+		Effort:      defaultDash(meta["effort"]),
+		Labels:      defaultDash(meta["labels"]),
+		ExecPlan:    defaultDash(meta["exec_plan"]),
 		DependsOn:   parseList(meta["depends_on"]),
 		Created:     meta["created"],
 		Updated:     meta["updated"],
@@ -526,9 +528,9 @@ func formatList(items []string) string {
 	return strings.Join(items, ", ")
 }
 
-func defaultString(value string, fallback string) string {
+func defaultDash(value string) string {
 	if value == "" {
-		return fallback
+		return "-"
 	}
 	return value
 }
@@ -660,35 +662,40 @@ func parseTaskCreateArgs(argv []string) (taskCreateArgs, error) {
 		arg := argv[i]
 		switch arg {
 		case "--priority", "-p":
-			i++
-			if i >= len(argv) {
-				return parsed, usageError(arg + " requires a value")
+			value, next, err := argValue(argv, i, arg)
+			if err != nil {
+				return parsed, err
 			}
-			parsed.priority = argv[i]
+			parsed.priority = value
+			i = next
 		case "--effort":
-			i++
-			if i >= len(argv) {
-				return parsed, usageError(arg + " requires a value")
+			value, next, err := argValue(argv, i, arg)
+			if err != nil {
+				return parsed, err
 			}
-			parsed.effort = argv[i]
+			parsed.effort = value
+			i = next
 		case "--labels":
-			i++
-			if i >= len(argv) {
-				return parsed, usageError(arg + " requires a value")
+			value, next, err := argValue(argv, i, arg)
+			if err != nil {
+				return parsed, err
 			}
-			parsed.labels = argv[i]
+			parsed.labels = value
+			i = next
 		case "--status":
-			i++
-			if i >= len(argv) {
-				return parsed, usageError(arg + " requires a value")
+			value, next, err := argValue(argv, i, arg)
+			if err != nil {
+				return parsed, err
 			}
-			parsed.status = argv[i]
+			parsed.status = value
+			i = next
 		case "--description", "-d":
-			i++
-			if i >= len(argv) {
-				return parsed, usageError(arg + " requires a value")
+			value, next, err := argValue(argv, i, arg)
+			if err != nil {
+				return parsed, err
 			}
-			parsed.description = argv[i]
+			parsed.description = value
+			i = next
 		default:
 			if strings.HasPrefix(arg, "-") {
 				return parsed, usageError("unknown task create flag: " + arg)
@@ -701,6 +708,14 @@ func parseTaskCreateArgs(argv []string) (taskCreateArgs, error) {
 		return parsed, err
 	}
 	return parsed, nil
+}
+
+func argValue(argv []string, i int, flag string) (string, int, error) {
+	next := i + 1
+	if next >= len(argv) {
+		return "", i, usageError(flag + " requires a value")
+	}
+	return argv[next], next, nil
 }
 
 func nextTaskID(tasks []Task) string {
@@ -723,7 +738,7 @@ func renderTask(task Task) string {
 	fmt.Fprintf(&b, "priority: %s\n", task.Priority)
 	fmt.Fprintf(&b, "effort: %s\n", task.Effort)
 	fmt.Fprintf(&b, "labels: %s\n", task.Labels)
-	fmt.Fprintf(&b, "exec_plan: %s\n", defaultString(task.ExecPlan, "-"))
+	fmt.Fprintf(&b, "exec_plan: %s\n", defaultDash(task.ExecPlan))
 	fmt.Fprintf(&b, "depends_on: %s\n", formatList(task.DependsOn))
 	if task.Created != "" {
 		fmt.Fprintf(&b, "created: %s\n", task.Created)

@@ -1,0 +1,64 @@
+version: 2
+
+project_name: ahm
+
+before:
+  hooks:
+    - go mod tidy -diff
+
+builds:
+  - id: ahm
+    main: ./cmd/ahm
+    binary: ahm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/travisennis/ahm/internal/templates.Version={{ .Version }}
+
+archives:
+  - id: ahm
+    ids:
+      - ahm
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: travisennis
+    name: ahm
