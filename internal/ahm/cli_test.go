@@ -2,10 +2,13 @@ package ahm
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/travisennis/ahm/internal/templates"
 )
 
 func TestParseFrontMatter(t *testing.T) {
@@ -210,6 +213,117 @@ func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
 	}
 }
 
+func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"created:",
+		"  AGENTS.md",
+		"  .agents/TASKS.md",
+		"  .agents/skills/deslop/SKILL.md",
+		"  docs/adr/README.md",
+	)
+
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"),
+		`"version": "`+templates.Version+`"`,
+		`"AGENTS.md":`,
+		`".agents/TASKS.md":`,
+	)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "index.md"),
+		"# Task Index",
+		"- Pending: 0",
+		"## Next Ready Queue",
+		"None.",
+	)
+}
+
+func TestUpgradeDecisions(t *testing.T) {
+	root := t.TempDir()
+	meta := metadata{
+		Version: "0.0.1",
+		Files: map[string]string{
+			"AGENTS.md":                      hashBytes([]byte("old managed agents\n")),
+			".agents/TASKS.md":               hashBytes([]byte("old managed tasks\n")),
+			".agents/PLANS.md":               hashBytes(templateBytes(t, "workflow/PLANS.md")),
+			".agents/RESEARCH.md":            hashBytes([]byte("locally changed research\n")),
+			".agents/.tasks/README.md":       hashBytes([]byte("old managed tasks readme\n")),
+			".agents/.research/README.md":    hashBytes([]byte("old managed research readme\n")),
+			".agents/.research/index.md":     hashBytes([]byte("old managed research index\n")),
+			"docs/adr/README.md":             hashBytes([]byte("old managed adr\n")),
+			".agents/skills/deslop/SKILL.md": hashBytes([]byte("old managed skill\n")),
+		},
+	}
+	for target := range meta.Files {
+		content := "old managed\n"
+		switch target {
+		case "AGENTS.md":
+			content = "old managed agents\n"
+		case ".agents/TASKS.md":
+			content = "old managed tasks\n"
+		case ".agents/PLANS.md":
+			content = string(templateBytes(t, "workflow/PLANS.md"))
+		case ".agents/RESEARCH.md":
+			content = "local edit that should conflict\n"
+		case ".agents/.tasks/README.md":
+			content = "old managed tasks readme\n"
+		case ".agents/.research/README.md":
+			content = "old managed research readme\n"
+		case ".agents/.research/index.md":
+			content = "old managed research index\n"
+		case "docs/adr/README.md":
+			content = "old managed adr\n"
+		case ".agents/skills/deslop/SKILL.md":
+			content = "old managed skill\n"
+		}
+		writeFile(t, filepath.Join(root, target), content)
+	}
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(true); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"created:",
+		"  .agents/exec-plans/active/index.md",
+		"updated:",
+		"  AGENTS.md",
+		"skipped:",
+		"  .agents/PLANS.md",
+		"conflicts:",
+		"  .agents/RESEARCH.md",
+	)
+
+	after, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Version != "0.0.1" {
+		t.Fatalf("metadata version = %q, want old version while conflicts remain", after.Version)
+	}
+
+	var forceOut strings.Builder
+	forced := app{opts: options{root: root, force: true}, out: &forceOut}
+	if err := forced.install(true); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, forceOut.String(), "updated:", "  .agents/RESEARCH.md")
+	afterForce, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterForce.Version != templates.Version {
+		t.Fatalf("forced metadata version = %q, want %q", afterForce.Version, templates.Version)
+	}
+}
+
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
@@ -291,17 +405,266 @@ func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	}
 }
 
-func TestRenderRootIndex(t *testing.T) {
+func TestTaskDependencyTreeOutput(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepTree([]string{"001"}); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(),
+		"001 [Pending] Root",
+		"  002 [Pending] Middle",
+		"    003 [Pending] Leaf",
+		"      002 [Pending] Middle",
+		"      cycle to 002",
+		"  999 [missing]",
+	)
+}
+
+func TestTaskDependencyCycleDetection(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Status: "Pending", DependsOn: []string{"002"}},
+		{ID: "002", Status: "Pending", DependsOn: []string{"001"}},
+		{ID: "003", Status: "Completed", DependsOn: []string{"004"}},
+		{ID: "004", Status: "Pending", DependsOn: []string{"003"}},
+		{ID: "005", Status: "Cancelled", DependsOn: []string{"006"}},
+		{ID: "006", Status: "Pending", DependsOn: []string{"005"}},
+	}
+	cycles := taskDependencyCycles(tasks)
+	if len(cycles) != 1 {
+		t.Fatalf("cycles = %#v", cycles)
+	}
+	if got := strings.Join(cycles[0], " -> "); got != "001 -> 002 -> 001" && got != "002 -> 001 -> 002" {
+		t.Fatalf("cycle = %q", got)
+	}
+}
+
+func TestTaskDepCyclesCommand(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "003.md"), "003", "Completed Cycle", "Completed", "depends_on: 004\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Ignored Active", "Pending", "depends_on: 003\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepCycles(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "001 -> 002 -> 001") && !strings.Contains(got, "002 -> 001 -> 002") {
+		t.Fatalf("cycle output = %q", got)
+	}
+	if strings.Contains(got, "003") || strings.Contains(got, "004") {
+		t.Fatalf("completed-task cycle should be ignored:\n%s", got)
+	}
+}
+
+func TestRenderRootIndexGolden(t *testing.T) {
 	index := renderRootIndex([]Task{
-		{ID: "001", Title: "Done", Status: "Completed", Priority: "P1", Effort: "S", Labels: "type:task", Bucket: "completed"},
-		{ID: "002", Title: "Ready", Status: "Pending", Priority: "P0", Effort: "S", Labels: "type:task", Bucket: "active", DependsOn: []string{"001"}},
+		{ID: "001", Title: "Done", Status: "Completed", Priority: "P1", Effort: "S", Labels: "type:task", ExecPlan: "plan-1", Bucket: "completed"},
+		{ID: "002", Title: "Ready | Escape", Status: "Pending", Priority: "P0", Effort: "S", Labels: "type:task", ExecPlan: "-", Bucket: "active", DependsOn: []string{"001"}},
+		{ID: "003", Title: "Blocked", Status: "Pending", Priority: "P2", Effort: "M", Labels: "type:task", ExecPlan: "-", Bucket: "active", DependsOn: []string{"004"}},
+		{ID: "004", Title: "Open Needs Triage", Status: "Open", Priority: "P3", Effort: "L", Labels: "type:task", ExecPlan: "-", Bucket: "active"},
 	})
-	if !strings.Contains(index, "## Next Ready Queue") {
-		t.Fatalf("missing ready queue:\n%s", index)
+	assertContainsAll(t, index,
+		"# Task Index",
+		"- Open: 1",
+		"- Pending: 2",
+		"- Completed: 1",
+		"1. [002](active/002.md) - Ready | Escape (P0, S; type:task)",
+		"| [003](active/003.md) | Blocked | Pending | P2 | M | type:task | - | 004 |",
+		"| [004](active/004.md) | Open Needs Triage | Open | P3 | L | type:task | - | - |",
+		"| [002](active/002.md) | Ready \\| Escape | Pending | P0 | S | type:task | - | 001 |",
+		"| [001](completed/001.md) | Done | Completed | P1 | S | type:task | plan-1 | - |",
+	)
+}
+
+func TestRenderBucketIndexGolden(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Title: "Active", Status: "Pending", Priority: "P1", Effort: "S", Labels: "type:task", ExecPlan: "-", Bucket: "active"},
+		{ID: "002", Title: "Done", Status: "Completed", Priority: "P2", Effort: "M", Labels: "type:task", ExecPlan: "plan-2", Bucket: "completed"},
 	}
-	if !strings.Contains(index, "[002](active/002.md) - Ready") {
-		t.Fatalf("missing ready task:\n%s", index)
+
+	assertContainsAll(t, renderBucketIndex(tasks, "active"),
+		"# Active Tasks",
+		"| [001](001.md) | Active | Pending | P1 | S | type:task | - | - |",
+	)
+	assertContainsAll(t, renderBucketIndex(tasks, "completed"),
+		"# Completed Tasks",
+		"| [002](002.md) | Done | Completed | P2 | M | type:task | plan-2 | - |",
+	)
+	assertContainsAll(t, renderBucketIndex(tasks, "cancelled"),
+		"# Cancelled Tasks",
+		"None.",
+	)
+}
+
+func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "First Task", "--priority", "P1", "--effort", "M", "--description", "First body")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second Task")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "add", "002", "001")
+	if code != 0 {
+		t.Fatalf("dep add exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 depends_on: 001")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: 001")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "blocked")
+	if code != 0 {
+		t.Fatalf("blocked exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 [Pending]")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "start", "001")
+	if code != 0 {
+		t.Fatalf("start exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> In Progress")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("complete exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "ready")
+	if code != 0 {
+		t.Fatalf("ready exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 [Pending]")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "reopen", "001")
+	if code != 0 {
+		t.Fatalf("reopen exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "tree", "002")
+	if code != 0 {
+		t.Fatalf("dep tree exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 [Pending] Second Task", "  001 [Pending] First Task")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "remove", "002", "001")
+	if code != 0 {
+		t.Fatalf("dep remove exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 depends_on: -")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: -")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "002")
+	if code != 0 {
+		t.Fatalf("cancel exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 -> Cancelled")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled")
+}
+
+func TestMainUpgradeIntegration(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
+	if code != 0 {
+		t.Fatalf("upgrade exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"skipped:",
+		"  AGENTS.md",
+		"  .agents/TASKS.md",
+	)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"version": "`+templates.Version+`"`)
+}
+
+func TestMainDependencyCyclesIntegration(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "cycles")
+	if code != 0 {
+		t.Fatalf("cycles exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "001 -> 002 -> 001") && !strings.Contains(stdout, "002 -> 001 -> 002") {
+		t.Fatalf("cycles stdout = %q", stdout)
+	}
+}
+
+func runCLI(t *testing.T, args ...string) (string, string, int) {
+	t.Helper()
+	var stdout strings.Builder
+	var stderr strings.Builder
+	code := Main(args, &stdout, &stderr)
+	return stdout.String(), stderr.String(), code
+}
+
+func assertContainsAll(t *testing.T, got string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func assertFileContainsAll(t *testing.T, path string, wants ...string) {
+	t.Helper()
+	assertContainsAll(t, mustRead(t, path), wants...)
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func writeFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func templateBytes(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := fs.ReadFile(templates.FS, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 func writeTaskFile(t *testing.T, path string, id string, title string, status string, extraFrontMatter string) {
