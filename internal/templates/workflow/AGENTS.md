@@ -10,8 +10,8 @@ Before creating, updating, organizing, or using research, read
 For large work, read `.agents/PLANS.md`. Tasks marked `L` or `XL` require an
 ExecPlan before implementation.
 
-Do not edit generated indexes by hand. Update source task files and run
-`ahm index`.
+Do not edit generated indexes by hand. Update source task, research, or
+ExecPlan files and run `ahm index`.
 
 Use `ahm task complete <id>` and `ahm task cancel <id>` for task state
 transitions that move files between task buckets.

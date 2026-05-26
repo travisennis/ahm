@@ -118,9 +118,15 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(a.simpleCommand("upgrade", "Update managed workflow files", func() error {
 		return a.install(true)
 	}))
-	root.AddCommand(a.simpleCommand("status", "Show workflow health", a.status))
-	root.AddCommand(a.simpleCommand("doctor", "Show environment checks", a.doctor))
-	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", a.writeIndexes))
+	root.AddCommand(a.simpleCommand("status", "Show workflow health", func() error {
+		return a.status()
+	}))
+	root.AddCommand(a.simpleCommand("doctor", "Show environment checks", func() error {
+		return a.doctor()
+	}))
+	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", func() error {
+		return a.writeIndexes()
+	}))
 	root.AddCommand(a.taskCommand())
 	return root
 }
@@ -179,6 +185,9 @@ func (a app) install(upgrade bool) error {
 	meta, _ := readMetadata(root)
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
+	}
+	for _, target := range generatedIndexTargets() {
+		delete(meta.Files, target)
 	}
 	result := map[string][]string{
 		"created":   {},
@@ -1398,12 +1407,39 @@ func (a app) indexWrites() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	research, err := collectMarkdownDocs(a.opts.root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
+	if err != nil {
+		return nil, err
+	}
+	activePlans, err := collectMarkdownDocs(a.opts.root, ".agents/exec-plans/active", []string{""})
+	if err != nil {
+		return nil, err
+	}
+	completedPlans, err := collectMarkdownDocs(a.opts.root, ".agents/exec-plans/completed", []string{""})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{
-		filepath.Join(a.opts.root, ".agents", ".tasks", "index.md"):              renderRootIndex(tasks),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "active", "index.md"):    renderBucketIndex(tasks, "active"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "completed", "index.md"): renderBucketIndex(tasks, "completed"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "cancelled", "index.md"): renderBucketIndex(tasks, "cancelled"),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "index.md"):                  renderRootIndex(tasks),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "active", "index.md"):        renderBucketIndex(tasks, "active"),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "completed", "index.md"):     renderBucketIndex(tasks, "completed"),
+		filepath.Join(a.opts.root, ".agents", ".tasks", "cancelled", "index.md"):     renderBucketIndex(tasks, "cancelled"),
+		filepath.Join(a.opts.root, ".agents", ".research", "index.md"):               renderResearchIndex(research),
+		filepath.Join(a.opts.root, ".agents", "exec-plans", "active", "index.md"):    renderExecPlanIndex("Active ExecPlans", "No active ExecPlans yet.", activePlans),
+		filepath.Join(a.opts.root, ".agents", "exec-plans", "completed", "index.md"): renderExecPlanIndex("Completed ExecPlans", "No completed ExecPlans yet.", completedPlans),
 	}, nil
+}
+
+func generatedIndexTargets() []string {
+	return []string{
+		".agents/.tasks/index.md",
+		".agents/.tasks/active/index.md",
+		".agents/.tasks/completed/index.md",
+		".agents/.tasks/cancelled/index.md",
+		".agents/.research/index.md",
+		".agents/exec-plans/active/index.md",
+		".agents/exec-plans/completed/index.md",
+	}
 }
 
 func sortedKeys(values map[string]string) []string {
@@ -1457,6 +1493,101 @@ func renderRootIndex(tasks []Task) string {
 	fmt.Fprintln(&b)
 	writeTaskTable(&b, tasks, ".")
 	return b.String()
+}
+
+type markdownDoc struct {
+	Link  string
+	Title string
+}
+
+func collectMarkdownDocs(root string, base string, buckets []string) (map[string][]markdownDoc, error) {
+	docs := map[string][]markdownDoc{}
+	for _, bucket := range buckets {
+		docs[bucket] = nil
+		dir := filepath.Join(root, base, bucket)
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
+			title, err := markdownTitle(path)
+			if err != nil {
+				return nil, err
+			}
+			link := entry.Name()
+			if bucket != "" {
+				link = filepath.ToSlash(filepath.Join(bucket, entry.Name()))
+			}
+			docs[bucket] = append(docs[bucket], markdownDoc{Link: link, Title: title})
+		}
+		sort.Slice(docs[bucket], func(i, j int) bool {
+			return docs[bucket][i].Link < docs[bucket][j].Link
+		})
+	}
+	return docs, nil
+}
+
+func markdownTitle(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if title, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
+			title = strings.TrimSpace(title)
+			if title != "" {
+				return title, nil
+			}
+		}
+	}
+	name := filepath.Base(path)
+	return strings.TrimSuffix(name, filepath.Ext(name)), nil
+}
+
+func renderResearchIndex(docs map[string][]markdownDoc) string {
+	var b strings.Builder
+	fmt.Fprintln(&b, "# Research Index")
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "This file is generated by `ahm index`. Do not edit it by hand.")
+	fmt.Fprintln(&b)
+	writeDocSection(&b, "Inbox", "No inbox research documents yet.", docs["inbox"])
+	writeDocSection(&b, "Investigations", "No investigation documents yet.", docs["investigations"])
+	writeDocSection(&b, "Sources", "No source notes yet.", docs["sources"])
+	writeDocSection(&b, "Topics", "No topic documents yet.", docs["topics"])
+	writeDocSection(&b, "Archived", "No archived research documents yet.", docs["archived"])
+	return b.String()
+}
+
+func renderExecPlanIndex(title string, empty string, docs map[string][]markdownDoc) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n", title)
+	fmt.Fprintln(&b, "This file is generated by `ahm index`. Do not edit it by hand.")
+	fmt.Fprintln(&b)
+	writeDocList(&b, empty, docs[""])
+	return b.String()
+}
+
+func writeDocSection(b *strings.Builder, title string, empty string, docs []markdownDoc) {
+	fmt.Fprintf(b, "## %s\n\n", title)
+	writeDocList(b, empty, docs)
+	fmt.Fprintln(b)
+}
+
+func writeDocList(b *strings.Builder, empty string, docs []markdownDoc) {
+	if len(docs) == 0 {
+		fmt.Fprintln(b, empty)
+		return
+	}
+	for _, doc := range docs {
+		fmt.Fprintf(b, "- [%s](%s)\n", escapeCell(doc.Title), doc.Link)
+	}
 }
 
 func renderBucketIndex(tasks []Task, bucket string) string {

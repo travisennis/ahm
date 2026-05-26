@@ -106,15 +106,16 @@ ahm version
 Installs the managed `.agents` workflow into the target root.
 
 `init` creates missing managed workflow files, workflow directories, metadata,
-and generated task indexes. Existing managed files are skipped unless `--force`
-is used. `AGENTS.md` is create-only: it is created when missing, but an existing
+and generated indexes. Existing managed files are skipped unless `--force` is
+used. `AGENTS.md` is create-only: it is created when missing, but an existing
 `AGENTS.md` is always skipped, even with `--force`.
 
 Writes:
 
 - Managed templates listed by `internal/templates/templates.go`.
 - `.agents/ahm.json` metadata.
-- Task index files under `.agents/.tasks/`.
+- Generated index files under `.agents/.tasks/`, `.agents/.research/`, and
+  `.agents/exec-plans/`.
 - Workflow directories under `.agents/` and `docs/adr/`.
 
 Useful flags:
@@ -138,7 +139,7 @@ Updates managed workflow files from the embedded templates.
 `upgrade` compares `.agents/ahm.json` hashes with files in the target root.
 Files that still match their recorded managed hash are updated. Locally modified
 managed files are preserved and reported as conflicts. Missing managed files are
-created. Generated task indexes are regenerated.
+created. Generated indexes are regenerated.
 
 `AGENTS.md` remains create-only and is never overwritten.
 
@@ -212,7 +213,7 @@ ahm doctor
 
 ### `index`
 
-Regenerates generated task indexes.
+Regenerates generated task, research, and ExecPlan indexes.
 
 Writes:
 
@@ -220,9 +221,13 @@ Writes:
 - `.agents/.tasks/active/index.md`
 - `.agents/.tasks/completed/index.md`
 - `.agents/.tasks/cancelled/index.md`
+- `.agents/.research/index.md`
+- `.agents/exec-plans/active/index.md`
+- `.agents/exec-plans/completed/index.md`
 
 The root index includes status counts, the next ready queue, blocked/open tasks,
-and an all-task table. Bucket indexes include task tables for their bucket.
+and an all-task table. Bucket indexes include task tables for their bucket. The
+research and ExecPlan indexes link Markdown files from their source folders.
 
 Useful flags:
 

@@ -65,7 +65,8 @@ locally changed while preserving user edits.
 may create a starter `AGENTS.md` when it is missing, but `ahm` never overwrites
 an existing `AGENTS.md` or treats it as a locally modified managed file.
 
-Generated indexes are owned by `ahm` and should not be edited by hand.
+Generated task, research, and ExecPlan indexes are owned by `ahm` and should
+not be edited by hand.
 
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include
