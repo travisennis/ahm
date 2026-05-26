@@ -40,7 +40,7 @@ Global flags must appear before the command.
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. |
 | `--quiet` | Parsed and reserved for quieter output; no current command changes behavior based on it. |
 | `--verbose` | Parsed and reserved for verbose output; no current command changes behavior based on it. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the embedded workflow template version. |
@@ -66,6 +66,7 @@ Some task commands use command-specific text output:
 - `task create` prints the created task ID.
 - `task list`, `task ready`, and `task blocked` print one task per line.
 - `task show` prints the task Markdown file unless `--json` is used.
+- `task migrate --dry-run` prints grouped task migration changes.
 - Task status transitions print `<id> -> <status>`.
 - Dependency updates print `<id> depends_on: <dependencies>`.
 - Dependency tree and cycle commands print tree/path text.
@@ -375,6 +376,37 @@ Example:
 
 ```bash
 ahm task blocked
+```
+
+### `task migrate`
+
+Normalizes legacy task front matter for projects that used an ahm-like workflow
+before adopting the current ahm schema.
+
+The migration is intentionally mechanical. It can:
+
+- Add missing `labels` as `type:task, area:unknown`.
+- Convert placeholder `priority: -` to `priority: P3`.
+- Convert placeholder `effort: -` to `effort: M`.
+- Trim annotated effort values such as `XL (split into subtasks)` to `XL`.
+- Trim annotated dependency entries that start with task IDs, such as
+  `050 (Backend abstraction), 051 (Tool abstraction)`, to `050, 051`.
+- Convert legacy dependency notes such as `Follows 061` or `Completed by 061`
+  to their referenced task IDs.
+
+Source-only dependency notes such as `From code review...`, `Resolved in same
+PR...`, `Research: ...`, and `Closed as obsolete...` are cleared to `-`.
+
+Useful global flags:
+
+- `--dry-run`: prints the task files and field changes without writing.
+- `--json` or `--plain`: emits the migration report in machine-readable form.
+
+Example:
+
+```bash
+ahm --dry-run task migrate
+ahm task migrate
 ```
 
 ### `task show <id>`
