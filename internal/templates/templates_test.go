@@ -47,3 +47,27 @@ func TestManagedFilesIncludeADRTemplate(t *testing.T) {
 	}
 	t.Fatal("docs/adr/README.md is not managed")
 }
+
+func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/deslop-SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := string(data)
+	for _, term := range []string{
+		"Rust-level",
+		"anyhow",
+		"thiserror",
+		"serde_json",
+		"Tokio",
+		"OpenAI-compatible",
+		"cargo fmt",
+		"cargo clippy",
+		"clippy-strict",
+	} {
+		if strings.Contains(body, term) {
+			t.Fatalf("deslop template should be project-generic, but contains %q", term)
+		}
+	}
+}
