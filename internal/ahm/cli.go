@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/travisennis/ahm/internal/templates"
 )
 
@@ -39,7 +40,7 @@ func Main(argv []string, stdout io.Writer, stderr io.Writer) int {
 	a := app{out: stdout, err: stderr}
 	if err := a.run(argv); err != nil {
 		var usage usageError
-		if errors.As(err, &usage) {
+		if errors.As(err, &usage) || isCobraUsageError(err) {
 			fmt.Fprintln(stderr, err)
 			return 2
 		}
@@ -55,112 +56,99 @@ func (e usageError) Error() string {
 	return string(e)
 }
 
+func isCobraUsageError(err error) bool {
+	message := err.Error()
+	return strings.HasPrefix(message, "unknown command ") ||
+		strings.HasPrefix(message, "unknown shorthand flag:") ||
+		strings.HasPrefix(message, "unknown flag:") ||
+		strings.Contains(message, "requires at least ") ||
+		strings.Contains(message, "accepts ") ||
+		strings.Contains(message, "requires ")
+}
+
 func (a *app) run(argv []string) error {
-	opts, command, rest, err := parseGlobal(argv)
+	cmd := a.command()
+	cmd.SetArgs(argv)
+	return cmd.Execute()
+}
+
+func (a *app) command() *cobra.Command {
+	root := &cobra.Command{
+		Use:           "ahm",
+		Short:         "Manage repo-local .agents workflows",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Version:       templates.Version,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 0 {
+				return usageError("unknown command: " + args[0])
+			}
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.status()
+		},
+	}
+	root.SetOut(a.out)
+	root.SetErr(a.err)
+	root.SetVersionTemplate("{{.Version}}\n")
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return usageError(err.Error())
+	})
+	root.PersistentFlags().StringVar(&a.opts.root, "root", "", "Target repository root")
+	root.PersistentFlags().BoolVar(&a.opts.json, "json", false, "Print JSON")
+	root.PersistentFlags().BoolVar(&a.opts.plain, "plain", false, "Print stable plain output")
+	root.PersistentFlags().BoolVar(&a.opts.quiet, "quiet", false, "Suppress nonessential output")
+	root.PersistentFlags().BoolVar(&a.opts.verbose, "verbose", false, "Print verbose output")
+	root.PersistentFlags().BoolVar(&a.opts.dryRun, "dry-run", false, "Preview supported writes")
+	root.PersistentFlags().BoolVar(&a.opts.force, "force", false, "Force supported overwrites")
+
+	root.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print version",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(a.out, templates.Version)
+			return nil
+		},
+	})
+	root.AddCommand(a.simpleCommand("init", "Install workflow files", func() error {
+		return a.install(false)
+	}))
+	root.AddCommand(a.simpleCommand("upgrade", "Update managed workflow files", func() error {
+		return a.install(true)
+	}))
+	root.AddCommand(a.simpleCommand("status", "Show workflow health", a.status))
+	root.AddCommand(a.simpleCommand("doctor", "Show environment checks", a.doctor))
+	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", a.writeIndexes))
+	root.AddCommand(a.taskCommand())
+	return root
+}
+
+func (a *app) simpleCommand(use string, short string, run func() error) *cobra.Command {
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return run()
+		},
+	}
+}
+
+func (a *app) detectRoot() error {
+	if a.opts.root != "" {
+		return nil
+	}
+	root, err := detectRoot()
 	if err != nil {
 		return err
 	}
-	a.opts = opts
-	if command == "" {
-		command = "status"
-	}
-	if opts.root == "" {
-		opts.root, err = detectRoot()
-		if err != nil {
-			return err
-		}
-		a.opts.root = opts.root
-	}
-	switch command {
-	case "help", "--help", "-h":
-		a.printHelp()
-	case "version", "--version":
-		fmt.Fprintln(a.out, templates.Version)
-	case "init":
-		return a.install(false)
-	case "upgrade":
-		return a.install(true)
-	case "status":
-		return a.status()
-	case "doctor":
-		return a.doctor()
-	case "index":
-		return a.writeIndexes()
-	case "task":
-		return a.task(rest)
-	default:
-		return usageError("unknown command: " + command)
-	}
+	a.opts.root = root
 	return nil
-}
-
-func parseGlobal(argv []string) (options, string, []string, error) {
-	var opts options
-	for i := 0; i < len(argv); i++ {
-		arg := argv[i]
-		if !strings.HasPrefix(arg, "-") {
-			return opts, arg, argv[i+1:], nil
-		}
-		switch arg {
-		case "--root":
-			i++
-			if i >= len(argv) {
-				return opts, "", nil, usageError("--root requires a value")
-			}
-			opts.root = argv[i]
-		case "--json":
-			opts.json = true
-		case "--plain":
-			opts.plain = true
-		case "--quiet":
-			opts.quiet = true
-		case "--verbose":
-			opts.verbose = true
-		case "--dry-run":
-			opts.dryRun = true
-		case "--force":
-			opts.force = true
-		case "--help", "-h":
-			return opts, "help", nil, nil
-		case "--version":
-			return opts, "version", nil, nil
-		default:
-			return opts, "", nil, usageError("unknown global flag: " + arg)
-		}
-	}
-	return opts, "", nil, nil
-}
-
-func (a app) printHelp() {
-	fmt.Fprintln(a.out, `ahm manages repo-local .agents workflows.
-
-Usage:
-  ahm [global flags] <command> [command flags]
-
-Commands:
-  init                         Install workflow files
-  upgrade                      Update managed workflow files
-  status                       Show workflow health
-  doctor                       Show environment checks
-  index                        Regenerate task indexes
-  task <subcommand>            Manage tasks
-
-Task commands:
-  create <title> [flags]
-  list | ready | blocked
-  show <id>
-  start|complete|cancel|reopen <id>
-  dep add|remove <id> <dependency-id>
-  dep tree <id>
-  dep cycles
-
-Global flags:
-  --root <path>  Target repository root
-  --json         Print JSON
-  --plain        Print stable plain output
-  --dry-run      Preview supported writes
-  --force        Force supported overwrites
-  --version      Print version`)
 }
 
 func detectRoot() (string, error) {
@@ -779,43 +767,170 @@ func taskCounts(tasks []Task) map[string]int {
 	return counts
 }
 
-func (a app) task(argv []string) error {
-	if len(argv) == 0 {
-		return usageError("task requires a subcommand")
+func (a *app) taskCommand() *cobra.Command {
+	task := &cobra.Command{
+		Use:   "task",
+		Short: "Manage tasks",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return usageError("task requires a subcommand")
+		},
 	}
-	switch argv[0] {
-	case "create":
-		return a.taskCreate(argv[1:])
-	case "list", "ls":
-		return a.taskList("all")
-	case "ready":
-		return a.taskList("ready")
-	case "blocked":
-		return a.taskList("blocked")
-	case "show":
-		return a.taskShow(argv[1:])
-	case "start":
-		return a.taskStatus(argv[1:], "In Progress")
-	case "complete", "close":
-		return a.taskStatus(argv[1:], "Completed")
-	case "cancel":
-		return a.taskStatus(argv[1:], "Cancelled")
-	case "reopen":
-		return a.taskStatus(argv[1:], "Pending")
-	case "dep":
-		return a.taskDep(argv[1:])
-	default:
-		return usageError("unknown task subcommand: " + argv[0])
+
+	createArgs := taskCreateArgs{
+		priority: "P2",
+		effort:   "S",
+		labels:   "type:task, area:cli",
+		status:   "Pending",
+	}
+	create := &cobra.Command{
+		Use:   "create <title> [flags]",
+		Short: "Create a task",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return usageError("task create requires a title")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			createArgs.title = strings.Join(args, " ")
+			return a.taskCreateParsed(createArgs)
+		},
+	}
+	create.Flags().StringVarP(&createArgs.priority, "priority", "p", createArgs.priority, "Set task priority")
+	create.Flags().StringVar(&createArgs.effort, "effort", createArgs.effort, "Set task effort")
+	create.Flags().StringVar(&createArgs.labels, "labels", createArgs.labels, "Set task labels")
+	create.Flags().StringVar(&createArgs.status, "status", createArgs.status, "Set initial task status")
+	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
+	task.AddCommand(create)
+
+	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List all tasks", "all"))
+	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready"))
+	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked"))
+	task.AddCommand(&cobra.Command{
+		Use:   "show <id>",
+		Short: "Show a task",
+		Args:  exactArgs(1, "task show requires an id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskShow(args)
+		},
+	})
+
+	for _, spec := range []struct {
+		use     string
+		aliases []string
+		short   string
+		status  string
+	}{
+		{use: "start <id>", short: "Mark a task in progress", status: "In Progress"},
+		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", status: "Completed"},
+		{use: "cancel <id>", short: "Mark a task cancelled", status: "Cancelled"},
+		{use: "reopen <id>", short: "Reopen a task", status: "Pending"},
+	} {
+		status := spec.status
+		task.AddCommand(&cobra.Command{
+			Use:     spec.use,
+			Aliases: spec.aliases,
+			Short:   spec.short,
+			Args:    exactArgs(1, "task status command requires an id"),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := a.detectRoot(); err != nil {
+					return err
+				}
+				return a.taskStatus(args, status)
+			},
+		})
+	}
+
+	task.AddCommand(a.taskDepCommand())
+	return task
+}
+
+func (a *app) taskListCommand(use string, aliases []string, short string, mode string) *cobra.Command {
+	return &cobra.Command{
+		Use:     use,
+		Aliases: aliases,
+		Short:   short,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskList(mode)
+		},
 	}
 }
 
-func (a app) taskCreate(argv []string) error {
-	parsed, err := parseTaskCreateArgs(argv)
-	if err != nil {
-		return err
+func (a *app) taskDepCommand() *cobra.Command {
+	dep := &cobra.Command{
+		Use:   "dep",
+		Short: "Manage task dependencies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return usageError("task dep requires a subcommand")
+		},
 	}
+	dep.AddCommand(a.taskDepUpdateCommand("add", nil, "Add a task dependency", true))
+	dep.AddCommand(a.taskDepUpdateCommand("remove", []string{"rm"}, "Remove a task dependency", false))
+	dep.AddCommand(&cobra.Command{
+		Use:   "tree <id>",
+		Short: "Print a task dependency tree",
+		Args:  exactArgs(1, "task dep tree requires an id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepTree(args)
+		},
+	})
+	dep.AddCommand(&cobra.Command{
+		Use:   "cycles",
+		Short: "Print dependency cycles",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepCycles()
+		},
+	})
+	return dep
+}
+
+func (a *app) taskDepUpdateCommand(use string, aliases []string, short string, add bool) *cobra.Command {
+	return &cobra.Command{
+		Use:     use + " <id> <dependency-id>",
+		Aliases: aliases,
+		Short:   short,
+		Args:    exactArgs(2, "task dep add/remove requires task id and dependency id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepUpdate(args, add)
+		},
+	}
+}
+
+func exactArgs(count int, message string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) != count {
+			return usageError(message)
+		}
+		return nil
+	}
+}
+
+func (a app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.title == "" {
 		return usageError("task create requires a title")
+	}
+	if err := validateTaskCreateEnums(parsed); err != nil {
+		return err
 	}
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
@@ -860,74 +975,6 @@ type taskCreateArgs struct {
 	labels      string
 	status      string
 	description string
-}
-
-func parseTaskCreateArgs(argv []string) (taskCreateArgs, error) {
-	parsed := taskCreateArgs{
-		priority: "P2",
-		effort:   "S",
-		labels:   "type:task, area:cli",
-		status:   "Pending",
-	}
-	var title []string
-	for i := 0; i < len(argv); i++ {
-		arg := argv[i]
-		switch arg {
-		case "--priority", "-p":
-			value, next, err := argValue(argv, i, arg)
-			if err != nil {
-				return parsed, err
-			}
-			parsed.priority = value
-			i = next
-		case "--effort":
-			value, next, err := argValue(argv, i, arg)
-			if err != nil {
-				return parsed, err
-			}
-			parsed.effort = value
-			i = next
-		case "--labels":
-			value, next, err := argValue(argv, i, arg)
-			if err != nil {
-				return parsed, err
-			}
-			parsed.labels = value
-			i = next
-		case "--status":
-			value, next, err := argValue(argv, i, arg)
-			if err != nil {
-				return parsed, err
-			}
-			parsed.status = value
-			i = next
-		case "--description", "-d":
-			value, next, err := argValue(argv, i, arg)
-			if err != nil {
-				return parsed, err
-			}
-			parsed.description = value
-			i = next
-		default:
-			if strings.HasPrefix(arg, "-") {
-				return parsed, usageError("unknown task create flag: " + arg)
-			}
-			title = append(title, arg)
-		}
-	}
-	parsed.title = strings.Join(title, " ")
-	if err := validateTaskCreateEnums(parsed); err != nil {
-		return parsed, err
-	}
-	return parsed, nil
-}
-
-func argValue(argv []string, i int, flag string) (string, int, error) {
-	next := i + 1
-	if next >= len(argv) {
-		return "", i, usageError(flag + " requires a value")
-	}
-	return argv[next], next, nil
 }
 
 func nextTaskID(tasks []Task) string {
@@ -1174,24 +1221,6 @@ func (a app) resolveTask(pattern string) (Task, error) {
 		return Task{}, fmt.Errorf("task %q is ambiguous", pattern)
 	}
 	return matches[0], nil
-}
-
-func (a app) taskDep(argv []string) error {
-	if len(argv) == 0 {
-		return usageError("task dep requires a subcommand")
-	}
-	switch argv[0] {
-	case "add":
-		return a.taskDepUpdate(argv[1:], true)
-	case "remove", "rm":
-		return a.taskDepUpdate(argv[1:], false)
-	case "tree":
-		return a.taskDepTree(argv[1:])
-	case "cycles":
-		return a.taskDepCycles()
-	default:
-		return usageError("unknown task dep subcommand: " + argv[0])
-	}
 }
 
 func (a app) taskDepUpdate(argv []string, add bool) error {

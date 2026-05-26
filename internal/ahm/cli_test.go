@@ -38,23 +38,25 @@ func TestNextTaskID(t *testing.T) {
 	}
 }
 
-func TestParseTaskCreateArgsAllowsFlagsAfterTitle(t *testing.T) {
-	got, err := parseTaskCreateArgs([]string{"Smoke task", "--description", "Verify task creation", "--priority", "P1"})
-	if err != nil {
-		t.Fatal(err)
+func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if got.title != "Smoke task" {
-		t.Fatalf("title = %q", got.title)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Smoke", "task", "--description", "Verify task creation", "--priority", "P1")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
-	if got.description != "Verify task creation" {
-		t.Fatalf("description = %q", got.description)
-	}
-	if got.priority != "P1" {
-		t.Fatalf("priority = %q", got.priority)
-	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+		"title: Smoke task",
+		"priority: P1",
+		"Verify task creation",
+	)
 }
 
-func TestParseTaskCreateArgsRejectsUnsupportedEnums(t *testing.T) {
+func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
@@ -79,12 +81,18 @@ func TestParseTaskCreateArgsRejectsUnsupportedEnums(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseTaskCreateArgs(tt.args)
-			if err == nil {
-				t.Fatal("expected error")
+			root := t.TempDir()
+			stdout, stderr, code := runCLI(t, "--root", root, "init")
+			if code != 0 {
+				t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 			}
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("error = %q, want %q", err, tt.want)
+
+			_, stderr, code = runCLI(t, append([]string{"--root", root, "task", "create"}, tt.args...)...)
+			if code != 2 {
+				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			}
+			if !strings.Contains(stderr, tt.want) {
+				t.Fatalf("stderr = %q, want %q", stderr, tt.want)
 			}
 		})
 	}
@@ -235,6 +243,34 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		"## Next Ready Queue",
 		"None.",
 	)
+}
+
+func TestNestedHelp(t *testing.T) {
+	stdout, stderr, code := runCLI(t, "task", "--help")
+	if code != 0 {
+		t.Fatalf("task help exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "Manage tasks", "create", "dep")
+
+	stdout, stderr, code = runCLI(t, "task", "create", "--help")
+	if code != 0 {
+		t.Fatalf("task create help exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "create <title> [flags]", "--priority", "--description")
+}
+
+func TestSubcommandsRequireSubcommands(t *testing.T) {
+	_, stderr, code := runCLI(t, "task")
+	if code != 2 {
+		t.Fatalf("task exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, "task requires a subcommand")
+
+	_, stderr, code = runCLI(t, "task", "dep")
+	if code != 2 {
+		t.Fatalf("task dep exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, "task dep requires a subcommand")
 }
 
 func TestInstallNeverOverwritesExistingAgentsEntrypoint(t *testing.T) {
