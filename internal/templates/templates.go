@@ -12,14 +12,15 @@ var FS embed.FS
 
 // File maps one embedded template source to its repository target path.
 type File struct {
-	Source string
-	Target string
+	Source     string
+	Target     string
+	CreateOnly bool
 }
 
 // Files returns the managed workflow files embedded in the CLI.
 func Files() []File {
 	return []File{
-		{Source: "workflow/AGENTS.md", Target: "AGENTS.md"},
+		{Source: "workflow/AGENTS.md", Target: "AGENTS.md", CreateOnly: true},
 		{Source: "workflow/TASKS.md", Target: ".agents/TASKS.md"},
 		{Source: "workflow/PLANS.md", Target: ".agents/PLANS.md"},
 		{Source: "workflow/RESEARCH.md", Target: ".agents/RESEARCH.md"},

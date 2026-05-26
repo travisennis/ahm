@@ -13,6 +13,9 @@ the target repository files.
 - Missing managed files are created.
 - Files that still match the previous managed hash are updated.
 - Files with local modifications are preserved and reported as conflicts.
+- `AGENTS.md` is create-only. `ahm` may add the starter entrypoint when it is
+  missing, but it never overwrites an existing `AGENTS.md`, even with
+  `--force`.
 - Generated indexes are regenerated.
 - User-owned task files, research notes, and ExecPlans are not overwritten.
 

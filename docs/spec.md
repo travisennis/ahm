@@ -56,6 +56,10 @@ Workflow state is repo-local under `.agents/`.
 file hashes. This metadata lets future versions update files that have not been
 locally changed while preserving user edits.
 
+`AGENTS.md` is an entrypoint file, not a managed workflow document. `ahm init`
+may create a starter `AGENTS.md` when it is missing, but `ahm` never overwrites
+an existing `AGENTS.md` or treats it as a locally modified managed file.
+
 Generated indexes are owned by `ahm` and should not be edited by hand.
 
 The embedded templates are full workflow documents derived from

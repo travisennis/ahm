@@ -141,8 +141,6 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		`"ok": false`,
-		`"code": "managed_file_missing"`,
-		`"path": "AGENTS.md"`,
 		`"code": "managed_file_modified"`,
 		`"path": ".agents/TASKS.md"`,
 		`"code": "task_dependency_missing"`,
@@ -229,7 +227,6 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 
 	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"),
 		`"version": "`+templates.Version+`"`,
-		`"AGENTS.md":`,
 		`".agents/TASKS.md":`,
 	)
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "index.md"),
@@ -238,6 +235,26 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		"## Next Ready Queue",
 		"None.",
 	)
+}
+
+func TestInstallNeverOverwritesExistingAgentsEntrypoint(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Project Agent Instructions\n\nKeep this.\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--force", "init")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "skipped:", "  AGENTS.md")
+	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "Keep this.")
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := meta.Files["AGENTS.md"]; ok {
+		t.Fatal("AGENTS.md should not be recorded as a managed file")
+	}
 }
 
 func TestUpgradeDecisions(t *testing.T) {
@@ -293,9 +310,8 @@ func TestUpgradeDecisions(t *testing.T) {
 	assertContainsAll(t, got,
 		"created:",
 		"  .agents/exec-plans/active/index.md",
-		"updated:",
-		"  AGENTS.md",
 		"skipped:",
+		"  AGENTS.md",
 		"  .agents/PLANS.md",
 		"conflicts:",
 		"  .agents/RESEARCH.md",
@@ -315,6 +331,7 @@ func TestUpgradeDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertContainsAll(t, forceOut.String(), "updated:", "  .agents/RESEARCH.md")
+	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "old managed agents")
 	afterForce, err := readMetadata(root)
 	if err != nil {
 		t.Fatal(err)

@@ -217,9 +217,16 @@ func (a app) install(upgrade bool) error {
 					return err
 				}
 			}
-			meta.Files[item.Target] = hash
+			if item.CreateOnly {
+				delete(meta.Files, item.Target)
+			} else {
+				meta.Files[item.Target] = hash
+			}
 		case readErr != nil:
 			return readErr
+		case item.CreateOnly:
+			result["skipped"] = append(result["skipped"], item.Target)
+			delete(meta.Files, item.Target)
 		case !upgrade && !a.opts.force:
 			result["skipped"] = append(result["skipped"], item.Target)
 		case a.opts.force || meta.Files[item.Target] == hashBytes(existing):
@@ -393,6 +400,9 @@ func validateManagedFiles(root string, report *validationReport) []Task {
 }
 
 func validateManagedFile(root string, meta metadata, item templates.File, report *validationReport) {
+	if item.CreateOnly {
+		return
+	}
 	data, err := os.ReadFile(filepath.Join(root, item.Target))
 	if errors.Is(err, os.ErrNotExist) {
 		report.addError("managed_file_missing", item.Target, "managed workflow file is missing")
