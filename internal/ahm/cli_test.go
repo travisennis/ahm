@@ -38,6 +38,96 @@ func TestNextTaskID(t *testing.T) {
 	}
 }
 
+func TestResolveTask(t *testing.T) {
+	root := t.TempDir()
+	initDir := filepath.Join(root, ".agents", ".tasks")
+	for _, dir := range []string{"active", "completed", "cancelled"} {
+		if err := os.MkdirAll(filepath.Join(initDir, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task One", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Task Two", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "010.md"), "010", "Task Ten", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "011.md"), "011", "Task Eleven", "Pending", "")
+	a := app{opts: options{root: root}}
+
+	t.Run("exact match", func(t *testing.T) {
+		task, err := a.resolveTask("001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("id = %q", task.ID)
+		}
+	})
+
+	t.Run("exact match second form", func(t *testing.T) {
+		task, err := a.resolveTask("010")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "010" {
+			t.Fatalf("id = %q", task.ID)
+		}
+	})
+
+	t.Run("numeric prefix matches zero-padded", func(t *testing.T) {
+		task, err := a.resolveTask("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("id = %q", task.ID)
+		}
+	})
+
+	t.Run("numeric prefix with leading zero", func(t *testing.T) {
+		task, err := a.resolveTask("01")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("id = %q", task.ID)
+		}
+	})
+
+	t.Run("numeric prefix matches 010", func(t *testing.T) {
+		task, err := a.resolveTask("10")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "010" {
+			t.Fatalf("id = %q", task.ID)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := a.resolveTask("999")
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("pattern zero not found", func(t *testing.T) {
+		// "0" would match all tasks via string prefix, but only matches
+		// numerically if a task has numeric part 0. None do, so expect not found.
+		_, err := a.resolveTask("0")
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected not found, got: %v", err)
+		}
+	})
+
+	t.Run("ambiguous 01 when multiple tasks share numeric part", func(t *testing.T) {
+		// Add a task with a suffix that also has num=1
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001a.md"), "001a", "Task One A", "Pending", "")
+		_, err := a.resolveTask("1")
+		if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Fatalf("expected ambiguous, got: %v", err)
+		}
+	})
+}
+
 func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

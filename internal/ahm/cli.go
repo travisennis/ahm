@@ -1458,9 +1458,19 @@ func (a app) resolveTask(pattern string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
+	// Exact match returns immediately.
+	for _, task := range tasks {
+		if task.ID == pattern {
+			return task, nil
+		}
+	}
+	// Constrained prefix matching: parse the numeric prefix so that "1"
+	// matches "001", "01" matches "001", and "1a" matches "001a".
+	patNum, patSuffix := splitTaskID(pattern)
 	var matches []Task
 	for _, task := range tasks {
-		if task.ID == pattern || strings.Contains(task.ID, pattern) {
+		taskNum, taskSuffix := splitTaskID(task.ID)
+		if taskNum == patNum && strings.HasPrefix(taskSuffix, patSuffix) {
 			matches = append(matches, task)
 		}
 	}
@@ -1468,7 +1478,11 @@ func (a app) resolveTask(pattern string) (Task, error) {
 		return Task{}, fmt.Errorf("task %q not found", pattern)
 	}
 	if len(matches) > 1 {
-		return Task{}, fmt.Errorf("task %q is ambiguous", pattern)
+		var ids []string
+		for _, m := range matches {
+			ids = append(ids, m.ID)
+		}
+		return Task{}, fmt.Errorf("task %q is ambiguous, matches %s", pattern, strings.Join(ids, ", "))
 	}
 	return matches[0], nil
 }
