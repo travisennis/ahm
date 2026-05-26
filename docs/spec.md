@@ -42,6 +42,11 @@ Commands:
 - `index`: regenerate generated indexes.
 - `task`: manage tasks and dependencies.
 
+The complete command and flag reference is maintained in
+[`docs/cli.md`](cli.md). That reference documents output modes, aliases,
+supported task enum values, dry-run behavior, validation finding codes, and
+which commands write files.
+
 Exit codes:
 
 - `0`: success.

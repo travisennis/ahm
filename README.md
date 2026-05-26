@@ -33,6 +33,9 @@ Useful global flags:
 - `--dry-run`: preview write operations for commands that support it.
 - `--force`: overwrite managed workflow files when supported.
 
+For the full command, flag, output, and task-file contract, see
+[`docs/cli.md`](docs/cli.md).
+
 `AGENTS.md` is create-only: `ahm init` can add the starter entrypoint when it
 is missing, but `ahm` never overwrites an existing project `AGENTS.md`.
 
