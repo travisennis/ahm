@@ -181,7 +181,7 @@ type metadata struct {
 	Files   map[string]string `json:"files"`
 }
 
-func (a app) install(upgrade bool) error {
+func (a *app) install(upgrade bool) error {
 	root := a.opts.root
 	meta, _ := readMetadata(root)
 	if meta.Files == nil {
@@ -271,7 +271,7 @@ func (a app) install(upgrade bool) error {
 	return a.emit(result)
 }
 
-func (a app) ensureWorkflowDirs() ([]string, error) {
+func (a *app) ensureWorkflowDirs() ([]string, error) {
 	dirs := []string{
 		".agents/.tasks/active",
 		".agents/.tasks/completed",
@@ -334,7 +334,7 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (a app) status() error {
+func (a *app) status() error {
 	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
 	status := map[string]any{
@@ -348,7 +348,7 @@ func (a app) status() error {
 	return a.emit(status)
 }
 
-func (a app) doctor() error {
+func (a *app) doctor() error {
 	_, goErr := exec.LookPath("go")
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
@@ -556,7 +556,7 @@ func relPath(root string, path string) string {
 	return filepath.ToSlash(rel)
 }
 
-func (a app) emit(value any) error {
+func (a *app) emit(value any) error {
 	if a.opts.json {
 		data, err := json.MarshalIndent(value, "", "  ")
 		if err != nil {
@@ -1012,7 +1012,7 @@ func exactArgs(count int, message string) cobra.PositionalArgs {
 	}
 }
 
-func (a app) taskCreateParsed(parsed taskCreateArgs) error {
+func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.title == "" {
 		return usageError("task create requires a title")
 	}
@@ -1069,7 +1069,7 @@ type taskMigration struct {
 	Changes []string `json:"changes"`
 }
 
-func (a app) taskMigrate() error {
+func (a *app) taskMigrate() error {
 	paths, err := taskMarkdownPaths(a.opts.root)
 	if err != nil {
 		return err
@@ -1349,7 +1349,7 @@ func renderTask(task Task) string {
 	return b.String()
 }
 
-func (a app) taskList(mode string, status string) error {
+func (a *app) taskList(mode string, status string) error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return err
@@ -1371,7 +1371,7 @@ func (a app) taskList(mode string, status string) error {
 	return nil
 }
 
-func (a app) taskNext() error {
+func (a *app) taskNext() error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return err
@@ -1391,7 +1391,7 @@ func (a app) taskNext() error {
 	return nil
 }
 
-func (a app) printTaskLine(task Task) {
+func (a *app) printTaskLine(task Task) {
 	fmt.Fprintf(a.out, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
 }
 
@@ -1531,7 +1531,7 @@ func containsString(values []string, value string) bool {
 	return false
 }
 
-func (a app) taskShow(argv []string) error {
+func (a *app) taskShow(argv []string) error {
 	if len(argv) != 1 {
 		return usageError("task show requires an id")
 	}
@@ -1550,7 +1550,7 @@ func (a app) taskShow(argv []string) error {
 	return err
 }
 
-func (a app) taskStatus(argv []string, status string) error {
+func (a *app) taskStatus(argv []string, status string) error {
 	if len(argv) != 1 {
 		return usageError("task status command requires an id")
 	}
@@ -1588,7 +1588,7 @@ func (a app) taskStatus(argv []string, status string) error {
 	return nil
 }
 
-func (a app) resolveTask(pattern string) (Task, error) {
+func (a *app) resolveTask(pattern string) (Task, error) {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return Task{}, err
@@ -1622,7 +1622,7 @@ func (a app) resolveTask(pattern string) (Task, error) {
 	return matches[0], nil
 }
 
-func (a app) taskDepUpdate(argv []string, add bool) error {
+func (a *app) taskDepUpdate(argv []string, add bool) error {
 	if len(argv) != 2 {
 		return usageError("task dep add/remove requires task id and dependency id")
 	}
@@ -1663,7 +1663,7 @@ func (a app) taskDepUpdate(argv []string, add bool) error {
 	return nil
 }
 
-func (a app) taskDepTree(argv []string) error {
+func (a *app) taskDepTree(argv []string) error {
 	if len(argv) != 1 {
 		return usageError("task dep tree requires an id")
 	}
@@ -1704,7 +1704,7 @@ func (a app) taskDepTree(argv []string) error {
 	return nil
 }
 
-func (a app) taskDepCycles() error {
+func (a *app) taskDepCycles() error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return err
@@ -1764,7 +1764,7 @@ func (a app) taskDepCycles() error {
 	return nil
 }
 
-func (a app) writeIndexes() error {
+func (a *app) writeIndexes() error {
 	writes, err := a.indexWrites()
 	if err != nil {
 		return err
@@ -1785,7 +1785,7 @@ func (a app) writeIndexes() error {
 	return nil
 }
 
-func (a app) indexWriteTargets() ([]string, error) {
+func (a *app) indexWriteTargets() ([]string, error) {
 	writes, err := a.indexWrites()
 	if err != nil {
 		return nil, err
@@ -1798,7 +1798,7 @@ func (a app) indexWriteTargets() ([]string, error) {
 	return targets, nil
 }
 
-func (a app) indexWrites() (map[string]string, error) {
+func (a *app) indexWrites() (map[string]string, error) {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return nil, err
