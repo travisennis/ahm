@@ -38,15 +38,22 @@ patching source code or performing git operations.
 - If `just ci` cannot be run, state the exact reason and list the narrower
   checks that were run instead.
 - For Go code changes, use this verification sequence:
-  1. Run the narrowest useful check first, such as `go test ./...`,
-     `go test ./internal/ahm`, or `go test ./internal/ahm -run <TestName>`.
-  2. Run `gofmt` through `just fmt` after Go edits.
-  3. Run `just ci` before final handoff or commit.
+  1. Run the narrowest useful check first, such as `go test ./internal/ahm`,
+     `go test ./internal/ahm -run <TestName>`, or
+     `go test ./... -run <TestName>`.
+  2. For local iteration, prefer focused `go test` commands, `just quick`, and
+     `just fmt`.
+  3. Run `gofmt` through `just fmt` after Go edits.
+  4. Run `just ci` before final handoff or commit.
 - When changing embedded workflow templates, also verify the behavior that
   consumes them. At minimum, run `go test ./internal/templates ./internal/ahm`
   before `just ci`.
 - When changing CLI behavior, update `docs/cli.md` in the same change unless
   the behavior is intentionally undocumented.
+- Before final handoff for CLI behavior changes:
+  1. Search `docs/cli.md` for the old behavior or affected command.
+  2. Update `docs/cli.md` in the same diff.
+  3. Mention the docs update in the final summary.
 - When changing durable workflow semantics, update `docs/spec.md` or
   `docs/upgrades.md` as appropriate.
 - Do not commit or push code unless explicitly asked to.
@@ -113,6 +120,23 @@ go test ./... -run TestInstall
 
 --------------------------------------------------------------------------------
 
+## Code Map
+
+Task command implementation:
+
+- Task commands and resolution: `internal/ahm/cli.go`
+- Task ID parsing/order helpers: `splitTaskID`, `nextTaskID`, `resolveTask`
+- CLI tests: `internal/ahm/cli_test.go`
+- User-facing CLI docs: `docs/cli.md`
+
+Workflow templates:
+
+- Embedded workflow templates: `internal/templates/workflow/`
+- Template embedding and metadata: `internal/templates/templates.go`
+- Template tests: `internal/templates`
+
+--------------------------------------------------------------------------------
+
 ## Task Queue Rules
 
 - When asked to create, choose, update, or work on a task, first read
@@ -125,6 +149,10 @@ go test ./... -run TestInstall
 - When marking a task as completed, use `ahm task complete <id>`. It updates
   task front matter, moves the file from `.agents/.tasks/active/` to
   `.agents/.tasks/completed/`, and regenerates indexes.
+- Before running `ahm task complete <id>`, fill in Acceptance Notes when
+  practical. If you edit only the completed task body afterward, no index
+  regeneration is needed. If you edit task front matter afterward, rerun
+  `ahm index`.
 - When marking a task as cancelled, use `ahm task cancel <id>`. It updates task
   front matter, moves the file from `.agents/.tasks/active/` to
   `.agents/.tasks/cancelled/`, and regenerates indexes.
