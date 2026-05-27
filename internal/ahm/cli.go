@@ -525,7 +525,13 @@ func taskDependencyCycles(tasks []Task) [][]string {
 		visiting[id] = false
 		visited[id] = true
 	}
+	// Sort keys for deterministic traversal order.
+	ids := make([]string, 0, len(byID))
 	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
 		dfs(id, nil)
 	}
 	return cycles
@@ -1739,7 +1745,13 @@ func (a app) taskDepCycles() error {
 		visiting[id] = false
 		visited[id] = true
 	}
+	// Sort keys for deterministic traversal order.
+	ids := make([]string, 0, len(byID))
 	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
 		dfs(id, nil)
 	}
 	if len(cycles) == 0 {

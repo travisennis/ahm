@@ -927,7 +927,7 @@ func TestTaskDependencyCycleDetection(t *testing.T) {
 	if len(cycles) != 1 {
 		t.Fatalf("cycles = %#v", cycles)
 	}
-	if got := strings.Join(cycles[0], " -> "); got != "001 -> 002 -> 001" && got != "002 -> 001 -> 002" {
+	if got := strings.Join(cycles[0], " -> "); got != "001 -> 002 -> 001" {
 		t.Fatalf("cycle = %q", got)
 	}
 }
@@ -945,7 +945,7 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "001 -> 002 -> 001") && !strings.Contains(got, "002 -> 001 -> 002") {
+	if !strings.Contains(got, "001 -> 002 -> 001") {
 		t.Fatalf("cycle output = %q", got)
 	}
 	if strings.Contains(got, "003") || strings.Contains(got, "004") {
@@ -1213,7 +1213,7 @@ func TestMainDependencyCyclesIntegration(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cycles exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if !strings.Contains(stdout, "001 -> 002 -> 001") && !strings.Contains(stdout, "002 -> 001 -> 002") {
+	if !strings.Contains(stdout, "001 -> 002 -> 001") {
 		t.Fatalf("cycles stdout = %q", stdout)
 	}
 }
