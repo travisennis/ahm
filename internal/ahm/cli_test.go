@@ -860,6 +860,39 @@ func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	}
 }
 
+func TestTaskListFiltersStatus(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Pending Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "002.md"), "002", "Completed Task", "Completed", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "003.md"), "003", "Cancelled Task", "Cancelled", "")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskList("all", "completed"); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got, "002 [Completed] P2 S Completed Task")
+	assertNotContains(t, got, "001 [Pending]", "003 [Cancelled]")
+}
+
+func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P2 Ready", "Pending", "depends_on: 001\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "P1 Ready", "Pending", "P1", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Blocked", "Pending", "depends_on: 999\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskNext(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got, "003 [Pending] P1 S P1 Ready")
+	assertNotContains(t, got, "002 [Pending]", "004 [Pending]")
+}
+
 func TestTaskDependencyTreeOutput(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
@@ -1128,12 +1161,25 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	assertContainsAll(t, stdout, "002 depends_on: -")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: -")
 
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "next")
+	if code != 0 {
+		t.Fatalf("next exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 [Pending] P1 M First Task")
+
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "002")
 	if code != 0 {
 		t.Fatalf("cancel exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Cancelled")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "list", "--status", "cancelled")
+	if code != 0 {
+		t.Fatalf("list --status exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 [Cancelled] P2 S Second Task")
+	assertNotContains(t, stdout, "001 [Pending]")
 }
 
 func TestMainUpgradeIntegration(t *testing.T) {
@@ -1185,6 +1231,15 @@ func assertContainsAll(t *testing.T, got string, wants ...string) {
 	for _, want := range wants {
 		if !strings.Contains(got, want) {
 			t.Fatalf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func assertNotContains(t *testing.T, got string, unwanted ...string) {
+	t.Helper()
+	for _, item := range unwanted {
+		if strings.Contains(got, item) {
+			t.Fatalf("output unexpectedly contains %q:\n%s", item, got)
 		}
 	}
 }
@@ -1294,6 +1349,11 @@ func templateBytes(t *testing.T, path string) []byte {
 
 func writeTaskFile(t *testing.T, path string, id string, title string, status string, extraFrontMatter string) {
 	t.Helper()
+	writeTaskFileWithPriority(t, path, id, title, status, "P2", extraFrontMatter)
+}
+
+func writeTaskFileWithPriority(t *testing.T, path string, id string, title string, status string, priority string, extraFrontMatter string) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1301,7 +1361,7 @@ func writeTaskFile(t *testing.T, path string, id string, title string, status st
 		"id: " + id + "\n" +
 		"title: " + title + "\n" +
 		"status: " + status + "\n" +
-		"priority: P2\n" +
+		"priority: " + priority + "\n" +
 		"effort: S\n" +
 		"labels: type:task\n" +
 		"exec_plan: -\n" +

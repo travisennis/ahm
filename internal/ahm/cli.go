@@ -860,9 +860,20 @@ func (a *app) taskCommand() *cobra.Command {
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
 	task.AddCommand(create)
 
-	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List all tasks", "all"))
+	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all"))
 	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready"))
 	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked"))
+	task.AddCommand(&cobra.Command{
+		Use:   "next",
+		Short: "Show the next ready task",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskNext()
+		},
+	})
 	task.AddCommand(&cobra.Command{
 		Use:   "migrate",
 		Short: "Normalize legacy task front matter",
@@ -917,7 +928,8 @@ func (a *app) taskCommand() *cobra.Command {
 }
 
 func (a *app) taskListCommand(use string, aliases []string, short string, mode string) *cobra.Command {
-	return &cobra.Command{
+	status := ""
+	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
 		Short:   short,
@@ -926,9 +938,13 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskList(mode)
+			return a.taskList(mode, status)
 		},
 	}
+	if mode == "all" {
+		cmd.Flags().StringVar(&status, "status", "", "Filter tasks by status")
+	}
+	return cmd
 }
 
 func (a *app) taskDepCommand() *cobra.Command {
@@ -1327,19 +1343,50 @@ func renderTask(task Task) string {
 	return b.String()
 }
 
-func (a app) taskList(mode string) error {
+func (a app) taskList(mode string, status string) error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
 		return err
 	}
 	filtered := filterTasks(tasks, mode)
+	if status != "" {
+		normalized, err := normalizeTaskStatus(status)
+		if err != nil {
+			return err
+		}
+		filtered = filterTasksByStatus(filtered, normalized)
+	}
 	if a.opts.json {
 		return a.emit(filtered)
 	}
 	for _, task := range filtered {
-		fmt.Fprintf(a.out, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
+		a.printTaskLine(task)
 	}
 	return nil
+}
+
+func (a app) taskNext() error {
+	tasks, err := collectTasks(a.opts.root)
+	if err != nil {
+		return err
+	}
+	ready := filterTasks(tasks, "ready")
+	if len(ready) == 0 {
+		if a.opts.json {
+			return a.emit(nil)
+		}
+		fmt.Fprintln(a.out, "No ready tasks.")
+		return nil
+	}
+	if a.opts.json {
+		return a.emit(ready[0])
+	}
+	a.printTaskLine(ready[0])
+	return nil
+}
+
+func (a app) printTaskLine(task Task) {
+	fmt.Fprintf(a.out, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
 }
 
 func filterTasks(tasks []Task, mode string) []Task {
@@ -1372,6 +1419,16 @@ func filterTasks(tasks []Task, mode string) []Task {
 		}
 		return taskLess(out[i].ID, out[j].ID)
 	})
+	return out
+}
+
+func filterTasksByStatus(tasks []Task, status string) []Task {
+	var out []Task
+	for _, task := range tasks {
+		if task.Status == status {
+			out = append(out, task)
+		}
+	}
 	return out
 }
 
@@ -1429,6 +1486,22 @@ func validateTaskEnums(task Task, source string) error {
 
 func enumError(field string, value string, allowed []string) string {
 	return fmt.Sprintf("unsupported task %s %q (supported: %s)", field, value, strings.Join(allowed, ", "))
+}
+
+func normalizeTaskStatus(status string) (string, error) {
+	key := enumKey(status)
+	for _, item := range statusOrder() {
+		if enumKey(item) == key {
+			return item, nil
+		}
+	}
+	return "", usageError(enumError("status", status, statusOrder()))
+}
+
+func enumKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer(" ", "", "-", "", "_", "")
+	return replacer.Replace(value)
 }
 
 func validTaskStatus(status string) bool {

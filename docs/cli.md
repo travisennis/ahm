@@ -64,7 +64,7 @@ Install and upgrade operations print grouped text sections such as `created:`,
 Some task commands use command-specific text output:
 
 - `task create` prints the created task ID.
-- `task list`, `task ready`, and `task blocked` print one task per line.
+- `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task show` prints the task Markdown file unless `--json` is used.
 - `task migrate --dry-run` prints grouped task migration changes.
 - Task status transitions print `<id> -> <status>`.
@@ -326,7 +326,7 @@ ahm task create "Add release workflow" --priority P2 --effort M --labels type:ta
 
 ### `task list`
 
-Lists all parsed tasks.
+Lists parsed tasks.
 
 Alias:
 
@@ -340,12 +340,18 @@ Text output is sorted by priority rank and then task ID:
 
 Useful flags:
 
+- `--status <status>`: filters tasks by status, such as `Pending`,
+  `Completed`, or `Cancelled`. Status matching is case-insensitive and accepts
+  `in-progress` for `In Progress`.
 - `--json`: emits parsed task structs.
 
 Example:
 
 ```bash
 ahm task list
+ahm task list --status pending
+ahm task list --status completed
+ahm task list --status cancelled
 ```
 
 ### `task ready`
@@ -382,6 +388,22 @@ Example:
 
 ```bash
 ahm task blocked
+```
+
+### `task next`
+
+Shows the first ready task by the same ordering used by `task ready`: priority
+rank first, then task ID. A task is ready when its status is `Pending` and all
+dependencies are completed.
+
+Useful flags:
+
+- `--json`: emits the parsed task struct, or `null` when no task is ready.
+
+Example:
+
+```bash
+ahm task next
 ```
 
 ### `task migrate`
