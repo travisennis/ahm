@@ -458,7 +458,11 @@ func validateTaskFrontMatter(root string, path string, report *validationReport)
 		report.addError("task_unreadable", relPath(root, path), err.Error())
 		return
 	}
-	meta, _ := parseFrontMatter(string(data))
+	meta, _, err := parseFrontMatter(string(data))
+	if err != nil {
+		report.addError("task_malformed", relPath(root, path), err.Error())
+		return
+	}
 	required := []string{"id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on"}
 	for _, field := range required {
 		if strings.TrimSpace(meta[field]) == "" {
@@ -638,7 +642,10 @@ func parseTask(path string, bucket string) (Task, error) {
 		return Task{}, err
 	}
 	text := string(data)
-	meta, body := parseFrontMatter(text)
+	meta, body, err := parseFrontMatter(text)
+	if err != nil {
+		return Task{}, err
+	}
 	id := meta["id"]
 	if id == "" {
 		id = strings.TrimSuffix(filepath.Base(path), ".md")
@@ -672,25 +679,44 @@ func parseTask(path string, bucket string) (Task, error) {
 	return task, nil
 }
 
-func parseFrontMatter(text string) (map[string]string, string) {
+func parseFrontMatter(text string) (map[string]string, string, error) {
 	meta := map[string]string{}
 	if !strings.HasPrefix(text, "---\n") {
-		return meta, text
+		return meta, text, nil
 	}
 	end := strings.Index(text[4:], "\n---\n")
 	if end < 0 {
-		return meta, text
+		return meta, text, nil
 	}
 	raw := text[4 : 4+end]
 	body := text[4+end+5:]
 	for _, line := range strings.Split(raw, "\n") {
-		key, value, ok := strings.Cut(line, ":")
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || trimmed[0] == '#' {
+			continue
+		}
+		key, value, ok := strings.Cut(trimmed, ":")
 		if !ok {
 			continue
 		}
-		meta[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"`)
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if strings.ContainsAny(key, " :") {
+			return nil, "", fmt.Errorf("invalid front matter key %q", key)
+		}
+		value = strings.TrimSpace(value)
+		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+			value = value[1 : len(value)-1]
+			value = strings.TrimSpace(value)
+		}
+		if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
+			return nil, "", fmt.Errorf("unsupported block scalar in front matter field %q", key)
+		}
+		meta[key] = value
 	}
-	return meta, body
+	return meta, body, nil
 }
 
 // metaExtra returns the subset of meta keys that are not known task fields.
@@ -1182,7 +1208,12 @@ func frontMatterValue(line string) string {
 	if !ok {
 		return ""
 	}
-	return strings.Trim(strings.TrimSpace(value), `"`)
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+		value = value[1 : len(value)-1]
+		value = strings.TrimSpace(value)
+	}
+	return value
 }
 
 var leadingTaskIDPattern = regexp.MustCompile(`^([0-9]+[A-Za-z]?)\b`)
@@ -1190,7 +1221,11 @@ var followsTaskIDPattern = regexp.MustCompile(`(?i)^follows\s+([0-9]+[A-Za-z]?)\
 var completedByTaskIDPattern = regexp.MustCompile(`(?i)^completed by\s+([0-9]+[A-Za-z]?)\.?$`)
 
 func normalizeDependsOnValue(value string) (string, bool) {
-	value = strings.Trim(strings.TrimSpace(value), `"`)
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+		value = value[1 : len(value)-1]
+		value = strings.TrimSpace(value)
+	}
 	if value == "" || value == "-" || value == "[]" {
 		return "-", true
 	}

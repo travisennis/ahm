@@ -12,7 +12,10 @@ import (
 )
 
 func TestParseFrontMatter(t *testing.T) {
-	meta, body := parseFrontMatter("---\nid: 001\ntitle: Test Task\n---\n# Test Task\n")
+	meta, body, err := parseFrontMatter("---\nid: 001\ntitle: Test Task\n---\n# Test Task\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if meta["id"] != "001" {
 		t.Fatalf("id = %q", meta["id"])
 	}
@@ -21,6 +24,114 @@ func TestParseFrontMatter(t *testing.T) {
 	}
 	if !strings.Contains(body, "# Test Task") {
 		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestParseFrontMatter_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]string
+		wantErr string
+	}{
+		{
+			name:  "no front matter",
+			input: "# Just a heading\n",
+			want:  map[string]string{},
+		},
+		{
+			name:  "empty front matter",
+			input: "---\n---\n# Body\n",
+			want:  map[string]string{},
+		},
+		{
+			name:  "values with colons",
+			input: "---\nlabels: type:bug, area:tasks\ndepends_on: 001, 002\n---\n# Task\n",
+			want: map[string]string{
+				"labels":     "type:bug, area:tasks",
+				"depends_on": "001, 002",
+			},
+		},
+		{
+			name:  "double-quoted values",
+			input: "---\ntitle: \"My Task: The Reckoning\"\n---\n# Task\n",
+			want: map[string]string{
+				"title": "My Task: The Reckoning",
+			},
+		},
+		{
+			name:  "comment lines are skipped",
+			input: "---\nid: 001\n# this is a comment\ntitle: Task\n---\n# Body\n",
+			want: map[string]string{
+				"id":    "001",
+				"title": "Task",
+			},
+		},
+		{
+			name:  "empty lines are skipped",
+			input: "---\nid: 001\n\ntitle: Task\n\n---\n# Body\n",
+			want: map[string]string{
+				"id":    "001",
+				"title": "Task",
+			},
+		},
+		{
+			name:    "block scalar pipe rejected",
+			input:   "---\ndescription: |\n  multi\n  line\n---\n# Body\n",
+			wantErr: "unsupported block scalar",
+		},
+		{
+			name:    "block scalar gt rejected",
+			input:   "---\nnote: >\n  folded\n  text\n---\n# Body\n",
+			wantErr: "unsupported block scalar",
+		},
+		{
+			name:    "invalid key with spaces",
+			input:   "---\nbad key: value\n---\n# Body\n",
+			wantErr: "invalid front matter key",
+		},
+		{
+			name:  "indented comment lines",
+			input: "---\nid: 001\n # indented comment\ntitle: Task\n---\n# Body\n",
+			want: map[string]string{
+				"id":    "001",
+				"title": "Task",
+			},
+		},
+		{
+			name:  "extra whitespace around key",
+			input: "---\n  id  : 001\n  title : Task\n---\n# Body\n",
+			want: map[string]string{
+				"id":    "001",
+				"title": "Task",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := parseFrontMatter(tt.input)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %q, want %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("len(meta) = %d, want %d; got %v", len(got), len(tt.want), got)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Fatalf("meta[%q] = %q, want %q", k, got[k], v)
+				}
+			}
+		})
 	}
 }
 
@@ -1099,6 +1210,76 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Block scalar in front matter should produce a parse error, not missing-field errors.
+	content := "---\n" +
+		"id: 001\n" +
+		"title: Bad\n" +
+		"status: Pending\n" +
+		"priority: P1\n" +
+		"effort: M\n" +
+		"labels: type:bug\n" +
+		"exec_plan: -\n" +
+		"depends_on: -\n" +
+		"description: |\n" +
+		"  multi\n" +
+		"  line\n" +
+		"---\n" +
+		"# Bad\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report := &validationReport{}
+	validateTaskFrontMatter(root, path, report)
+	if len(report.Errors) == 0 {
+		t.Fatal("expected at least one error, got none")
+	}
+	found := false
+	for _, e := range report.Errors {
+		if e.Code == "task_malformed" && strings.Contains(e.Message, "unsupported block scalar") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected task_malformed error with block scalar message, got: %v", report.Errors)
+	}
+	// Verify no missing-field errors (which would be misleading)
+	for _, e := range report.Errors {
+		if e.Code == "task_missing_field" {
+			t.Fatalf("unexpected missing_field error when front matter is malformed: %v", e)
+		}
+	}
+}
+
+func TestFrontMatterValue(t *testing.T) {
+	tests := []struct {
+		line string
+		want string
+	}{
+		{"key: value", "value"},
+		{"key: \"quoted\"", "quoted"},
+		{"key:  spaced  ", "spaced"},
+		{"no-colon", ""},
+		{"key: value:more", "value:more"},
+		{"key: \"quoted: with colon\"", "quoted: with colon"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			got := frontMatterValue(tt.line)
+			if got != tt.want {
+				t.Fatalf("frontMatterValue(%q) = %q, want %q", tt.line, got, tt.want)
+			}
+		})
 	}
 }
 

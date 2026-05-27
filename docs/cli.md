@@ -560,8 +560,14 @@ ahm task dep cycles
 
 ## Task File Format
 
-`ahm` parses simple YAML-like front matter. Required task fields for validation
-are:
+`ahm` parses a strict YAML-like front matter grammar between `---` delimiters.
+The grammar supports `key: value` pairs where keys are alphanumeric with
+underscores, and values can be plain text or double-quoted strings. Comment
+lines (lines starting with `#`) and blank lines are silently skipped.
+Unsupported shapes — keys with spaces or colons, and block scalar indicators
+(`|`, `>`) — produce `task_malformed` validation errors.
+
+Required task fields:
 
 - `id`
 - `title`
