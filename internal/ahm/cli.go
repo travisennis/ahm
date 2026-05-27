@@ -598,6 +598,7 @@ type Task struct {
 	Updated     string
 	Parent      string
 	ExternalRef string
+	Extra       map[string]string // unknown front matter fields preserved from the original file
 	Path        string
 	Bucket      string
 	Body        string
@@ -660,6 +661,7 @@ func parseTask(path string, bucket string) (Task, error) {
 		Updated:     meta["updated"],
 		Parent:      meta["parent"],
 		ExternalRef: meta["external_ref"],
+		Extra:       metaExtra(meta),
 		Path:        path,
 		Bucket:      bucket,
 		Body:        body,
@@ -689,6 +691,22 @@ func parseFrontMatter(text string) (map[string]string, string) {
 		meta[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"`)
 	}
 	return meta, body
+}
+
+// metaExtra returns the subset of meta keys that are not known task fields.
+func metaExtra(meta map[string]string) map[string]string {
+	extra := map[string]string{}
+	for k, v := range meta {
+		switch k {
+		case "id", "title", "status", "priority", "effort", "labels",
+			"exec_plan", "depends_on", "created", "updated",
+			"parent", "external_ref":
+			// known field, skip
+		default:
+			extra[k] = v
+		}
+	}
+	return extra
 }
 
 func headingTitle(body string, fallback string) string {
@@ -1260,6 +1278,9 @@ func renderTask(task Task) string {
 	}
 	if task.ExternalRef != "" {
 		fmt.Fprintf(&b, "external_ref: %s\n", task.ExternalRef)
+	}
+	for _, k := range sortedKeys(task.Extra) {
+		fmt.Fprintf(&b, "%s: %s\n", k, task.Extra[k])
 	}
 	fmt.Fprintln(&b, "---")
 	fmt.Fprintf(&b, "# %s\n\n", task.Title)

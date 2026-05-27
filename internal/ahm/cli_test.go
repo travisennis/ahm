@@ -668,6 +668,71 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 	}
 }
 
+func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Unknown Fields", "Pending",
+		"assignee: alice\n"+
+			"due: 2026-06-01\n"+
+			"tags: bug, urgent\n"+
+			"ticket: JIRA-456\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"assignee: alice",
+		"due: 2026-06-01",
+		"tags: bug, urgent",
+		"ticket: JIRA-456",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rewritten task missing unknown field %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending",
+		"assignee: alice\n"+
+			"due: 2026-06-01\n"+
+			"tags: bug, urgent\n"+
+			"ticket: JIRA-456\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"assignee: alice",
+		"due: 2026-06-01",
+		"tags: bug, urgent",
+		"ticket: JIRA-456",
+		"depends_on: 002",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+		}
+	}
+}
+
 func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	tasks := []Task{
 		{ID: "001", Status: "Completed", Priority: "P1"},

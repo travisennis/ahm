@@ -251,6 +251,13 @@ Task commands operate on Markdown task files under:
 
 Task IDs are resolved by exact match first. If no exact match is found, numeric prefix matching is used: `1` matches `001`, `01` matches `001`, and `10` matches `010`. Suffixed IDs like `1a` match `001a`. If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
 
+All task front matter fields are preserved during status transitions,
+dependency edits, and other task mutations. Known fields (`id`, `title`,
+`status`, `priority`, `effort`, `labels`, `exec_plan`, `depends_on`,
+`created`, `updated`, `parent`, `external_ref`) are written in a fixed
+order. Unknown fields such as `assignee`, `due`, `tags`, or `ticket` are
+preserved and written in sorted key order after the known fields.
+
 Task statuses must be one of:
 
 - `Open`
