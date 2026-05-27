@@ -681,8 +681,8 @@ func TestUpgradeDecisions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Version != "0.0.1" {
-		t.Fatalf("metadata version = %q, want old version while conflicts remain", after.Version)
+	if after.Version != templates.Version {
+		t.Fatalf("metadata version = %q, want %q (version advances despite conflicts)", after.Version, templates.Version)
 	}
 	for _, target := range []string{
 		".agents/.research/index.md",

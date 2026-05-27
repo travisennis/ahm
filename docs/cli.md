@@ -147,6 +147,11 @@ Files that still match their recorded managed hash are updated. Locally modified
 managed files are preserved and reported as conflicts. Missing managed files are
 created. Generated indexes are regenerated.
 
+The metadata `version` field always advances to the embedded template version,
+even when conflicts exist. This means a partial upgrade (some files conflicted,
+others updated) records the new template version so subsequent upgrades can
+correctly identify already-updated files.
+
 `AGENTS.md` remains create-only and is never overwritten.
 
 Useful flags:

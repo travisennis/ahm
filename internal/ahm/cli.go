@@ -282,9 +282,7 @@ func (a *app) install(upgrade bool) error {
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
-	if len(result["conflicts"]) == 0 {
-		meta.Version = templates.Version
-	}
+	meta.Version = templates.Version
 	if a.opts.dryRun {
 		result["metadata"] = []string{".agents/ahm.json"}
 		indexes, err := a.indexWriteTargets()

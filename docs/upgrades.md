@@ -19,5 +19,12 @@ the target repository files.
 - Generated indexes are regenerated.
 - User-owned task files, research notes, and ExecPlans are not overwritten.
 
+**Version advancement:** The metadata `version` field always advances to the
+embedded template version, even when conflicts exist. This ensures that
+subsequent upgrades correctly identify files that have already been updated.
+Conflicted files retain their old expected hashes in metadata and remain in
+conflict until resolved (either by the user reverting the local edit or by
+running with `--force`).
+
 Use `--dry-run` to preview changes. Use `--force` only when the embedded
 template should replace local edits to managed workflow files.
