@@ -113,10 +113,10 @@ func (a *app) command() *cobra.Command {
 			return nil
 		},
 	})
-	root.AddCommand(a.simpleCommand("init", "Install workflow files", func() error {
+	root.AddCommand(a.lenientCommand("init", "Install workflow files", func() error {
 		return a.install(false)
 	}))
-	root.AddCommand(a.simpleCommand("upgrade", "Update managed workflow files", func() error {
+	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", func() error {
 		return a.install(true)
 	}))
 	root.AddCommand(a.simpleCommand("status", "Show workflow health", func() error {
@@ -146,11 +146,25 @@ func (a *app) simpleCommand(use string, short string, run func() error) *cobra.C
 	}
 }
 
+func (a *app) lenientCommand(use string, short string, run func() error) *cobra.Command {
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRootOrCWD(); err != nil {
+				return err
+			}
+			return run()
+		},
+	}
+}
+
 func (a *app) detectRoot() error {
 	if a.opts.root != "" {
 		return nil
 	}
-	root, err := detectRoot()
+	root, err := detectManagedRoot()
 	if err != nil {
 		return err
 	}
@@ -158,7 +172,22 @@ func (a *app) detectRoot() error {
 	return nil
 }
 
-func detectRoot() (string, error) {
+func (a *app) detectRootOrCWD() error {
+	if a.opts.root != "" {
+		return nil
+	}
+	root, err := detectManagedRoot()
+	if err != nil {
+		root, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+	}
+	a.opts.root = root
+	return nil
+}
+
+func detectManagedRoot() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -168,9 +197,12 @@ func detectRoot() (string, error) {
 		if stat, err := os.Stat(filepath.Join(dir, ".git")); err == nil && stat.IsDir() {
 			return dir, nil
 		}
+		if stat, err := os.Stat(filepath.Join(dir, ".agents", "ahm.json")); err == nil && !stat.IsDir() {
+			return dir, nil
+		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return wd, nil
+			return "", fmt.Errorf("not in a managed repository (no .git or .agents/ahm.json found); use --root to specify a directory or run 'ahm init' to create a workflow")
 		}
 		dir = parent
 	}

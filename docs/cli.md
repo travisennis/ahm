@@ -23,11 +23,16 @@ Exit codes:
 Most commands operate on a target repository root.
 
 By default, `ahm` walks upward from the current working directory until it finds
-a `.git` directory. If no `.git` directory is found, it uses the current working
-directory.
+a `.git` directory or `.agents/ahm.json`. If neither is found, the command
+fails with an error message that explains how to use `--root` or `ahm init`.
 
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
+
+`init` and `upgrade` are lenient: they can run in any directory, because
+`init` creates the `.agents` workflow scaffolding and `upgrade` refreshes
+it. All other commands require a managed repository (`.git` or
+`.agents/ahm.json`).
 
 ## Global Flags
 
@@ -35,7 +40,7 @@ Global flags must appear before the command.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or the current directory. |
+| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. |
 | `--quiet` | Parsed and reserved for quieter output; no current command changes behavior based on it. |
