@@ -68,6 +68,12 @@ an existing `AGENTS.md` or treats it as a locally modified managed file.
 Generated task, research, and ExecPlan indexes are owned by `ahm` and should
 not be edited by hand.
 
+Workflow validation is read-only. `status` and `doctor` report missing or stale
+generated indexes, task status and bucket mismatches, broken task dependencies,
+task-to-ExecPlan consistency issues, and broken relative Markdown links within
+the managed workflow surface. Project-wide documentation is not scanned by
+default; `ahm` validates the workflow files and artifacts it manages or indexes.
+
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include
 `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,

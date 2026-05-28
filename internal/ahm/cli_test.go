@@ -495,6 +495,109 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	}
 }
 
+func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.status(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got, `"code": "metadata_missing"`)
+	assertNotContains(t, got,
+		`"code": "generated_index_missing"`,
+		`"code": "markdown_link_missing"`,
+	)
+}
+
+func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: []\n")
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "new-note.md"), "# New Note\n\nThis should make the research index stale.\n")
+	if err := os.Remove(filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.status(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"code": "task_bucket_mismatch"`,
+		`completed task should be in .agents/.tasks/completed`,
+		`"code": "generated_index_missing"`,
+		`"path": ".agents/.tasks/cancelled/index.md"`,
+		`"code": "generated_index_stale"`,
+		`"path": ".agents/.research/index.md"`,
+	)
+}
+
+func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "---\n"+
+		"id: 001\n"+
+		"title: Plan Still Active\n"+
+		"status: Completed\n"+
+		"priority: P2\n"+
+		"effort: S\n"+
+		"labels: type:task\n"+
+		"exec_plan: rollout\n"+
+		"depends_on: []\n"+
+		"---\n"+
+		"# Plan Still Active\n\n"+
+		"## Summary\n\nDone.\n")
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"), "# Rollout\n\n## Outcomes & Retrospective\n\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.status(); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(),
+		`"code": "task_completed_exec_plan_active"`,
+		`completed task 001 references active ExecPlan .agents/exec-plans/active/rollout.md`,
+	)
+}
+
+func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"code": "markdown_link_missing"`,
+		`"path": ".agents/.research/topics/links.md:3"`,
+		`relative Markdown link target does not exist: missing.md`,
+	)
+	assertNotContains(t, got, "also-missing.md")
+}
+
 func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
 	root := t.TempDir()
 	var out strings.Builder

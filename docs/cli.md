@@ -182,11 +182,15 @@ The report includes:
 - Whether workflow metadata is installed.
 - Installed workflow version from `.agents/ahm.json`.
 - Task counts by status.
-- Validation errors and warnings.
+- Validation errors and warnings for managed workflow files, task consistency,
+  generated indexes, ExecPlan references, and scoped Markdown links.
 
 Validation checks include missing metadata, missing managed files, unreadable
-managed files, untracked managed files, locally modified managed files, malformed
-task front matter, missing task dependencies, and active dependency cycles.
+managed files, untracked managed files, locally modified managed files,
+malformed task front matter, task bucket mismatches, missing task dependencies,
+active dependency cycles, stale or missing generated indexes, task ExecPlan
+reference issues, and broken relative Markdown links inside the managed
+workflow surface.
 
 Useful flags:
 
@@ -640,5 +644,15 @@ rewrite front matter in `ahm`'s canonical order.
 | `task_unreadable` | A task file could not be read. |
 | `task_missing_field` | Task front matter is missing a required field. |
 | `task_malformed` | A task could not be parsed or has unsupported enum values. |
+| `task_bucket_mismatch` | A task status does not match its active, completed, or cancelled bucket. |
 | `task_dependency_missing` | A task depends on an ID that does not exist. |
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
+| `task_exec_plan_missing` | A task references an ExecPlan that could not be found. |
+| `task_completed_exec_plan_active` | A completed task references an ExecPlan still under `.agents/exec-plans/active/`. |
+| `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |
+| `generated_index_missing` | A generated workflow index is missing and should be regenerated with `ahm index`. |
+| `generated_index_unreadable` | A generated workflow index could not be read. |
+| `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
+| `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
+| `markdown_link_missing` | A relative Markdown link inside the managed workflow surface points at a missing file. |
+| `markdown_link_check_failed` | A workflow Markdown link check could not be completed. |
