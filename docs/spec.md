@@ -71,4 +71,5 @@ not be edited by hand.
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include
 `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
+`.agents/DOCS.md`,
 `.agents/skills/deslop/SKILL.md`, and `docs/adr/README.md`.

@@ -10,6 +10,10 @@ Before creating, updating, organizing, or using research, read
 For large work, read `.agents/PLANS.md`. Tasks marked `L` or `XL` require an
 ExecPlan before implementation.
 
+Before auditing or updating documentation, read `.agents/DOCS.md`. Prefer the
+target repository's existing documentation conventions over adding new
+structures.
+
 Do not edit generated indexes by hand. Update source task, research, or
 ExecPlan files and run `ahm index`.
 

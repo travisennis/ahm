@@ -119,6 +119,8 @@ used. `AGENTS.md` is create-only: it is created when missing, but an existing
 Writes:
 
 - Managed templates listed by `internal/templates/templates.go`.
+- Workflow guides under `.agents/`, including task, research, ExecPlan, and
+  documentation guidance.
 - `.agents/ahm.json` metadata.
 - Generated index files under `.agents/.tasks/`, `.agents/.research/`, and
   `.agents/exec-plans/`.

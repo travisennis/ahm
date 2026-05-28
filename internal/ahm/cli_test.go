@@ -538,6 +538,7 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 	assertContainsAll(t, stdout,
 		"created:",
 		"  AGENTS.md",
+		"  .agents/DOCS.md",
 		"  .agents/TASKS.md",
 		"  .agents/skills/deslop/SKILL.md",
 		"  docs/adr/README.md",
@@ -545,6 +546,7 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 
 	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"),
 		`"version": "`+templates.Version+`"`,
+		`".agents/DOCS.md":`,
 		`".agents/TASKS.md":`,
 	)
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "index.md"),
@@ -622,6 +624,7 @@ func TestUpgradeDecisions(t *testing.T) {
 			".agents/TASKS.md":                      hashBytes([]byte("old managed tasks\n")),
 			".agents/PLANS.md":                      hashBytes(templateBytes(t, "workflow/PLANS.md")),
 			".agents/RESEARCH.md":                   hashBytes([]byte("locally changed research\n")),
+			".agents/DOCS.md":                       hashBytes([]byte("old managed docs\n")),
 			".agents/.tasks/README.md":              hashBytes([]byte("old managed tasks readme\n")),
 			".agents/.research/README.md":           hashBytes([]byte("old managed research readme\n")),
 			".agents/.research/index.md":            hashBytes([]byte("old managed research index\n")),
@@ -642,6 +645,8 @@ func TestUpgradeDecisions(t *testing.T) {
 			content = string(templateBytes(t, "workflow/PLANS.md"))
 		case ".agents/RESEARCH.md":
 			content = "local edit that should conflict\n"
+		case ".agents/DOCS.md":
+			content = "old managed docs\n"
 		case ".agents/.tasks/README.md":
 			content = "old managed tasks readme\n"
 		case ".agents/.research/README.md":
@@ -672,6 +677,7 @@ func TestUpgradeDecisions(t *testing.T) {
 	assertContainsAll(t, got,
 		"skipped:",
 		"  AGENTS.md",
+		"  .agents/DOCS.md",
 		"  .agents/PLANS.md",
 		"conflicts:",
 		"  .agents/RESEARCH.md",

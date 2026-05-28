@@ -24,6 +24,10 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 			want: "Research should usually flow from rough capture to durable project work",
 		},
 		{
+			path: "workflow/DOCS.md",
+			want: "Treat the repository's existing docs as the source",
+		},
+		{
 			path: "workflow/deslop-SKILL.md",
 			want: "Scale the review to the change size",
 		},
@@ -37,6 +41,15 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 			t.Fatalf("%s does not contain %q", tc.path, tc.want)
 		}
 	}
+}
+
+func TestManagedFilesIncludeDocsWorkflow(t *testing.T) {
+	for _, file := range Files() {
+		if file.Target == ".agents/DOCS.md" {
+			return
+		}
+	}
+	t.Fatal(".agents/DOCS.md is not managed")
 }
 
 func TestManagedFilesIncludeADRTemplate(t *testing.T) {
@@ -68,6 +81,29 @@ func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
 	} {
 		if strings.Contains(body, term) {
 			t.Fatalf("deslop template should be project-generic, but contains %q", term)
+		}
+	}
+}
+
+func TestDocsTemplateIsProjectGeneric(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/DOCS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := string(data)
+	for _, term := range []string{
+		"Go",
+		"Cobra",
+		"CLI reference",
+		"docs/cli.md",
+		"just ci",
+		"go test",
+		"cargo",
+		"npm",
+	} {
+		if strings.Contains(body, term) {
+			t.Fatalf("docs template should be project-generic, but contains %q", term)
 		}
 	}
 }
