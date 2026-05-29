@@ -240,10 +240,7 @@ func (a *app) install(upgrade bool) error {
 		case errors.Is(readErr, os.ErrNotExist):
 			result["created"] = append(result["created"], item.Target)
 			if !a.opts.dryRun {
-				if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-					return err
-				}
-				if err := os.WriteFile(target, content, 0o644); err != nil {
+				if err := writeFileAtomic(target, content, 0o644); err != nil {
 					return err
 				}
 			}
@@ -263,7 +260,7 @@ func (a *app) install(upgrade bool) error {
 			if string(existing) != string(content) {
 				result["updated"] = append(result["updated"], item.Target)
 				if !a.opts.dryRun {
-					if err := os.WriteFile(target, content, 0o644); err != nil {
+					if err := writeFileAtomic(target, content, 0o644); err != nil {
 						return err
 					}
 				}
@@ -353,10 +350,7 @@ func writeMetadata(root string, meta metadata) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".agents"), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(root, ".agents", "ahm.json"), append(data, '\n'), 0o644)
+	return writeFileAtomic(filepath.Join(root, ".agents", "ahm.json"), append(data, '\n'), 0o644)
 }
 
 func hashBytes(data []byte) string {
@@ -1299,10 +1293,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"create": path, "id": id})
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := writeFileAtomic(path, []byte(content), 0o644); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -1364,7 +1355,7 @@ func (a *app) taskMigrate() error {
 		return nil
 	}
 	for _, path := range sortedKeys(writes) {
-		if err := os.WriteFile(path, []byte(writes[path]), 0o644); err != nil {
+		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
 			return err
 		}
 	}
@@ -1827,10 +1818,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"move": target, "status": status})
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(target, []byte(renderTask(task)), 0o644); err != nil {
+	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 		return err
 	}
 	if filepath.Clean(task.Path) != filepath.Clean(target) {
@@ -1910,7 +1898,7 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"task": task.ID, "depends_on": task.DependsOn})
 	}
-	if err := os.WriteFile(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+	if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -2022,6 +2010,11 @@ func (a *app) taskDepCycles() error {
 }
 
 func (a *app) writeIndexes() error {
+	if !a.opts.dryRun {
+		if err := cleanupStaleTemps(a.opts.root); err != nil {
+			return err
+		}
+	}
 	writes, err := a.indexWrites()
 	if err != nil {
 		return err
@@ -2032,10 +2025,7 @@ func (a *app) writeIndexes() error {
 			fmt.Fprintln(a.out, relPath(a.opts.root, path))
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, []byte(writes[path]), 0o644); err != nil {
+		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
 			return err
 		}
 	}

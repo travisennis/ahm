@@ -74,6 +74,26 @@ task-to-ExecPlan consistency issues, and broken relative Markdown links within
 the managed workflow surface. Project-wide documentation is not scanned by
 default; `ahm` validates the workflow files and artifacts it manages or indexes.
 
+## Atomic Write Guarantee
+
+All managed writes (metadata, generated indexes, task files, installed/upgraded
+templates) use a temporary-file-then-atomic-rename strategy that guarantees
+crash safety:
+
+1. Content is written to a sibling `<path>.tmp` file in the same directory.
+2. The temp file is synced to disk (`fsync`).
+3. The temp file is atomically renamed to the target path (`os.Rename`, which
+   is atomic on Unix when source and destination are on the same filesystem).
+4. The parent directory is synced so the rename survives a power loss.
+
+A crash before the rename leaves the original file intact. A crash after the
+rename is indistinguishable from a successful write. Stale `.tmp` files left
+by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
+and `index` commands, and are overwritten on the next write to the same path.
+
+Advisory locking has been evaluated but is not implemented (see
+`docs/adr/001-atomic-writes-and-concurrency.md` for the rationale).
+
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include
 `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
