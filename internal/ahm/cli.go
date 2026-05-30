@@ -447,29 +447,19 @@ func validateManagedFile(root string, meta metadata, item templates.File, report
 
 func validateTaskFiles(root string, report *validationReport) []Task {
 	var tasks []Task
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
-		entries, err := os.ReadDir(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
+	files, err := taskFilePaths(root)
+	if err != nil {
+		report.addError("task_dir_unreadable", ".agents/.tasks", err.Error())
+		return nil
+	}
+	for _, f := range files {
+		validateTaskFrontMatter(root, f.Path, report)
+		task, err := parseTask(f.Path, f.Bucket)
 		if err != nil {
-			report.addError("task_dir_unreadable", relPath(root, dir), err.Error())
+			report.addError("task_malformed", relPath(root, f.Path), err.Error())
 			continue
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			path := filepath.Join(dir, entry.Name())
-			validateTaskFrontMatter(root, path, report)
-			task, err := parseTask(path, bucket)
-			if err != nil {
-				report.addError("task_malformed", relPath(root, path), err.Error())
-				continue
-			}
-			tasks = append(tasks, task)
-		}
+		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
 		return taskLess(tasks[i].ID, tasks[j].ID)
@@ -842,6 +832,42 @@ func (a *app) emit(value any) error {
 	return err
 }
 
+// taskFileInfo holds the path and bucket for a task markdown file.
+type taskFileInfo struct {
+	Path   string
+	Bucket string
+}
+
+// taskFilePaths collects all task markdown file paths across the
+// active, completed, and cancelled buckets. It skips index.md and
+// non-.md entries. Directories that do not exist are silently skipped.
+func taskFilePaths(root string) ([]taskFileInfo, error) {
+	var files []taskFileInfo
+	for _, bucket := range []string{"active", "completed", "cancelled"} {
+		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", dir, err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+				continue
+			}
+			files = append(files, taskFileInfo{
+				Path:   filepath.Join(dir, entry.Name()),
+				Bucket: bucket,
+			})
+		}
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Path < files[j].Path
+	})
+	return files, nil
+}
+
 // Task is the parsed representation of a workflow task file.
 type Task struct {
 	ID          string
@@ -863,26 +889,17 @@ type Task struct {
 }
 
 func collectTasks(root string) ([]Task, error) {
+	files, err := taskFilePaths(root)
+	if err != nil {
+		return nil, err
+	}
 	var tasks []Task
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
-		entries, err := os.ReadDir(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
+	for _, f := range files {
+		task, err := parseTask(f.Path, f.Bucket)
 		if err != nil {
 			return nil, err
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			task, err := parseTask(filepath.Join(dir, entry.Name()), bucket)
-			if err != nil {
-				return nil, err
-			}
-			tasks = append(tasks, task)
-		}
+		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
 		return taskLess(tasks[i].ID, tasks[j].ID)
@@ -1366,24 +1383,14 @@ func (a *app) taskMigrate() error {
 }
 
 func taskMarkdownPaths(root string) ([]string, error) {
-	var paths []string
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
-		entries, err := os.ReadDir(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			paths = append(paths, filepath.Join(dir, entry.Name()))
-		}
+	files, err := taskFilePaths(root)
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(paths)
+	paths := make([]string, len(files))
+	for i, f := range files {
+		paths[i] = f.Path
+	}
 	return paths, nil
 }
 
@@ -1951,51 +1958,7 @@ func (a *app) taskDepCycles() error {
 	if err != nil {
 		return err
 	}
-	byID := map[string]Task{}
-	for _, task := range tasks {
-		if task.Status != "Completed" && task.Status != "Cancelled" {
-			byID[task.ID] = task
-		}
-	}
-	var cycles [][]string
-	visiting := map[string]bool{}
-	visited := map[string]bool{}
-	var dfs func(string, []string)
-	dfs = func(id string, path []string) {
-		if visiting[id] {
-			start := 0
-			for i, item := range path {
-				if item == id {
-					start = i
-					break
-				}
-			}
-			cycles = append(cycles, append(path[start:], id))
-			return
-		}
-		if visited[id] {
-			return
-		}
-		task, ok := byID[id]
-		if !ok {
-			return
-		}
-		visiting[id] = true
-		for _, dep := range task.DependsOn {
-			dfs(dep, append(path, id))
-		}
-		visiting[id] = false
-		visited[id] = true
-	}
-	// Sort keys for deterministic traversal order.
-	ids := make([]string, 0, len(byID))
-	for id := range byID {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		dfs(id, nil)
-	}
+	cycles := taskDependencyCycles(tasks)
 	if len(cycles) == 0 {
 		fmt.Fprintln(a.out, "No dependency cycles found")
 		return nil
