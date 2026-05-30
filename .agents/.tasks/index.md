@@ -62,7 +62,7 @@ None.
 | [005](completed/005.md) | Standardize app methods on pointer receivers | Completed | P1 | M | type:refactor, area:cli | - | - |
 | [006](completed/006.md) | Make root detection fail outside managed repositories | Completed | P1 | M | type:bug, area:cli | - | - |
 | [007](completed/007.md) | Fix install metadata version handling with conflicts | Completed | P1 | M | type:bug, area:workflow | - | - |
-| [008](completed/008.md) | Add atomic writes and concurrency protection | Completed | P1 | L | type:feature, area:workflow, risk:migration | .agents/exec-plans/active/008.md | - |
+| [008](completed/008.md) | Add atomic writes and concurrency protection | Completed | P1 | L | type:feature, area:workflow, risk:migration | .agents/exec-plans/completed/008.md | - |
 | [009](completed/009.md) | Replace Cobra usage error string parsing | Completed | P1 | M | type:bug, area:cli | - | - |
 | [010](completed/010.md) | Consolidate duplicate task DFS and collection logic | Completed | P1 | M | type:refactor, area:tasks | - | - |
 | [011](completed/011.md) | Normalize CRLF line endings when reading workflow markdown | Completed | P1 | S | type:bug, area:workflow | - | - |
