@@ -29,10 +29,10 @@ fails with an error message that explains how to use `--root` or `ahm init`.
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
-`init` and `upgrade` are lenient: they can run in any directory, because
-`init` creates the `.agents` workflow scaffolding and `upgrade` refreshes
-it. All other commands require a managed repository (`.git` or
-`.agents/ahm.json`).
+`init`, `upgrade`, and `agents suggestions` are lenient: they can run in any
+directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
+refreshes it, and `agents suggestions` only prints advisory text. All other
+commands require a managed repository (`.git` or `.agents/ahm.json`).
 
 ## Global Flags
 
@@ -68,6 +68,8 @@ Install and upgrade operations print grouped text sections such as `created:`,
 
 Some task commands use command-specific text output:
 
+- `agents suggestions` prints advisory Markdown snippets unless `--json` is
+  used.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task show` prints the task Markdown file unless `--json` is used.
@@ -105,6 +107,35 @@ Example:
 
 ```bash
 ahm version
+```
+
+### `agents suggestions`
+
+Prints advisory snippets that a project may consider adding to an existing
+project-owned `AGENTS.md`.
+
+This command never writes `AGENTS.md`. It exists for repositories where
+`AGENTS.md` already exists and `ahm init` or `ahm upgrade` correctly skip that
+file. The intended workflow is for an agent or maintainer to run the command,
+review the suggestions, and adapt any useful snippets into the existing
+instructions.
+
+By default, the command reads `AGENTS.md` under the target root when present and
+omits exact suggestion blocks that already appear in the file. The matching is
+lightweight and advisory; projects should still review the output.
+
+Useful flags:
+
+- `--all`: prints all suggestions, including blocks that appear present.
+- `--json`: prints structured suggestion objects with `id`, `title`, `body`,
+  and `present` fields.
+
+Examples:
+
+```bash
+ahm agents suggestions
+ahm agents suggestions --all
+ahm --json agents suggestions
 ```
 
 ### `init`

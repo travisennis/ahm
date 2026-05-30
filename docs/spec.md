@@ -64,6 +64,8 @@ locally changed while preserving user edits.
 `AGENTS.md` is an entrypoint file, not a managed workflow document. `ahm init`
 may create a starter `AGENTS.md` when it is missing, but `ahm` never overwrites
 an existing `AGENTS.md` or treats it as a locally modified managed file.
+`ahm agents suggestions` may print advisory snippets for a project-owned
+`AGENTS.md`, but it does not modify the file.
 
 Generated task, research, and ExecPlan indexes are owned by `ahm` and should
 not be edited by hand.

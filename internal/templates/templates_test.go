@@ -61,6 +61,16 @@ func TestManagedFilesIncludeADRTemplate(t *testing.T) {
 	t.Fatal("docs/adr/README.md is not managed")
 }
 
+func TestAgentsTemplateMatchesSuggestionBlocks(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/AGENTS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), RenderAgentsMarkdown(); got != want {
+		t.Fatalf("workflow/AGENTS.md should match rendered suggestions\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
 	data, err := fs.ReadFile(FS, "workflow/deslop-SKILL.md")
 	if err != nil {

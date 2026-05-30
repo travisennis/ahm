@@ -126,8 +126,34 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", func() error {
 		return a.writeIndexes()
 	}))
+	root.AddCommand(a.agentsCommand())
 	root.AddCommand(a.taskCommand())
 	return root
+}
+
+func (a *app) agentsCommand() *cobra.Command {
+	var showAll bool
+	agents := &cobra.Command{
+		Use:   "agents",
+		Short: "Show AGENTS.md guidance",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return usageError("agents requires a subcommand")
+		},
+	}
+	suggestions := &cobra.Command{
+		Use:   "suggestions",
+		Short: "Print suggested AGENTS.md additions",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRootOrCWD(); err != nil {
+				return err
+			}
+			return a.agentsSuggestions(showAll)
+		},
+	}
+	suggestions.Flags().BoolVar(&showAll, "all", false, "Print all suggestions, including ones that appear present")
+	agents.AddCommand(suggestions)
+	return agents
 }
 
 func (a *app) simpleCommand(use string, short string, run func() error) *cobra.Command {
@@ -227,9 +253,15 @@ func (a *app) install(upgrade bool) error {
 		"conflicts": {},
 	}
 	for _, item := range templates.Files() {
-		content, err := fs.ReadFile(templates.FS, item.Source)
-		if err != nil {
-			return err
+		var content []byte
+		if item.Target == "AGENTS.md" {
+			content = []byte(templates.RenderAgentsMarkdown())
+		} else {
+			var err error
+			content, err = fs.ReadFile(templates.FS, item.Source)
+			if err != nil {
+				return err
+			}
 		}
 		target := filepath.Join(root, item.Target)
 		hash := hashBytes(content)
@@ -801,6 +833,84 @@ func (r *validationReport) addError(code string, path string, message string) {
 
 func (r *validationReport) addWarning(code string, path string, message string) {
 	r.Warnings = append(r.Warnings, validationFinding{Code: code, Path: path, Message: message})
+}
+
+type agentsSuggestionsReport struct {
+	Target      string                   `json:"target"`
+	Exists      bool                     `json:"exists"`
+	Suggestions []agentSuggestionWithHit `json:"suggestions"`
+}
+
+type agentSuggestionWithHit struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	Present bool   `json:"present"`
+}
+
+func (a *app) agentsSuggestions(showAll bool) error {
+	report, err := a.collectAgentSuggestions()
+	if err != nil {
+		return err
+	}
+	if a.opts.json {
+		return a.emit(report)
+	}
+
+	selected := report.Suggestions
+	if !showAll {
+		selected = nil
+		for _, suggestion := range report.Suggestions {
+			if !suggestion.Present {
+				selected = append(selected, suggestion)
+			}
+		}
+	}
+
+	fmt.Fprintln(a.out, "# Suggested AGENTS.md Additions")
+	fmt.Fprintln(a.out)
+	fmt.Fprintln(a.out, "These are advisory snippets from `ahm`. Review and adapt them before adding them")
+	fmt.Fprintln(a.out, "to an existing project-owned AGENTS.md.")
+	if len(selected) == 0 {
+		fmt.Fprintln(a.out)
+		fmt.Fprintln(a.out, "No missing suggestions detected.")
+		return nil
+	}
+	for _, suggestion := range selected {
+		fmt.Fprintln(a.out)
+		fmt.Fprintf(a.out, "## %s\n\n", suggestion.Title)
+		if showAll && suggestion.Present {
+			fmt.Fprintln(a.out, "_Already appears present in AGENTS.md._")
+			fmt.Fprintln(a.out)
+		}
+		fmt.Fprintln(a.out, suggestion.Body)
+	}
+	return nil
+}
+
+func (a *app) collectAgentSuggestions() (agentsSuggestionsReport, error) {
+	target := filepath.Join(a.opts.root, "AGENTS.md")
+	existing, err := os.ReadFile(target)
+	exists := err == nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return agentsSuggestionsReport{}, err
+	}
+
+	content := strings.ReplaceAll(string(existing), "\r\n", "\n")
+	report := agentsSuggestionsReport{
+		Target: "AGENTS.md",
+		Exists: exists,
+	}
+	for _, suggestion := range templates.AgentSuggestions() {
+		body := strings.ReplaceAll(suggestion.Body, "\r\n", "\n")
+		report.Suggestions = append(report.Suggestions, agentSuggestionWithHit{
+			ID:      suggestion.ID,
+			Title:   suggestion.Title,
+			Body:    suggestion.Body,
+			Present: exists && strings.Contains(content, body),
+		})
+	}
+	return report, nil
 }
 
 func relPath(root string, path string) string {
