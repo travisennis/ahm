@@ -192,6 +192,14 @@ moving plans. Do not edit generated ExecPlan indexes by hand.
 
 --------------------------------------------------------------------------------
 
+## Documentation Workflow
+
+Before auditing or updating documentation, read `.agents/DOCS.md`. Prefer the
+target repository's existing documentation conventions over adding new
+structures.
+
+--------------------------------------------------------------------------------
+
 ## Git Worktree Safety
 
 - Assume uncommitted changes may belong to the user.
