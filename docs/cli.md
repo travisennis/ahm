@@ -248,7 +248,7 @@ research and ExecPlan indexes link Markdown files from their source folders.
 
 Useful flags:
 
-- `--dry-run`: prints the index paths that would be written.
+- `--dry-run`: prints only index paths that are missing or have stale content. A clean repository immediately after `ahm index` produces no output.
 
 Example:
 

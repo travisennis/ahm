@@ -1291,6 +1291,78 @@ func TestMainIndexRegeneratesResearchAndExecPlanIndexes(t *testing.T) {
 	)
 }
 
+func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	// Install workflow scaffold.
+	stdout, stderr, code := cli("init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a task so indexes are non-trivial.
+	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
+	if code != 0 {
+		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Run index so all generated indexes are fresh.
+	stdout, stderr, code = cli("index")
+	if code != 0 {
+		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Case 1: Dry-run after fresh index should produce no output.
+	stdout, stderr, code = cli("--dry-run", "index")
+	if code != 0 {
+		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("dry-run index after fresh index should be empty, got:\n%s", stdout)
+	}
+
+	// Case 2: Stale a generated index and verify dry-run reports it.
+	researchIndex := filepath.Join(root, ".agents", ".research", "index.md")
+	if err := os.WriteFile(researchIndex, []byte("stale content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = cli("--dry-run", "index")
+	if code != 0 {
+		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, ".agents/.research/index.md") {
+		t.Fatalf("dry-run index should report stale .research/index.md, got:\n%s", stdout)
+	}
+
+	// Case 3: Remove a generated index and verify dry-run reports it.
+	if err := os.Remove(researchIndex); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = cli("--dry-run", "index")
+	if code != 0 {
+		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, ".agents/.research/index.md") {
+		t.Fatalf("dry-run index should report missing .research/index.md, got:\n%s", stdout)
+	}
+
+	// Case 4: After re-running index, dry-run should be clean again.
+	stdout, stderr, code = cli("index")
+	if code != 0 {
+		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = cli("--dry-run", "index")
+	if code != 0 {
+		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("dry-run index after re-index should be empty, got:\n%s", stdout)
+	}
+}
+
 func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

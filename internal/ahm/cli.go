@@ -1982,7 +1982,9 @@ func (a *app) writeIndexes() error {
 	paths := sortedKeys(writes)
 	for _, path := range paths {
 		if a.opts.dryRun {
-			fmt.Fprintln(a.out, relPath(a.opts.root, path))
+			if isStaleIndex(path, writes[path]) {
+				fmt.Fprintln(a.out, relPath(a.opts.root, path))
+			}
 			continue
 		}
 		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
@@ -1990,6 +1992,18 @@ func (a *app) writeIndexes() error {
 		}
 	}
 	return nil
+}
+
+// isStaleIndex returns true when the file at path is missing or its content
+// differs from want. It is used by dry-run index to report only generated
+// indexes that would actually be rewritten.
+func isStaleIndex(path string, want string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// File missing or unreadable — stale.
+		return true
+	}
+	return string(data) != want
 }
 
 func (a *app) indexWriteTargets() ([]string, error) {
