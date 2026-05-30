@@ -47,7 +47,7 @@ states otherwise.
 
 ## Development
 
-Install Go 1.22 or newer plus the local verification tools:
+Install Go 1.26.3 plus the local verification tools:
 
 ```bash
 just install-tools
@@ -63,6 +63,12 @@ Use `just fix` for the mutating cleanup pass:
 
 ```bash
 just fix
+```
+
+Use `just update-deps` to update Go module dependencies and tidy the module:
+
+```bash
+just update-deps
 ```
 
 This repository uses `prek` with a pre-commit-compatible config:

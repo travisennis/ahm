@@ -4,7 +4,7 @@
 
 `ahm` is an agent harness manager CLI that:
 
-- Is written in Go 1.22.
+- Is written in Go 1.26.3.
 - Installs and manages repo-local `.agents` workflow files for tasks, research
   notes, ExecPlans, ADRs, and generated indexes.
 - Uses Cobra for CLI parsing.
@@ -87,6 +87,9 @@ just fmt-check
 # Module cleanup
 just tidy
 just tidy-check
+
+# Update Go module dependencies
+just update-deps
 
 # Vet, lint, and vulnerability checks
 just vet
