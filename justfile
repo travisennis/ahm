@@ -30,6 +30,10 @@ tidy:
 tidy-check:
 	go mod tidy -diff
 
+update-deps:
+	go get -u ./...
+	go mod tidy
+
 lint:
 	"$(go env GOPATH)/bin/golangci-lint" run
 
