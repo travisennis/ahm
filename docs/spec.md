@@ -74,6 +74,13 @@ task-to-ExecPlan consistency issues, and broken relative Markdown links within
 the managed workflow surface. Project-wide documentation is not scanned by
 default; `ahm` validates the workflow files and artifacts it manages or indexes.
 
+## File Format
+
+All workflow markdown files are read with CRLF (`\r\n`) line endings normalized
+to LF (`\n`) before parsing. Managed files written by `ahm` always use LF line
+endings regardless of the original input. This ensures consistent front matter,
+title, heading, and body processing across platforms.
+
 ## Atomic Write Guarantee
 
 All managed writes (metadata, generated indexes, task files, installed/upgraded

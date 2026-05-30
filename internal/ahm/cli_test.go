@@ -135,6 +135,257 @@ func TestParseFrontMatter_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestReadWorkflowFile_CRLF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.md")
+
+	// Write a file with CRLF line endings.
+	content := "---\r\nid: 001\r\ntitle: CRLF Task\r\n---\r\n# CRLF Task\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := readWorkflowFile(path)
+	if err != nil {
+		t.Fatalf("readWorkflowFile: %v", err)
+	}
+
+	// Verify CRLF was normalized to LF.
+	if strings.Contains(string(data), "\r\n") {
+		t.Fatalf("readWorkflowFile did not normalize CRLF: %q", data)
+	}
+	if !strings.HasPrefix(string(data), "---\n") {
+		t.Fatalf("expected LF front matter marker, got: %q", data)
+	}
+	if !strings.Contains(string(data), "\n---\n") {
+		t.Fatalf("expected LF front matter end marker, got: %q", data)
+	}
+}
+
+func TestReadWorkflowFile_BOM(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.md")
+
+	// Write a file with UTF-8 BOM and CRLF line endings.
+	// BOM = 0xEF 0xBB 0xBF = "\xef\xbb\xbf"
+	bom := "\xef\xbb\xbf"
+	content := bom + "---\r\nid: 001\r\ntitle: BOM Task\r\n---\r\n# BOM Task\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := readWorkflowFile(path)
+	if err != nil {
+		t.Fatalf("readWorkflowFile: %v", err)
+	}
+
+	// Verify BOM was stripped and CRLF was normalized to LF.
+	if strings.Contains(string(data), "\r\n") {
+		t.Fatalf("readWorkflowFile did not normalize CRLF: %q", data)
+	}
+	if !strings.HasPrefix(string(data), "---\n") {
+		t.Fatalf("expected LF front matter marker after BOM strip, got: %q", data)
+	}
+	if strings.HasPrefix(string(data), "\xef\xbb\xbf") {
+		t.Fatalf("BOM was not stripped: %q", data)
+	}
+}
+
+func TestParseFrontMatter_CRLF(t *testing.T) {
+	// Even without going through readWorkflowFile, parseFrontMatter should
+	// handle CRLF input due to its own normalization.
+	meta, body, err := parseFrontMatter("---\r\nid: 001\r\ntitle: CRLF Task\r\n---\r\n# CRLF Task\r\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta["id"] != "001" {
+		t.Fatalf("id = %q", meta["id"])
+	}
+	if meta["title"] != "CRLF Task" {
+		t.Fatalf("title = %q", meta["title"])
+	}
+	if !strings.Contains(body, "# CRLF Task") {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestSplitFrontMatter_CRLF(t *testing.T) {
+	raw, body, ok := splitFrontMatter("---\r\nid: 001\r\n---\r\n# Body\r\n")
+	if !ok {
+		t.Fatal("splitFrontMatter returned false for CRLF input")
+	}
+	if !strings.Contains(raw, "id: 001") {
+		t.Fatalf("raw = %q", raw)
+	}
+	if !strings.Contains(body, "# Body") {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestParseTask_CRLF(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a task file with CRLF line endings.
+	path := filepath.Join(root, ".agents", ".tasks", "active", "099.md")
+	content := "---\r\n" +
+		"id: 099\r\n" +
+		"title: CRLF Task\r\n" +
+		"status: Pending\r\n" +
+		"priority: P2\r\n" +
+		"effort: S\r\n" +
+		"labels: type:test, area:workflow\r\n" +
+		"exec_plan: -\r\n" +
+		"depends_on: -\r\n" +
+		"---\r\n" +
+		"# CRLF Task\r\n" +
+		"\r\n" +
+		"## Summary\r\n" +
+		"\r\n" +
+		"Body with CRLF.\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := parseTask(path, "active")
+	if err != nil {
+		t.Fatalf("parseTask: %v", err)
+	}
+	if task.ID != "099" {
+		t.Fatalf("task.ID = %q", task.ID)
+	}
+	if task.Title != "CRLF Task" {
+		t.Fatalf("task.Title = %q", task.Title)
+	}
+	if task.Status != "Pending" {
+		t.Fatalf("task.Status = %q", task.Status)
+	}
+	if !strings.Contains(task.Body, "Body with CRLF") {
+		t.Fatalf("task.Body = %q", task.Body)
+	}
+}
+
+func TestMigrateTaskFrontMatter_CRLF(t *testing.T) {
+	// migrateTaskFrontMatter calls splitFrontMatter which normalizes CRLF.
+	input := "---\r\n" +
+		"id: 099\r\n" +
+		"title: Legacy Task\r\n" +
+		"status: Pending\r\n" +
+		"priority: -\r\n" +
+		"effort: XL (split)\r\n" +
+		"exec_plan: -\r\n" +
+		"depends_on: -\r\n" +
+		"---\r\n" +
+		"# Legacy Task\r\n"
+
+	result, changes := migrateTaskFrontMatter(input)
+	if len(changes) == 0 {
+		t.Fatal("expected migrations for legacy CRLF task")
+	}
+	// The result should only use LF line endings.
+	if strings.Contains(result, "\r\n") {
+		t.Fatalf("migration output contains CRLF: %q", result)
+	}
+	if !strings.Contains(changes[0], "add labels") {
+		t.Fatalf("first change = %q, want 'add labels'", changes[0])
+	}
+}
+
+func TestHeadingTitle_CRLF(t *testing.T) {
+	// headingTitle splits on "\n". CRLF lines have trailing \r, but
+	// strings.HasPrefix should still match "# " because \r comes after.
+	title := headingTitle("# CRLF Title\r\n\r\n## Section\r\n", "fallback")
+	if title != "CRLF Title" {
+		t.Fatalf("headingTitle = %q, want %q", title, "CRLF Title")
+	}
+}
+
+func TestStripHeading_CRLF(t *testing.T) {
+	// stripHeading uses strings.TrimSpace per line, which strips \r.
+	body := stripHeading("\r\n# CRLF Title\r\n\r\n## Section\r\n\r\nBody\r\n", "CRLF Title")
+	if !strings.HasPrefix(body, "## Section") {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a task with CRLF line endings.
+	path := filepath.Join(root, ".agents", ".tasks", "active", "098.md")
+	content := "---\r\n" +
+		"id: 098\r\n" +
+		"title: CRLF Completer\r\n" +
+		"status: Pending\r\n" +
+		"priority: P3\r\n" +
+		"effort: XS\r\n" +
+		"labels: type:test, area:workflow\r\n" +
+		"exec_plan: -\r\n" +
+		"depends_on: -\r\n" +
+		"---\r\n" +
+		"# CRLF Completer\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run task status (which reads and parses the task).
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"098"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the task was moved to completed and parsed correctly.
+	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "098.md")
+	if _, err := os.Stat(completedPath); err != nil {
+		t.Fatalf("completed task not found: %v", err)
+	}
+}
+
+func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a valid task with CRLF.
+	path := filepath.Join(root, ".agents", ".tasks", "active", "097.md")
+	content := "---\r\n" +
+		"id: 097\r\n" +
+		"title: Validate CRLF\r\n" +
+		"status: Pending\r\n" +
+		"priority: P2\r\n" +
+		"effort: S\r\n" +
+		"labels: type:test, area:workflow\r\n" +
+		"exec_plan: -\r\n" +
+		"depends_on: -\r\n" +
+		"---\r\n" +
+		"# Validate CRLF\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var report validationReport
+	validateTaskFrontMatter(root, path, &report)
+	for _, e := range report.Errors {
+		t.Errorf("validation error for CRLF task: %s: %s", e.Code, e.Message)
+	}
+	for _, w := range report.Warnings {
+		t.Errorf("validation warning for CRLF task: %s: %s", w.Code, w.Message)
+	}
+}
+
 func TestStripHeading(t *testing.T) {
 	got := stripHeading("\n# Test Task\n\n## Summary\n\nBody\n", "Test Task")
 	if !strings.HasPrefix(got, "## Summary") {

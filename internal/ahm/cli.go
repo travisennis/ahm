@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -232,7 +233,7 @@ func (a *app) install(upgrade bool) error {
 		}
 		target := filepath.Join(root, item.Target)
 		hash := hashBytes(content)
-		existing, readErr := os.ReadFile(target)
+		existing, readErr := readWorkflowFile(target)
 		switch {
 		case errors.Is(readErr, os.ErrNotExist):
 			result["created"] = append(result["created"], item.Target)
@@ -355,6 +356,21 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// readWorkflowFile reads a file and normalizes CRLF (\r\n) line endings to
+// LF (\n) so that downstream parsing functions do not need to handle both.
+func readWorkflowFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	// Strip UTF-8 BOM if present.
+	if len(data) >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
+		data = data[3:]
+	}
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	return data, nil
+}
+
 func (a *app) status() error {
 	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
@@ -426,7 +442,7 @@ func validateManagedFile(root string, meta metadata, item templates.File, report
 	if item.CreateOnly {
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(root, item.Target))
+	data, err := readWorkflowFile(filepath.Join(root, item.Target))
 	if errors.Is(err, os.ErrNotExist) {
 		report.addError("managed_file_missing", item.Target, "managed workflow file is missing")
 		return
@@ -468,8 +484,12 @@ func validateTaskFiles(root string, report *validationReport) []Task {
 }
 
 func validateTaskFrontMatter(root string, path string, report *validationReport) {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// Task file was already moved or deleted; not an error.
+			return
+		}
 		report.addError("task_unreadable", relPath(root, path), err.Error())
 		return
 	}
@@ -576,7 +596,7 @@ func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 }
 
 func execPlanHasRetrospective(path string) bool {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
 		return false
 	}
@@ -609,7 +629,7 @@ func validateGeneratedIndexes(root string, report *validationReport) {
 		return
 	}
 	for _, path := range sortedKeys(writes) {
-		data, err := os.ReadFile(path)
+		data, err := readWorkflowFile(path)
 		if errors.Is(err, os.ErrNotExist) {
 			report.addError("generated_index_missing", relPath(root, path), "generated index is missing; run ahm index")
 			continue
@@ -668,7 +688,7 @@ func workflowMarkdownFiles(root string) []string {
 }
 
 func validateMarkdownFileLinks(root string, path string, report *validationReport) {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
 		report.addWarning("markdown_link_check_failed", relPath(root, path), err.Error())
 		return
@@ -908,7 +928,7 @@ func collectTasks(root string) ([]Task, error) {
 }
 
 func parseTask(path string, bucket string) (Task, error) {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
 		return Task{}, err
 	}
@@ -952,6 +972,7 @@ func parseTask(path string, bucket string) (Task, error) {
 
 func parseFrontMatter(text string) (map[string]string, string, error) {
 	meta := map[string]string{}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if !strings.HasPrefix(text, "---\n") {
 		return meta, text, nil
 	}
@@ -1339,7 +1360,7 @@ func (a *app) taskMigrate() error {
 	var migrations []taskMigration
 	writes := map[string]string{}
 	for _, path := range paths {
-		data, err := os.ReadFile(path)
+		data, err := readWorkflowFile(path)
 		if err != nil {
 			return err
 		}
@@ -1424,6 +1445,7 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 }
 
 func splitFrontMatter(text string) (string, string, bool) {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if !strings.HasPrefix(text, "---\n") {
 		return "", text, false
 	}
@@ -1998,7 +2020,7 @@ func (a *app) writeIndexes() error {
 // differs from want. It is used by dry-run index to report only generated
 // indexes that would actually be rewritten.
 func isStaleIndex(path string, want string) bool {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
 		// File missing or unreadable — stale.
 		return true
@@ -2152,7 +2174,7 @@ func collectMarkdownDocs(root string, base string, buckets []string) (map[string
 }
 
 func markdownTitle(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := readWorkflowFile(path)
 	if err != nil {
 		return "", err
 	}
