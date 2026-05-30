@@ -698,6 +698,95 @@ func TestSubcommandsRequireSubcommands(t *testing.T) {
 	assertContainsAll(t, stderr, "task dep requires a subcommand")
 }
 
+func TestUsageErrorsExitCode2(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		message string
+	}{
+		{
+			name:    "unknown top-level command",
+			args:    []string{"boguscmd"},
+			message: `unknown command "boguscmd" for "ahm"`,
+		},
+		{
+			name:    "unknown subcommand",
+			args:    []string{"task", "bogus"},
+			message: "task requires a subcommand",
+		},
+		{
+			name:    "extra args to no-args command",
+			args:    []string{"init", "extra"},
+			message: `unknown command "extra" for "ahm init"`,
+		},
+		{
+			name:    "extra args to version",
+			args:    []string{"version", "x"},
+			message: `unknown command "x" for "ahm version"`,
+		},
+		{
+			name:    "unknown flag",
+			args:    []string{"--bogus"},
+			message: "unknown flag: --bogus",
+		},
+		{
+			name:    "unknown shorthand flag",
+			args:    []string{"-X"},
+			message: "unknown shorthand flag: 'X' in -X",
+		},
+		{
+			name:    "task subcommand requires subcommand",
+			args:    []string{"task"},
+			message: "task requires a subcommand",
+		},
+		{
+			name:    "task dep requires subcommand",
+			args:    []string{"task", "dep"},
+			message: "task dep requires a subcommand",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, stderr, code := runCLI(t, tt.args...)
+			if code != 2 {
+				t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+			}
+			if !strings.Contains(stderr, tt.message) {
+				t.Fatalf("stderr missing %q:\n%s", tt.message, stderr)
+			}
+		})
+	}
+}
+
+func TestRuntimeErrorsExitCode1(t *testing.T) {
+	// Running outside a managed project should produce a runtime error (exit 1).
+	dir := t.TempDir()
+	_, stderr, code := runCLIFromDir(t, dir, "status")
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "error:") {
+		t.Fatalf("stderr missing 'error:' prefix:\n%s", stderr)
+	}
+}
+
+func TestRuntimeErrorsOnTaskCommandOutsideRepo(t *testing.T) {
+	// Task commands outside a managed repo should exit 1 with an error message.
+	dir := t.TempDir()
+	tests := []string{"list", "ready", "next"}
+	for _, cmd := range tests {
+		t.Run(cmd, func(t *testing.T) {
+			_, stderr, code := runCLIFromDir(t, dir, "task", cmd)
+			if code != 1 {
+				t.Fatalf("exit code = %d, want 1; stderr = %s", code, stderr)
+			}
+			if !strings.Contains(stderr, "error:") {
+				t.Fatalf("stderr missing 'error:' prefix:\n%s", stderr)
+			}
+		})
+	}
+}
+
 func TestInstallNeverOverwritesExistingAgentsEntrypoint(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Project Agent Instructions\n\nKeep this.\n")

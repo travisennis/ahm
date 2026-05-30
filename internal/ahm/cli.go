@@ -41,7 +41,7 @@ func Main(argv []string, stdout io.Writer, stderr io.Writer) int {
 	a := app{out: stdout, err: stderr}
 	if err := a.run(argv); err != nil {
 		var usage usageError
-		if errors.As(err, &usage) || isCobraUsageError(err) {
+		if errors.As(err, &usage) {
 			fmt.Fprintln(stderr, err)
 			return 2
 		}
@@ -57,14 +57,13 @@ func (e usageError) Error() string {
 	return string(e)
 }
 
-func isCobraUsageError(err error) bool {
-	message := err.Error()
-	return strings.HasPrefix(message, "unknown command ") ||
-		strings.HasPrefix(message, "unknown shorthand flag:") ||
-		strings.HasPrefix(message, "unknown flag:") ||
-		strings.Contains(message, "requires at least ") ||
-		strings.Contains(message, "accepts ") ||
-		strings.Contains(message, "requires ")
+// noArgs is like cobra.NoArgs but wraps the error as a usageError so that
+// Main can distinguish usage errors from runtime errors by type assertion.
+func noArgs(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return usageError(fmt.Sprintf("unknown command %q for %q", args[0], cmd.CommandPath()))
+	}
+	return nil
 }
 
 func (a *app) run(argv []string) error {
@@ -80,10 +79,8 @@ func (a *app) command() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       templates.Version,
+		Args:          noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 0 {
-				return usageError("unknown command: " + args[0])
-			}
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
@@ -107,7 +104,7 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print version",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(a.out, templates.Version)
 			return nil
@@ -136,7 +133,7 @@ func (a *app) simpleCommand(use string, short string, run func() error) *cobra.C
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -150,7 +147,7 @@ func (a *app) lenientCommand(use string, short string, run func() error) *cobra.
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRootOrCWD(); err != nil {
 				return err
@@ -1123,7 +1120,7 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(&cobra.Command{
 		Use:   "next",
 		Short: "Show the next ready task",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -1134,7 +1131,7 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(&cobra.Command{
 		Use:   "migrate",
 		Short: "Normalize legacy task front matter",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -1190,7 +1187,7 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 		Use:     use,
 		Aliases: aliases,
 		Short:   short,
-		Args:    cobra.NoArgs,
+		Args:    noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -1228,7 +1225,7 @@ func (a *app) taskDepCommand() *cobra.Command {
 	dep.AddCommand(&cobra.Command{
 		Use:   "cycles",
 		Short: "Print dependency cycles",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
