@@ -137,7 +137,8 @@ Task command implementation:
   `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`
 - Task ID parsing/order helpers: `splitTaskID`, `nextTaskID`, `resolveTask`
 - Generated index rendering: `internal/ahm/indexes.go`
-- CLI tests: `internal/ahm/cli_test.go`
+- CLI tests: focused `internal/ahm/*_test.go` files, with shared helpers in
+  `internal/ahm/test_helpers_test.go`
 - User-facing CLI docs: `docs/cli.md`
 
 Workflow templates:
