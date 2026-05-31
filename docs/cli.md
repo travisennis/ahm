@@ -15,7 +15,9 @@ When no command is provided, `ahm` runs `status`.
 Exit codes:
 
 - `0`: success.
-- `1`: runtime failure.
+- `1`: runtime failure. `status` and `doctor` use exit code 1
+  when the workflow validation report contains errors, without printing
+  `error:` to stderr.
 - `2`: invalid usage, such as an unknown flag or missing required argument.
 
 ## Root Selection
@@ -223,6 +225,10 @@ active dependency cycles, stale or missing generated indexes, task ExecPlan
 reference issues, and broken relative Markdown links inside the managed
 workflow surface.
 
+When the validation report contains any error (not just warnings), `status`
+exits with code 1. No `error:` prefix is printed to stderr; the JSON or text
+output on stdout already describes the findings.
+
 Useful flags:
 
 - `--json`: prints indented JSON.
@@ -247,6 +253,9 @@ The report includes:
 - Whether workflow metadata is installed.
 - Installed and embedded workflow template versions.
 - The same workflow validation report used by `status`.
+
+Like `status`, `doctor` exits with code 1 when the validation report contains
+any error, without printing `error:` to stderr.
 
 Useful flags:
 

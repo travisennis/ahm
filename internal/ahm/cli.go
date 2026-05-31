@@ -46,11 +46,16 @@ func Main(argv []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 2
 		}
+		if errors.Is(err, errValidationFailed) {
+			return 1
+		}
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
 	return 0
 }
+
+var errValidationFailed = errors.New("workflow has validation errors")
 
 type usageError string
 
@@ -414,7 +419,13 @@ func (a *app) status() error {
 		"tasks":             taskCounts(tasks),
 		"validation":        validation,
 	}
-	return a.emit(status)
+	if err := a.emit(status); err != nil {
+		return err
+	}
+	if len(validation.Errors) > 0 {
+		return errValidationFailed
+	}
+	return nil
 }
 
 func (a *app) doctor() error {
@@ -431,7 +442,13 @@ func (a *app) doctor() error {
 		"template_version":   templates.Version,
 		"validation":         validation,
 	}
-	return a.emit(report)
+	if err := a.emit(report); err != nil {
+		return err
+	}
+	if len(validation.Errors) > 0 {
+		return errValidationFailed
+	}
+	return nil
 }
 
 type validationReport struct {

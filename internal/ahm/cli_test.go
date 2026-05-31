@@ -700,9 +700,10 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle B", "Pending", "depends_on: 002\n")
 
 	var out strings.Builder
+
 	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.status(); err != nil {
-		t.Fatal(err)
+	if err := a.status(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	for _, want := range []string{
@@ -730,8 +731,8 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.doctor(); err != nil {
-		t.Fatal(err)
+	if err := a.doctor(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	for _, want := range []string{
@@ -754,8 +755,8 @@ func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.status(); err != nil {
-		t.Fatal(err)
+	if err := a.status(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	assertContainsAll(t, got, `"code": "metadata_missing"`)
@@ -780,8 +781,8 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.status(); err != nil {
-		t.Fatal(err)
+	if err := a.status(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
