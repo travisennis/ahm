@@ -576,6 +576,11 @@ Sets a task status to `Completed`, moves it to
 `.agents/.tasks/completed/<id>.md`, removes the old file when the bucket changed,
 and regenerates indexes.
 
+Before completing, `ahm` verifies that all task dependencies (listed in
+`depends_on`) are already in `Completed` status. If any dependency is not
+completed, the command returns an error listing the incomplete dependencies
+and does not modify the task file or indexes.
+
 Alias:
 
 - `task close <id>`

@@ -427,6 +427,31 @@ func (a *app) taskStatus(argv []string, status string) error {
 	if err != nil {
 		return err
 	}
+
+	// Enforce dependency completion before completing a task.
+	if status == "Completed" && len(task.DependsOn) > 0 {
+		allTasks, collErr := collectTasks(a.opts.root)
+		if collErr != nil {
+			fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		}
+		completed := map[string]bool{}
+		for _, t := range allTasks {
+			if t.Status == "Completed" {
+				completed[t.ID] = true
+			}
+		}
+		var incomplete []string
+		for _, dep := range task.DependsOn {
+			if !completed[dep] {
+				incomplete = append(incomplete, dep)
+			}
+		}
+		if len(incomplete) > 0 {
+			return fmt.Errorf("cannot complete task %s: incomplete dependencies: %s",
+				task.ID, strings.Join(incomplete, ", "))
+		}
+	}
+
 	task.Status = status
 	task.Updated = time.Now().Format(time.RFC3339)
 	bucket := "active"

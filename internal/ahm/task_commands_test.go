@@ -469,3 +469,108 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	assertContainsAll(t, stdout, "002 [Cancelled] P2 S Second Task")
 	assertNotContains(t, stdout, "001 [Pending]")
 }
+
+func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	err := a.taskStatus([]string{"002"}, "Completed")
+	if err == nil {
+		t.Fatal("expected error from completing task with incomplete dependency")
+	}
+	if !strings.Contains(err.Error(), "incomplete dependencies: 001") {
+		t.Fatalf("error message = %q, want incomplete dependencies: 001", err.Error())
+	}
+	// Task file should not have been moved.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
+		t.Fatal("completed file should not exist after failed completion")
+	}
+}
+
+func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Completed Dep", "Completed", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"002"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+	// Task should have been moved to completed.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); err != nil {
+		t.Fatalf("completed file should exist: %v", err)
+	}
+}
+
+func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+	// Task should have been moved to completed.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
+		t.Fatalf("completed file should exist: %v", err)
+	}
+}
+
+func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dependency")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Main")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Make 002 depend on 001.
+	_, stderr, code = runCLI(t, "--root", root, "task", "dep", "add", "002", "001")
+	if code != 0 {
+		t.Fatalf("dep add exit code = %d, stderr = %s", code, stderr)
+	}
+
+	// Try completing 002 while 001 is still pending.
+	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "002")
+	if code == 0 {
+		t.Fatal("expected non-zero exit from completing task with pending dependency")
+	}
+	if !strings.Contains(stderr, "incomplete dependencies: 001") {
+		t.Fatalf("stderr = %q, want incomplete dependencies: 001", stderr)
+	}
+	// Verify 002 was not moved to completed.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
+		t.Fatal("completed file should not exist after failed completion")
+	}
+
+	// Now complete 001 and verify 002 can be completed.
+	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("complete 001 exit code = %d, stderr = %s", code, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "002")
+	if code != 0 {
+		t.Fatalf("complete 002 exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 -> Completed")
+}
+
+func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, status string, deps string) {
+	t.Helper()
+	extra := "depends_on: " + deps + "\n"
+	writeTaskFile(t, path, id, title, status, extra)
+}
