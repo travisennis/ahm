@@ -340,6 +340,32 @@ Task efforts must be one of:
 - `L`
 - `XL`
 
+### Malformed Task Resilience
+
+List-like commands (`task list`, `task ls`, `task ready`, `task blocked`,
+`task next`, `task dep cycles`, `task dep tree`) and `ahm index` tolerate
+malformed task files. When one or more task files cannot be parsed, these
+commands skip the malformed files, produce output from the remaining valid
+tasks, and print a warning to stderr.
+
+`task create` also tolerates malformed task files: it warns on stderr and
+still assigns the next available ID, scanning both parsed tasks and task
+files on disk to avoid ID collisions.
+
+Task resolution commands (`task show`, `task start`, `task complete`,
+`task cancel`, `task reopen`, `task dep add`, `task dep remove`) also
+skip malformed files during ID resolution. A malformed task cannot be
+resolved by ID and produces a `task not found` error.
+
+Validation commands (`ahm status`, `ahm doctor`) are strict: they report
+malformed task files as `task_malformed` validation errors and exit with
+code 1.
+
+To recover from a malformed task file, inspect the file, fix the front
+matter (missing required fields, invalid enum values, or parse errors
+such as unsupported block scalars), and run `ahm status` or `ahm doctor`
+to confirm the repair.
+
 ### `task create <title> [flags]`
 
 Creates a new active task and regenerates indexes.

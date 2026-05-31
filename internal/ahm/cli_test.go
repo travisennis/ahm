@@ -394,9 +394,37 @@ func TestStripHeading(t *testing.T) {
 }
 
 func TestNextTaskID(t *testing.T) {
-	got := nextTaskID([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}})
+	got := nextTaskID([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}}, t.TempDir())
 	if got != "011" {
 		t.Fatalf("nextTaskID = %q", got)
+	}
+}
+
+func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
+	root := t.TempDir()
+	// Create a valid task and a malformed one
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Valid", "Pending", "")
+	// Malformed file with id 005 — should be picked up by filesystem scan
+	if err := os.MkdirAll(filepath.Join(root, ".agents", ".tasks", "active"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".agents", ".tasks", "active", "005.md"), []byte("garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only 001 is parsed; 005 is skipped due to parse error
+	tasks, err := collectTasks(root)
+	if err == nil {
+		t.Fatal("expected error from malformed task")
+	}
+	if len(tasks) != 1 || tasks[0].ID != "001" {
+		t.Fatalf("expected only task 001, got %d tasks", len(tasks))
+	}
+
+	// nextTaskID should see 005 on disk and return 006
+	got := nextTaskID(tasks, root)
+	if got != "006" {
+		t.Fatalf("nextTaskID = %q, want %q", got, "006")
 	}
 }
 
@@ -1475,6 +1503,182 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 	if strings.Contains(got, "003") || strings.Contains(got, "004") {
 		t.Fatalf("completed-task cycle should be ignored:\n%s", got)
 	}
+}
+
+func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
+	root := t.TempDir()
+	// Valid task
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Valid Task", "Pending", "")
+	// Malformed task: invalid enum value "Doing"
+	malformedPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	malformedContent := "---\n" +
+		"id: 002\n" +
+		"title: Bad Task\n" +
+		"status: Doing\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:bug\n" +
+		"exec_plan: -\n" +
+		"---\n" +
+		"# Bad Task\n"
+	if err := os.MkdirAll(filepath.Dir(malformedPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(malformedPath, []byte(malformedContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("task list skips malformed task with warning", func(t *testing.T) {
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.taskList("all", ""); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		if !strings.Contains(got, "001 [Pending]") {
+			t.Fatalf("expected 001 in output:\n%s", got)
+		}
+		if strings.Contains(got, "002 [Doing]") {
+			t.Fatalf("malformed task should not appear in list:\n%s", got)
+		}
+		if !strings.Contains(errBuf.String(), "warning:") {
+			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("task ready skips malformed task", func(t *testing.T) {
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.taskList("ready", ""); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		if !strings.Contains(got, "001 [Pending]") {
+			t.Fatalf("expected 001 in output:\n%s", got)
+		}
+		if !strings.Contains(errBuf.String(), "warning:") {
+			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("task next skips malformed task", func(t *testing.T) {
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.taskNext(); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		if !strings.Contains(got, "001 [Pending]") {
+			t.Fatalf("expected 001 in output:\n%s", got)
+		}
+		if !strings.Contains(errBuf.String(), "warning:") {
+			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("resolveTask finds valid task despite malformed others", func(t *testing.T) {
+		var errBuf strings.Builder
+		a := app{opts: options{root: root}, err: &errBuf}
+		task, err := a.resolveTask("001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("id = %q", task.ID)
+		}
+		if !strings.Contains(errBuf.String(), "warning:") {
+			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+		}
+	})
+
+	t.Run("resolveTask returns not-found for malformed task", func(t *testing.T) {
+		var errBuf strings.Builder
+		a := app{opts: options{root: root}, err: &errBuf}
+		_, err := a.resolveTask("002")
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected not-found for malformed task, got: %v", err)
+		}
+	})
+
+	t.Run("index regenerates despite malformed task", func(t *testing.T) {
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.writeIndexes(); err != nil {
+			t.Fatal(err)
+		}
+		indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+		data, err := os.ReadFile(indexPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := string(data)
+		if !strings.Contains(got, "001.md) | Valid Task") {
+			t.Fatalf("expected 001 in index:\n%s", got)
+		}
+	})
+
+	t.Run("task dep tree works with malformed task", func(t *testing.T) {
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "005.md"), "005", "Dep Parent", "Pending", "depends_on: 001\n")
+
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.taskDepTree([]string{"005"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		if !strings.Contains(got, "005 [Pending] Dep Parent") {
+			t.Fatalf("expected dep tree with 005:\n%s", got)
+		}
+		if !strings.Contains(got, "001 [Pending] Valid Task") {
+			t.Fatalf("expected dep tree with 001:\n%s", got)
+		}
+		// Should print exactly one warning, not two (no double collectTasks call)
+		warnCount := strings.Count(errBuf.String(), "warning:")
+		if warnCount != 1 {
+			t.Fatalf("expected exactly 1 warning, got %d: %q", warnCount, errBuf.String())
+		}
+	})
+
+	t.Run("task dep cycles works with malformed task", func(t *testing.T) {
+		// Add cycle between valid tasks
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle A", "Pending", "depends_on: 004\n")
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Cycle B", "Pending", "depends_on: 003\n")
+
+		var out, errBuf strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &errBuf}
+		if err := a.taskDepCycles(); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		if !strings.Contains(got, "003 -> 004 -> 003") {
+			t.Fatalf("cycle output = %q", got)
+		}
+		if !strings.Contains(errBuf.String(), "warning:") {
+			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+		}
+	})
+}
+
+func TestResolveTaskFromTasks(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Title: "Alpha", Status: "Pending"},
+		{ID: "002", Title: "Beta", Status: "Pending"},
+	}
+	t.Run("exact match", func(t *testing.T) {
+		task, err := resolveTaskFromTasks("001", tasks)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("expected 001, got %s", task.ID)
+		}
+	})
+	t.Run("not found", func(t *testing.T) {
+		_, err := resolveTaskFromTasks("999", tasks)
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected not-found error, got: %v", err)
+		}
+	})
 }
 
 func TestRenderRootIndexGolden(t *testing.T) {

@@ -1042,16 +1042,21 @@ func collectTasks(root string) ([]Task, error) {
 		return nil, err
 	}
 	var tasks []Task
+	var errs []error
 	for _, f := range files {
 		task, err := parseTask(f.Path, f.Bucket)
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("%s: %w", relPath(root, f.Path), err))
+			continue
 		}
 		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
 		return taskLess(tasks[i].ID, tasks[j].ID)
 	})
+	if len(errs) > 0 {
+		return tasks, errors.Join(errs...)
+	}
 	return tasks, nil
 }
 
@@ -1435,9 +1440,9 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	}
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
-		return err
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
-	id := nextTaskID(tasks)
+	id := nextTaskID(tasks, a.opts.root)
 	path := filepath.Join(a.opts.root, ".agents", ".tasks", "active", id+".md")
 	body := parsed.description
 	if body == "" {
@@ -1706,12 +1711,30 @@ func splitTopLevelCommas(value string) []string {
 	return parts
 }
 
-func nextTaskID(tasks []Task) string {
+func nextTaskID(tasks []Task, root string) string {
 	maxID := 0
 	for _, task := range tasks {
 		n, suffix := splitTaskID(task.ID)
 		if suffix == "" && n < 999999 && n > maxID {
 			maxID = n
+		}
+	}
+	// Also scan the filesystem for task files that may have been skipped
+	// due to parse errors, to avoid colliding with them.
+	for _, bucket := range []string{"active", "completed", "cancelled"} {
+		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+				continue
+			}
+			n, suffix := splitTaskID(strings.TrimSuffix(entry.Name(), ".md"))
+			if suffix == "" && n < 999999 && n > maxID {
+				maxID = n
+			}
 		}
 	}
 	return fmt.Sprintf("%03d", maxID+1)
@@ -1756,7 +1779,7 @@ func renderTask(task Task) string {
 func (a *app) taskList(mode string, status string) error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
-		return err
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
 	filtered := filterTasks(tasks, mode)
 	if status != "" {
@@ -1778,7 +1801,7 @@ func (a *app) taskList(mode string, status string) error {
 func (a *app) taskNext() error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
-		return err
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
 	ready := filterTasks(tasks, "ready")
 	if len(ready) == 0 {
@@ -1990,11 +2013,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 	return nil
 }
 
-func (a *app) resolveTask(pattern string) (Task, error) {
-	tasks, err := collectTasks(a.opts.root)
-	if err != nil {
-		return Task{}, err
-	}
+func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
 	// Exact match returns immediately.
 	for _, task := range tasks {
 		if task.ID == pattern {
@@ -2022,6 +2041,14 @@ func (a *app) resolveTask(pattern string) (Task, error) {
 		return Task{}, fmt.Errorf("task %q is ambiguous, matches %s", pattern, strings.Join(ids, ", "))
 	}
 	return matches[0], nil
+}
+
+func (a *app) resolveTask(pattern string) (Task, error) {
+	tasks, err := collectTasks(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+	}
+	return resolveTaskFromTasks(pattern, tasks)
 }
 
 func (a *app) taskDepUpdate(argv []string, add bool) error {
@@ -2072,9 +2099,9 @@ func (a *app) taskDepTree(argv []string) error {
 	}
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
-		return err
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
-	root, err := a.resolveTask(argv[0])
+	root, err := resolveTaskFromTasks(argv[0], tasks)
 	if err != nil {
 		return err
 	}
@@ -2110,7 +2137,7 @@ func (a *app) taskDepTree(argv []string) error {
 func (a *app) taskDepCycles() error {
 	tasks, err := collectTasks(a.opts.root)
 	if err != nil {
-		return err
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
 	cycles := taskDependencyCycles(tasks)
 	if len(cycles) == 0 {
@@ -2174,10 +2201,7 @@ func (a *app) indexWriteTargets() ([]string, error) {
 }
 
 func (a *app) indexWrites() (map[string]string, error) {
-	tasks, err := collectTasks(a.opts.root)
-	if err != nil {
-		return nil, err
-	}
+	tasks, _ := collectTasks(a.opts.root)
 	research, err := collectMarkdownDocs(a.opts.root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
