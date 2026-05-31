@@ -49,9 +49,11 @@ func AgentSuggestions() []AgentSuggestion {
 		{
 			ID:    "task-workflow",
 			Title: "Task Workflow",
-			Body: "Before creating, choosing, updating, or working on tasks, read\n" +
-				"`.agents/TASKS.md`. Use `.agents/.tasks/index.md` as the generated task queue,\n" +
-				"then open the specific task file before acting.",
+			Body: "For the first task in a session, read `.agents/TASKS.md`, then use\n" +
+				"`.agents/.tasks/index.md` as the generated task queue and open the specific\n" +
+				"task file. For later tasks in the same session, reread only the task index\n" +
+				"and specific task file unless `.agents/TASKS.md` changed or the task changes\n" +
+				"task workflow semantics.",
 		},
 		{
 			ID:    "research-workflow",
@@ -76,7 +78,9 @@ func AgentSuggestions() []AgentSuggestion {
 			ID:    "generated-indexes",
 			Title: "Generated Indexes",
 			Body: "Do not edit generated indexes by hand. Update source task, research, or\n" +
-				"ExecPlan files and run `ahm index`.",
+				"ExecPlan files and run `ahm index`. Do not run `ahm index` after\n" +
+				"`ahm task start`, `ahm task complete`, or `ahm task cancel` unless you edit\n" +
+				"metadata by hand afterward; those commands already regenerate indexes.",
 		},
 		{
 			ID:    "task-state-transitions",
@@ -88,6 +92,13 @@ func AgentSuggestions() []AgentSuggestion {
 			ID:    "no-implicit-commits",
 			Title: "No Implicit Commits",
 			Body:  "Do not commit or push unless explicitly asked.",
+		},
+		{
+			ID:    "implementation-docs",
+			Title: "Implementation Documentation",
+			Body: "When moving implementation between files or packages, update repository code\n" +
+				"maps and implementation-location references even if user-facing behavior is\n" +
+				"unchanged.",
 		},
 	}
 }

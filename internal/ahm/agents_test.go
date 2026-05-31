@@ -20,9 +20,10 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	assertContainsAll(t, stdout,
 		"# Suggested AGENTS.md Additions",
 		"## Task Workflow",
-		"Before creating, choosing, updating, or working on tasks",
+		"For the first task in a session",
 		"## Generated Indexes",
 		"Do not edit generated indexes by hand",
+		"## Implementation Documentation",
 	)
 	assertFileContainsAll(t, agentsPath, "Keep this.")
 	if got := mustRead(t, agentsPath); got != original {
