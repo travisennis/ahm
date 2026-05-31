@@ -82,13 +82,24 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 	lines := strings.Split(raw, "\n")
 	index := frontMatterLineIndex(lines)
 	var changes []string
+
+	// Recompute index after mutations that shift line count (insertFrontMatterField)
+	// or conditionally after in-place mutations (normalizeEnumField), so that
+	// subsequent operations always see an up-to-date view.
+
 	if _, ok := index["labels"]; !ok {
 		lines = insertFrontMatterField(lines, index, "labels", "type:task, area:unknown", "effort")
 		index = frontMatterLineIndex(lines)
 		changes = append(changes, "add labels")
 	}
-	changes = append(changes, normalizeEnumField(lines, index, "priority", "P3", priorityOrder())...)
-	changes = append(changes, normalizeEnumField(lines, index, "effort", "M", effortOrder())...)
+	if c := normalizeEnumField(lines, index, "priority", "P3", priorityOrder()); len(c) > 0 {
+		changes = append(changes, c...)
+		index = frontMatterLineIndex(lines)
+	}
+	if c := normalizeEnumField(lines, index, "effort", "M", effortOrder()); len(c) > 0 {
+		changes = append(changes, c...)
+		index = frontMatterLineIndex(lines)
+	}
 	if i, ok := index["depends_on"]; ok {
 		oldLine := lines[i]
 		oldValue := frontMatterValue(lines[i])

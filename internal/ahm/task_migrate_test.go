@@ -133,6 +133,172 @@ func TestTaskMigrateWritesMechanicalFixes(t *testing.T) {
 	)
 }
 
+func TestMigrateTaskFrontMatter_MultipleInsertAndNormalize(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		changes []string
+	}{
+		{
+			name: "missing labels, normalize priority and effort, normalize depends_on",
+			input: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: -\n" +
+				"effort: XL (split)\n" +
+				"exec_plan: -\n" +
+				"depends_on: 010 (some note)\n" +
+				"---\n" +
+				"# Test\n",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P3\n" +
+				"effort: XL\n" +
+				"labels: type:task, area:unknown\n" +
+				"exec_plan: -\n" +
+				"depends_on: 010\n" +
+				"---\n" +
+				"# Test\n",
+			changes: []string{
+				"add labels",
+				"set priority placeholder to P3",
+				"normalize effort to XL",
+				"normalize depends_on",
+			},
+		},
+		{
+			name: "all fields already present and already normalized",
+			input: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task, area:cli\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task, area:cli\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			changes: nil,
+		},
+		{
+			name: "only labels missing, rest already normalized",
+			input: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task, area:unknown\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			changes: []string{"add labels"},
+		},
+		{
+			name: "effort placeholder - set to M, priority already valid",
+			input: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P1\n" +
+				"effort: -\n" +
+				"labels: type:bug, area:tasks\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: Test\n" +
+				"status: Pending\n" +
+				"priority: P1\n" +
+				"effort: M\n" +
+				"labels: type:bug, area:tasks\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Test\n",
+			changes: []string{"set effort placeholder to M"},
+		},
+		{
+			name: "depends_on follows-form and normalized priority",
+			input: "---\n" +
+				"id: 005\n" +
+				"title: Follow-up\n" +
+				"status: Pending\n" +
+				"priority: P2 (Medium)\n" +
+				"effort: S\n" +
+				"labels: type:task\n" +
+				"exec_plan: -\n" +
+				"depends_on: Follows 004\n" +
+				"---\n" +
+				"# Follow-up\n",
+			want: "---\n" +
+				"id: 005\n" +
+				"title: Follow-up\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task\n" +
+				"exec_plan: -\n" +
+				"depends_on: 004\n" +
+				"---\n" +
+				"# Follow-up\n",
+			changes: []string{
+				"normalize priority to P2",
+				"normalize depends_on",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, changes := migrateTaskFrontMatter(tt.input)
+			if got != tt.want {
+				t.Fatalf("migrateTaskFrontMatter() output =\n%s\n\nwant =\n%s", got, tt.want)
+			}
+			if len(changes) == 0 && len(tt.changes) == 0 {
+				return
+			}
+			if len(changes) != len(tt.changes) {
+				t.Fatalf("changes = %v (len=%d), want %v (len=%d)", changes, len(changes), tt.changes, len(tt.changes))
+			}
+			for i, c := range changes {
+				if c != tt.changes[i] {
+					t.Fatalf("changes[%d] = %q, want %q", i, c, tt.changes[i])
+				}
+			}
+		})
+	}
+}
+
 func TestNormalizeDependsOnValueHandlesLegacyAnnotations(t *testing.T) {
 	got, changed := normalizeDependsOnValue("030 (existing - see notes), 059 (Output sink; completed, does not supersede this task).")
 	if !changed || got != "030, 059" {
