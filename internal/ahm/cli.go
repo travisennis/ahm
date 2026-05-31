@@ -10,13 +10,11 @@ import (
 )
 
 type options struct {
-	root    string
-	json    bool
-	plain   bool
-	quiet   bool
-	verbose bool
-	dryRun  bool
-	force   bool
+	root   string
+	json   bool
+	plain  bool
+	dryRun bool
+	force  bool
 }
 
 type app struct {
@@ -90,8 +88,6 @@ func (a *app) command() *cobra.Command {
 	root.PersistentFlags().StringVar(&a.opts.root, "root", "", "Target repository root")
 	root.PersistentFlags().BoolVar(&a.opts.json, "json", false, "Print JSON")
 	root.PersistentFlags().BoolVar(&a.opts.plain, "plain", false, "Print stable plain output")
-	root.PersistentFlags().BoolVar(&a.opts.quiet, "quiet", false, "Suppress nonessential output")
-	root.PersistentFlags().BoolVar(&a.opts.verbose, "verbose", false, "Print verbose output")
 	root.PersistentFlags().BoolVar(&a.opts.dryRun, "dry-run", false, "Preview supported writes")
 	root.PersistentFlags().BoolVar(&a.opts.force, "force", false, "Force supported overwrites")
 

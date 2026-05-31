@@ -46,8 +46,7 @@ Global flags must appear before the command.
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. |
-| `--quiet` | Parsed and reserved for quieter output; no current command changes behavior based on it. |
-| `--verbose` | Parsed and reserved for verbose output; no current command changes behavior based on it. |
+
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
