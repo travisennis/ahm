@@ -44,9 +44,9 @@ Global flags must appear before the command.
 | Flag | Description |
 | ---- | ----------- |
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
-| `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. |
-| `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. |
-
+| `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. Takes precedence over `--plain` and `--text`. |
+| `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
+| `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
@@ -62,13 +62,35 @@ ahm --dry-run upgrade
 
 ## Output Modes
 
-`--json` takes precedence over `--plain`.
+ahm supports three output modes: text (default), JSON (`--json`), and compact
+JSON (`--plain`). Precedence: `--json` takes priority over `--plain`, and
+`--plain` takes priority over the default text mode. The `--text` flag selects
+the default explicitly and does not override `--json` or `--plain`.
 
-Without either flag, most structured commands currently print indented JSON.
-Install and upgrade operations print grouped text sections such as `created:`,
-`updated:`, `skipped:`, and `conflicts:`.
+In the default text mode, structured commands such as `status` and `doctor`
+print human-friendly key-value output:
 
-Some task commands use command-specific text output:
+```
+root: /path/to/repo
+template_version: 1.0.0
+installed: true
+installed_version: 1.0.0
+tasks:
+  total: 5
+  pending: 2
+  in_progress: 1
+  completed: 2
+validation:
+  ok: true
+  errors: 0
+  warnings: 0
+```
+
+Install and upgrade operations always print grouped text sections such as
+`created:`, `updated:`, `skipped:`, and `conflicts:`.
+
+Some task commands use command-specific text output regardless of the output
+mode:
 
 - `agents suggestions` prints advisory Markdown snippets unless `--json` is
   used.
