@@ -139,6 +139,79 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 	}
 }
 
+func TestTaskDepAddNoOp(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Existing Dep", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+
+	// First add the dependency.
+	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
+		t.Fatal(err)
+	}
+	firstOut := out.String()
+	if !strings.Contains(firstOut, "depends_on: 002") {
+		t.Fatalf("first add output = %q", firstOut)
+	}
+
+	// Read the file and save content.
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset output and try adding the same dependency again (no-op).
+	out.Reset()
+	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("file content changed on no-op dep add:\nbefore: %s\nafter:  %s", before, after)
+	}
+
+	if !strings.Contains(out.String(), "already depends on 002") {
+		t.Fatalf("output missing no-op message: %q", out.String())
+	}
+}
+
+func TestTaskDepRemoveNoOp(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Not A Dep", "Pending", "depends_on: -\n")
+
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepUpdate([]string{"001", "002"}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("file content changed on no-op dep remove:\nbefore: %s\nafter:  %s", before, after)
+	}
+
+	if !strings.Contains(out.String(), "does not depend on 002") {
+		t.Fatalf("output missing no-op message: %q", out.String())
+	}
+}
+
 func TestMainDependencyCyclesIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

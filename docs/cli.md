@@ -98,8 +98,8 @@ mode:
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task show` prints the task Markdown file unless `--json` is used.
 - `task migrate --dry-run` prints grouped task migration changes.
-- Task status transitions print `<id> -> <status>`.
-- Dependency updates print `<id> depends_on: <dependencies>`.
+- Task status transitions print `<id> -> <status>`; if the task already has the target status, prints `<id> already <status>` instead and skips writing.
+- Dependency updates print `<id> depends_on: <dependencies>`; if the dependency is already present (add) or absent (remove), prints `<id> already depends on <dep>` or `<id> does not depend on <dep>` instead and skips writing.
 - Dependency tree and cycle commands print tree/path text.
 
 ## Commands

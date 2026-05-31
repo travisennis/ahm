@@ -178,6 +178,36 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 	}
 }
 
+func TestTaskStatusNoOp(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Already In Progress", "In Progress", "depends_on: -\n")
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "In Progress"); err != nil {
+		t.Fatal(err)
+	}
+
+	// File should still be in active, content unchanged.
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
+	}
+
+	if !strings.Contains(out.String(), "already In Progress") {
+		t.Fatalf("output missing no-op message: %q", out.String())
+	}
+}
+
 func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	tasks := []Task{
 		{ID: "001", Status: "Completed", Priority: "P1"},

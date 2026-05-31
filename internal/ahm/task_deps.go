@@ -83,11 +83,22 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	for _, item := range task.DependsOn {
 		set[item] = true
 	}
+
+	// Skip write if the dependency set is unchanged.
 	if add {
+		if set[dep.ID] {
+			fmt.Fprintf(a.out, "%s already depends on %s\n", task.ID, dep.ID)
+			return nil
+		}
 		set[dep.ID] = true
 	} else {
+		if !set[dep.ID] {
+			fmt.Fprintf(a.out, "%s does not depend on %s\n", task.ID, dep.ID)
+			return nil
+		}
 		delete(set, dep.ID)
 	}
+
 	task.DependsOn = nil
 	for item := range set {
 		task.DependsOn = append(task.DependsOn, item)
@@ -95,6 +106,7 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	sort.Slice(task.DependsOn, func(i, j int) bool {
 		return taskLess(task.DependsOn[i], task.DependsOn[j])
 	})
+
 	task.Updated = time.Now().Format(time.RFC3339)
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"task": task.ID, "depends_on": task.DependsOn})

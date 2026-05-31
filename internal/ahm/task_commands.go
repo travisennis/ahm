@@ -452,6 +452,11 @@ func (a *app) taskStatus(argv []string, status string) error {
 		}
 	}
 
+	if task.Status == status {
+		fmt.Fprintf(a.out, "%s already %s\n", task.ID, status)
+		return nil
+	}
+
 	task.Status = status
 	task.Updated = time.Now().Format(time.RFC3339)
 	bucket := "active"
