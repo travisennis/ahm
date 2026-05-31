@@ -22,8 +22,10 @@ patching source code or performing git operations.
 ## Start Here
 
 1. Read this file fully before making changes.
-2. For task work, read `.agents/TASKS.md`, then `.agents/.tasks/index.md`, then
-   the specific task file.
+2. For the first task in a session, read `.agents/TASKS.md`, then
+   `.agents/.tasks/index.md`, then the specific task file. For later tasks in
+   the same session, reread only the task index and specific task file unless
+   `.agents/TASKS.md` changed or the task changes task workflow semantics.
 3. Prefer narrow checks first, then `go fmt` or `just fmt` after Go edits, then
    `just ci` before final handoff for code changes.
 4. Do not commit or push unless explicitly asked.
@@ -169,6 +171,9 @@ Workflow templates:
   front matter, moves the file from `.agents/.tasks/active/` to
   `.agents/.tasks/cancelled/`, and regenerates indexes.
 - Do not leave completed or cancelled tasks in `.agents/.tasks/active/`.
+- Do not run `ahm index` after `ahm task start`, `ahm task complete`, or
+  `ahm task cancel` unless you edit task metadata by hand afterward; those
+  commands already regenerate indexes.
 
 --------------------------------------------------------------------------------
 
@@ -206,6 +211,14 @@ moving plans. Do not edit generated ExecPlan indexes by hand.
 Before auditing or updating documentation, read `.agents/DOCS.md`. Prefer the
 target repository's existing documentation conventions over adding new
 structures.
+
+--------------------------------------------------------------------------------
+
+## Implementation Documentation
+
+When moving implementation between files or packages, update repository code
+maps and implementation-location references even if user-facing behavior is
+unchanged.
 
 --------------------------------------------------------------------------------
 
