@@ -501,9 +501,11 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
 		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	assertContainsAll(t, content,
 		"title: Smoke task",
 		"priority: P1",
+		"created: ",
 		"Verify task creation",
 	)
 }
@@ -1244,15 +1246,21 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(data)
+	// created is preserved; updated is overwritten with current timestamp.
 	for _, want := range []string{
 		"created: 2026-05-01",
-		"updated: 2026-05-02",
 		"parent: 000",
 		"external_ref: gh-123",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rewritten task missing %q:\n%s", want, content)
 		}
+	}
+	if !strings.Contains(content, "updated: ") {
+		t.Fatalf("rewritten task missing updated field:\n%s", content)
+	}
+	if strings.Contains(content, "2026-05-02") {
+		t.Fatalf("rewritten task still has old updated value:\n%s", content)
 	}
 }
 
@@ -1276,16 +1284,22 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(data)
+	// created is preserved; updated is overwritten with current timestamp.
 	for _, want := range []string{
 		"depends_on: 002",
 		"created: 2026-05-01",
-		"updated: 2026-05-02",
 		"parent: 000",
 		"external_ref: gh-123",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rewritten task missing %q:\n%s", want, content)
 		}
+	}
+	if !strings.Contains(content, "updated: ") {
+		t.Fatalf("rewritten task missing updated field:\n%s", content)
+	}
+	if strings.Contains(content, "2026-05-02") {
+		t.Fatalf("rewritten task still has old updated value:\n%s", content)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/travisennis/ahm/internal/templates"
@@ -1442,6 +1443,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if body == "" {
 		body = "TODO."
 	}
+	now := time.Now().Format(time.RFC3339)
 	content := renderTask(Task{
 		ID:       id,
 		Title:    parsed.title,
@@ -1450,6 +1452,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 		Effort:   parsed.effort,
 		Labels:   parsed.labels,
 		ExecPlan: "-",
+		Created:  now,
 		Body:     "## Summary\n\n" + body + "\n\n## Acceptance Notes\n\n- [ ] TODO\n",
 	})
 	if a.opts.dryRun {
@@ -1960,6 +1963,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 		return err
 	}
 	task.Status = status
+	task.Updated = time.Now().Format(time.RFC3339)
 	bucket := "active"
 	if status == "Completed" {
 		bucket = "completed"
@@ -2048,6 +2052,7 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	sort.Slice(task.DependsOn, func(i, j int) bool {
 		return taskLess(task.DependsOn[i], task.DependsOn[j])
 	})
+	task.Updated = time.Now().Format(time.RFC3339)
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"task": task.ID, "depends_on": task.DependsOn})
 	}
