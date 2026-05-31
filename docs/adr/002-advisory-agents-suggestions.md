@@ -73,6 +73,7 @@ do not drift.
 ## References
 
 - Task 046: Expose suggested AGENTS.md additions
-- `internal/ahm/cli.go` — `agents suggestions` command
+- `internal/ahm/cli.go` and `internal/ahm/agents.go` — `agents suggestions`
+  command wiring and implementation
 - `internal/templates/templates.go` — suggestion source of truth
 - `docs/spec.md` — `AGENTS.md` ownership semantics

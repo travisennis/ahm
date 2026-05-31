@@ -1,0 +1,167 @@
+package ahm
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+func (a *app) taskDepCommand() *cobra.Command {
+	dep := &cobra.Command{
+		Use:   "dep",
+		Short: "Manage task dependencies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return usageError("task dep requires a subcommand")
+		},
+	}
+	dep.AddCommand(a.taskDepUpdateCommand("add", nil, "Add a task dependency", true))
+	dep.AddCommand(a.taskDepUpdateCommand("remove", []string{"rm"}, "Remove a task dependency", false))
+	dep.AddCommand(&cobra.Command{
+		Use:   "tree <id>",
+		Short: "Print a task dependency tree",
+		Args:  exactArgs(1, "task dep tree requires an id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepTree(args)
+		},
+	})
+	dep.AddCommand(&cobra.Command{
+		Use:   "cycles",
+		Short: "Print dependency cycles",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepCycles()
+		},
+	})
+	return dep
+}
+
+func (a *app) taskDepUpdateCommand(use string, aliases []string, short string, add bool) *cobra.Command {
+	return &cobra.Command{
+		Use:     use + " <id> <dependency-id>",
+		Aliases: aliases,
+		Short:   short,
+		Args:    exactArgs(2, "task dep add/remove requires task id and dependency id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskDepUpdate(args, add)
+		},
+	}
+}
+
+func exactArgs(count int, message string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) != count {
+			return usageError(message)
+		}
+		return nil
+	}
+}
+func (a *app) taskDepUpdate(argv []string, add bool) error {
+	if len(argv) != 2 {
+		return usageError("task dep add/remove requires task id and dependency id")
+	}
+	task, err := a.resolveTask(argv[0])
+	if err != nil {
+		return err
+	}
+	dep, err := a.resolveTask(argv[1])
+	if err != nil {
+		return err
+	}
+	set := map[string]bool{}
+	for _, item := range task.DependsOn {
+		set[item] = true
+	}
+	if add {
+		set[dep.ID] = true
+	} else {
+		delete(set, dep.ID)
+	}
+	task.DependsOn = nil
+	for item := range set {
+		task.DependsOn = append(task.DependsOn, item)
+	}
+	sort.Slice(task.DependsOn, func(i, j int) bool {
+		return taskLess(task.DependsOn[i], task.DependsOn[j])
+	})
+	task.Updated = time.Now().Format(time.RFC3339)
+	if a.opts.dryRun {
+		return a.emit(map[string]any{"task": task.ID, "depends_on": task.DependsOn})
+	}
+	if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+		return err
+	}
+	if err := a.writeIndexes(); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s depends_on: %s\n", task.ID, formatList(task.DependsOn))
+	return nil
+}
+
+func (a *app) taskDepTree(argv []string) error {
+	if len(argv) != 1 {
+		return usageError("task dep tree requires an id")
+	}
+	tasks, err := collectTasks(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+	}
+	root, err := resolveTaskFromTasks(argv[0], tasks)
+	if err != nil {
+		return err
+	}
+	byID := map[string]Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	var walk func(id string, prefix string, seen map[string]bool)
+	walk = func(id string, prefix string, seen map[string]bool) {
+		task, ok := byID[id]
+		if !ok {
+			fmt.Fprintf(a.out, "%s%s [missing]\n", prefix, id)
+			return
+		}
+		fmt.Fprintf(a.out, "%s%s [%s] %s\n", prefix, task.ID, task.Status, task.Title)
+		if seen[id] {
+			fmt.Fprintf(a.out, "%s  cycle to %s\n", prefix, id)
+			return
+		}
+		nextSeen := map[string]bool{}
+		for k, v := range seen {
+			nextSeen[k] = v
+		}
+		nextSeen[id] = true
+		for _, dep := range task.DependsOn {
+			walk(dep, prefix+"  ", nextSeen)
+		}
+	}
+	walk(root.ID, "", map[string]bool{})
+	return nil
+}
+
+func (a *app) taskDepCycles() error {
+	tasks, err := collectTasks(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+	}
+	cycles := taskDependencyCycles(tasks)
+	if len(cycles) == 0 {
+		fmt.Fprintln(a.out, "No dependency cycles found")
+		return nil
+	}
+	for _, cycle := range cycles {
+		fmt.Fprintln(a.out, strings.Join(cycle, " -> "))
+	}
+	return nil
+}

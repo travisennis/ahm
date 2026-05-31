@@ -1,8 +1,9 @@
 # ahm CLI Reference
 
 This document describes the supported `ahm` commands, flags, outputs, and
-write behavior. The executable entrypoint is `cmd/ahm/main.go`; the command
-implementation lives in `internal/ahm/cli.go`.
+write behavior. The executable entrypoint is `cmd/ahm/main.go`; command wiring
+lives in `internal/ahm/cli.go`, with focused implementation files under
+`internal/ahm/`.
 
 ## Usage
 

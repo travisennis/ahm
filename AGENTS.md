@@ -127,8 +127,16 @@ go test ./... -run TestInstall
 
 Task command implementation:
 
-- Task commands and resolution: `internal/ahm/cli.go`
+- Cobra wiring and CLI entrypoint: `internal/ahm/cli.go`
+- Root detection: `internal/ahm/root.go`
+- Install and metadata handling: `internal/ahm/install.go`
+- Status and doctor commands: `internal/ahm/status.go`
+- Workflow validation: `internal/ahm/validation.go`
+- Task model, parsing, and rendering: `internal/ahm/tasks.go`
+- Task command behavior: `internal/ahm/task_commands.go`,
+  `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`
 - Task ID parsing/order helpers: `splitTaskID`, `nextTaskID`, `resolveTask`
+- Generated index rendering: `internal/ahm/indexes.go`
 - CLI tests: `internal/ahm/cli_test.go`
 - User-facing CLI docs: `docs/cli.md`
 
@@ -290,7 +298,13 @@ update an ADR under `docs/adr/` before implementation. Follow
 ## Additional Notes
 
 - CLI entrypoint: `cmd/ahm/main.go`.
-- Command implementation: `internal/ahm/cli.go`.
+- Command wiring: `internal/ahm/cli.go`.
+- Command implementation modules: `internal/ahm/root.go`,
+  `internal/ahm/install.go`, `internal/ahm/status.go`,
+  `internal/ahm/validation.go`, `internal/ahm/agents.go`,
+  `internal/ahm/output.go`, `internal/ahm/tasks.go`,
+  `internal/ahm/task_commands.go`, `internal/ahm/task_deps.go`,
+  `internal/ahm/task_migrate.go`, and `internal/ahm/indexes.go`.
 - Embedded workflow templates: `internal/templates/workflow/`.
 - Template embedding and metadata: `internal/templates/templates.go`.
 - CLI reference: `docs/cli.md`.
