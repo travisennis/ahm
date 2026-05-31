@@ -192,8 +192,8 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 func nextTaskID(tasks []Task, root string) string {
 	maxID := 0
 	for _, task := range tasks {
-		n, suffix := splitTaskID(task.ID)
-		if suffix == "" && n < 999999 && n > maxID {
+		n, suffix, ok := splitTaskID(task.ID)
+		if ok && suffix == "" && n > maxID {
 			maxID = n
 		}
 	}
@@ -209,8 +209,8 @@ func nextTaskID(tasks []Task, root string) string {
 			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
 				continue
 			}
-			n, suffix := splitTaskID(strings.TrimSuffix(entry.Name(), ".md"))
-			if suffix == "" && n < 999999 && n > maxID {
+			n, suffix, ok := splitTaskID(strings.TrimSuffix(entry.Name(), ".md"))
+			if ok && suffix == "" && n > maxID {
 				maxID = n
 			}
 		}
@@ -464,11 +464,11 @@ func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
 	}
 	// Constrained prefix matching: parse the numeric prefix so that "1"
 	// matches "001", "01" matches "001", and "1a" matches "001a".
-	patNum, patSuffix := splitTaskID(pattern)
+	patNum, patSuffix, patOk := splitTaskID(pattern)
 	var matches []Task
 	for _, task := range tasks {
-		taskNum, taskSuffix := splitTaskID(task.ID)
-		if taskNum == patNum && strings.HasPrefix(taskSuffix, patSuffix) {
+		taskNum, taskSuffix, taskOk := splitTaskID(task.ID)
+		if patOk && taskOk && taskNum == patNum && strings.HasPrefix(taskSuffix, patSuffix) {
 			matches = append(matches, task)
 		}
 	}

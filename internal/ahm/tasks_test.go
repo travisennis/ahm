@@ -255,6 +255,31 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	}
 }
 
+func TestSplitTaskID(t *testing.T) {
+	tests := []struct {
+		id     string
+		wantN  int
+		wantS  string
+		wantOk bool
+	}{
+		{id: "001", wantN: 1, wantS: "", wantOk: true},
+		{id: "010", wantN: 10, wantS: "", wantOk: true},
+		{id: "999999", wantN: 999999, wantS: "", wantOk: true},
+		{id: "002a", wantN: 2, wantS: "a", wantOk: true},
+		{id: "047b", wantN: 47, wantS: "b", wantOk: true},
+		{id: "abc", wantN: 0, wantS: "abc", wantOk: false},
+		{id: "", wantN: 0, wantS: "", wantOk: false},
+		{id: "12", wantN: 12, wantS: "", wantOk: true},
+	}
+	for _, tt := range tests {
+		n, s, ok := splitTaskID(tt.id)
+		if n != tt.wantN || s != tt.wantS || ok != tt.wantOk {
+			t.Errorf("splitTaskID(%q) = (%d, %q, %v), want (%d, %q, %v)",
+				tt.id, n, s, ok, tt.wantN, tt.wantS, tt.wantOk)
+		}
+	}
+}
+
 func TestResolveTask(t *testing.T) {
 	root := t.TempDir()
 	initDir := filepath.Join(root, ".agents", ".tasks")

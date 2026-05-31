@@ -245,24 +245,30 @@ func defaultDash(value string) string {
 }
 
 func taskLess(a string, b string) bool {
-	an, as := splitTaskID(a)
-	bn, bs := splitTaskID(b)
+	an, as, aok := splitTaskID(a)
+	bn, bs, bok := splitTaskID(b)
+	if aok != bok {
+		return aok // numeric IDs sort before non-numeric
+	}
+	if !aok {
+		return a < b
+	}
 	if an != bn {
 		return an < bn
 	}
 	return as < bs
 }
 
-func splitTaskID(id string) (int, string) {
+func splitTaskID(id string) (int, string, bool) {
 	i := 0
 	for i < len(id) && id[i] >= '0' && id[i] <= '9' {
 		i++
 	}
 	if i == 0 {
-		return 999999, id
+		return 0, id, false
 	}
 	n, _ := strconv.Atoi(id[:i])
-	return n, id[i:]
+	return n, id[i:], true
 }
 
 func taskCounts(tasks []Task) map[string]int {
