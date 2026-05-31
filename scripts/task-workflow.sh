@@ -49,9 +49,7 @@ echo "" >&2
 echo "── Step 2/4: Running deslop review ──" >&2
 
 deslop_json=$(cake --no-session --model glm5-1 --skills deslop --output-format json \
-  "Run the deslop skill on the current changes.
-Review all uncommitted modifications and report any issues that need
-to be addressed before commit." 2>/dev/null)
+  "Run the deslop skill on the current uncommitted changes." 2>/dev/null)
 
 deslop_feedback=$(echo "$deslop_json" | jq -r '.result // .error // "No feedback from deslop"')
 
