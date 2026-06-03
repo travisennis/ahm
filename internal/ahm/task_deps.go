@@ -99,13 +99,14 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 		delete(set, dep.ID)
 	}
 
-	task.DependsOn = nil
+	keys := make([]string, 0, len(set))
 	for item := range set {
-		task.DependsOn = append(task.DependsOn, item)
+		keys = append(keys, item)
 	}
-	sort.Slice(task.DependsOn, func(i, j int) bool {
-		return taskLess(task.DependsOn[i], task.DependsOn[j])
+	sort.Slice(keys, func(i, j int) bool {
+		return taskLess(keys[i], keys[j])
 	})
+	task.DependsOn = keys
 
 	task.Updated = time.Now().Format(time.RFC3339)
 	if a.opts.dryRun {
