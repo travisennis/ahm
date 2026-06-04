@@ -126,7 +126,7 @@ func (a *app) taskDepTree(argv []string) error {
 	if len(argv) != 1 {
 		return usageError("task dep tree requires an id")
 	}
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
@@ -164,7 +164,7 @@ func (a *app) taskDepTree(argv []string) error {
 }
 
 func (a *app) taskDepCycles() error {
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}

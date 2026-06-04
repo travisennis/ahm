@@ -19,9 +19,29 @@ type options struct {
 }
 
 type app struct {
-	opts options
-	out  io.Writer
-	err  io.Writer
+	opts       options
+	out        io.Writer
+	err        io.Writer
+	tasksCache []Task // cached result of collectTasks, nil when stale
+}
+
+// getTasks returns the cached task list or reads it from disk.
+// The cache is invalidated after any write that modifies task files.
+func (a *app) getTasks() ([]Task, error) {
+	if a.tasksCache != nil {
+		return a.tasksCache, nil
+	}
+	tasks, err := collectTasks(a.opts.root)
+	if err == nil {
+		a.tasksCache = tasks
+	}
+	return tasks, err
+}
+
+// invalidateTasks clears the cached task list so the next call to
+// getTasks re-reads from disk.
+func (a *app) invalidateTasks() {
+	a.tasksCache = nil
 }
 
 // Main runs the CLI and returns a process exit code.

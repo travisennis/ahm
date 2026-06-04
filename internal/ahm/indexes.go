@@ -10,6 +10,7 @@ import (
 )
 
 func (a *app) writeIndexes() error {
+	a.invalidateTasks()
 	if !a.opts.dryRun {
 		if err := cleanupStaleTemps(a.opts.root); err != nil {
 			return err
@@ -60,7 +61,7 @@ func (a *app) indexWriteTargets() ([]string, error) {
 }
 
 func (a *app) indexWrites() (map[string]string, error) {
-	tasks, _ := collectTasks(a.opts.root)
+	tasks, _ := a.getTasks()
 	research, err := collectMarkdownDocs(a.opts.root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err

@@ -154,7 +154,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err
 	}
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
@@ -219,7 +219,7 @@ func nextTaskID(tasks []Task, root string) string {
 }
 
 func (a *app) taskList(mode string, status string) error {
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
@@ -241,7 +241,7 @@ func (a *app) taskList(mode string, status string) error {
 }
 
 func (a *app) taskNext() error {
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
@@ -430,7 +430,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 
 	// Enforce dependency completion before completing a task.
 	if status == "Completed" && len(task.DependsOn) > 0 {
-		allTasks, collErr := collectTasks(a.opts.root)
+		allTasks, collErr := a.getTasks()
 		if collErr != nil {
 			fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 		}
@@ -516,7 +516,7 @@ func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
 }
 
 func (a *app) resolveTask(pattern string) (Task, error) {
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
