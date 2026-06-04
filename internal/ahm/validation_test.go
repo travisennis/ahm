@@ -34,7 +34,7 @@ func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
 	}
 
 	var report validationReport
-	validateTaskFrontMatter(root, path, &report)
+	validateTaskFrontMatter([]byte(content), relPath(root, path), &report)
 	for _, e := range report.Errors {
 		t.Errorf("validation error for CRLF task: %s: %s", e.Code, e.Message)
 	}
@@ -237,7 +237,7 @@ func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 	}
 
 	report := &validationReport{}
-	validateTaskFrontMatter(root, path, report)
+	validateTaskFrontMatter([]byte(content), relPath(root, path), report)
 	if len(report.Errors) == 0 {
 		t.Fatal("expected at least one error, got none")
 	}

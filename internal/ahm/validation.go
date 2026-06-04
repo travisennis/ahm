@@ -80,8 +80,17 @@ func validateTaskFiles(root string, report *validationReport) []Task {
 		return nil
 	}
 	for _, f := range files {
-		validateTaskFrontMatter(root, f.Path, report)
-		task, err := parseTask(f.Path, f.Bucket)
+		data, err := readWorkflowFile(f.Path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// Task file was already moved or deleted; not an error.
+				continue
+			}
+			report.addError("task_unreadable", relPath(root, f.Path), err.Error())
+			continue
+		}
+		validateTaskFrontMatter(data, relPath(root, f.Path), report)
+		task, err := parseTaskFromData(data, f.Path, f.Bucket)
 		if err != nil {
 			report.addError("task_malformed", relPath(root, f.Path), err.Error())
 			continue
@@ -94,25 +103,16 @@ func validateTaskFiles(root string, report *validationReport) []Task {
 	return tasks
 }
 
-func validateTaskFrontMatter(root string, path string, report *validationReport) {
-	data, err := readWorkflowFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Task file was already moved or deleted; not an error.
-			return
-		}
-		report.addError("task_unreadable", relPath(root, path), err.Error())
-		return
-	}
+func validateTaskFrontMatter(data []byte, relPath string, report *validationReport) {
 	meta, _, err := parseFrontMatter(string(data))
 	if err != nil {
-		report.addError("task_malformed", relPath(root, path), err.Error())
+		report.addError("task_malformed", relPath, err.Error())
 		return
 	}
 	required := []string{"id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on"}
 	for _, field := range required {
 		if strings.TrimSpace(meta[field]) == "" {
-			report.addError("task_missing_field", relPath(root, path), "task front matter is missing "+field)
+			report.addError("task_missing_field", relPath, "task front matter is missing "+field)
 		}
 	}
 }

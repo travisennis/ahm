@@ -95,6 +95,11 @@ func parseTask(path string, bucket string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
+	return parseTaskFromData(data, path, bucket)
+}
+
+// parseTaskFromData is like parseTask but takes pre-read file data.
+func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 	text := string(data)
 	meta, body, err := parseFrontMatter(text)
 	if err != nil {
