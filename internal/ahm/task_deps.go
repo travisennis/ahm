@@ -150,14 +150,11 @@ func (a *app) taskDepTree(argv []string) error {
 			return
 		}
 		fmt.Fprintf(a.out, "%s%s [%s] %s\n", prefix, task.ID, task.Status, task.Title)
-		nextSeen := map[string]bool{}
-		for k, v := range seen {
-			nextSeen[k] = v
-		}
-		nextSeen[id] = true
+		seen[id] = true
 		for _, dep := range task.DependsOn {
-			walk(dep, prefix+"  ", nextSeen)
+			walk(dep, prefix+"  ", seen)
 		}
+		delete(seen, id)
 	}
 	walk(root.ID, "", map[string]bool{})
 	return nil
