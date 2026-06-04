@@ -66,6 +66,17 @@ func (a *app) install(upgrade bool) error {
 		case item.CreateOnly:
 			result["skipped"] = append(result["skipped"], item.Target)
 			delete(meta.Files, item.Target)
+		case !a.opts.force && meta.Files[item.Target] == "":
+			// File exists but is not tracked in metadata. Auto-adopt when
+			// content matches the template; otherwise report as a conflict.
+			if hashBytes(existing) == hash {
+				result["adopted"] = append(result["adopted"], item.Target)
+				if !a.opts.dryRun {
+					meta.Files[item.Target] = hash
+				}
+			} else {
+				result["conflicts"] = append(result["conflicts"], item.Target)
+			}
 		case !upgrade && !a.opts.force:
 			result["skipped"] = append(result["skipped"], item.Target)
 		case a.opts.force || meta.Files[item.Target] == hashBytes(existing):

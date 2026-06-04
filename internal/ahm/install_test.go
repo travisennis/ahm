@@ -263,6 +263,159 @@ func TestUpgradeDecisions(t *testing.T) {
 	}
 }
 
+func TestInstallAdoptsUntrackedManagedFileWhenContentMatches(t *testing.T) {
+	root := t.TempDir()
+	tmpl := string(templateBytes(t, "workflow/TASKS.md"))
+	// Write a managed file exactly matching the template, but without metadata.
+	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), tmpl)
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"adopted:",
+		"  .agents/TASKS.md",
+	)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
+		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after adoption")
+	}
+	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != tmpl {
+		t.Fatalf("file content was modified; expected original template content")
+	}
+}
+
+func TestInstallAdoptsUntrackedManagedFileOnUpgrade(t *testing.T) {
+	root := t.TempDir()
+	tmpl := string(templateBytes(t, "workflow/TASKS.md"))
+	// Write a managed file exactly matching the template, but without metadata.
+	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), tmpl)
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(true); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"adopted:",
+		"  .agents/TASKS.md",
+	)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
+		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after adoption")
+	}
+}
+
+func TestInstallReportsUntrackedManagedFileAsConflictWhenContentDiffers(t *testing.T) {
+	root := t.TempDir()
+	// Write a managed file with different content than the template, without metadata.
+	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), "# Locally modified\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"conflicts:",
+		"  .agents/TASKS.md",
+	)
+	assertNotContains(t, got, "adopted:")
+
+	// File should not be tracked in metadata.
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := meta.Files[".agents/TASKS.md"]; ok {
+		t.Fatal("expected .agents/TASKS.md NOT to be recorded in metadata after conflict")
+	}
+	// File content should be preserved.
+	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "# Locally modified\n" {
+		t.Fatalf("file content was overwritten; expected original content")
+	}
+}
+
+func TestInstallDryRunShowsAdoptedSection(t *testing.T) {
+	root := t.TempDir()
+	tmpl := string(templateBytes(t, "workflow/TASKS.md"))
+	// Write a managed file exactly matching the template, but without metadata.
+	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), tmpl)
+
+	var out strings.Builder
+	a := app{opts: options{root: root, dryRun: true}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"adopted:",
+		"  .agents/TASKS.md",
+	)
+	// Dry run should not write metadata.
+	if _, err := os.Stat(filepath.Join(root, ".agents", "ahm.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("dry-run should not write metadata")
+	}
+}
+
+func TestInstallForceOverwritesUntrackedManagedFile(t *testing.T) {
+	root := t.TempDir()
+	// Write a managed file with different content than the template, without metadata.
+	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), "# Locally modified\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, force: true}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		"updated:",
+		"  .agents/TASKS.md",
+	)
+	assertNotContains(t, got, "adopted:")
+	assertNotContains(t, got, "conflicts:")
+
+	// File should be tracked in metadata after force overwrite.
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
+		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after force")
+	}
+	// File content should now match the template.
+	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := string(templateBytes(t, "workflow/TASKS.md"))
+	if string(content) != tmpl {
+		t.Fatalf("file content was not overwritten by --force")
+	}
+}
+
 func TestMainUpgradeIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

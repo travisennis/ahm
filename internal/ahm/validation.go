@@ -64,7 +64,7 @@ func validateManagedFile(root string, meta metadata, item templates.File, report
 	}
 	expected := meta.Files[item.Target]
 	if expected == "" {
-		report.addWarning("managed_file_untracked", item.Target, "managed workflow file is not recorded in metadata")
+		report.addWarning("managed_file_untracked", item.Target, "managed workflow file is not recorded in metadata; run 'ahm init' to adopt")
 		return
 	}
 	if hashBytes(data) != expected {

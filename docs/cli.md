@@ -87,7 +87,7 @@ validation:
 ```
 
 Install and upgrade operations always print grouped text sections such as
-`created:`, `updated:`, `skipped:`, and `conflicts:`.
+`adopted:`, `created:`, `updated:`, `skipped:`, and `conflicts:`.
 
 Some task commands use command-specific text output regardless of the output
 mode:
@@ -168,8 +168,10 @@ Installs the managed `.agents` workflow into the target root.
 
 `init` creates missing managed workflow files, workflow directories, metadata,
 and generated indexes. Existing managed files are skipped unless `--force` is
-used. `AGENTS.md` is create-only: it is created when missing, but an existing
-`AGENTS.md` is always skipped, even with `--force`.
+used. Files that exist on disk but are not yet tracked in metadata are
+auto-adopted when their content matches the template. `AGENTS.md` is create-only:
+it is created when missing, but an existing `AGENTS.md` is always skipped, even
+with `--force`.
 
 Writes:
 
@@ -201,8 +203,10 @@ Updates managed workflow files from the embedded templates.
 
 `upgrade` compares `.agents/ahm.json` hashes with files in the target root.
 Files that still match their recorded managed hash are updated. Locally modified
-managed files are preserved and reported as conflicts. Missing managed files are
-created. Generated indexes are regenerated.
+managed files are preserved and reported as conflicts. Files that exist on disk
+but are not yet tracked in metadata are auto-adopted when their content matches
+the template. Missing managed files are created. Generated indexes are
+regenerated.
 
 The metadata `version` field always advances to the embedded template version,
 even when conflicts exist. This means a partial upgrade (some files conflicted,
@@ -731,7 +735,7 @@ rewrite front matter in `ahm`'s canonical order.
 | `metadata_missing` | `.agents/ahm.json` is missing or unreadable. |
 | `managed_file_missing` | A managed workflow file is missing. |
 | `managed_file_unreadable` | A managed workflow file could not be read. |
-| `managed_file_untracked` | A managed workflow file exists but is not recorded in metadata. |
+| `managed_file_untracked` | A managed workflow file exists but is not recorded in metadata; run `ahm init` to adopt. |
 | `managed_file_modified` | A managed workflow file hash differs from metadata. |
 | `task_dir_unreadable` | A task bucket directory could not be read. |
 | `task_unreadable` | A task file could not be read. |
