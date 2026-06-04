@@ -145,11 +145,11 @@ func (a *app) taskDepTree(argv []string) error {
 			fmt.Fprintf(a.out, "%s%s [missing]\n", prefix, id)
 			return
 		}
-		fmt.Fprintf(a.out, "%s%s [%s] %s\n", prefix, task.ID, task.Status, task.Title)
 		if seen[id] {
 			fmt.Fprintf(a.out, "%s  cycle to %s\n", prefix, id)
 			return
 		}
+		fmt.Fprintf(a.out, "%s%s [%s] %s\n", prefix, task.ID, task.Status, task.Title)
 		nextSeen := map[string]bool{}
 		for k, v := range seen {
 			nextSeen[k] = v

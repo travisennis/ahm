@@ -94,7 +94,6 @@ func TestTaskDependencyTreeOutput(t *testing.T) {
 		"001 [Pending] Root",
 		"  002 [Pending] Middle",
 		"    003 [Pending] Leaf",
-		"      002 [Pending] Middle",
 		"      cycle to 002",
 		"  999 [missing]",
 	)
