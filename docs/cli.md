@@ -416,9 +416,28 @@ Command flags:
 | `--labels <value>` | Sets the raw labels front matter value. Default is `type:task, area:cli`. |
 | `--status <value>` | Sets initial task status. Default is `Pending`. |
 | `--description <text>`, `-d <text>` | Sets the initial summary body. Default is `TODO.` |
+| `--body-file <path>` | Reads the task body from a file, or from stdin when the path is `-`. |
 
-The created task has `exec_plan: -`, no dependencies, a `## Summary` section,
-and a `## Acceptance Notes` checklist.
+By default the created task has `exec_plan: -`, no dependencies, a `## Summary`
+section, and a `## Acceptance Notes` checklist.
+
+`--body-file` provides the full Markdown body that appears after the generated
+H1 title. `ahm` still owns ID allocation, front matter, the `# <title>` heading,
+the active task location, and index regeneration; only the body content below
+the H1 is taken from the file. The file content is whitespace-trimmed and CRLF
+line endings are normalized to LF.
+
+```bash
+ahm task create "Cache Immutable Tool Definitions For Agent Turns" \
+  --priority P2 \
+  --effort M \
+  --labels "type:task, area:agent, area:tools" \
+  --body-file -
+```
+
+`--body-file` and `--description` are mutually exclusive. The command reports an
+explicit error when the body file cannot be read, when stdin is requested but
+unavailable, or when the resolved body is empty.
 
 Useful global flags:
 

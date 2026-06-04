@@ -66,6 +66,129 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 	)
 }
 
+func TestTaskCreateBodyFile(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	bodyPath := filepath.Join(root, "body.md")
+	body := "## Problem\n\nThings are broken.\n\n## Acceptance Notes\n\n- [ ] Fix things\n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Body File Task",
+		"--priority", "P1", "--effort", "M", "--labels", "type:feature, area:cli", "--body-file", bodyPath)
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	// Front matter and ID allocation unchanged.
+	assertContainsAll(t, content,
+		"id: 001",
+		"title: Body File Task",
+		"status: Pending",
+		"priority: P1",
+		"effort: M",
+		"labels: type:feature, area:cli",
+		"exec_plan: -",
+		"depends_on: -",
+		"created: ",
+		"# Body File Task",
+		"## Problem",
+		"Things are broken.",
+		"- [ ] Fix things",
+	)
+	// The default placeholder body should be replaced.
+	assertNotContains(t, content, "## Summary\n\nTODO.")
+
+	// Index regenerated to include the new task.
+	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	assertContainsAll(t, indexContent, "Body File Task")
+}
+
+func TestTaskCreateBodyFileFromStdin(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	body := "## Problem\n\nPiped via stdin.\n"
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out, in: strings.NewReader(body)}
+	parsed := taskCreateArgs{
+		title:    "Stdin Body Task",
+		priority: "P2",
+		effort:   "S",
+		labels:   "type:task, area:cli",
+		status:   "Pending",
+		bodyFile: "-",
+	}
+	if err := a.taskCreateParsed(parsed); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "001" {
+		t.Fatalf("create stdout = %q, want 001", out.String())
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	assertContainsAll(t, content, "# Stdin Body Task", "Piped via stdin.")
+	assertNotContains(t, content, "## Summary\n\nTODO.")
+}
+
+func TestTaskCreateBodyFileErrors(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	t.Run("unreadable file", func(t *testing.T) {
+		missing := filepath.Join(root, "does-not-exist.md")
+		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Missing Body", "--body-file", missing)
+		if code != 1 {
+			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		}
+		if !strings.Contains(stderr, "reading task body from") {
+			t.Fatalf("stderr = %q, want reading task body error", stderr)
+		}
+	})
+
+	t.Run("conflict with description", func(t *testing.T) {
+		bodyPath := filepath.Join(root, "conflict.md")
+		if err := os.WriteFile(bodyPath, []byte("body\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Conflict",
+			"--description", "summary", "--body-file", bodyPath)
+		if code != 2 {
+			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		}
+		if !strings.Contains(stderr, "--body-file or --description") {
+			t.Fatalf("stderr = %q, want conflict error", stderr)
+		}
+	})
+
+	t.Run("empty file", func(t *testing.T) {
+		bodyPath := filepath.Join(root, "empty.md")
+		if err := os.WriteFile(bodyPath, []byte("   \n\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Empty Body", "--body-file", bodyPath)
+		if code != 2 {
+			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		}
+		if !strings.Contains(stderr, "is empty") {
+			t.Fatalf("stderr = %q, want empty body error", stderr)
+		}
+	})
+}
+
 func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 	tests := []struct {
 		name string

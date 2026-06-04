@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/travisennis/ahm/internal/templates"
@@ -22,6 +23,7 @@ type app struct {
 	opts       options
 	out        io.Writer
 	err        io.Writer
+	in         io.Reader
 	tasksCache []Task // cached result of collectTasks, nil when stale
 }
 
@@ -46,7 +48,7 @@ func (a *app) invalidateTasks() {
 
 // Main runs the CLI and returns a process exit code.
 func Main(argv []string, stdout io.Writer, stderr io.Writer) int {
-	a := app{out: stdout, err: stderr}
+	a := app{out: stdout, err: stderr, in: os.Stdin}
 	if err := a.run(argv); err != nil {
 		var usage usageError
 		if errors.As(err, &usage) {

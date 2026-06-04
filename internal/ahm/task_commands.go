@@ -3,6 +3,7 @@ package ahm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -49,6 +50,7 @@ func (a *app) taskCommand() *cobra.Command {
 	create.Flags().StringVar(&createArgs.labels, "labels", createArgs.labels, "Set task labels")
 	create.Flags().StringVar(&createArgs.status, "status", createArgs.status, "Set initial task status")
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
+	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Read the task body (everything after the H1 title) from a file, or - for stdin")
 	task.AddCommand(create)
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all"))
@@ -145,6 +147,7 @@ type taskCreateArgs struct {
 	labels      string
 	status      string
 	description string
+	bodyFile    string
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
@@ -154,16 +157,16 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err
 	}
+	body, err := a.resolveTaskCreateBody(parsed)
+	if err != nil {
+		return err
+	}
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
 	id := nextTaskID(tasks, a.opts.root)
 	path := filepath.Join(a.opts.root, ".agents", ".tasks", "active", id+".md")
-	body := parsed.description
-	if body == "" {
-		body = "TODO."
-	}
 	now := time.Now().Format(time.RFC3339)
 	content := renderTask(Task{
 		ID:       id,
@@ -174,7 +177,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 		Labels:   parsed.labels,
 		ExecPlan: "-",
 		Created:  now,
-		Body:     "## Summary\n\n" + body + "\n\n## Acceptance Notes\n\n- [ ] TODO\n",
+		Body:     body,
 	})
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"create": path, "id": id})
@@ -187,6 +190,46 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	}
 	fmt.Fprintln(a.out, id)
 	return nil
+}
+
+// resolveTaskCreateBody returns the Markdown body to render after the H1 title.
+// When --body-file is set, the provided content (everything after the H1) is used
+// verbatim; otherwise a default Summary/Acceptance Notes scaffold is generated
+// from the optional --description text.
+func (a *app) resolveTaskCreateBody(parsed taskCreateArgs) (string, error) {
+	if parsed.bodyFile == "" {
+		body := parsed.description
+		if body == "" {
+			body = "TODO."
+		}
+		return "## Summary\n\n" + body + "\n\n## Acceptance Notes\n\n- [ ] TODO\n", nil
+	}
+	if parsed.description != "" {
+		return "", usageError("task create supports --body-file or --description, not both")
+	}
+	var (
+		data   []byte
+		err    error
+		source string
+	)
+	if parsed.bodyFile == "-" {
+		source = "stdin"
+		if a.in == nil {
+			return "", usageError("task create --body-file - requires stdin")
+		}
+		data, err = io.ReadAll(a.in)
+	} else {
+		source = parsed.bodyFile
+		data, err = os.ReadFile(parsed.bodyFile)
+	}
+	if err != nil {
+		return "", fmt.Errorf("reading task body from %s: %w", source, err)
+	}
+	body := strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n"))
+	if body == "" {
+		return "", usageError(fmt.Sprintf("task body from %s is empty", source))
+	}
+	return body, nil
 }
 
 func nextTaskID(tasks []Task, root string) string {
