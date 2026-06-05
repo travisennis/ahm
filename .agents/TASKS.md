@@ -119,9 +119,13 @@ Keep task storage consistent with status:
 - After moving or editing task metadata, regenerate the indexes.
 
 Before marking a task as Completed, fill in Acceptance Notes when practical so
-the completed record captures the verification and outcome. If you edit only the
-completed task body afterward, no index regeneration is needed. If you edit task
-front matter afterward, rerun `ahm index`.
+the completed record captures the verification and outcome. `ahm task complete`
+warns when Acceptance Notes are missing, still contain the seeded `- [ ] TODO`
+placeholder, or include unchecked checklist items. Repositories can set
+`"strict_acceptance": true` in `.agents/ahm.json` to make those warnings block
+completion unless `--force` is used. If you edit only the completed task body
+afterward, no index regeneration is needed. If you edit task front matter
+afterward, rerun `ahm index`.
 
 To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/completed/<id>.md`, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
 

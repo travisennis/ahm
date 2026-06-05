@@ -15,8 +15,9 @@ import (
 )
 
 type metadata struct {
-	Version string            `json:"version"`
-	Files   map[string]string `json:"files"`
+	Version          string            `json:"version"`
+	StrictAcceptance bool              `json:"strict_acceptance"`
+	Files            map[string]string `json:"files"`
 }
 
 func (a *app) install(upgrade bool) error {

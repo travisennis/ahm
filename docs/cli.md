@@ -48,7 +48,7 @@ Global flags must appear before the command.
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
-| `--force` | Forces supported overwrites during `init` and `upgrade`. It never forces overwriting an existing `AGENTS.md`. |
+| `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the embedded workflow template version. |
 
@@ -605,6 +605,17 @@ Before completing, `ahm` verifies that all task dependencies (listed in
 completed, the command returns an error listing the incomplete dependencies
 and does not modify the task file or indexes.
 
+Before moving the task, `ahm` also checks for an acceptance section. It accepts
+`##` or `###` headings named `Acceptance Notes`, `Acceptance Criteria`, or
+`Acceptance`, case-insensitively. Completion prints stderr warnings when the
+section is missing, still contains the seeded `- [ ] TODO` placeholder, or has
+unchecked `- [ ]` or `* [ ]` checklist items.
+
+By default, incomplete acceptance notes warn but do not block completion. Set
+`"strict_acceptance": true` in `.agents/ahm.json` to make those findings return
+a non-zero error. The global `--force` flag overrides strict acceptance and
+completes the task while still printing the warnings.
+
 Alias:
 
 - `task close <id>`
@@ -612,6 +623,7 @@ Alias:
 Useful flags:
 
 - `--dry-run`: previews the target path and status without writing.
+- `--force`: overrides `"strict_acceptance": true` for this completion.
 
 Example:
 
@@ -775,6 +787,9 @@ Finding codes:
 | `task_bucket_mismatch` | A task status does not match its active, completed, or cancelled bucket. |
 | `task_dependency_missing` | A task depends on an ID that does not exist. |
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
+| `task_acceptance_missing` | A completed task is missing an acceptance section. |
+| `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |
+| `task_acceptance_unchecked` | A completed task acceptance section contains unchecked `- [ ]` or `* [ ]` items. |
 | `task_exec_plan_missing` | A task references an ExecPlan that could not be found. |
 | `task_completed_exec_plan_active` | A completed task references an ExecPlan still under `.agents/exec-plans/active/`. |
 | `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |

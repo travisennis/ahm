@@ -108,6 +108,31 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	}
 }
 
+func TestDoctorReportsCompletedTaskAcceptanceFindings(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeCompletedTaskBody(t, root, "001", "Missing Acceptance", "## Summary\n\nDone.\n")
+	writeCompletedTaskBody(t, root, "002", "Placeholder Acceptance", "## Acceptance Notes\n\n- [ ] TODO\n")
+	writeCompletedTaskBody(t, root, "003", "Unchecked Acceptance", "## Acceptance Criteria\n\n* [ ] Verify it\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"ok": true`,
+		`"code": "task_acceptance_missing"`,
+		`"code": "task_acceptance_placeholder"`,
+		`"code": "task_acceptance_unchecked"`,
+	)
+}
+
 func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
@@ -369,6 +394,22 @@ func hasFinding(findings []validationFinding, code string) bool {
 		}
 	}
 	return false
+}
+
+func writeCompletedTaskBody(t *testing.T, root string, id string, title string, body string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", id+".md"), "---\n"+
+		"id: "+id+"\n"+
+		"title: "+title+"\n"+
+		"status: Completed\n"+
+		"priority: P2\n"+
+		"effort: S\n"+
+		"labels: type:task, area:tasks\n"+
+		"exec_plan: -\n"+
+		"depends_on: -\n"+
+		"---\n"+
+		"# "+title+"\n\n"+
+		body)
 }
 
 func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {

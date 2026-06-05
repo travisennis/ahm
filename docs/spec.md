@@ -57,9 +57,28 @@ Exit codes:
 
 Workflow state is repo-local under `.agents/`.
 
-`ahm` writes `.agents/ahm.json` with the installed template version and managed
-file hashes. This metadata lets future versions update files that have not been
-locally changed while preserving user edits.
+`ahm` writes `.agents/ahm.json` with the installed template version, managed
+file hashes, and repository-scoped workflow settings. This metadata lets future
+versions update files that have not been locally changed while preserving user
+edits.
+
+Example:
+
+```json
+{
+  "version": "0.1.0",
+  "strict_acceptance": true,
+  "files": {
+    ".agents/TASKS.md": "..."
+  }
+}
+```
+
+The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
+`ahm task complete <id>` fails if the task acceptance section is missing, still
+contains the seeded `- [ ] TODO` placeholder, or contains unchecked checklist
+items. The global `--force` flag overrides this strict completion gate for a
+single command while still printing warnings.
 
 `AGENTS.md` is an entrypoint file, not a managed workflow document. `ahm init`
 may create a starter `AGENTS.md` when it is missing, but `ahm` never overwrites
@@ -72,10 +91,10 @@ not be edited by hand.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,
-task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, and
-broken relative Markdown links within the managed workflow surface. Project-wide
-documentation is not scanned by default; `ahm` validates the workflow files and
-artifacts it manages or indexes.
+completed task acceptance-note drift, task-to-ExecPlan consistency issues,
+ExecPlan lifecycle coherence issues, and broken relative Markdown links within
+the managed workflow surface. Project-wide documentation is not scanned by
+default; `ahm` validates the workflow files and artifacts it manages or indexes.
 
 ExecPlan lifecycle state is implicit in file placement and Markdown sections.
 In-progress plans live under `.agents/exec-plans/active/`; completed plans live

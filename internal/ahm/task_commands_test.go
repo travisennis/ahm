@@ -674,6 +674,107 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	}
 }
 
+func TestTaskCompleteWarnsForIncompleteAcceptanceByDefault(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Completed")
+	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
+}
+
+func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.StrictAcceptance = true
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code == 0 {
+		t.Fatalf("expected strict completion failure, stdout = %s, stderr = %s", stdout, stderr)
+	}
+	assertContainsAll(t, stderr,
+		"warning: task 001 acceptance notes still contain the TODO placeholder",
+		"cannot complete task 001: acceptance notes are incomplete; use --force to override",
+	)
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+		t.Fatal("completed file should not exist after strict acceptance failure")
+	}
+}
+
+func TestTaskCompleteForceOverridesStrictAcceptance(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.StrictAcceptance = true
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--force", "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("force complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Completed")
+	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
+}
+
+func TestTaskCompleteDryRunPreservesPreviewWithAcceptanceWarning(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/completed/001.md", "status: Completed")
+	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+		t.Fatal("completed file should not exist after dry-run completion")
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
 func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

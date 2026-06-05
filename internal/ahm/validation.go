@@ -97,12 +97,22 @@ func validateTaskFiles(root string, report *validationReport) []Task {
 			report.addError("task_malformed", relPath(root, f.Path), err.Error())
 			continue
 		}
+		validateTaskAcceptance(root, task, report)
 		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
 		return taskLess(tasks[i].ID, tasks[j].ID)
 	})
 	return tasks
+}
+
+func validateTaskAcceptance(root string, task Task, report *validationReport) {
+	if task.Status != "Completed" {
+		return
+	}
+	for _, finding := range parseAcceptanceNotes([]byte(task.Body)) {
+		report.addWarning(finding.validationCode(), relPath(root, task.Path), finding.message(task.ID))
+	}
 }
 
 func validateTaskFrontMatter(data []byte, relPath string, report *validationReport) {

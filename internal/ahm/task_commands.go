@@ -500,6 +500,21 @@ func (a *app) taskStatus(argv []string, status string) error {
 		return nil
 	}
 
+	if status == "Completed" {
+		findings := parseAcceptanceNotes([]byte(task.Body))
+		for _, finding := range findings {
+			if a.err != nil {
+				fmt.Fprintln(a.err, "warning:", finding.message(task.ID))
+			}
+		}
+		if len(findings) > 0 && !a.opts.force {
+			meta, err := readMetadata(a.opts.root)
+			if err == nil && meta.StrictAcceptance {
+				return fmt.Errorf("cannot complete task %s: acceptance notes are incomplete; use --force to override", task.ID)
+			}
+		}
+	}
+
 	task.Status = status
 	task.Updated = time.Now().Format(time.RFC3339)
 	bucket := "active"
