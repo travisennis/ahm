@@ -188,6 +188,157 @@ func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
 	)
 }
 
+func TestStatusReportsCompletedTaskReferencingIncompleteCompletedExecPlan(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "---\n"+
+		"id: 001\n"+
+		"title: Plan Incomplete\n"+
+		"status: Completed\n"+
+		"priority: P2\n"+
+		"effort: S\n"+
+		"labels: type:task\n"+
+		"exec_plan: rollout\n"+
+		"depends_on: []\n"+
+		"---\n"+
+		"# Plan Incomplete\n\n"+
+		"## Summary\n\nDone.\n")
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "completed", "rollout.md"), "# Rollout\n\n"+
+		"## Progress\n\n- [x] Do it.\n\n"+
+		"## Surprises & Discoveries\n\nNone.\n\n"+
+		"## Decision Log\n\n- Chose this.\n\n"+
+		"## Outcomes & Retrospective\n\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.status(); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(),
+		`"code": "task_completed_exec_plan_incomplete"`,
+		`completed task 001 references ExecPlan without a completed Outcomes \u0026 Retrospective section`,
+	)
+}
+
+func TestValidateExecPlansReportsLifecycleFindings(t *testing.T) {
+	tests := []struct {
+		name       string
+		bucket     string
+		content    string
+		tasks      []Task
+		wantWarn   string
+		wantInfo   string
+		wantNoWarn string
+	}{
+		{
+			name:   "active with outcomes",
+			bucket: "active",
+			content: "# Plan\n\n" +
+				"## Progress\n\n- [ ] Do it.\n\n" +
+				"## Surprises & Discoveries\n\nNone yet.\n\n" +
+				"## Decision Log\n\n- Chose this.\n\n" +
+				"## Outcomes & Retrospective\n\nDone early.\n",
+			tasks:    []Task{{ExecPlan: ".agents/exec-plans/active/plan.md"}},
+			wantWarn: "exec_plan_active_with_outcomes",
+		},
+		{
+			name:   "completed without outcomes",
+			bucket: "completed",
+			content: "# Plan\n\n" +
+				"### Progress\n\n- [x] Do it.\n\n" +
+				"### Surprises & Discoveries\n\nNone.\n\n" +
+				"### Decision Log\n\n- Chose this.\n\n" +
+				"### Outcomes & Retrospective\n\n" +
+				"## Later Section\n\nThis does not count as outcomes.\n",
+			tasks:    []Task{{ExecPlan: ".agents/exec-plans/completed/plan.md"}},
+			wantWarn: "exec_plan_completed_without_outcomes",
+		},
+		{
+			name:   "completed with open progress",
+			bucket: "completed",
+			content: "# Plan\n\n" +
+				"## Progress\n\n- [ ] Do it.\n\n" +
+				"## Surprises & Discoveries\n\nNone.\n\n" +
+				"## Decision Log\n\n- Chose this.\n\n" +
+				"## Outcomes & Retrospective\n\nDone.\n",
+			tasks:    []Task{{ExecPlan: ".agents/exec-plans/completed/plan.md"}},
+			wantWarn: "exec_plan_completed_with_open_progress",
+		},
+		{
+			name:   "missing section",
+			bucket: "active",
+			content: "# Plan\n\n" +
+				"## Progress\n\n- [ ] Do it.\n\n" +
+				"## Decision Log\n\n- Chose this.\n\n" +
+				"## Outcomes & Retrospective\n\n",
+			tasks:    []Task{{ExecPlan: ".agents/exec-plans/active/plan.md"}},
+			wantWarn: "exec_plan_missing_section",
+		},
+		{
+			name:   "orphan info",
+			bucket: "active",
+			content: "# Plan\n\n" +
+				"## Progress\n\n- [ ] Do it.\n\n" +
+				"## Surprises & Discoveries\n\nNone.\n\n" +
+				"## Decision Log\n\n- Chose this.\n\n" +
+				"## Outcomes & Retrospective\n\n",
+			wantInfo:   "exec_plan_orphan",
+			wantNoWarn: "exec_plan_orphan",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, ".agents", "exec-plans", tt.bucket, "plan.md")
+			writeFile(t, path, tt.content)
+
+			report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
+			validateExecPlans(root, tt.tasks, &report)
+
+			if tt.wantWarn != "" && !hasFinding(report.Warnings, tt.wantWarn) {
+				t.Fatalf("missing warning %q: %#v", tt.wantWarn, report.Warnings)
+			}
+			if tt.wantInfo != "" && !hasFinding(report.Info, tt.wantInfo) {
+				t.Fatalf("missing info %q: %#v", tt.wantInfo, report.Info)
+			}
+			if tt.wantNoWarn != "" && hasFinding(report.Warnings, tt.wantNoWarn) {
+				t.Fatalf("unexpected warning %q: %#v", tt.wantNoWarn, report.Warnings)
+			}
+		})
+	}
+}
+
+func TestDoctorJSONReportsExecPlanInfoWithoutFailing(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "orphan.md"), "# Orphan\n\n"+
+		"## Progress\n\n- [ ] Do it.\n\n"+
+		"## Surprises & Discoveries\n\nNone yet.\n\n"+
+		"## Decision Log\n\n- Chose this.\n\n"+
+		"## Outcomes & Retrospective\n\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"ok": true`,
+		`"info": [`,
+		`"code": "exec_plan_orphan"`,
+	)
+}
+
 func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
@@ -209,6 +360,15 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 		`relative Markdown link target does not exist: missing.md`,
 	)
 	assertNotContains(t, got, "also-missing.md")
+}
+
+func hasFinding(findings []validationFinding, code string) bool {
+	for _, finding := range findings {
+		if finding.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {

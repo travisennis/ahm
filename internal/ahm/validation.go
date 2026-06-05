@@ -17,6 +17,7 @@ type validationReport struct {
 	OK       bool                `json:"ok"`
 	Errors   []validationFinding `json:"errors"`
 	Warnings []validationFinding `json:"warnings"`
+	Info     []validationFinding `json:"info"`
 }
 
 type validationFinding struct {
@@ -26,11 +27,12 @@ type validationFinding struct {
 }
 
 func validateWorkflow(root string) (validationReport, []Task) {
-	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}}
+	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
 	tasks := validateManagedFiles(root, &report)
 	validateTaskDependencies(root, tasks, &report)
 	validateTaskBuckets(root, tasks, &report)
 	validateTaskExecPlans(root, tasks, &report)
+	validateExecPlans(root, tasks, &report)
 	validateGeneratedIndexes(root, &report)
 	validateMarkdownLinks(root, &report)
 	report.OK = len(report.Errors) == 0
@@ -167,6 +169,144 @@ func validateTaskExecPlans(root string, tasks []Task, report *validationReport) 
 	}
 }
 
+var mandatoryExecPlanSections = []string{
+	"Progress",
+	"Surprises & Discoveries",
+	"Decision Log",
+	"Outcomes & Retrospective",
+}
+
+func validateExecPlans(root string, tasks []Task, report *validationReport) {
+	referenced := referencedExecPlans(root, tasks)
+	for _, bucket := range []string{"active", "completed"} {
+		dir := filepath.Join(root, ".agents", "exec-plans", bucket)
+		plans, err := execPlanPaths(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		for _, path := range plans {
+			sections, err := parseExecPlanSections(path)
+			if err != nil {
+				continue
+			}
+			validateExecPlanSections(root, path, bucket, sections, report)
+			if !referenced[filepath.Clean(path)] {
+				report.addInfo("exec_plan_orphan", relPath(root, path), "ExecPlan is not referenced by any task exec_plan field")
+			}
+		}
+	}
+}
+
+func referencedExecPlans(root string, tasks []Task) map[string]bool {
+	referenced := map[string]bool{}
+	for _, task := range tasks {
+		if task.ExecPlan == "" || task.ExecPlan == "-" {
+			continue
+		}
+		plan, _, ok := resolveExecPlanReference(root, task.ExecPlan)
+		if ok {
+			referenced[filepath.Clean(plan)] = true
+		}
+	}
+	return referenced
+}
+
+func execPlanPaths(dir string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	sort.Strings(paths)
+	return paths, err
+}
+
+type execPlanSection struct {
+	Lines []string
+}
+
+func parseExecPlanSections(path string) (map[string]execPlanSection, error) {
+	data, err := readWorkflowFile(path)
+	if err != nil {
+		return nil, err
+	}
+	sections := map[string]execPlanSection{}
+	current := ""
+	for _, line := range strings.Split(string(data), "\n") {
+		if isExecPlanHeading(line) {
+			current = ""
+		}
+		heading, ok := execPlanSectionHeading(line)
+		if ok {
+			current = normalizedExecPlanSection(heading)
+			sections[current] = execPlanSection{}
+			continue
+		}
+		if current != "" {
+			section := sections[current]
+			section.Lines = append(section.Lines, line)
+			sections[current] = section
+		}
+	}
+	return sections, nil
+}
+
+func execPlanSectionHeading(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	marker, heading, ok := strings.Cut(trimmed, " ")
+	if !ok || marker != "##" && marker != "###" {
+		return "", false
+	}
+	heading = strings.TrimSpace(heading)
+	for _, section := range mandatoryExecPlanSections {
+		if strings.EqualFold(heading, section) {
+			return section, true
+		}
+	}
+	return "", false
+}
+
+func isExecPlanHeading(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "#")
+}
+
+func normalizedExecPlanSection(heading string) string {
+	return strings.ToLower(heading)
+}
+
+func validateExecPlanSections(root string, path string, bucket string, sections map[string]execPlanSection, report *validationReport) {
+	rel := relPath(root, path)
+	for _, section := range mandatoryExecPlanSections {
+		if _, ok := sections[normalizedExecPlanSection(section)]; !ok {
+			report.addWarning("exec_plan_missing_section", rel, fmt.Sprintf("ExecPlan is missing mandatory section %q", section))
+		}
+	}
+
+	outcomes := sections[normalizedExecPlanSection("Outcomes & Retrospective")]
+	outcomesFilled := execPlanSectionHasBody(outcomes)
+	if bucket == "active" && outcomesFilled {
+		report.addWarning("exec_plan_active_with_outcomes", rel, "active ExecPlan has a filled Outcomes & Retrospective section")
+	}
+	if bucket == "completed" && !outcomesFilled {
+		report.addWarning("exec_plan_completed_without_outcomes", rel, "completed ExecPlan has an empty or missing Outcomes & Retrospective section")
+	}
+
+	progress := sections[normalizedExecPlanSection("Progress")]
+	if bucket == "completed" && execPlanSectionHasOpenProgress(progress) {
+		report.addWarning("exec_plan_completed_with_open_progress", rel, "completed ExecPlan still has open progress items")
+	}
+}
+
 func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || ref == "-" {
@@ -207,23 +347,26 @@ func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 }
 
 func execPlanHasRetrospective(path string) bool {
-	data, err := readWorkflowFile(path)
+	sections, err := parseExecPlanSections(path)
 	if err != nil {
 		return false
 	}
-	lines := strings.Split(string(data), "\n")
-	for i, line := range lines {
-		if strings.EqualFold(strings.TrimSpace(line), "## Outcomes & Retrospective") {
-			for _, following := range lines[i+1:] {
-				trimmed := strings.TrimSpace(following)
-				if strings.HasPrefix(trimmed, "#") {
-					return false
-				}
-				if trimmed != "" {
-					return true
-				}
-			}
-			return false
+	return execPlanSectionHasBody(sections[normalizedExecPlanSection("Outcomes & Retrospective")])
+}
+
+func execPlanSectionHasBody(section execPlanSection) bool {
+	for _, line := range section.Lines {
+		if strings.TrimSpace(line) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func execPlanSectionHasOpenProgress(section execPlanSection) bool {
+	for _, line := range section.Lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "- [ ]") {
+			return true
 		}
 	}
 	return false
@@ -412,4 +555,8 @@ func (r *validationReport) addError(code string, path string, message string) {
 
 func (r *validationReport) addWarning(code string, path string, message string) {
 	r.Warnings = append(r.Warnings, validationFinding{Code: code, Path: path, Message: message})
+}
+
+func (r *validationReport) addInfo(code string, path string, message string) {
+	r.Info = append(r.Info, validationFinding{Code: code, Path: path, Message: message})
 }

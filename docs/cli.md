@@ -241,19 +241,20 @@ The report includes:
 - Whether workflow metadata is installed.
 - Installed workflow version from `.agents/ahm.json`.
 - Task counts by status.
-- Validation errors and warnings for managed workflow files, task consistency,
-  generated indexes, ExecPlan references, and scoped Markdown links.
+- Validation errors, warnings, and info findings for managed workflow files,
+  task consistency, generated indexes, ExecPlan references and lifecycle
+  checks, and scoped Markdown links.
 
 Validation checks include missing metadata, missing managed files, unreadable
 managed files, untracked managed files, locally modified managed files,
 malformed task front matter, task bucket mismatches, missing task dependencies,
 active dependency cycles, stale or missing generated indexes, task ExecPlan
-reference issues, and broken relative Markdown links inside the managed
-workflow surface.
+reference issues, ExecPlan lifecycle coherence, and broken relative Markdown
+links inside the managed workflow surface.
 
-When the validation report contains any error (not just warnings), `status`
-exits with code 1. No `error:` prefix is printed to stderr; the JSON or text
-output on stdout already describes the findings.
+When the validation report contains any error (not warnings or info findings),
+`status` exits with code 1. No `error:` prefix is printed to stderr; the JSON or
+text output on stdout already describes the findings.
 
 Useful flags:
 
@@ -747,7 +748,18 @@ rewrite front matter in `ahm`'s canonical order.
 
 ## Validation Findings
 
-`status` and `doctor` can emit these validation codes:
+`status` and `doctor` can emit validation findings in three tiers:
+
+- `errors`: hard validation failures; these set `validation.ok` to `false` and
+  make the command exit with code 1.
+- `warnings`: workflow inconsistencies that should be fixed but do not change
+  `validation.ok`.
+- `info`: low-noise advisory findings that do not change `validation.ok`.
+
+The JSON shape includes `errors`, `warnings`, and `info` arrays even when a tier
+is empty.
+
+Finding codes:
 
 | Code | Meaning |
 | ---- | ------- |
@@ -766,6 +778,11 @@ rewrite front matter in `ahm`'s canonical order.
 | `task_exec_plan_missing` | A task references an ExecPlan that could not be found. |
 | `task_completed_exec_plan_active` | A completed task references an ExecPlan still under `.agents/exec-plans/active/`. |
 | `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |
+| `exec_plan_active_with_outcomes` | An active ExecPlan has a filled `Outcomes & Retrospective` section. |
+| `exec_plan_completed_without_outcomes` | A completed ExecPlan has an empty or missing `Outcomes & Retrospective` section. |
+| `exec_plan_completed_with_open_progress` | A completed ExecPlan still has open `- [ ]` items in its `Progress` section. |
+| `exec_plan_missing_section` | An ExecPlan is missing one of the mandatory lifecycle sections. `ahm` emits one finding per missing section. |
+| `exec_plan_orphan` | An ExecPlan is not referenced by any task `exec_plan` field. This is an info-tier finding. |
 | `generated_index_missing` | A generated workflow index is missing and should be regenerated with `ahm index`. |
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |

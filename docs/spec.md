@@ -72,9 +72,19 @@ not be edited by hand.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,
-task-to-ExecPlan consistency issues, and broken relative Markdown links within
-the managed workflow surface. Project-wide documentation is not scanned by
-default; `ahm` validates the workflow files and artifacts it manages or indexes.
+task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, and
+broken relative Markdown links within the managed workflow surface. Project-wide
+documentation is not scanned by default; `ahm` validates the workflow files and
+artifacts it manages or indexes.
+
+ExecPlan lifecycle state is implicit in file placement and Markdown sections.
+In-progress plans live under `.agents/exec-plans/active/`; completed plans live
+under `.agents/exec-plans/completed/`. Every ExecPlan must maintain
+`Progress`, `Surprises & Discoveries`, `Decision Log`, and
+`Outcomes & Retrospective` sections. Active plans should not have completed
+outcomes, completed plans should have completed outcomes, and completed plans
+should not retain open `- [ ]` progress items. Unreferenced ExecPlans are
+reported as informational findings.
 
 ## File Format
 
