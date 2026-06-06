@@ -153,7 +153,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 			}
 			continue
 		}
-		if err := os.MkdirAll(path, 0o755); err != nil {
+		if err := os.MkdirAll(path, 0o755); err != nil { // #nosec G301 // 0755 is the standard directory permission for workflow directories
 			return nil, err
 		}
 	}
@@ -162,7 +162,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 
 func readMetadata(root string) (metadata, error) {
 	var meta metadata
-	data, err := os.ReadFile(filepath.Join(root, ".agents", "ahm.json"))
+	data, err := os.ReadFile(filepath.Join(root, ".agents", "ahm.json")) // #nosec G304 // path constructed from project root, not user input
 	if err != nil {
 		return meta, err
 	}
@@ -186,7 +186,7 @@ func hashBytes(data []byte) string {
 // readWorkflowFile reads a file and normalizes CRLF (\r\n) line endings to
 // LF (\n) so that downstream parsing functions do not need to handle both.
 func readWorkflowFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 // path is under project root, read from managed workflow files
 	if err != nil {
 		return nil, err
 	}

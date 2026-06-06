@@ -66,7 +66,7 @@ func (a *app) agentsSuggestions(showAll bool) error {
 
 func (a *app) collectAgentSuggestions() (agentsSuggestionsReport, error) {
 	target := filepath.Join(a.opts.root, "AGENTS.md")
-	existing, err := os.ReadFile(target)
+	existing, err := os.ReadFile(target) // #nosec G304 // target is AGENTS.md within project root only
 	exists := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return agentsSuggestionsReport{}, err

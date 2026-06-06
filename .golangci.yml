@@ -23,14 +23,18 @@ linters:
         - fmt.Fprintf
         - fmt.Fprintln
     gosec:
-      excludes:
-        - G301
-        - G304
-        - G306
+      excludes: []
     revive:
       rules:
         - name: package-comments
           disabled: true
+  exclusions:
+    rules:
+      # Test files commonly use 0o644 for temporary files and read files by
+      # path; these are standard test patterns, not production concerns.
+      - path: ".*_test\\.go"
+        linters:
+          - gosec
 
 issues:
   max-issues-per-linter: 0

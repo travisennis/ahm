@@ -27,7 +27,7 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { // #nosec G301 // 0755 is the standard directory permission for workflow files
 		return fmt.Errorf("atomic write: create dir %s: %w", dir, err)
 	}
 
@@ -66,7 +66,7 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 
 // fsyncPath opens the file at path, calls Sync, and closes it.
 func fsyncPath(path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	f, err := os.OpenFile(path, os.O_RDWR, 0) // #nosec G304 // path is canonical; caller validates non-canonical paths
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func fsyncPath(path string) error {
 
 // fsyncDir opens the directory, calls Sync, and closes it.
 func fsyncDir(path string) error {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY, 0) // #nosec G304 // path is canonical; caller validates non-canonical paths
 	if err != nil {
 		return err
 	}
