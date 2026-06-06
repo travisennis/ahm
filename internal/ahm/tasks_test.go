@@ -418,3 +418,120 @@ func TestResolveTaskFromTasks(t *testing.T) {
 		}
 	})
 }
+
+func TestRenderTaskCanonicalOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name: "non-canonical input order",
+			input: "---\n" +
+				"effort: L\n" +
+				"priority: P1\n" +
+				"status: Pending\n" +
+				"labels: type:test, area:tasks\n" +
+				"title: Non-canonical Order\n" +
+				"id: 099\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Non-canonical Order\n\nBody.\n",
+			want: "---\n" +
+				"id: 099\n" +
+				"title: Non-canonical Order\n" +
+				"status: Pending\n" +
+				"priority: P1\n" +
+				"effort: L\n" +
+				"labels: type:test, area:tasks\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Non-canonical Order\n\nBody.\n\n",
+		},
+		{
+			name: "optional fields omitted when empty",
+			input: "---\n" +
+				"id: 100\n" +
+				"title: No Optional Fields\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:test\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# No Optional Fields\n\nBody.\n",
+			want: "---\n" +
+				"id: 100\n" +
+				"title: No Optional Fields\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:test\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# No Optional Fields\n\nBody.\n\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task, err := parseTaskFromData([]byte(tt.input), "unused.md", "active")
+			if err != nil {
+				t.Fatalf("parseTaskFromData: %v", err)
+			}
+			got := renderTask(task)
+			if got != tt.want {
+				t.Fatalf("renderTask output mismatch\ngot:\n%s\n\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderTaskExtraFieldsSorted(t *testing.T) {
+	input := "---\n" +
+		"id: 101\n" +
+		"title: Extra Fields Roundtrip\n" +
+		"status: Pending\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:test\n" +
+		"exec_plan: -\n" +
+		"depends_on: -\n" +
+		"zeta_field: last\n" +
+		"alpha_field: first\n" +
+		"beta_field: middle\n" +
+		"---\n" +
+		"# Extra Fields Roundtrip\n\nBody.\n"
+
+	want := "---\n" +
+		"id: 101\n" +
+		"title: Extra Fields Roundtrip\n" +
+		"status: Pending\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:test\n" +
+		"exec_plan: -\n" +
+		"depends_on: -\n" +
+		"alpha_field: first\n" +
+		"beta_field: middle\n" +
+		"zeta_field: last\n" +
+		"---\n" +
+		"# Extra Fields Roundtrip\n\nBody.\n\n"
+
+	task, err := parseTaskFromData([]byte(input), "unused.md", "active")
+	if err != nil {
+		t.Fatalf("parseTaskFromData: %v", err)
+	}
+	if len(task.Extra) != 3 {
+		t.Fatalf("Expected 3 extra fields, got %d: %v", len(task.Extra), task.Extra)
+	}
+
+	got := renderTask(task)
+	if got != want {
+		t.Fatalf("renderTask with extra fields mismatch\ngot:\n%s\n\nwant:\n%s", got, want)
+	}
+}

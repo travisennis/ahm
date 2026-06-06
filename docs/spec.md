@@ -141,6 +141,31 @@ to LF (`\n`) before parsing. Managed files written by `ahm` always use LF line
 endings regardless of the original input. This ensures consistent front matter,
 title, heading, and body processing across platforms.
 
+### Canonical Front Matter Order
+
+Task front matter is written in a fixed canonical order. This ensures
+deterministic output and clean diffs regardless of the order in which fields
+appear in the source file. The canonical order, which `renderTask` always
+produces, is:
+
+1. `id`
+2. `title`
+3. `status`
+4. `priority`
+5. `effort`
+6. `labels`
+7. `exec_plan`
+8. `depends_on`
+9. `created` (optional, omitted when empty)
+10. `updated` (optional, omitted when empty)
+11. `parent` (optional, omitted when empty)
+12. `external_ref` (optional, omitted when empty)
+13. Extra/unknown fields (sorted by key)
+
+Optional fields (`created`, `updated`, `parent`, `external_ref`) are emitted
+only when non-empty. Extra fields not recognized as standard task fields are
+emitted in alphabetical order after all standard fields.
+
 ## Dash Sentinel Semantics
 
 Certain optional task front matter fields use the dash (`-`) as a sentinel
