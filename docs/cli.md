@@ -382,7 +382,7 @@ still assigns the next available ID, scanning both parsed tasks and task
 files on disk to avoid ID collisions.
 
 Task resolution commands (`task show`, `task work`, `task start`,
-`task complete`, `task cancel`, `task reopen`, `task dep add`,
+`task complete`, `task cancel`, `task accept`, `task reopen`, `task dep add`,
 `task dep remove`) also
 skip malformed files during ID resolution. A malformed task cannot be
 resolved by ID and produces a `task not found` error.
@@ -418,7 +418,7 @@ Command flags:
 | `--priority <value>`, `-p <value>` | Sets task priority. Default is `P2`. |
 | `--effort <value>` | Sets task effort. Default is `S`. |
 | `--labels <value>` | Sets the raw labels front matter value. Default is `type:task, area:cli`. |
-| `--status <value>` | Sets initial task status. Default is `Pending`. |
+| `--status <value>` | Sets initial task status. Default is `Open`. |
 | `--description <text>`, `-d <text>` | Sets the initial summary body. Default is `TODO.` |
 | `--body-file <path>` | Reads the task body from a file, or from stdin when the path is `-`. |
 
@@ -595,6 +595,22 @@ Example:
 
 ```bash
 ahm task start 001
+```
+
+### `task accept <id>`
+
+Sets a task status to `Pending`, keeps it in the active bucket, stamps
+`updated`, and regenerates indexes. This is the intentional transition from
+`Open` (newly captured, untriaged) into the ready backlog.
+
+Useful flags:
+
+- `--dry-run`: previews the target path and status without writing.
+
+Example:
+
+```bash
+ahm task accept 001
 ```
 
 ### `task work <id> [flags]`

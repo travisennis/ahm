@@ -32,7 +32,7 @@ func (a *app) taskCommand() *cobra.Command {
 		priority: "P2",
 		effort:   "S",
 		labels:   "type:task, area:cli",
-		status:   "Pending",
+		status:   "Open",
 	}
 	create := &cobra.Command{
 		Use:   "create <title> [flags]",
@@ -118,6 +118,7 @@ func (a *app) taskCommand() *cobra.Command {
 		short   string
 		status  string
 	}{
+		{use: "accept <id>", short: "Accept a task into the ready queue", status: "Pending"},
 		{use: "start <id>", short: "Mark a task in progress", status: "In Progress"},
 		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", status: "Completed"},
 		{use: "cancel <id>", short: "Mark a task cancelled", status: "Cancelled"},

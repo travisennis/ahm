@@ -92,7 +92,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 	assertContainsAll(t, content,
 		"id: 001",
 		"title: Body File Task",
-		"status: Pending",
+		"status: Open",
 		"priority: P1",
 		"effort: M",
 		"labels: type:feature, area:cli",
@@ -128,7 +128,7 @@ func TestTaskCreateBodyFileFromStdin(t *testing.T) {
 		priority: "P2",
 		effort:   "S",
 		labels:   "type:task, area:cli",
-		status:   "Pending",
+		status:   "Open",
 		bodyFile: "-",
 	}
 	if err := a.taskCreateParsed(parsed); err != nil {
@@ -543,11 +543,13 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
-	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "First Task", "--priority", "P1", "--effort", "M", "--description", "First body")
+	// First task: explicitly Pending so lifecycle integration works
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "First Task", "--priority", "P1", "--effort", "M", "--description", "First body", "--status", "Pending")
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
 		t.Fatalf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
-	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second Task")
+	// Second task: explicitly Pending so lifecycle integration works
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second Task", "--status", "Pending")
 	if code != 0 || strings.TrimSpace(stdout) != "002" {
 		t.Fatalf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
@@ -774,7 +776,7 @@ func TestTaskCompleteDryRunPreservesPreviewWithAcceptanceWarning(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
 		t.Fatal("completed file should not exist after dry-run completion")
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
 }
 
 func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
@@ -1051,6 +1053,76 @@ func stubTaskWorkRunner(t *testing.T, fn func(string, string, []string, io.Reade
 	t.Cleanup(func() {
 		taskWorkRunCommand = orig
 	})
+}
+
+func TestTaskAcceptMovesOpenToPending(t *testing.T) {
+	root := t.TempDir()
+	_, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+
+	// Create an Open task (new default).
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Triage")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stderr = %s", code, stderr)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+
+	// Accept it.
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "accept", "001")
+	if code != 0 {
+		t.Fatalf("accept exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskAcceptDryRunPreviews(t *testing.T) {
+	root := t.TempDir()
+	_, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Triage")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stderr = %s", code, stderr)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "accept", "001")
+	if code != 0 {
+		t.Fatalf("dry-run accept exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/active/001.md", "status: Pending")
+	// File should remain Open after dry-run.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+}
+
+func TestTaskAcceptFromBlocked(t *testing.T) {
+	root := t.TempDir()
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	// Create a Blocked task directly.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
+
+	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(), "001 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskAcceptNoOp(t *testing.T) {
+	root := t.TempDir()
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
+
+	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(), "001 already Pending")
 }
 
 func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, status string, deps string) {
