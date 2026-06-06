@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-var Version = "0.2.0"
+const Version = "0.2.0"
 
 // FS contains the embedded workflow template files.
 //
