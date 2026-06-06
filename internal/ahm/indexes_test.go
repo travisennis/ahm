@@ -7,23 +7,48 @@ import (
 	"testing"
 )
 
+func TestEscapeCell(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain text", "hello", "hello"},
+		{"pipe", "a|b", "a\\|b"},
+		{"newline", "a\nb", "a b"},
+		{"backtick", "a`b", "a\\`b"},
+		{"angle brackets", "a<b>c", "a&lt;b&gt;c"},
+		{"all special chars", "a|b\nc`d<e>f", "a\\|b c\\`d&lt;e&gt;f"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := escapeCell(tt.input); got != tt.want {
+				t.Errorf("escapeCell(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRenderRootIndexGolden(t *testing.T) {
 	index := renderRootIndex([]Task{
 		{ID: "001", Title: "Done", Status: "Completed", Priority: "P1", Effort: "S", Labels: "type:task", ExecPlan: "plan-1", Bucket: "completed"},
 		{ID: "002", Title: "Ready | Escape", Status: "Pending", Priority: "P0", Effort: "S", Labels: "type:task", ExecPlan: "-", Bucket: "active", DependsOn: []string{"001"}},
 		{ID: "003", Title: "Blocked", Status: "Pending", Priority: "P2", Effort: "M", Labels: "type:task", ExecPlan: "-", Bucket: "active", DependsOn: []string{"004"}},
 		{ID: "004", Title: "Open Needs Triage", Status: "Open", Priority: "P3", Effort: "L", Labels: "type:task", ExecPlan: "-", Bucket: "active"},
+		{ID: "005", Title: "Escaped `<angle>` test", Status: "Pending", Priority: "P2", Effort: "S", Labels: "type:task", ExecPlan: "-", Bucket: "active"},
 	})
 	assertContainsAll(t, index,
 		"# Task Index",
 		"- Open: 1",
-		"- Pending: 2",
+		"- Pending: 3",
 		"- Completed: 1",
-		"1. [002](active/002.md) - Ready | Escape (P0, S; type:task)",
+		"1. [002](active/002.md) - Ready \\| Escape (P0, S; type:task)",
+		"2. [005](active/005.md) - Escaped \\`&lt;angle&gt;\\` test (P2, S; type:task)",
 		"| [003](active/003.md) | Blocked | Pending | P2 | M | type:task | - | 004 |",
 		"| [004](active/004.md) | Open Needs Triage | Open | P3 | L | type:task | - | - |",
 		"| [002](active/002.md) | Ready \\| Escape | Pending | P0 | S | type:task | - | 001 |",
 		"| [001](completed/001.md) | Done | Completed | P1 | S | type:task | plan-1 | - |",
+		"| [005](active/005.md) | Escaped \\`&lt;angle&gt;\\` test | Pending | P2 | S | type:task | - | - |",
 	)
 }
 

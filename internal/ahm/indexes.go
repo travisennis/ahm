@@ -126,7 +126,7 @@ func renderRootIndex(tasks []Task) string {
 		fmt.Fprintln(&b, "None.")
 	} else {
 		for i, task := range ready {
-			fmt.Fprintf(&b, "%d. [%s](active/%s.md) - %s (%s, %s; %s)\n", i+1, task.ID, task.ID, task.Title, task.Priority, task.Effort, task.Labels)
+			fmt.Fprintf(&b, "%d. [%s](active/%s.md) - %s (%s, %s; %s)\n", i+1, task.ID, task.ID, escapeCell(task.Title), task.Priority, task.Effort, task.Labels)
 		}
 	}
 	fmt.Fprintln(&b)
@@ -289,8 +289,16 @@ func writeTaskTable(b *strings.Builder, tasks []Task, from string) {
 	}
 }
 
+// escapeCell escapes characters that have special meaning in Markdown table
+// cells or could be interpreted as HTML. Currently handles pipes (|),
+// backticks (`), angle brackets (<, >), and newlines.
 func escapeCell(value string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(value, "|", "\\|"), "\n", " ")
+	value = strings.ReplaceAll(value, "`", "\\`")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	value = strings.ReplaceAll(value, "<", "&lt;")
+	value = strings.ReplaceAll(value, ">", "&gt;")
+	value = strings.ReplaceAll(value, "\n", " ")
+	return value
 }
 
 func bucketTitle(bucket string) string {
