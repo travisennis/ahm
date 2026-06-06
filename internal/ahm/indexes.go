@@ -85,16 +85,18 @@ func (a *app) indexWrites() (map[string]string, error) {
 	}, nil
 }
 
+var generatedIndexTargetsList = []string{
+	".agents/.tasks/index.md",
+	".agents/.tasks/active/index.md",
+	".agents/.tasks/completed/index.md",
+	".agents/.tasks/cancelled/index.md",
+	".agents/.research/index.md",
+	".agents/exec-plans/active/index.md",
+	".agents/exec-plans/completed/index.md",
+}
+
 func generatedIndexTargets() []string {
-	return []string{
-		".agents/.tasks/index.md",
-		".agents/.tasks/active/index.md",
-		".agents/.tasks/completed/index.md",
-		".agents/.tasks/cancelled/index.md",
-		".agents/.research/index.md",
-		".agents/exec-plans/active/index.md",
-		".agents/exec-plans/completed/index.md",
-	}
+	return generatedIndexTargetsList
 }
 
 func sortedKeys(values map[string]string) []string {
