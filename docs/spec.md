@@ -8,7 +8,8 @@ docs when `ahm` ships newer templates.
 
 ## Non-goals For v1
 
-- No model or coding-agent calls.
+- No model or coding-agent calls except explicit `ahm task work <id>`
+  delegation to a user-selected external coding-agent CLI.
 - No source-code patching.
 - No implicit git commits, pushes, PRs, or branch operations.
 - No database.
@@ -68,6 +69,7 @@ Example:
 {
   "version": "0.1.0",
   "strict_acceptance": true,
+  "default_work_agent": "codex",
   "files": {
     ".agents/TASKS.md": "..."
   }
@@ -79,6 +81,11 @@ The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
 contains the seeded `- [ ] TODO` placeholder, or contains unchecked checklist
 items. The global `--force` flag overrides this strict completion gate for a
 single command while still printing warnings.
+
+The optional `default_work_agent` string selects the agent used by
+`ahm task work <id>` when no `--agent` flag is provided. Supported values are
+`cake`, `codex`, and `cursor`; the command defaults to `cake` when neither the
+flag nor metadata setting is present.
 
 ## File Ownership Boundary
 

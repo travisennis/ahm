@@ -11,7 +11,8 @@ embedded into the CLI at build time.
 ## Status
 
 Initial implementation. The CLI supports workflow install/upgrade/status,
-native task index generation, and basic task management.
+native task index generation, task management, and handing a resolved task to a
+supported external coding-agent CLI.
 
 ## Quickstart
 
@@ -21,6 +22,7 @@ ahm status
 ahm task create "Add release workflow" --priority P2 --effort M --labels type:task,area:ci
 ahm task ready
 ahm task show 001
+ahm task work 001 --agent codex
 ahm task complete 001
 ```
 
@@ -43,7 +45,9 @@ is missing, but `ahm` never overwrites an existing project `AGENTS.md`.
 
 `ahm` does not commit, push, open PRs, or modify source code. Write commands are
 explicit and operate on the `.agents` workflow files unless a future command
-states otherwise.
+states otherwise. `ahm task work <id>` is an explicit delegation command: it
+validates the task workflow state, then invokes the selected external
+coding-agent CLI from the repository root.
 
 ## Development
 

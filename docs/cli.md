@@ -47,7 +47,7 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the embedded workflow template version. |
@@ -381,8 +381,9 @@ tasks, and print a warning to stderr.
 still assigns the next available ID, scanning both parsed tasks and task
 files on disk to avoid ID collisions.
 
-Task resolution commands (`task show`, `task start`, `task complete`,
-`task cancel`, `task reopen`, `task dep add`, `task dep remove`) also
+Task resolution commands (`task show`, `task work`, `task start`,
+`task complete`, `task cancel`, `task reopen`, `task dep add`,
+`task dep remove`) also
 skip malformed files during ID resolution. A malformed task cannot be
 resolved by ID and produces a `task not found` error.
 
@@ -594,6 +595,59 @@ Example:
 
 ```bash
 ahm task start 001
+```
+
+### `task work <id> [flags]`
+
+Resolves a task, validates that it can be worked, and hands it to an external
+coding-agent CLI from the repository root.
+
+`task work` refuses completed and cancelled tasks. It also verifies every task
+listed in `depends_on` is already `Completed` before invoking an agent. If the
+task is `Pending`, the command marks it `In Progress` and regenerates indexes
+after validation and executable lookup, but before invoking the external CLI.
+Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
+
+Supported agents:
+
+| Agent | Executable | Invocation |
+| ----- | ---------- | ---------- |
+| `cake` | `cake` | `cake --output-format text <prompt>` |
+| `codex` | `codex` | `codex exec <prompt>` |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` |
+
+Agent selection precedence is:
+
+1. `--agent <cake|codex|cursor>`
+2. `.agents/ahm.json` `"default_work_agent": "<agent>"`
+3. `cake`
+
+The generated prompt includes the resolved task ID and task path, and instructs
+the delegated agent to read `AGENTS.md`, `.agents/TASKS.md`, the generated task
+index, and the task file before making changes. `ahm` does not pass provider
+credentials, choose models, parse provider output, run review orchestration,
+complete tasks, commit changes, push branches, or open pull requests.
+
+Useful flags:
+
+- `--agent <cake|codex|cursor>`: selects the external coding-agent CLI.
+- `--dry-run`: previews the selected executable, arguments, task ID, agent, and
+  resulting status without rewriting the task or invoking the external CLI.
+
+Repository configuration:
+
+```json
+{
+  "default_work_agent": "codex"
+}
+```
+
+Examples:
+
+```bash
+ahm task work 001
+ahm task work 001 --agent codex
+ahm --dry-run task work 001 --agent cursor
 ```
 
 ### `task complete <id>`

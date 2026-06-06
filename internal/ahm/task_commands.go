@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+)
+
+var (
+	taskWorkLookPath   = exec.LookPath
+	taskWorkRunCommand = runTaskWorkCommand
 )
 
 func (a *app) taskCommand() *cobra.Command {
@@ -90,6 +96,22 @@ func (a *app) taskCommand() *cobra.Command {
 		},
 	})
 
+	workArgs := taskWorkArgs{}
+	work := &cobra.Command{
+		Use:   "work <id>",
+		Short: "Hand a task to a coding-agent CLI",
+		Args:  exactArgs(1, "task work requires an id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			workArgs.id = args[0]
+			return a.taskWork(workArgs)
+		},
+	}
+	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, codex, or cursor")
+	task.AddCommand(work)
+
 	for _, spec := range []struct {
 		use     string
 		aliases []string
@@ -148,6 +170,162 @@ type taskCreateArgs struct {
 	status      string
 	description string
 	bodyFile    string
+}
+
+type taskWorkArgs struct {
+	id    string
+	agent string
+}
+
+type taskWorkAgent struct {
+	name       string
+	executable string
+	args       func(string) []string
+}
+
+func (a *app) taskWork(parsed taskWorkArgs) error {
+	task, err := a.resolveTask(parsed.id)
+	if err != nil {
+		return err
+	}
+	if task.Status == "Completed" || task.Status == "Cancelled" {
+		return fmt.Errorf("cannot work task %s: status is %s", task.ID, task.Status)
+	}
+	if err := a.ensureTaskDependenciesComplete(task); err != nil {
+		return err
+	}
+	agent, err := a.selectTaskWorkAgent(parsed.agent)
+	if err != nil {
+		return err
+	}
+	prompt := a.buildTaskWorkPrompt(task)
+	executable, err := taskWorkLookPath(agent.executable)
+	if err != nil {
+		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, agent.name, agent.executable)
+	}
+	args := agent.args(prompt)
+	if a.opts.dryRun {
+		return a.emit(map[string]any{
+			"task":       task.ID,
+			"agent":      agent.name,
+			"executable": executable,
+			"args":       args,
+			"status":     taskWorkDryRunStatus(task.Status),
+		})
+	}
+	if task.Status == "Pending" {
+		if err := a.markTaskInProgress(task); err != nil {
+			return err
+		}
+	}
+	return taskWorkRunCommand(a.opts.root, executable, args, a.in, a.out, a.err)
+}
+
+func taskWorkDryRunStatus(status string) string {
+	if status == "Pending" {
+		return "In Progress"
+	}
+	return status
+}
+
+func (a *app) selectTaskWorkAgent(flagValue string) (taskWorkAgent, error) {
+	value := strings.TrimSpace(flagValue)
+	if value == "" {
+		meta, err := readMetadata(a.opts.root)
+		if err == nil {
+			value = meta.DefaultWorkAgent
+		}
+	}
+	if value == "" {
+		value = "cake"
+	}
+	return parseTaskWorkAgent(value)
+}
+
+func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
+	switch enumKey(value) {
+	case "cake":
+		return taskWorkAgent{
+			name:       "cake",
+			executable: "cake",
+			args: func(prompt string) []string {
+				return []string{"--output-format", "text", prompt}
+			},
+		}, nil
+	case "codex":
+		return taskWorkAgent{
+			name:       "codex",
+			executable: "codex",
+			args: func(prompt string) []string {
+				return []string{"exec", prompt}
+			},
+		}, nil
+	case "cursor", "cursoragent":
+		return taskWorkAgent{
+			name:       "cursor",
+			executable: "cursor-agent",
+			args: func(prompt string) []string {
+				return []string{"-p", "--output-format", "text", prompt}
+			},
+		}, nil
+	default:
+		return taskWorkAgent{}, usageError(fmt.Sprintf("unsupported task work agent %q (supported: cake, codex, cursor)", value))
+	}
+}
+
+func (a *app) ensureTaskDependenciesComplete(task Task) error {
+	if len(task.DependsOn) == 0 {
+		return nil
+	}
+	allTasks, err := a.getTasks()
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+	}
+	completed := map[string]bool{}
+	for _, t := range allTasks {
+		if t.Status == "Completed" {
+			completed[t.ID] = true
+		}
+	}
+	var incomplete []string
+	for _, dep := range task.DependsOn {
+		if !completed[dep] {
+			incomplete = append(incomplete, dep)
+		}
+	}
+	if len(incomplete) > 0 {
+		return fmt.Errorf("cannot work task %s: incomplete dependencies: %s", task.ID, strings.Join(incomplete, ", "))
+	}
+	return nil
+}
+
+func (a *app) buildTaskWorkPrompt(task Task) string {
+	taskPath := relPath(a.opts.root, task.Path)
+	return fmt.Sprintf(`Work on task %s.
+
+Before making changes, read AGENTS.md, .agents/TASKS.md, .agents/.tasks/index.md, and %s.
+
+Use the repository task workflow. Keep changes scoped to the task. Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied. Do not commit or push unless the user explicitly asked for that.
+`, task.ID, taskPath)
+}
+
+func (a *app) markTaskInProgress(task Task) error {
+	task.Status = "In Progress"
+	task.Updated = time.Now().Format(time.RFC3339)
+	target := filepath.Join(a.opts.root, ".agents", ".tasks", "active", task.ID+".md")
+	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
+		return err
+	}
+	return a.writeIndexes()
+}
+
+func runTaskWorkCommand(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	cmd := exec.Command(executable, args...) //nolint:gosec // executable is selected from the supported task work agent allowlist before LookPath.
+	cmd.Dir = root
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	return cmd.Run()
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {

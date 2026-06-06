@@ -1,6 +1,8 @@
 package ahm
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -821,6 +823,234 @@ func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
 		t.Fatalf("complete 002 exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Completed")
+}
+
+func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if captured.root != root {
+		t.Fatalf("runner root = %q, want %q", captured.root, root)
+	}
+	if captured.executable != "/stub/cake" {
+		t.Fatalf("runner executable = %q, want /stub/cake", captured.executable)
+	}
+	if len(captured.args) != 3 || captured.args[0] != "--output-format" || captured.args[1] != "text" {
+		t.Fatalf("cake args = %#v", captured.args)
+	}
+	assertContainsAll(t, captured.args[2], "Work on task 001.", ".agents/.tasks/active/001.md", "Do not commit or push")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
+func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeMetadata(root, metadata{DefaultWorkAgent: "codex"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Configured Task", "In Progress", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	var configured taskWorkCapture
+	stubTaskWorkRunner(t, configured.runner)
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if configured.executable != "/stub/codex" || len(configured.args) != 2 || configured.args[0] != "exec" {
+		t.Fatalf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
+	}
+
+	var flagged taskWorkCapture
+	stubTaskWorkRunner(t, flagged.runner)
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor")
+	if code != 0 {
+		t.Fatalf("flagged task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if flagged.executable != "/stub/cursor-agent" {
+		t.Fatalf("flagged executable = %q, want /stub/cursor-agent", flagged.executable)
+	}
+	if len(flagged.args) != 4 || flagged.args[0] != "-p" || flagged.args[1] != "--output-format" || flagged.args[2] != "text" {
+		t.Fatalf("cursor args = %#v", flagged.args)
+	}
+}
+
+func TestTaskWorkUnsupportedAgentIsUsageError(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "unknown")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, codex, cursor")
+}
+
+func TestTaskWorkUnsupportedConfiguredAgentIsUsageError(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeMetadata(root, metadata{DefaultWorkAgent: "unknown"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, codex, cursor")
+}
+
+func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "agent: codex", "executable: /stub/codex", "status: In Progress", "task: 001", "exec", "Work on task 001.")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkRefusesCompletedAndCancelledTasks(t *testing.T) {
+	for _, tt := range []struct {
+		status string
+		bucket string
+	}{
+		{status: "Completed", bucket: "completed"},
+		{status: "Cancelled", bucket: "cancelled"},
+	} {
+		t.Run(tt.status, func(t *testing.T) {
+			root := t.TempDir()
+			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", tt.bucket, "001.md"), "001", "Closed Task", tt.status, "")
+			stubTaskWorkLookPath(t, func(executable string) (string, error) {
+				t.Fatalf("LookPath should not be called for %s task", tt.status)
+				return "", nil
+			})
+
+			_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+			if code == 0 {
+				t.Fatalf("expected failure for %s task", tt.status)
+			}
+			assertContainsAll(t, stderr, "cannot work task 001: status is "+tt.status)
+		})
+	}
+}
+
+func TestTaskWorkRefusesIncompleteDependencies(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main", "Pending", "001")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		t.Fatal("LookPath should not be called for incomplete dependencies")
+		return "", nil
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "002")
+	if code == 0 {
+		t.Fatal("expected dependency failure")
+	}
+	assertContainsAll(t, stderr, "cannot work task 002: incomplete dependencies: 001")
+}
+
+func TestTaskWorkMissingExecutableLeavesPendingTaskUnchanged(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "", errors.New("missing")
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code == 0 {
+		t.Fatal("expected missing executable failure")
+	}
+	assertContainsAll(t, stderr, `cannot work task 001 with cake: executable "cake" not found on PATH`)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkAgentInvocations(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		executable string
+		prefix     []string
+	}{
+		{name: "cake", executable: "cake", prefix: []string{"--output-format", "text"}},
+		{name: "codex", executable: "codex", prefix: []string{"exec"}},
+		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "text"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			agent, err := parseTaskWorkAgent(tt.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if agent.executable != tt.executable {
+				t.Fatalf("executable = %q, want %q", agent.executable, tt.executable)
+			}
+			args := agent.args("prompt")
+			for i, want := range tt.prefix {
+				if args[i] != want {
+					t.Fatalf("args = %#v, want prefix %#v", args, tt.prefix)
+				}
+			}
+			if args[len(args)-1] != "prompt" {
+				t.Fatalf("args = %#v, final arg should be prompt", args)
+			}
+		})
+	}
+}
+
+type taskWorkCapture struct {
+	root       string
+	executable string
+	args       []string
+}
+
+func (c *taskWorkCapture) runner(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	c.root = root
+	c.executable = executable
+	c.args = append([]string(nil), args...)
+	return nil
+}
+
+func stubTaskWorkLookPath(t *testing.T, fn func(string) (string, error)) {
+	t.Helper()
+	orig := taskWorkLookPath
+	taskWorkLookPath = fn
+	t.Cleanup(func() {
+		taskWorkLookPath = orig
+	})
+}
+
+func stubTaskWorkRunner(t *testing.T, fn func(string, string, []string, io.Reader, io.Writer, io.Writer) error) {
+	t.Helper()
+	orig := taskWorkRunCommand
+	taskWorkRunCommand = fn
+	t.Cleanup(func() {
+		taskWorkRunCommand = orig
+	})
 }
 
 func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, status string, deps string) {

@@ -17,6 +17,7 @@ import (
 type metadata struct {
 	Version          string            `json:"version"`
 	StrictAcceptance bool              `json:"strict_acceptance"`
+	DefaultWorkAgent string            `json:"default_work_agent,omitempty"`
 	Files            map[string]string `json:"files"`
 }
 
