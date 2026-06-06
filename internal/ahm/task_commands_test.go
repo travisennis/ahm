@@ -127,7 +127,7 @@ func TestTaskCreateBodyFileFromStdin(t *testing.T) {
 		title:    "Stdin Body Task",
 		priority: "P2",
 		effort:   "S",
-		labels:   "type:task, area:cli",
+		labels:   "type:task, area:unknown",
 		status:   "Open",
 		bodyFile: "-",
 	}

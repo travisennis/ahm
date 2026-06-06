@@ -31,7 +31,7 @@ func (a *app) taskCommand() *cobra.Command {
 	createArgs := taskCreateArgs{
 		priority: "P2",
 		effort:   "S",
-		labels:   "type:task, area:cli",
+		labels:   "type:task, area:unknown",
 		status:   "Open",
 	}
 	create := &cobra.Command{

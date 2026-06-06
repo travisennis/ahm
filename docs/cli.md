@@ -417,7 +417,7 @@ Command flags:
 | ---- | ----------- |
 | `--priority <value>`, `-p <value>` | Sets task priority. Default is `P2`. |
 | `--effort <value>` | Sets task effort. Default is `S`. |
-| `--labels <value>` | Sets the raw labels front matter value. Default is `type:task, area:cli`. |
+| `--labels <value>` | Sets the raw labels front matter value. Default is `type:task, area:unknown`. |
 | `--status <value>` | Sets initial task status. Default is `Open`. |
 | `--description <text>`, `-d <text>` | Sets the initial summary body. Default is `TODO.` |
 | `--body-file <path>` | Reads the task body from a file, or from stdin when the path is `-`. |
