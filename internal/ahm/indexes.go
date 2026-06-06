@@ -302,9 +302,6 @@ func escapeCell(value string) string {
 }
 
 func bucketTitle(bucket string) string {
-	if bucket == "" {
-		return bucket
-	}
 	return strings.ToUpper(bucket[:1]) + bucket[1:]
 }
 
