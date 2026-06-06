@@ -68,9 +68,6 @@ func exactArgs(count int, message string) cobra.PositionalArgs {
 	}
 }
 func (a *app) taskDepUpdate(argv []string, add bool) error {
-	if len(argv) != 2 {
-		return usageError("task dep add/remove requires task id and dependency id")
-	}
 	task, err := a.resolveTask(argv[0])
 	if err != nil {
 		return err
@@ -123,9 +120,6 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 }
 
 func (a *app) taskDepTree(argv []string) error {
-	if len(argv) != 1 {
-		return usageError("task dep tree requires an id")
-	}
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")

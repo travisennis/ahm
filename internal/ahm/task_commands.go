@@ -623,9 +623,6 @@ func containsString(values []string, value string) bool {
 }
 
 func (a *app) taskShow(argv []string) error {
-	if len(argv) != 1 {
-		return usageError("task show requires an id")
-	}
 	task, err := a.resolveTask(argv[0])
 	if err != nil {
 		return err
@@ -642,9 +639,6 @@ func (a *app) taskShow(argv []string) error {
 }
 
 func (a *app) taskStatus(argv []string, status string) error {
-	if len(argv) != 1 {
-		return usageError("task status command requires an id")
-	}
 	task, err := a.resolveTask(argv[0])
 	if err != nil {
 		return err
