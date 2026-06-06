@@ -86,6 +86,35 @@ validation:
   warnings: 0
 ```
 
+When the workflow metadata is missing (not yet installed), `installed_version`
+shows as `none` in text mode and `null` in JSON/plain mode, and the
+validation report includes the metadata error:
+
+```
+root: /path/to/repo
+template_version: 1.0.0
+installed: false
+installed_version: none
+tasks:
+  total: 0
+  pending: 0
+  in_progress: 0
+  completed: 0
+validation:
+{
+    "ok": false,
+    "errors": [
+      {
+        "code": "metadata_missing",
+        "path": ".agents/ahm.json",
+        "message": "workflow metadata is missing or unreadable"
+      }
+    ],
+    "warnings": [],
+    "info": []
+  }
+```
+
 Install and upgrade operations always print grouped text sections such as
 `adopted:`, `created:`, `updated:`, `skipped:`, and `conflicts:`.
 

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/travisennis/ahm/internal/templates"
 )
 
 func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
@@ -145,11 +147,68 @@ func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.
 		t.Fatalf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
-	assertContainsAll(t, got, `"code": "metadata_missing"`)
+	assertContainsAll(t, got,
+		`"code": "metadata_missing"`,
+		`"installed_version": null`,
+	)
 	assertNotContains(t, got,
 		`"code": "generated_index_missing"`,
 		`"code": "markdown_link_missing"`,
+		`"installed_version": ""`,
 	)
+}
+
+func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// JSON mode: installed_version shows the version string.
+	var jOut strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &jOut}
+	if err := a.status(); err != nil {
+		t.Fatalf("status error: %v", err)
+	}
+	jGot := jOut.String()
+	assertContainsAll(t, jGot, `"installed_version": "`+templates.Version+`"`)
+
+	// Text mode: installed_version shows the version string.
+	var tOut strings.Builder
+	a2 := app{opts: options{root: root}, out: &tOut}
+	if err := a2.status(); err != nil {
+		t.Fatalf("status error: %v", err)
+	}
+	tGot := tOut.String()
+	assertContainsAll(t, tGot, "installed_version: "+templates.Version)
+}
+
+func TestDoctorWithoutMetadataShowsInstalledVersionNone(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// JSON mode: installed_version shows null.
+	var jOut strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &jOut}
+	if err := a.doctor(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
+	}
+	jGot := jOut.String()
+	assertContainsAll(t, jGot, `"installed_version": null`)
+	assertNotContains(t, jGot, `"installed_version": ""`)
+
+	// Text mode: installed_version shows none.
+	var tOut strings.Builder
+	a2 := app{opts: options{root: root}, out: &tOut}
+	if err := a2.doctor(); !errors.Is(err, errValidationFailed) {
+		t.Fatalf("expected errValidationFailed, got: %v", err)
+	}
+	tGot := tOut.String()
+	assertContainsAll(t, tGot, "installed_version: none")
 }
 
 func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {

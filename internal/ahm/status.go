@@ -9,11 +9,15 @@ import (
 func (a *app) status() error {
 	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
+	var installedVersion any
+	if metaErr == nil {
+		installedVersion = meta.Version
+	}
 	status := map[string]any{
 		"root":              a.opts.root,
 		"template_version":  templates.Version,
 		"installed":         metaErr == nil,
-		"installed_version": meta.Version,
+		"installed_version": installedVersion,
 		"tasks":             taskCounts(tasks),
 		"validation":        validation,
 	}
@@ -31,12 +35,16 @@ func (a *app) doctor() error {
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
 	validation, _ := validateWorkflow(a.opts.root)
+	var installedVersion any
+	if metaErr == nil {
+		installedVersion = meta.Version
+	}
 	report := map[string]any{
 		"root":               a.opts.root,
 		"go_available":       goErr == nil,
 		"git_available":      gitErr == nil,
 		"workflow_installed": metaErr == nil,
-		"installed_version":  meta.Version,
+		"installed_version":  installedVersion,
 		"template_version":   templates.Version,
 		"validation":         validation,
 	}
