@@ -31,6 +31,10 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 			path: "workflow/deslop-SKILL.md",
 			want: "Scale the review to the change size",
 		},
+		{
+			path: "workflow/grooming-backlog-SKILL.md",
+			want: "Every Open task is either Pending (ready to work), Blocked (blocker",
+		},
 	}
 	for _, tc := range cases {
 		data, err := fs.ReadFile(FS, tc.path)
@@ -91,6 +95,28 @@ func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
 	} {
 		if strings.Contains(body, term) {
 			t.Fatalf("deslop template should be project-generic, but contains %q", term)
+		}
+	}
+}
+
+func TestGroomingBacklogTemplateIsProjectGeneric(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/grooming-backlog-SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := string(data)
+	for _, term := range []string{
+		"Cobra",
+		"cargo",
+		"npm",
+		"deslop",
+		"052",
+		"053",
+		"051",
+	} {
+		if strings.Contains(body, term) {
+			t.Fatalf("grooming-backlog template should be project-generic, but contains %q", term)
 		}
 	}
 }

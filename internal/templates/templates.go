@@ -29,6 +29,7 @@ var managedFiles = []File{
 	{Source: "workflow/tasks-README.md", Target: ".agents/.tasks/README.md"},
 	{Source: "workflow/research-README.md", Target: ".agents/.research/README.md"},
 	{Source: "workflow/deslop-SKILL.md", Target: ".agents/skills/deslop/SKILL.md"},
+	{Source: "workflow/grooming-backlog-SKILL.md", Target: ".agents/skills/grooming-backlog/SKILL.md"},
 	{Source: "workflow/adr-README.md", Target: "docs/adr/README.md"},
 }
 

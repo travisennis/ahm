@@ -136,6 +136,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 		".agents/exec-plans/active",
 		".agents/exec-plans/completed",
 		".agents/skills/deslop",
+		".agents/skills/grooming-backlog",
 		"docs/adr",
 	}
 	var created []string
