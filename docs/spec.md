@@ -141,6 +141,36 @@ to LF (`\n`) before parsing. Managed files written by `ahm` always use LF line
 endings regardless of the original input. This ensures consistent front matter,
 title, heading, and body processing across platforms.
 
+## Dash Sentinel Semantics
+
+Certain optional task front matter fields use the dash (`-`) as a sentinel
+value to represent an absent or unset field.
+
+When `ahm` parses a task file, a field that uses `defaultDash` and is missing
+from the front matter is read as an empty string and normalized to `-` before
+the task struct is used internally. When `ahm` writes the task back to disk, the field is always
+written with its current value; if that value is `-` (either because it was
+originally absent or because it was explicitly set to `-`), the output is the
+same in both cases.
+
+The `defaultDash` normalization is applied to `status`, `priority`, `effort`,
+`labels`, and `exec_plan` during parsing. However, `status`, `priority`, and
+`effort` also undergo enum validation that rejects `-`; in valid task files
+these fields always hold a recognized enum value. The fields where `-` is an
+accepted value are:
+
+- `labels` — default `-` indicates no labels have been assigned.
+- `exec_plan` — default `-` indicates the task is not linked to an ExecPlan.
+
+Note that `depends_on` uses `-` and `[]` interchangeably for an empty dependency
+list; both produce `-` on write (see `docs/cli.md`).
+
+The practical consequence is that a round-trip (parse, modify, write) cannot
+distinguish between an absent field and an explicit `-`. This is an accepted
+convention: the dash sentinel means "not set" and preserves symmetry with the
+grammar used in task creation (where `ahm task create` seeds `exec_plan: -`,
+`depends_on: -`).
+
 ## Atomic Write Guarantee
 
 All managed writes (metadata, generated indexes, task files, installed/upgraded
