@@ -84,6 +84,24 @@ func AgentSuggestions() []AgentSuggestion {
 				"by hand afterward; those commands already regenerate indexes.",
 		},
 		{
+			ID:    "ahm-owned-files",
+			Title: "Ahm-Owned Files",
+			Body: "`ahm` owns the workflow files it installs, maintains, generates, and upgrades.\n" +
+				"Do not hand-edit ahm-owned generated indexes or managed templates in a consumer\n" +
+				"project to change ahm behavior or guidance. Update the source task, research\n" +
+				"note, ExecPlan, or other project-owned record, then run the appropriate `ahm`\n" +
+				"command (`ahm index`, `ahm task complete <id>`, `ahm upgrade`, etc.). If the\n" +
+				"installed guidance itself needs to change, update the canonical templates in\n" +
+				"the `ahm` repository and let projects receive the change through `ahm upgrade`.\n" +
+				"\n" +
+				"Exceptions: `AGENTS.md` is project-owned after creation; task files, research\n" +
+				"notes, ExecPlans, and ADRs are workflow source records that may be updated\n" +
+				"through their documented workflows; generated indexes must be regenerated, not\n" +
+				"hand-edited; managed template files under `.agents/` and `docs/adr/README.md`\n" +
+				"should not be customized locally as a way to change ahm-provided process\n" +
+				"guidance.",
+		},
+		{
 			ID:    "task-state-transitions",
 			Title: "Task State Transitions",
 			Body: "Use `ahm task complete <id>` and `ahm task cancel <id>` for task state\n" +

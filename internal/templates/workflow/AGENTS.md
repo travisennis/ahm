@@ -22,6 +22,21 @@ ExecPlan files and run `ahm index`. Do not run `ahm index` after
 `ahm task cancel <id>`, or `ahm task reopen <id>` unless you edit metadata
 by hand afterward; those commands already regenerate indexes.
 
+`ahm` owns the workflow files it installs, maintains, generates, and upgrades.
+Do not hand-edit ahm-owned generated indexes or managed templates in a consumer
+project to change ahm behavior or guidance. Update the source task, research
+note, ExecPlan, or other project-owned record, then run the appropriate `ahm`
+command (`ahm index`, `ahm task complete <id>`, `ahm upgrade`, etc.). If the
+installed guidance itself needs to change, update the canonical templates in
+the `ahm` repository and let projects receive the change through `ahm upgrade`.
+
+Exceptions: `AGENTS.md` is project-owned after creation; task files, research
+notes, ExecPlans, and ADRs are workflow source records that may be updated
+through their documented workflows; generated indexes must be regenerated, not
+hand-edited; managed template files under `.agents/` and `docs/adr/README.md`
+should not be customized locally as a way to change ahm-provided process
+guidance.
+
 Use `ahm task complete <id>` and `ahm task cancel <id>` for task state
 transitions that move files between task buckets.
 

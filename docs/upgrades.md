@@ -18,6 +18,12 @@ the target repository files.
   `--force`.
 - Generated indexes are regenerated.
 - User-owned task files, research notes, and ExecPlans are not overwritten.
+- Managed template files (`.agents/TASKS.md`, `docs/adr/README.md`, etc.) are
+  overwritten only when their content matches the previous managed hash or
+  `--force` is used; locally customized managed templates are preserved and
+  reported as conflicts.
+
+See [`docs/spec.md`](spec.md) for the complete file ownership boundary.
 
 **Version advancement:** The metadata `version` field always advances to the
 embedded template version, even when conflicts exist. This ensures that

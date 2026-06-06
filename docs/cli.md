@@ -136,7 +136,9 @@ ahm version
 ### `agents suggestions`
 
 Prints advisory snippets that a project may consider adding to an existing
-project-owned `AGENTS.md`.
+project-owned `AGENTS.md`. The suggestions cover task, research, ExecPlan, and
+documentation workflows, generated index rules, file ownership guidance, task
+state transitions, commit policies, and implementation documentation practices.
 
 This command never writes `AGENTS.md`. It exists for repositories where
 `AGENTS.md` already exists and `ahm init` or `ahm upgrade` correctly skip that

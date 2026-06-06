@@ -80,14 +80,36 @@ contains the seeded `- [ ] TODO` placeholder, or contains unchecked checklist
 items. The global `--force` flag overrides this strict completion gate for a
 single command while still printing warnings.
 
-`AGENTS.md` is an entrypoint file, not a managed workflow document. `ahm init`
-may create a starter `AGENTS.md` when it is missing, but `ahm` never overwrites
-an existing `AGENTS.md` or treats it as a locally modified managed file.
-`ahm agents suggestions` may print advisory snippets for a project-owned
-`AGENTS.md`, but it does not modify the file.
+## File Ownership Boundary
 
-Generated task, research, and ExecPlan indexes are owned by `ahm` and should
-not be edited by hand.
+`ahm` owns the workflow files it installs, maintains, generates, and upgrades.
+Consumer projects must not hand-edit ahm-owned files as a substitute for using
+`ahm` commands or updating upstream templates.
+
+The ownership categories are:
+
+1. **Generated indexes** (`.agents/.tasks/index.md`,
+   `.agents/.research/index.md`, `.agents/exec-plans/active/index.md`,
+   `.agents/exec-plans/completed/index.md`) — owned by `ahm`. Do not edit by
+   hand. Update source records and run `ahm index`.
+
+2. **Managed template files** (`.agents/TASKS.md`, `.agents/RESEARCH.md`,
+   `.agents/PLANS.md`, `.agents/DOCS.md`, `.agents/skills/*/SKILL.md`,
+   `docs/adr/README.md`) — owned by `ahm`. Install and upgrade via `ahm init`
+   and `ahm upgrade`. Do not customize locally to change ahm-provided process
+   guidance; update the canonical templates in the `ahm` repository instead.
+
+3. **Workflow source records** (task files in `.agents/.tasks/`, research
+   notes in `.agents/.research/`, ExecPlans in `.agents/exec-plans/`, ADRs
+   under `docs/adr/`) — project-owned. Update through their documented
+   workflows (e.g., `ahm task create`, `ahm task complete <id>`, manual edits
+   to source markdown files).
+
+4. **`AGENTS.md`** — project-owned after creation. `ahm init` may create a
+   starter `AGENTS.md` when it is missing, but `ahm` never overwrites an
+   existing `AGENTS.md` or treats it as a locally modified managed file.
+   `ahm agents suggestions` prints advisory snippets for project-owned
+   `AGENTS.md` but does not modify the file.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,

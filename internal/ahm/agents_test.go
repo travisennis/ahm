@@ -21,6 +21,8 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 		"# Suggested AGENTS.md Additions",
 		"## Task Workflow",
 		"For the first task in a session",
+		"## Ahm-Owned Files",
+		"Do not hand-edit ahm-owned generated indexes",
 		"## Generated Indexes",
 		"Do not edit generated indexes by hand",
 		"## Implementation Documentation",
@@ -65,5 +67,7 @@ func TestAgentsSuggestionsJSONIncludesPresence(t *testing.T) {
 		`"exists": true`,
 		`"id": "task-workflow"`,
 		`"present": true`,
+		`"id": "ahm-owned-files"`,
+		`"title": "Ahm-Owned Files"`,
 	)
 }
