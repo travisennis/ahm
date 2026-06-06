@@ -306,7 +306,6 @@ Reports environment and workflow checks.
 The report includes:
 
 - Target root.
-- Whether `go` is available on `PATH`.
 - Whether `git` is available on `PATH`.
 - Whether workflow metadata is installed.
 - Installed and embedded workflow template versions.

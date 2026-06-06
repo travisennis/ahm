@@ -31,7 +31,6 @@ func (a *app) status() error {
 }
 
 func (a *app) doctor() error {
-	_, goErr := exec.LookPath("go")
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
 	validation, _ := validateWorkflow(a.opts.root)
@@ -41,7 +40,6 @@ func (a *app) doctor() error {
 	}
 	report := map[string]any{
 		"root":               a.opts.root,
-		"go_available":       goErr == nil,
 		"git_available":      gitErr == nil,
 		"workflow_installed": metaErr == nil,
 		"installed_version":  installedVersion,
