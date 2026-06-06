@@ -40,7 +40,7 @@ ahm task ready 2>/dev/null || echo '(ahm not installed)'
 
 # Active tasks not ready
 ahm task blocked 2>/dev/null
-ahm task untriaged 2>/dev/null
+ahm task list --status Open 2>/dev/null
 
 # List all active tasks by status
 ls .agents/.tasks/active/
