@@ -50,7 +50,7 @@ func (a *app) taskCommand() *cobra.Command {
 	create.Flags().StringVar(&createArgs.labels, "labels", createArgs.labels, "Set task labels")
 	create.Flags().StringVar(&createArgs.status, "status", createArgs.status, "Set initial task status")
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
-	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Read the task body (everything after the H1 title) from a file, or - for stdin")
+	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
 	task.AddCommand(create)
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all"))

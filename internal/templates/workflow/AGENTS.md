@@ -18,8 +18,9 @@ structures.
 
 Do not edit generated indexes by hand. Update source task, research, or
 ExecPlan files and run `ahm index`. Do not run `ahm index` after
-`ahm task start`, `ahm task complete`, or `ahm task cancel` unless you edit
-metadata by hand afterward; those commands already regenerate indexes.
+`ahm task create`, `ahm task start <id>`, `ahm task complete <id>`,
+`ahm task cancel <id>`, or `ahm task reopen <id>` unless you edit metadata
+by hand afterward; those commands already regenerate indexes.
 
 Use `ahm task complete <id>` and `ahm task cancel <id>` for task state
 transitions that move files between task buckets.

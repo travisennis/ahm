@@ -29,7 +29,7 @@ ahm --dry-run index
 
 A clean repository immediately after `ahm index` produces no dry-run output.
 
-Do not run `ahm index` after `ahm task start <id>`, `ahm task complete <id>`, or `ahm task cancel <id>` unless you edited task or ExecPlan metadata by hand afterward. Those commands already regenerate task, research, and ExecPlan indexes.
+Do not run `ahm index` after `ahm task create`, `ahm task start <id>`, `ahm task complete <id>`, `ahm task cancel <id>`, or `ahm task reopen <id>` unless you edited task or ExecPlan metadata by hand afterward. Those commands already regenerate task, research, and ExecPlan indexes.
 
 ## Choosing Work
 
@@ -45,11 +45,42 @@ Before editing code, read the full task file and inspect the relevant source fil
 
 ## Creating Tasks
 
-Create new tasks in `.agents/.tasks/active/` with the next available three-digit id across `active/`, `completed/`, and `cancelled/`. For example, if the highest numbered task is `109.md`, the next unrelated task is `110.md`. Use letter suffixes only for subtasks that belong to a parent tracker, such as `110a.md`.
+Use `ahm task create <title> [flags]` to create a new task. This is the
+preferred path because it automatically allocates the next available ID, writes
+front matter and body, places the file in `.agents/.tasks/active/`, and
+regenerates all task indexes in one step.
 
-A new task should include enough context for another agent to work it later without the original conversation. Use this shape unless the existing task family clearly uses a narrower format:
+Available flags include:
 
-- Front matter with id, title, status, priority, effort, ExecPlan, and dependencies.
+- `--priority <value>`, `-p <value>` — set priority (default P2)
+- `--effort <value>` — set effort (default S)
+- `--labels <value>` — set labels (default `type:task, area:cli`)
+- `--status <value>` — set initial status (default Pending)
+- `--description <text>`, `-d <text>` — set summary text
+- `--body-file <path>` — read the full Markdown body from a file, or `-` for stdin
+
+When creating a complete task record with sections such as Problem, Relevant
+Files, Fix Direction, and Acceptance Notes, use `--body-file`. This lets `ahm`
+own ID allocation, front matter, placement, and index regeneration while you
+supply the full body. See `docs/cli.md` for details and examples.
+
+`ahm task create` regenerates task, research, and ExecPlan indexes
+automatically, so no separate `ahm index` is needed after creation.
+
+If you cannot run `ahm` or need full control over the body, create tasks by
+hand:
+
+Create new tasks in `.agents/.tasks/active/` with the next available three-digit
+id across `active/`, `completed/`, and `cancelled/`. For example, if the highest
+numbered task is `109.md`, the next unrelated task is `110.md`. Use letter
+suffixes only for subtasks that belong to a parent tracker, such as `110a.md`.
+
+A new task should include enough context for another agent to work it later
+without the original conversation. Use this shape unless the existing task
+family clearly uses a narrower format:
+
+- Front matter with id, title, status, priority, effort, ExecPlan, and
+  dependencies.
 - Title as the first heading.
 - Created date when useful.
 - Summary or problem statement.

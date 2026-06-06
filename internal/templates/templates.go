@@ -79,8 +79,9 @@ func AgentSuggestions() []AgentSuggestion {
 			Title: "Generated Indexes",
 			Body: "Do not edit generated indexes by hand. Update source task, research, or\n" +
 				"ExecPlan files and run `ahm index`. Do not run `ahm index` after\n" +
-				"`ahm task start`, `ahm task complete`, or `ahm task cancel` unless you edit\n" +
-				"metadata by hand afterward; those commands already regenerate indexes.",
+				"`ahm task create`, `ahm task start <id>`, `ahm task complete <id>`,\n" +
+				"`ahm task cancel <id>`, or `ahm task reopen <id>` unless you edit metadata\n" +
+				"by hand afterward; those commands already regenerate indexes.",
 		},
 		{
 			ID:    "task-state-transitions",
