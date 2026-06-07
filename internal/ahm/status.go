@@ -7,7 +7,7 @@ import (
 )
 
 func (a *app) status() error {
-	validation, tasks := validateWorkflow(a.opts.root)
+	validation, tasks := validateWorkflowScoped(a.opts.root, a.opts.check)
 	meta, metaErr := readMetadata(a.opts.root)
 	var installedVersion any
 	if metaErr == nil {
@@ -33,7 +33,7 @@ func (a *app) status() error {
 func (a *app) doctor() error {
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
-	validation, _ := validateWorkflow(a.opts.root)
+	validation, _ := validateWorkflowScoped(a.opts.root, a.opts.check)
 	var installedVersion any
 	if metaErr == nil {
 		installedVersion = meta.Version

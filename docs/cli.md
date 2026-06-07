@@ -290,6 +290,10 @@ text output on stdout already describes the findings.
 
 Useful flags:
 
+- `--check <scope>`: limit validation to the specified scope. Repeatable or
+  comma-separated. Valid scopes: `workflow`, `links`, `project-docs`.
+  Without `--check`, all validation checks run (default behavior).
+  Unknown scope values produce a usage error.
 - `--json`: prints indented JSON.
 - `--plain`: prints compact JSON.
 
@@ -298,6 +302,8 @@ Example:
 ```bash
 ahm status
 ahm
+ahm --check workflow status
+ahm --check links --json status
 ```
 
 ### `doctor`
@@ -317,6 +323,8 @@ any error, without printing `error:` to stderr.
 
 Useful flags:
 
+- `--check <scope>`: limit validation to the specified scope. See `status`
+  for details.
 - `--json`: prints indented JSON.
 - `--plain`: prints compact JSON.
 
@@ -324,6 +332,7 @@ Example:
 
 ```bash
 ahm doctor
+ahm --check workflow doctor
 ```
 
 ### `index`

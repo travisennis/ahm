@@ -471,6 +471,165 @@ func writeCompletedTaskBody(t *testing.T, root string, id string, title string, 
 		body)
 }
 
+func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	// Add a broken link that would trigger markdown_link_missing.
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	// Add a workflow issue: remove a non-create-only managed file.
+	if err := os.Remove(filepath.Join(root, ".agents", "TASKS.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only workflow checks.
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeWorkflow})
+	// Should find managed_file_missing (workflow check) but NOT markdown_link_missing.
+	foundManagedMissing := false
+	for _, e := range report.Errors {
+		if e.Code == "managed_file_missing" {
+			foundManagedMissing = true
+		}
+	}
+	if !foundManagedMissing {
+		t.Fatal("expected managed_file_missing in workflow-only scope")
+	}
+	for _, e := range report.Errors {
+		if e.Code == "markdown_link_missing" {
+			t.Fatal("unexpected markdown_link_missing in workflow-only scope")
+		}
+	}
+}
+
+func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	// Add a broken link.
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	// Create a workflow issue: remove a non-create-only managed file.
+	if err := os.Remove(filepath.Join(root, ".agents", "TASKS.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only link checks.
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeLinks})
+	// Should find markdown_link_missing.
+	foundLinkMissing := false
+	for _, w := range report.Warnings {
+		if w.Code == "markdown_link_missing" {
+			foundLinkMissing = true
+			break
+		}
+	}
+	if !foundLinkMissing {
+		t.Fatal("expected markdown_link_missing in links-only scope")
+	}
+	// Should NOT find managed_file_missing (workflow check).
+	for _, e := range report.Errors {
+		if e.Code == "managed_file_missing" {
+			t.Fatal("unexpected managed_file_missing in links-only scope")
+		}
+	}
+	// No workflow errors since we only ran link checks.
+	if !report.OK {
+		t.Fatal("expected OK for links-only scope, got errors")
+	}
+}
+
+func TestValidateWorkflowScopedProjectDocsNoop(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// project-docs is a no-op for now; should produce no errors or warnings.
+	report, tasks := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	if !report.OK {
+		t.Fatal("expected OK for project-docs scope, got errors")
+	}
+	if len(report.Errors)+len(report.Warnings)+len(report.Info) > 0 {
+		t.Fatalf("unexpected findings for project-docs scope: %#v", report)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("expected no tasks for project-docs scope, got %d", len(tasks))
+	}
+}
+
+func TestValidateWorkflowScopedAll(t *testing.T) {
+	// nil scopes = all checks (same as validateWorkflow).
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+
+	// No scopes = all checks run.
+	report, _ := validateWorkflowScoped(root, nil)
+	foundLinkMissing := false
+	for _, w := range report.Warnings {
+		if w.Code == "markdown_link_missing" {
+			foundLinkMissing = true
+			break
+		}
+	}
+	if !foundLinkMissing {
+		t.Fatal("expected markdown_link_missing when running all checks")
+	}
+	// validateWorkflow should produce the same result.
+	report2, _ := validateWorkflow(root)
+	if report.OK != report2.OK {
+		t.Fatal("validateWorkflowScoped(nil) should match validateWorkflow")
+	}
+	if len(report.Errors) != len(report2.Errors) {
+		t.Fatalf("error count mismatch: %d vs %d", len(report.Errors), len(report2.Errors))
+	}
+}
+
+func TestCLIStatusInvalidCheckScope(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "status", "--check", "bogus")
+	if code != 2 {
+		t.Fatalf("expected exit code 2 for invalid check scope, got %d; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "unknown check scope") {
+		t.Fatalf("expected unknown check scope error, got: %s", stderr)
+	}
+	_ = stdout
+}
+
+func TestCLIDoctorWithCheckScope(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Doctor with --check workflow should succeed (no issues in a fresh install).
+	stdout, stderr, code := runCLI(t, "--root", root, "doctor", "--check", "workflow")
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%s, stdout=%s", code, stderr, stdout)
+	}
+	assertContainsAll(t, stdout, `"ok": true`)
+}
+
 func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")

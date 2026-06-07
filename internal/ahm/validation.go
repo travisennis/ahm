@@ -26,17 +26,56 @@ type validationFinding struct {
 	Message string `json:"message"`
 }
 
+// CheckScope values for validation scopes.
+const (
+	CheckScopeWorkflow    = "workflow"
+	CheckScopeLinks       = "links"
+	CheckScopeProjectDocs = "project-docs"
+)
+
+// ValidCheckScopes returns the list of recognised check-scope values.
+func ValidCheckScopes() []string {
+	return []string{CheckScopeWorkflow, CheckScopeLinks, CheckScopeProjectDocs}
+}
+
 func validateWorkflow(root string) (validationReport, []Task) {
+	return validateWorkflowScoped(root, nil)
+}
+
+// validateWorkflowScoped runs only the validation groups named in scopes.
+// When scopes is nil or empty, all validators run (same as validateWorkflow).
+func validateWorkflowScoped(root string, scopes []string) (validationReport, []Task) {
 	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
-	tasks := validateManagedFiles(root, &report)
-	validateTaskDependencies(root, tasks, &report)
-	validateTaskBuckets(root, tasks, &report)
-	validateTaskExecPlans(root, tasks, &report)
-	validateExecPlans(root, tasks, &report)
-	validateGeneratedIndexes(root, &report)
-	validateMarkdownLinks(root, &report)
+
+	all := len(scopes) == 0
+	want := func(s string) bool { return all || containsScope(scopes, s) }
+
+	var tasks []Task
+	if want(CheckScopeWorkflow) {
+		tasks = validateManagedFiles(root, &report)
+		validateTaskDependencies(root, tasks, &report)
+		validateTaskBuckets(root, tasks, &report)
+		validateTaskExecPlans(root, tasks, &report)
+		validateExecPlans(root, tasks, &report)
+		validateGeneratedIndexes(root, &report)
+	}
+	if want(CheckScopeLinks) {
+		validateMarkdownLinks(root, &report)
+	}
+	// project-docs: not yet implemented; silent no-op.
+	// See task 053 for the planned implementation.
+
 	report.OK = len(report.Errors) == 0
 	return report, tasks
+}
+
+func containsScope(scopes []string, target string) bool {
+	for _, s := range scopes {
+		if s == target {
+			return true
+		}
+	}
+	return false
 }
 
 func validateManagedFiles(root string, report *validationReport) []Task {

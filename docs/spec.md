@@ -125,6 +125,34 @@ ExecPlan lifecycle coherence issues, and broken relative Markdown links within
 the managed workflow surface. Project-wide documentation is not scanned by
 default; `ahm` validates the workflow files and artifacts it manages or indexes.
 
+### Validation Scopes
+
+`status` and `doctor` accept a `--check` flag that limits validation to a
+specific scope. The default (no `--check`) runs all validation groups.
+
+Supported scopes:
+
+- `workflow` — managed file consistency, task front matter, dependency cycles,
+  task bucket placement, ExecPlan references and lifecycle, generated index
+  freshness. This is the core workflow validation set.
+- `links` — relative Markdown link existence within the managed workflow
+  surface. Link validation is independent of workflow state and can be run
+  separately to focus on documentation drift.
+- `project-docs` — reserved for future opt-in project documentation health
+  checks (see task 053). Currently a no-op.
+
+Scopes compose: `--check workflow --check links` or `--check workflow,links`
+runs both the workflow and link validators. Passing an unknown scope value is a
+usage error.
+
+```bash
+ahm --check workflow status
+ahm --check links --json doctor
+```
+
+The output format and exit codes are the same regardless of which scopes are
+active; only the reported findings change.
+
 ExecPlan lifecycle state is implicit in file placement and Markdown sections.
 In-progress plans live under `.agents/exec-plans/active/`; completed plans live
 under `.agents/exec-plans/completed/`. Every ExecPlan must maintain

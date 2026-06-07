@@ -17,6 +17,7 @@ type options struct {
 	text   bool
 	dryRun bool
 	force  bool
+	check  []string
 }
 
 type app struct {
@@ -130,12 +131,39 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", func() error {
 		return a.install(true)
 	}))
-	root.AddCommand(a.simpleCommand("status", "Show workflow health", func() error {
-		return a.status()
-	}))
-	root.AddCommand(a.simpleCommand("doctor", "Show environment checks", func() error {
-		return a.doctor()
-	}))
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show workflow health",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			if err := a.validateCheckScopes(); err != nil {
+				return err
+			}
+			return a.status()
+		},
+	}
+	statusCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs")
+	root.AddCommand(statusCmd)
+
+	doctorCmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Show environment checks",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			if err := a.validateCheckScopes(); err != nil {
+				return err
+			}
+			return a.doctor()
+		},
+	}
+	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs")
+	root.AddCommand(doctorCmd)
 	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", func() error {
 		return a.writeIndexes()
 	}))
@@ -195,4 +223,15 @@ func (a *app) lenientCommand(use string, short string, run func() error) *cobra.
 			return run()
 		},
 	}
+}
+
+func (a *app) validateCheckScopes() error {
+	for _, s := range a.opts.check {
+		switch s {
+		case CheckScopeWorkflow, CheckScopeLinks, CheckScopeProjectDocs:
+		default:
+			return usageError(fmt.Sprintf("unknown check scope %q (valid: workflow, links, project-docs)", s))
+		}
+	}
+	return nil
 }
