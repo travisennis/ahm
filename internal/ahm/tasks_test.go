@@ -451,6 +451,30 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 				"# Non-canonical Order\n\nBody.\n\n",
 		},
 		{
+			name: "empty exec_plan normalizes to dash",
+			input: "---\n" +
+				"id: 102\n" +
+				"title: Empty ExecPlan\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:test\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Empty ExecPlan\n\nBody.\n",
+			want: "---\n" +
+				"id: 102\n" +
+				"title: Empty ExecPlan\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:test\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n" +
+				"# Empty ExecPlan\n\nBody.\n\n",
+		},
+		{
 			name: "optional fields omitted when empty",
 			input: "---\n" +
 				"id: 100\n" +

@@ -296,7 +296,7 @@ func renderTask(task Task) string {
 	fmt.Fprintf(&b, "priority: %s\n", task.Priority)
 	fmt.Fprintf(&b, "effort: %s\n", task.Effort)
 	fmt.Fprintf(&b, "labels: %s\n", task.Labels)
-	fmt.Fprintf(&b, "exec_plan: %s\n", defaultDash(task.ExecPlan))
+	fmt.Fprintf(&b, "exec_plan: %s\n", task.ExecPlan)
 	fmt.Fprintf(&b, "depends_on: %s\n", formatList(task.DependsOn))
 	if task.Created != "" {
 		fmt.Fprintf(&b, "created: %s\n", task.Created)
