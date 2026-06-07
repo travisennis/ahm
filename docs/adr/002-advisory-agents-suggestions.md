@@ -30,6 +30,10 @@ The command must never write or merge `AGENTS.md`. `ahm` proposes reusable
 guidance; the repository's agent or maintainer decides whether and how to adapt
 it into the existing project-owned instructions.
 
+Suggestions are scoped to AHM-owned workflow routing and ownership boundaries.
+They should not include generic agent operating loops, commit policy, code
+style, verification policy, or other project-owned guidance.
+
 The starter `AGENTS.md` content and advisory suggestions share one source of
 truth in the template package so the created starter file and suggested blocks
 do not drift.

@@ -19,14 +19,15 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"# Suggested AGENTS.md Additions",
-		"## Task Workflow",
-		"For the first task in a session",
-		"## Ahm-Owned Files",
-		"Do not hand-edit ahm-owned generated indexes",
-		"## Generated Indexes",
-		"Do not edit generated indexes by hand",
-		"## Implementation Documentation",
+		"## AHM Workflow Routing",
+		"### Tasks",
+		"When asked to create, choose, update, or work on a task",
+		"## AHM-Owned Files",
+		"Do not edit generated task, research, or ExecPlan indexes by hand",
+		"Use `ahm task complete <id>` and `ahm task cancel <id>` for task state moves",
 	)
+	assertNotContains(t, stdout, "Do not commit or push unless explicitly asked.")
+	assertNotContains(t, stdout, "## Operating Loop")
 	assertFileContainsAll(t, agentsPath, "Keep this.")
 	if got := mustRead(t, agentsPath); got != original {
 		t.Fatalf("AGENTS.md was modified:\n%s", got)
@@ -42,14 +43,14 @@ func TestAgentsSuggestionsOmitsPresentBlocksUnlessAll(t *testing.T) {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "No missing suggestions detected.")
-	assertNotContains(t, stdout, "## Task Workflow")
+	assertNotContains(t, stdout, "## AHM Workflow Routing")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "agents", "suggestions", "--all")
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"## Task Workflow",
+		"## AHM Workflow Routing",
 		"_Already appears present in AGENTS.md._",
 	)
 }
@@ -65,9 +66,9 @@ func TestAgentsSuggestionsJSONIncludesPresence(t *testing.T) {
 	assertContainsAll(t, stdout,
 		`"target": "AGENTS.md"`,
 		`"exists": true`,
-		`"id": "task-workflow"`,
+		`"id": "ahm-workflow-routing"`,
 		`"present": true`,
 		`"id": "ahm-owned-files"`,
-		`"title": "Ahm-Owned Files"`,
+		`"title": "AHM-Owned Files"`,
 	)
 }
