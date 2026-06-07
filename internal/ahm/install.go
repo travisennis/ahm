@@ -27,8 +27,10 @@ func (a *app) install(upgrade bool) error {
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
 	}
-	for _, target := range generatedIndexTargets() {
-		delete(meta.Files, target)
+	if !a.opts.dryRun {
+		for _, target := range generatedIndexTargets() {
+			delete(meta.Files, target)
+		}
 	}
 	result := map[string][]string{
 		"created":   {},
@@ -58,16 +60,20 @@ func (a *app) install(upgrade bool) error {
 					return err
 				}
 			}
-			if item.CreateOnly {
-				delete(meta.Files, item.Target)
-			} else {
-				meta.Files[item.Target] = hash
+			if !a.opts.dryRun {
+				if item.CreateOnly {
+					delete(meta.Files, item.Target)
+				} else {
+					meta.Files[item.Target] = hash
+				}
 			}
 		case readErr != nil:
 			return readErr
 		case item.CreateOnly:
 			result["skipped"] = append(result["skipped"], item.Target)
-			delete(meta.Files, item.Target)
+			if !a.opts.dryRun {
+				delete(meta.Files, item.Target)
+			}
 		case !a.opts.force && meta.Files[item.Target] == "":
 			// File exists but is not tracked in metadata. Auto-adopt when
 			// content matches the template; otherwise report as a conflict.
@@ -92,7 +98,9 @@ func (a *app) install(upgrade bool) error {
 			} else {
 				result["skipped"] = append(result["skipped"], item.Target)
 			}
-			meta.Files[item.Target] = hash
+			if !a.opts.dryRun {
+				meta.Files[item.Target] = hash
+			}
 		default:
 			result["conflicts"] = append(result["conflicts"], item.Target)
 		}
@@ -104,7 +112,6 @@ func (a *app) install(upgrade bool) error {
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
-	meta.Version = templates.Version
 	if a.opts.dryRun {
 		result["metadata"] = []string{".agents/ahm.json"}
 		indexes, err := a.indexWriteTargets()
@@ -113,6 +120,7 @@ func (a *app) install(upgrade bool) error {
 		}
 		result["indexes"] = indexes
 	} else {
+		meta.Version = templates.Version
 		if err := writeMetadata(root, meta); err != nil {
 			return err
 		}

@@ -100,6 +100,52 @@ func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
 	}
 }
 
+func TestInstallDryRunDoesNotMutateMetadata(t *testing.T) {
+	root := t.TempDir()
+	oldVersion := "0.0.1"
+	initialMeta := metadata{
+		Version: oldVersion,
+		Files: map[string]string{
+			".agents/TASKS.md": "abc123",
+			".agents/PLANS.md": "def456",
+		},
+	}
+	if err := writeMetadata(root, initialMeta); err != nil {
+		t.Fatal(err)
+	}
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root, dryRun: true}, out: &out}
+	if err := a.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Metadata on disk must be unchanged.
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("metadata was modified by dry-run:\nbefore: %s\nafter:  %s", before, after)
+	}
+
+	// Dry-run output must still contain the expected sections.
+	got := out.String()
+	for _, want := range []string{
+		"metadata:",
+		"  .agents/ahm.json",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
