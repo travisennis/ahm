@@ -653,8 +653,9 @@ ahm --json task show 001
 
 ### `task start <id>`
 
-Sets a task status to `In Progress`, keeps it in the active bucket, and
-regenerates indexes.
+Sets a task status to `In Progress`, moves it to
+`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
+and regenerates indexes.
 
 Useful flags:
 
@@ -668,9 +669,10 @@ ahm task start 001
 
 ### `task accept <id>`
 
-Sets a task status to `Pending`, keeps it in the active bucket, stamps
-`updated`, and regenerates indexes. This is the intentional transition from
-`Open` (newly captured, untriaged) into the ready backlog.
+Sets a task status to `Pending`, moves it to
+`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
+stamps `updated`, and regenerates indexes. This is the intentional transition
+from `Open` (newly captured, untriaged) into the ready backlog.
 
 Useful flags:
 
@@ -689,8 +691,10 @@ coding-agent CLI from the repository root.
 
 `task work` refuses completed and cancelled tasks. It also verifies every task
 listed in `depends_on` is already `Completed` before invoking an agent. If the
-task is `Pending`, the command marks it `In Progress` and regenerates indexes
-after validation and executable lookup, but before invoking the external CLI.
+task is `Pending`, the command marks it `In Progress`, writes it to
+`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
+and regenerates indexes after validation and executable lookup, but before
+invoking the external CLI.
 Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:

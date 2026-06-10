@@ -333,6 +333,109 @@ func TestTaskStatusNoOp(t *testing.T) {
 	}
 }
 
+func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
+	root := t.TempDir()
+	// Task has Completed status but sits in active bucket.
+	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Task should be moved to completed bucket.
+	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	if _, err := os.Stat(completedPath); err != nil {
+		t.Fatalf("completed task not found: %v", err)
+	}
+	// Old file should be removed.
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatalf("old file should be removed, err = %v", err)
+	}
+	// Output should use the move message, not the no-op message.
+	if !strings.Contains(out.String(), "001 -> Completed") {
+		t.Fatalf("output missing move message: %q", out.String())
+	}
+}
+
+func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
+	root := t.TempDir()
+	// Task has Cancelled status but sits in active bucket.
+	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, oldPath, "001", "Already Cancelled", "Cancelled", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Cancelled"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Task should be moved to cancelled bucket.
+	cancelledPath := filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")
+	if _, err := os.Stat(cancelledPath); err != nil {
+		t.Fatalf("cancelled task not found: %v", err)
+	}
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatalf("old file should be removed, err = %v", err)
+	}
+	if !strings.Contains(out.String(), "001 -> Cancelled") {
+		t.Fatalf("output missing move message: %q", out.String())
+	}
+}
+
+func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
+	root := t.TempDir()
+	// Task has Completed status but sits in active bucket.
+	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, dryRun: true}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	// File should still be in active (dry run).
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Fatalf("file should still exist after dry run: %v", err)
+	}
+	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	if _, err := os.Stat(completedPath); !os.IsNotExist(err) {
+		t.Fatalf("completed file should not exist after dry run, err = %v", err)
+	}
+}
+
+func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
+	root := t.TempDir()
+	// Task is Completed and already in completed bucket — true no-op.
+	path := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	writeTaskFile(t, path, "001", "Truly Completed", "Completed", "depends_on: -\n")
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatalf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
+	}
+	if !strings.Contains(out.String(), "already Completed") {
+		t.Fatalf("output missing no-op message: %q", out.String())
+	}
+}
+
 func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	tasks := []Task{
 		{ID: "001", Status: "Completed", Priority: "P1"},
@@ -935,6 +1038,65 @@ func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "agent: codex", "executable: /stub/codex", "status: In Progress", "task: 001", "exec", "Work on task 001.")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkRepairsBucketForPendingTaskInWrongBucket(t *testing.T) {
+	root := t.TempDir()
+	// Task has Pending status but sits in completed bucket.
+	oldPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	writeTaskFile(t, oldPath, "001", "Misplaced Pending", "Pending", "depends_on: -\n")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Task should be in active bucket now.
+	activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	if _, err := os.Stat(activePath); err != nil {
+		t.Fatalf("active task not found after work: %v", err)
+	}
+	assertFileContainsAll(t, activePath, "status: In Progress")
+
+	// Old file should be removed.
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatalf("old file should be removed, err = %v", err)
+	}
+}
+
+func TestTaskWorkDryRunOnBucketMismatch(t *testing.T) {
+	root := t.TempDir()
+	// Task has Pending status but sits in completed bucket.
+	oldPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	writeTaskFile(t, oldPath, "001", "Misplaced Pending", "Pending", "depends_on: -\n")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// File should still be in completed (dry run).
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Fatalf("file should still exist after dry run: %v", err)
+	}
+	activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("active file should not exist after dry run, err = %v", err)
+	}
 }
 
 func TestTaskWorkRefusesCompletedAndCancelledTasks(t *testing.T) {

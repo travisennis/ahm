@@ -322,7 +322,25 @@ func (a *app) markTaskInProgress(task Task) error {
 	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 		return err
 	}
+	if filepath.Clean(task.Path) != filepath.Clean(target) {
+		if err := os.Remove(task.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
 	return a.writeIndexes()
+}
+
+// bucketForStatus returns the expected bucket directory for a task status.
+// Active-status tasks (everything except Completed and Cancelled) live in active/.
+func bucketForStatus(status string) string {
+	switch status {
+	case "Completed":
+		return "completed"
+	case "Cancelled":
+		return "cancelled"
+	default:
+		return "active"
+	}
 }
 
 func runTaskWorkCommand(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
@@ -649,8 +667,9 @@ func (a *app) taskStatus(argv []string, status string) error {
 		return err
 	}
 
-	// Enforce dependency completion before completing a task.
-	if status == "Completed" && len(task.DependsOn) > 0 {
+	// Enforce dependency completion before completing a task,
+	// but only when the status is actually changing.
+	if task.Status != status && status == "Completed" && len(task.DependsOn) > 0 {
 		allTasks, collErr := a.getTasks()
 		if collErr != nil {
 			fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
@@ -673,12 +692,15 @@ func (a *app) taskStatus(argv []string, status string) error {
 		}
 	}
 
-	if task.Status == status {
+	// True no-op: status and bucket both match.
+	expectedBucket := bucketForStatus(status)
+	if task.Status == status && task.Bucket == expectedBucket {
 		fmt.Fprintf(a.out, "%s already %s\n", task.ID, status)
 		return nil
 	}
 
-	if status == "Completed" {
+	// Run acceptance notes validation only when actually transitioning to Completed.
+	if task.Status != status && status == "Completed" {
 		findings := parseAcceptanceNotes([]byte(task.Body))
 		for _, finding := range findings {
 			if a.err != nil {
@@ -700,13 +722,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 
 	task.Status = status
 	task.Updated = time.Now().Format(time.RFC3339)
-	bucket := "active"
-	if status == "Completed" {
-		bucket = "completed"
-	}
-	if status == "Cancelled" {
-		bucket = "cancelled"
-	}
+	bucket := bucketForStatus(status)
 	target := filepath.Join(a.opts.root, ".agents", ".tasks", bucket, task.ID+".md")
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"move": target, "status": status})
