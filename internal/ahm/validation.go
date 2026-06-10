@@ -85,7 +85,11 @@ func containsScope(scopes []string, target string) bool {
 func validateManagedFiles(root string, report *validationReport) []Task {
 	meta, metaErr := readMetadata(root)
 	if metaErr != nil {
-		report.addError("metadata_missing", ".agents/ahm.json", "workflow metadata is missing or unreadable")
+		if errors.Is(metaErr, os.ErrNotExist) {
+			report.addError("metadata_missing", ".agents/ahm.json", "workflow metadata is missing")
+		} else {
+			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
+		}
 	} else {
 		for _, item := range templates.Files() {
 			validateManagedFile(root, meta, item, report)
@@ -427,6 +431,9 @@ func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 
 func validateGeneratedIndexes(root string, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", err))
+		}
 		return
 	}
 	indexer := app{opts: options{root: root}}
@@ -456,6 +463,9 @@ var markdownLinkSchemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
 func validateMarkdownLinks(root string, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", err))
+		}
 		return
 	}
 	for _, path := range workflowMarkdownFiles(root) {

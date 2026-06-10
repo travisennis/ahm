@@ -233,7 +233,12 @@ func (a *app) selectTaskWorkAgent(flagValue string) (taskWorkAgent, error) {
 	value := strings.TrimSpace(flagValue)
 	if value == "" {
 		meta, err := readMetadata(a.opts.root)
-		if err == nil {
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// No metadata yet, no default agent configured.
+		case err != nil:
+			fmt.Fprintln(a.err, "warning: corrupt workflow metadata .agents/ahm.json, using default agent")
+		default:
 			value = meta.DefaultWorkAgent
 		}
 	}
@@ -682,7 +687,12 @@ func (a *app) taskStatus(argv []string, status string) error {
 		}
 		if len(findings) > 0 && !a.opts.force {
 			meta, err := readMetadata(a.opts.root)
-			if err == nil && meta.StrictAcceptance {
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				// No metadata, strict acceptance not configured.
+			case err != nil:
+				fmt.Fprintln(a.err, "warning: corrupt workflow metadata .agents/ahm.json, strict acceptance disabled")
+			case meta.StrictAcceptance:
 				return fmt.Errorf("cannot complete task %s: acceptance notes are incomplete; use --force to override", task.ID)
 			}
 		}

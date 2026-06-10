@@ -874,3 +874,59 @@ func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateReportsCorruptMetadata(t *testing.T) {
+	root := t.TempDir()
+	// Init first to create valid workflow.
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt the metadata file.
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, _ := validateWorkflow(root)
+	foundCorrupt := false
+	for _, err := range report.Errors {
+		if err.Code == "metadata_corrupt" {
+			foundCorrupt = true
+			break
+		}
+	}
+	if !foundCorrupt {
+		t.Fatalf("expected metadata_corrupt error, got: %v", report.Errors)
+	}
+	// Should not produce metadata_missing (which is only for absent file).
+	for _, err := range report.Errors {
+		if err.Code == "metadata_missing" {
+			t.Fatalf("unexpected metadata_missing error for corrupt file: %v", err)
+		}
+	}
+}
+
+func TestValidateReportsMissingMetadata(t *testing.T) {
+	root := t.TempDir()
+	// No init, no metadata at all.
+	report, _ := validateWorkflow(root)
+	foundMissing := false
+	for _, err := range report.Errors {
+		if err.Code == "metadata_missing" {
+			foundMissing = true
+			break
+		}
+	}
+	if !foundMissing {
+		t.Fatalf("expected metadata_missing error, got: %v", report.Errors)
+	}
+	// Should not produce metadata_corrupt.
+	for _, err := range report.Errors {
+		if err.Code == "metadata_corrupt" {
+			t.Fatalf("unexpected metadata_corrupt error for missing file: %v", err)
+		}
+	}
+}

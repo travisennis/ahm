@@ -1130,3 +1130,104 @@ func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, s
 	extra := "depends_on: " + deps + "\n"
 	writeTaskFile(t, path, id, title, status, extra)
 }
+
+func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Create a task with acceptance notes.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Test Task")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Corrupt the metadata file.
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Task complete should warn about corrupt metadata but still succeed
+	// (strict acceptance can't be determined).
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "strict acceptance disabled")
+	assertContainsAll(t, stdout, "001 -> Completed")
+}
+
+func TestTaskWorkWarnsOnCorruptMetadata(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Set a default work agent.
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.DefaultWorkAgent = "codex"
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a task.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable", "Pending", "")
+
+	// Corrupt the metadata file.
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	// Task work should warn about corrupt metadata but still use the default agent.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "using default agent")
+	// Falls back to cake.
+	if captured.executable != "/stub/cake" {
+		t.Fatalf("executable = %q, want /stub/cake", captured.executable)
+	}
+}
+
+func TestTaskCompleteRespectsStrictAcceptanceWithValidMetadata(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Enable strict acceptance.
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.StrictAcceptance = true
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	// Create a task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Strict")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Task complete should block due to strict acceptance.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+	if code == 0 {
+		t.Fatalf("expected strict completion failure, code=%d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "cannot complete task 001: acceptance notes are incomplete")
+}

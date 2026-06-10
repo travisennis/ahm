@@ -107,7 +107,7 @@ validation:
       {
         "code": "metadata_missing",
         "path": ".agents/ahm.json",
-        "message": "workflow metadata is missing or unreadable"
+        "message": "workflow metadata is missing"
       }
     ],
     "warnings": [],
@@ -907,7 +907,8 @@ Finding codes:
 
 | Code | Meaning |
 | ---- | ------- |
-| `metadata_missing` | `.agents/ahm.json` is missing or unreadable. |
+| `metadata_missing` | `.agents/ahm.json` is missing. |
+| `metadata_corrupt` | `.agents/ahm.json` exists but cannot be read or parsed. |
 | `managed_file_missing` | A managed workflow file is missing. |
 | `managed_file_unreadable` | A managed workflow file could not be read. |
 | `managed_file_untracked` | A managed workflow file exists but is not recorded in metadata; run `ahm init` to adopt. |

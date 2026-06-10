@@ -23,7 +23,10 @@ type metadata struct {
 
 func (a *app) install(upgrade bool) error {
 	root := a.opts.root
-	meta, _ := readMetadata(root)
+	meta, err := readMetadata(root)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("corrupt workflow metadata .agents/ahm.json: %w", err)
+	}
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
 	}

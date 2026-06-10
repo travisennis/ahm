@@ -479,3 +479,57 @@ func TestMainUpgradeIntegration(t *testing.T) {
 	)
 	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"version": "`+templates.Version+`"`)
 }
+
+func TestInstallFailsOnCorruptMetadata(t *testing.T) {
+	root := t.TempDir()
+	// Init first to create valid metadata.
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Corrupt the metadata file.
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// init should fail with a clear error about corrupt metadata.
+	stdout, stderr, code = runCLI(t, "--root", root, "init")
+	if code == 0 {
+		t.Fatalf("expected init to fail on corrupt metadata, stdout = %s", stdout)
+	}
+	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json")
+}
+
+func TestUpgradeFailsOnCorruptMetadata(t *testing.T) {
+	root := t.TempDir()
+	// Init first to create valid metadata.
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Corrupt the metadata file.
+	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// upgrade should fail with a clear error about corrupt metadata.
+	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
+	if code == 0 {
+		t.Fatalf("expected upgrade to fail on corrupt metadata, stdout = %s", stdout)
+	}
+	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json")
+}
+
+func TestInstallSucceedsWithMissingMetadata(t *testing.T) {
+	root := t.TempDir()
+	// No prior init, no metadata. Should succeed as a fresh install.
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "created:")
+}
