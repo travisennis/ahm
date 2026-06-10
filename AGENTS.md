@@ -137,7 +137,9 @@ Task command implementation:
 - Task model, parsing, and rendering: `internal/ahm/tasks.go`
 - Task command behavior: `internal/ahm/task_commands.go`,
   `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`
+- Acceptance notes validation: `internal/ahm/task_acceptance.go`
 - Task ID parsing/order helpers: `splitTaskID`, `nextTaskID`, `resolveTask`
+- Atomic write helpers and stale-temp cleanup: `internal/ahm/write.go`
 - Generated index rendering: `internal/ahm/indexes.go`
 - CLI tests: focused `internal/ahm/*_test.go` files, with shared helpers in
   `internal/ahm/test_helpers_test.go`
@@ -317,8 +319,9 @@ update an ADR under `docs/adr/` before implementation. Follow
   `internal/ahm/install.go`, `internal/ahm/status.go`,
   `internal/ahm/validation.go`, `internal/ahm/agents.go`,
   `internal/ahm/output.go`, `internal/ahm/tasks.go`,
-  `internal/ahm/task_commands.go`, `internal/ahm/task_deps.go`,
-  `internal/ahm/task_migrate.go`, and `internal/ahm/indexes.go`.
+  `internal/ahm/task_acceptance.go`, `internal/ahm/task_commands.go`,
+  `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`,
+  `internal/ahm/write.go`, and `internal/ahm/indexes.go`.
 - Embedded workflow templates: `internal/templates/workflow/`.
 - Template embedding and metadata: `internal/templates/templates.go`.
 - CLI reference: `docs/cli.md`.
