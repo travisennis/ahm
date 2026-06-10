@@ -62,8 +62,12 @@ func validateWorkflowScoped(root string, scopes []string) (validationReport, []T
 	if want(CheckScopeLinks) {
 		validateMarkdownLinks(root, &report)
 	}
-	// project-docs: not yet implemented; silent no-op.
-	// See task 053 for the planned implementation.
+	// project-docs is opt-in only: it never runs as part of the default
+	// (all) scope, so default status/doctor behavior is unchanged. It runs
+	// only when --check project-docs is requested explicitly.
+	if containsScope(scopes, CheckScopeProjectDocs) {
+		validateProjectDocs(root, &report)
+	}
 
 	report.OK = len(report.Errors) == 0
 	return report, tasks
@@ -491,9 +495,15 @@ func workflowMarkdownFiles(root string) []string {
 }
 
 func validateMarkdownFileLinks(root string, path string, report *validationReport) {
+	validateMarkdownFileLinksWithCodes(root, path, report, "markdown_link_missing", "markdown_link_check_failed")
+}
+
+// validateMarkdownFileLinksWithCodes checks relative Markdown links in a single
+// file and reports missing targets and check failures under the supplied codes.
+func validateMarkdownFileLinksWithCodes(root string, path string, report *validationReport, missingCode string, failedCode string) {
 	data, err := readWorkflowFile(path)
 	if err != nil {
-		report.addWarning("markdown_link_check_failed", relPath(root, path), err.Error())
+		report.addWarning(failedCode, relPath(root, path), err.Error())
 		return
 	}
 	inFence := false
@@ -513,12 +523,73 @@ func validateMarkdownFileLinks(root string, path string, report *validationRepor
 			}
 			resolved := filepath.Clean(filepath.Join(filepath.Dir(path), filepath.FromSlash(target)))
 			if _, err := os.Stat(resolved); errors.Is(err, os.ErrNotExist) {
-				report.addWarning("markdown_link_missing", fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
+				report.addWarning(missingCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
 			} else if err != nil {
-				report.addWarning("markdown_link_check_failed", fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), err.Error())
+				report.addWarning(failedCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), err.Error())
 			}
 		}
 	}
+}
+
+// projectDocPrefixes lists common root-level project documentation filename
+// prefixes, matched case-insensitively. These are broad conventions, not this
+// repository's specific layout.
+var projectDocPrefixes = []string{"README", "CONTRIBUTING", "CHANGELOG", "ARCHITECTURE", "DESIGN"}
+
+// validateProjectDocs runs opt-in, read-only structural checks over a project's
+// own documentation surface. It discovers common documentation files rather
+// than requiring any specific layout and currently reports broken relative
+// Markdown links. It never runs as part of the default validation scope.
+func validateProjectDocs(root string, report *validationReport) {
+	for _, path := range projectDocFiles(root) {
+		validateMarkdownFileLinksWithCodes(root, path, report, "project_doc_link_missing", "project_doc_link_check_failed")
+	}
+}
+
+// projectDocFiles discovers common project documentation Markdown files: root
+// level docs matching projectDocPrefixes and every Markdown file under docs/
+// (which covers docs/adr/ and similar). Results are deduplicated and sorted for
+// deterministic output.
+func projectDocFiles(root string) []string {
+	seen := map[string]bool{}
+	var paths []string
+	add := func(path string) {
+		clean := filepath.Clean(path)
+		if !seen[clean] {
+			seen[clean] = true
+			paths = append(paths, clean)
+		}
+	}
+	if entries, err := os.ReadDir(root); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
+			if isProjectDocName(entry.Name()) {
+				add(filepath.Join(root, entry.Name()))
+			}
+		}
+	}
+	docsDir := filepath.Join(root, "docs")
+	_ = filepath.WalkDir(docsDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		add(path)
+		return nil
+	})
+	sort.Strings(paths)
+	return paths
+}
+
+func isProjectDocName(name string) bool {
+	upper := strings.ToUpper(name)
+	for _, prefix := range projectDocPrefixes {
+		if strings.HasPrefix(upper, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeMarkdownLinkTarget(target string) string {

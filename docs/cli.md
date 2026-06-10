@@ -292,8 +292,10 @@ Useful flags:
 
 - `--check <scope>`: limit validation to the specified scope. Repeatable or
   comma-separated. Valid scopes: `workflow`, `links`, `project-docs`.
-  Without `--check`, all validation checks run (default behavior).
-  Unknown scope values produce a usage error.
+  Without `--check`, the default validation runs `workflow` and `links` checks
+  over the managed workflow surface. `project-docs` is opt-in: it runs only
+  when requested explicitly with `--check project-docs` and never as part of
+  the default. Unknown scope values produce a usage error.
 - `--json`: prints indented JSON.
 - `--plain`: prints compact JSON.
 
@@ -304,7 +306,17 @@ ahm status
 ahm
 ahm --check workflow status
 ahm --check links --json status
+ahm --check project-docs status
 ```
+
+`ahm --check project-docs status` runs opt-in, read-only health checks over a
+project's own documentation. It discovers common documentation surfaces rather
+than requiring a fixed layout: root-level `README*`, `CONTRIBUTING*`,
+`CHANGELOG*`, `ARCHITECTURE*`, and `DESIGN*` Markdown files, plus every Markdown
+file under `docs/` (which covers `docs/adr/`). It currently reports broken
+relative Markdown links in those files via `project_doc_link_missing`. The
+checks are deterministic, read-only, never call models, and never edit source
+files.
 
 ### `doctor`
 
@@ -914,3 +926,5 @@ Finding codes:
 | `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
 | `markdown_link_missing` | A relative Markdown link inside the managed workflow surface points at a missing file. |
 | `markdown_link_check_failed` | A workflow Markdown link check could not be completed. |
+| `project_doc_link_missing` | A relative Markdown link in a discovered project documentation file points at a missing file. Emitted only under the opt-in `--check project-docs` scope. |
+| `project_doc_link_check_failed` | A project documentation Markdown link check could not be completed. Emitted only under the opt-in `--check project-docs` scope. |

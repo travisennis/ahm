@@ -543,7 +543,7 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	}
 }
 
-func TestValidateWorkflowScopedProjectDocsNoop(t *testing.T) {
+func TestValidateWorkflowScopedProjectDocsNoDocs(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -551,7 +551,8 @@ func TestValidateWorkflowScopedProjectDocsNoop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// project-docs is a no-op for now; should produce no errors or warnings.
+	// A fresh install has only docs/adr/README.md (no broken links) and no
+	// other project docs; the project-docs scope should produce no findings.
 	report, tasks := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	if !report.OK {
 		t.Fatal("expected OK for project-docs scope, got errors")
@@ -564,8 +565,75 @@ func TestValidateWorkflowScopedProjectDocsNoop(t *testing.T) {
 	}
 }
 
+func TestValidateWorkflowScopedProjectDocsCommonDocsValid(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Common project docs with only valid relative links should pass.
+	writeFile(t, filepath.Join(root, "docs", "guide.md"), "# Guide\n")
+	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [the guide](docs/guide.md).\n")
+	writeFile(t, filepath.Join(root, "CONTRIBUTING.md"), "# Contributing\n\n[Back to README](README.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	if !report.OK {
+		t.Fatal("expected OK for valid project docs, got errors")
+	}
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" {
+			t.Fatalf("unexpected project_doc_link_missing for valid docs: %#v", w)
+		}
+	}
+}
+
+func TestValidateWorkflowScopedProjectDocsBrokenLinks(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [missing doc](docs/nope.md).\n")
+	writeFile(t, filepath.Join(root, "docs", "design.md"), "# Design\n\n[gone](./absent.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	var found []string
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" {
+			found = append(found, w.Path)
+		}
+	}
+	if len(found) != 2 {
+		t.Fatalf("expected 2 project_doc_link_missing findings, got %d: %#v", len(found), report.Warnings)
+	}
+}
+
+func TestValidateWorkflowScopedProjectDocsNotDefault(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// A broken project-doc link must not surface in the default (all) scope.
+	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [missing doc](docs/nope.md).\n")
+
+	report, _ := validateWorkflowScoped(root, nil)
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" {
+			t.Fatalf("project-docs check ran by default; found %#v", w)
+		}
+	}
+}
+
 func TestValidateWorkflowScopedAll(t *testing.T) {
-	// nil scopes = all checks (same as validateWorkflow).
+	// nil scopes = default checks (same as validateWorkflow): workflow + links,
+	// but not the opt-in project-docs scope.
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -574,7 +642,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
 
-	// No scopes = all checks run.
+	// No scopes = default checks run.
 	report, _ := validateWorkflowScoped(root, nil)
 	foundLinkMissing := false
 	for _, w := range report.Warnings {

@@ -128,7 +128,9 @@ default; `ahm` validates the workflow files and artifacts it manages or indexes.
 ### Validation Scopes
 
 `status` and `doctor` accept a `--check` flag that limits validation to a
-specific scope. The default (no `--check`) runs all validation groups.
+specific scope. The default (no `--check`) runs the `workflow` and `links`
+validation groups over the managed workflow surface. `project-docs` is opt-in
+and never runs as part of the default scope.
 
 Supported scopes:
 
@@ -138,8 +140,14 @@ Supported scopes:
 - `links` — relative Markdown link existence within the managed workflow
   surface. Link validation is independent of workflow state and can be run
   separately to focus on documentation drift.
-- `project-docs` — reserved for future opt-in project documentation health
-  checks (see task 053). Currently a no-op.
+- `project-docs` — opt-in, read-only health checks over a project's own
+  documentation. It discovers common documentation surfaces rather than
+  assuming a fixed layout: root-level `README*`, `CONTRIBUTING*`, `CHANGELOG*`,
+  `ARCHITECTURE*`, and `DESIGN*` Markdown files, plus every Markdown file under
+  `docs/` (covering `docs/adr/`). It currently reports broken relative Markdown
+  links via `project_doc_link_missing`. This scope runs only when requested
+  explicitly with `--check project-docs`; it is never part of the default and
+  never calls models or edits source files.
 
 Scopes compose: `--check workflow --check links` or `--check workflow,links`
 runs both the workflow and link validators. Passing an unknown scope value is a
