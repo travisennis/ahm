@@ -47,6 +47,8 @@ func validateWorkflow(root string) (validationReport, []Task) {
 func validateWorkflowScoped(root string, scopes []string) (validationReport, []Task) {
 	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
 
+	clearExecPlanSectionsCache()
+
 	all := len(scopes) == 0
 	want := func(s string) bool { return all || containsScope(scopes, s) }
 
@@ -57,7 +59,7 @@ func validateWorkflowScoped(root string, scopes []string) (validationReport, []T
 		validateTaskBuckets(root, tasks, &report)
 		validateTaskExecPlans(root, tasks, &report)
 		validateExecPlans(root, tasks, &report)
-		validateGeneratedIndexes(root, &report)
+		validateGeneratedIndexes(root, tasks, &report)
 	}
 	if want(CheckScopeLinks) {
 		validateMarkdownLinks(root, &report)
@@ -256,7 +258,7 @@ func validateExecPlans(root string, tasks []Task, report *validationReport) {
 			continue
 		}
 		for _, path := range plans {
-			sections, err := parseExecPlanSections(path)
+			sections, err := getCachedExecPlanSections(path)
 			if err != nil {
 				continue
 			}
@@ -414,8 +416,31 @@ func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 	return "", "", false
 }
 
-func execPlanHasRetrospective(path string) bool {
+// execPlanSectionsCache memoizes parsed exec-plan sections per path within a
+// single validation run so that each plan file is parsed at most once.
+var execPlanSectionsCache map[string]map[string]execPlanSection
+
+func getCachedExecPlanSections(path string) (map[string]execPlanSection, error) {
+	if execPlanSectionsCache == nil {
+		execPlanSectionsCache = map[string]map[string]execPlanSection{}
+	}
+	if sections, ok := execPlanSectionsCache[path]; ok {
+		return sections, nil
+	}
 	sections, err := parseExecPlanSections(path)
+	if err != nil {
+		return nil, err
+	}
+	execPlanSectionsCache[path] = sections
+	return sections, nil
+}
+
+func clearExecPlanSectionsCache() {
+	execPlanSectionsCache = nil
+}
+
+func execPlanHasRetrospective(path string) bool {
+	sections, err := getCachedExecPlanSections(path)
 	if err != nil {
 		return false
 	}
@@ -440,15 +465,14 @@ func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 	return false
 }
 
-func validateGeneratedIndexes(root string, report *validationReport) {
+func validateGeneratedIndexes(root string, tasks []Task, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}
-	indexer := app{opts: options{root: root}}
-	writes, err := indexer.indexWrites()
+	writes, err := indexWritesFor(root, tasks)
 	if err != nil {
 		report.addWarning("generated_index_check_failed", "", err.Error())
 		return

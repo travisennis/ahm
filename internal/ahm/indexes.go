@@ -71,26 +71,33 @@ func (a *app) indexWrites() (map[string]string, error) {
 		}
 		fmt.Fprintf(a.err, "warning: some task files could not be parsed and were skipped\n%s\n", err)
 	}
-	research, err := collectMarkdownDocs(a.opts.root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
+	return indexWritesFor(a.opts.root, tasks)
+}
+
+// indexWritesFor is the package-level counterpart of app.indexWrites that
+// accepts already-parsed tasks. It is used by both the index-writing and
+// validation paths to avoid re-parsing the task tree.
+func indexWritesFor(root string, tasks []Task) (map[string]string, error) {
+	research, err := collectMarkdownDocs(root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
 	}
-	activePlans, err := collectMarkdownDocs(a.opts.root, ".agents/exec-plans/active", []string{""})
+	activePlans, err := collectMarkdownDocs(root, ".agents/exec-plans/active", []string{""})
 	if err != nil {
 		return nil, err
 	}
-	completedPlans, err := collectMarkdownDocs(a.opts.root, ".agents/exec-plans/completed", []string{""})
+	completedPlans, err := collectMarkdownDocs(root, ".agents/exec-plans/completed", []string{""})
 	if err != nil {
 		return nil, err
 	}
 	return map[string]string{
-		filepath.Join(a.opts.root, ".agents", ".tasks", "index.md"):                  renderRootIndex(tasks),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "active", "index.md"):        renderBucketIndex(tasks, "active"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "completed", "index.md"):     renderBucketIndex(tasks, "completed"),
-		filepath.Join(a.opts.root, ".agents", ".tasks", "cancelled", "index.md"):     renderBucketIndex(tasks, "cancelled"),
-		filepath.Join(a.opts.root, ".agents", ".research", "index.md"):               renderResearchIndex(research),
-		filepath.Join(a.opts.root, ".agents", "exec-plans", "active", "index.md"):    renderExecPlanIndex("Active ExecPlans", "No active ExecPlans yet.", activePlans),
-		filepath.Join(a.opts.root, ".agents", "exec-plans", "completed", "index.md"): renderExecPlanIndex("Completed ExecPlans", "No completed ExecPlans yet.", completedPlans),
+		filepath.Join(root, ".agents", ".tasks", "index.md"):                  renderRootIndex(tasks),
+		filepath.Join(root, ".agents", ".tasks", "active", "index.md"):        renderBucketIndex(tasks, "active"),
+		filepath.Join(root, ".agents", ".tasks", "completed", "index.md"):     renderBucketIndex(tasks, "completed"),
+		filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md"):     renderBucketIndex(tasks, "cancelled"),
+		filepath.Join(root, ".agents", ".research", "index.md"):               renderResearchIndex(research),
+		filepath.Join(root, ".agents", "exec-plans", "active", "index.md"):    renderExecPlanIndex("Active ExecPlans", "No active ExecPlans yet.", activePlans),
+		filepath.Join(root, ".agents", "exec-plans", "completed", "index.md"): renderExecPlanIndex("Completed ExecPlans", "No completed ExecPlans yet.", completedPlans),
 	}, nil
 }
 
