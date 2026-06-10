@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEscapeCell(t *testing.T) {
@@ -241,6 +242,69 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	}
 	if stdout != "" {
 		t.Fatalf("dry-run index after re-index should be empty, got:\n%s", stdout)
+	}
+}
+
+func TestIndexSkipsUnchangedFiles(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	// Install workflow scaffold and create a task.
+	stdout, stderr, code := cli("init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
+	if code != 0 {
+		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Run index first so files exist with baselines.
+	stdout, stderr, code = cli("index")
+	if code != 0 {
+		t.Fatalf("first index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Collect mtimes of all generated indexes.
+	type fileInfo struct {
+		path  string
+		mtime time.Time
+	}
+	targets := []string{
+		filepath.Join(root, ".agents", ".tasks", "index.md"),
+		filepath.Join(root, ".agents", ".tasks", "active", "index.md"),
+		filepath.Join(root, ".agents", ".tasks", "completed", "index.md"),
+		filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md"),
+		filepath.Join(root, ".agents", ".research", "index.md"),
+		filepath.Join(root, ".agents", "exec-plans", "active", "index.md"),
+		filepath.Join(root, ".agents", "exec-plans", "completed", "index.md"),
+	}
+	var before []fileInfo
+	for _, p := range targets {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatalf("stat %s: %v", p, err)
+		}
+		before = append(before, fileInfo{path: p, mtime: fi.ModTime()})
+	}
+
+	// Run index again with no changes.
+	stdout, stderr, code = cli("index")
+	if code != 0 {
+		t.Fatalf("second index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Verify all mtimes are unchanged.
+	for _, b := range before {
+		fi, err := os.Stat(b.path)
+		if err != nil {
+			t.Fatalf("stat %s: %v", b.path, err)
+		}
+		if !fi.ModTime().Equal(b.mtime) {
+			t.Errorf("mtime changed for %s: before=%v after=%v", b.path, b.mtime, fi.ModTime())
+		}
 	}
 }
 
