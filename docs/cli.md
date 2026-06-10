@@ -379,6 +379,15 @@ Useful flags:
 
 - `--dry-run`: prints only index paths that are missing or have stale content. A clean repository immediately after `ahm index` produces no output.
 
+Behavior on errors:
+
+- If a task directory cannot be read (I/O error), index generation is aborted
+  with a non-zero exit code and existing generated indexes are left unchanged.
+- If one or more task files fail to parse, a warning listing the affected files
+  is printed to stderr and index generation continues with the remaining tasks.
+- Generated indexes never silently omit tasks or produce empty output due to
+  task file parse failures.
+
 Example:
 
 ```bash

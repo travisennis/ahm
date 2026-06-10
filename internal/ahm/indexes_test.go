@@ -243,3 +243,83 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 		t.Fatalf("dry-run index after re-index should be empty, got:\n%s", stdout)
 	}
 }
+
+func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	// Install workflow scaffold.
+	stdout, stderr, code := cli("init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a valid task so there's at least one parsed task.
+	stdout, stderr, code = cli("task", "create", "Valid Task")
+	if code != 0 {
+		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Write a malformed task file in active/. Use invalid front matter key
+	// to trigger a parse error.
+	malformed := filepath.Join(root, ".agents", ".tasks", "active", "bad.md")
+	if err := os.WriteFile(malformed, []byte("---\ninvalid : key\n---\n# Bad\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run index — should print warning on stderr and exit 0.
+	_, stderr, code = cli("index")
+	if code != 0 {
+		t.Fatalf("index with malformed task should exit 0, got code %d; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "warning: some task files could not be parsed and were skipped") {
+		t.Fatalf("expected warning on stderr, got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "bad.md") {
+		t.Fatalf("expected malformed file reference in stderr, got:\n%s", stderr)
+	}
+
+	// The valid task should still appear in generated indexes.
+	indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+	assertFileContainsAll(t, indexPath, "Valid Task")
+}
+
+func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	// Install workflow scaffold.
+	stdout, stderr, code := cli("init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Replace one of the task directories with a regular file so
+	// os.ReadDir fails with a non-ErrNotExist error.
+	activeDir := filepath.Join(root, ".agents", ".tasks", "active")
+	if err := os.RemoveAll(activeDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(activeDir, []byte("not a directory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run index — should fail because tasks cannot be collected at all.
+	stdout, stderr, code = cli("index")
+	if code == 0 {
+		t.Fatalf("index with unreadable task dir should exit non-zero, got stdout=%s, stderr=%s", stdout, stderr)
+	}
+	if stderr == "" {
+		t.Fatal("expected error on stderr")
+	}
+
+	// Generated indexes from init should still exist — failure does not wipe them.
+	indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("generated index should be preserved after aborted index: %v", err)
+	}
+}

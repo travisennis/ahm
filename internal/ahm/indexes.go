@@ -61,7 +61,13 @@ func (a *app) indexWriteTargets() ([]string, error) {
 }
 
 func (a *app) indexWrites() (map[string]string, error) {
-	tasks, _ := a.getTasks()
+	tasks, err := a.getTasks()
+	if err != nil {
+		if tasks == nil {
+			return nil, err
+		}
+		fmt.Fprintf(a.err, "warning: some task files could not be parsed and were skipped\n%s\n", err)
+	}
 	research, err := collectMarkdownDocs(a.opts.root, ".agents/.research", []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
