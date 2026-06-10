@@ -29,7 +29,9 @@ func (a *app) taskMigrate() error {
 		}
 		rel := relPath(a.opts.root, path)
 		migrations = append(migrations, taskMigration{Path: rel, Changes: changes})
-		writes[path] = next
+		if next != string(data) {
+			writes[path] = next
+		}
 	}
 	if a.opts.json || a.opts.plain {
 		return a.emit(map[string]any{"migrations": migrations})
@@ -80,6 +82,12 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 		return text, nil
 	}
 	lines := strings.Split(raw, "\n")
+	// Reject YAML block list syntax to avoid silent mangling.
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "- ") {
+			return text, []string{"unsupported block list syntax in front matter; fix manually"}
+		}
+	}
 	index := frontMatterLineIndex(lines)
 	var changes []string
 
@@ -111,7 +119,11 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 	if len(changes) == 0 {
 		return text, nil
 	}
-	return "---\n" + strings.Join(lines, "\n") + "\n---\n" + body, changes
+	out := "---\n" + strings.Join(lines, "\n") + "\n---\n" + body
+	if out == text {
+		return text, changes
+	}
+	return out, changes
 }
 
 func splitFrontMatter(text string) (string, string, bool) {

@@ -155,6 +155,11 @@ func parseFrontMatter(text string) (map[string]string, string, error) {
 		if trimmed == "" || trimmed[0] == '#' {
 			continue
 		}
+		// Reject YAML block list items before the colon check so the line
+		// isn't silently dropped.
+		if len(trimmed) > 1 && trimmed[0] == '-' && trimmed[1] == ' ' {
+			return nil, "", fmt.Errorf("unsupported block list syntax in front matter")
+		}
 		key, value, ok := strings.Cut(trimmed, ":")
 		if !ok {
 			continue

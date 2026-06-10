@@ -276,6 +276,12 @@ func TestMigrateTaskFrontMatter_MultipleInsertAndNormalize(t *testing.T) {
 				"normalize depends_on",
 			},
 		},
+		{
+			name:    "block list depends_on rejected",
+			input:   "---\nid: 001\ntitle: Test\nstatus: Pending\npriority: P2\neffort: S\nlabels: type:bug, area:tasks\nexec_plan: -\ndepends_on:\n  - 001\n  - 002\n---\n# Test\n",
+			want:    "---\nid: 001\ntitle: Test\nstatus: Pending\npriority: P2\neffort: S\nlabels: type:bug, area:tasks\nexec_plan: -\ndepends_on:\n  - 001\n  - 002\n---\n# Test\n",
+			changes: []string{"unsupported block list syntax in front matter; fix manually"},
+		},
 	}
 
 	for _, tt := range tests {

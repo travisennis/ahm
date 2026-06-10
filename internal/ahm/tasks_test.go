@@ -102,6 +102,21 @@ func TestParseFrontMatter_EdgeCases(t *testing.T) {
 				"title": "Task",
 			},
 		},
+		{
+			name:    "block list depends_on",
+			input:   "---\ndepends_on:\n  - 001\n  - 002\n---\n# Task\n",
+			wantErr: "unsupported block list syntax",
+		},
+		{
+			name:    "block list labels",
+			input:   "---\nlabels:\n  - type:bug\n  - area:tasks\n---\n# Task\n",
+			wantErr: "unsupported block list syntax",
+		},
+		{
+			name:    "block list standalone",
+			input:   "---\n- item\n- other\n---\n# Task\n",
+			wantErr: "unsupported block list syntax",
+		},
 	}
 
 	for _, tt := range tests {

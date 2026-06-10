@@ -208,6 +208,28 @@ Optional fields (`created`, `updated`, `parent`, `external_ref`) are emitted
 only when non-empty. Extra fields not recognized as standard task fields are
 emitted in alphabetical order after all standard fields.
 
+### Front Matter Grammar
+
+Task front matter uses a flat `key: value` format. Each line holds one field.
+The value is everything after the first colon, trimmed of leading and trailing
+whitespace. Double-quoted values have the wrapping quotes stripped.
+
+Supported value forms:
+
+- Simple: `key: value` → `"value"`
+- Colon in value: `labels: type:bug, area:tasks` → `"type:bug, area:tasks"`
+- Double-quoted: `title: "My Task: The Reckoning"` → `"My Task: The Reckoning"`
+- Inline list: `depends_on: 001, 002` or `depends_on: [001, 002]`
+- Dash sentinel: `depends_on: -` (empty list, see Dash Sentinel Semantics)
+
+Unsupported forms that produce a parse error:
+
+- Block scalars (`|` and `>`): `description: |\n  multi\n  line`
+- Block lists (`- ` prefix): `depends_on:\n  - 001\n  - 002`
+- Keys with spaces: `bad key: value`
+
+Comments (`#` at line start) and blank lines within front matter are ignored.
+
 ## Dash Sentinel Semantics
 
 Certain optional task front matter fields use the dash (`-`) as a sentinel
