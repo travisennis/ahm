@@ -68,6 +68,38 @@ func TestDetectManagedRootFailsWithoutGitOrMetadata(t *testing.T) {
 	}
 }
 
+func TestDetectManagedRootSucceedsWithDotGitFile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /other/worktree/.git\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if chErr := os.Chdir(origDir); chErr != nil {
+			t.Errorf("failed to restore working directory: %v", chErr)
+		}
+	}()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := detectManagedRoot()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("root = %q, want %q", got, want)
+	}
+}
+
 func TestDetectManagedRootSucceedsWithDotGit(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {

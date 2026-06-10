@@ -40,7 +40,7 @@ func detectManagedRoot() (string, error) {
 	}
 	dir := wd
 	for {
-		if stat, err := os.Stat(filepath.Join(dir, ".git")); err == nil && stat.IsDir() {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			return dir, nil
 		}
 		if stat, err := os.Stat(filepath.Join(dir, ".agents", "ahm.json")); err == nil && !stat.IsDir() {
