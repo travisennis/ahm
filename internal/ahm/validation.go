@@ -544,6 +544,79 @@ func validateProjectDocs(root string, report *validationReport) {
 	for _, path := range projectDocFiles(root) {
 		validateMarkdownFileLinksWithCodes(root, path, report, "project_doc_link_missing", "project_doc_link_check_failed")
 	}
+	validateDesignDocIndex(root, report)
+}
+
+// validateDesignDocIndex runs only when a repository already uses the
+// docs/design-docs/ convention with an index.md. It checks the single generic
+// invariant that every design-doc Markdown file is represented in the index.
+// Broken relative links in the index (including entries that point at missing
+// files) and broken links inside design-doc files are reported by the shared
+// project-doc relative-link check, so this function does not duplicate that.
+// It never creates, rewrites, or formats the index.
+func validateDesignDocIndex(root string, report *validationReport) {
+	designDir := filepath.Join(root, "docs", "design-docs")
+	indexPath := filepath.Join(designDir, "index.md")
+	if stat, err := os.Stat(designDir); err != nil || !stat.IsDir() {
+		return
+	}
+	indexData, err := readWorkflowFile(indexPath)
+	if err != nil {
+		// A missing index means the repository does not use the convention.
+		// A genuinely unreadable index that exists is already surfaced by the
+		// project-doc relative-link check, so do not double-report here.
+		return
+	}
+
+	indexed := designDocIndexTargets(designDir, indexData)
+	cleanIndex := filepath.Clean(indexPath)
+
+	var files []string
+	_ = filepath.WalkDir(designDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		clean := filepath.Clean(path)
+		if clean == cleanIndex {
+			return nil
+		}
+		files = append(files, clean)
+		return nil
+	})
+	sort.Strings(files)
+	for _, path := range files {
+		if !indexed[path] {
+			report.addWarning("design_doc_unindexed", relPath(root, path), "design-doc Markdown file is not represented in docs/design-docs/index.md")
+		}
+	}
+}
+
+// designDocIndexTargets collects the cleaned absolute paths of relative
+// Markdown links found in the design-doc index, resolved relative to the index
+// directory. Links inside fenced code blocks and non-relative links are
+// ignored.
+func designDocIndexTargets(designDir string, indexData []byte) map[string]bool {
+	targets := map[string]bool{}
+	inFence := false
+	for _, line := range strings.Split(string(indexData), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(line, -1) {
+			target := normalizeMarkdownLinkTarget(match[1])
+			if target == "" || shouldSkipMarkdownLink(target) {
+				continue
+			}
+			resolved := filepath.Clean(filepath.Join(designDir, filepath.FromSlash(target)))
+			targets[resolved] = true
+		}
+	}
+	return targets
 }
 
 // projectDocFiles discovers common project documentation Markdown files: root

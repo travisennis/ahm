@@ -144,10 +144,16 @@ Supported scopes:
   documentation. It discovers common documentation surfaces rather than
   assuming a fixed layout: root-level `README*`, `CONTRIBUTING*`, `CHANGELOG*`,
   `ARCHITECTURE*`, and `DESIGN*` Markdown files, plus every Markdown file under
-  `docs/` (covering `docs/adr/`). It currently reports broken relative Markdown
-  links via `project_doc_link_missing`. This scope runs only when requested
-  explicitly with `--check project-docs`; it is never part of the default and
-  never calls models or edits source files.
+  `docs/` (covering `docs/adr/`). It reports broken relative Markdown links via
+  `project_doc_link_missing`. When a repository already uses the
+  `docs/design-docs/` convention (a `docs/design-docs/` directory containing an
+  `index.md`), this scope also checks that every design-doc Markdown file is
+  represented in the index, emitting `design_doc_unindexed` otherwise. Index
+  entries that point at missing files and broken links inside design-doc files
+  reuse `project_doc_link_missing` rather than a parallel check. `ahm` never
+  creates, rewrites, or formats design-doc indexes. This scope runs only when
+  requested explicitly with `--check project-docs`; it is never part of the
+  default and never calls models or edits source files.
 
 Scopes compose: `--check workflow --check links` or `--check workflow,links`
 runs both the workflow and link validators. Passing an unknown scope value is a

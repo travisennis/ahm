@@ -631,6 +631,135 @@ func TestValidateWorkflowScopedProjectDocsNotDefault(t *testing.T) {
 	}
 }
 
+func TestValidateWorkflowScopedDesignDocsAbsent(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// No docs/design-docs/ surface: no design-doc findings.
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	for _, w := range report.Warnings {
+		if w.Code == "design_doc_unindexed" {
+			t.Fatalf("unexpected design_doc_unindexed without design docs: %#v", w)
+		}
+	}
+}
+
+func TestValidateWorkflowScopedDesignDocsDirWithoutIndex(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// A design-docs directory without index.md does not adopt the convention.
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "auth.md"), "# Auth\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	for _, w := range report.Warnings {
+		if w.Code == "design_doc_unindexed" {
+			t.Fatalf("unexpected design_doc_unindexed without index.md: %#v", w)
+		}
+	}
+}
+
+func TestValidateWorkflowScopedDesignDocsValid(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "auth.md"), "# Auth\n")
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "storage.md"), "# Storage\n")
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
+		"# Design Docs\n\n- [Auth](auth.md)\n- [Storage](storage.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	for _, w := range report.Warnings {
+		if w.Code == "design_doc_unindexed" || w.Code == "project_doc_link_missing" {
+			t.Fatalf("unexpected finding for valid design docs: %#v", w)
+		}
+	}
+}
+
+func TestValidateWorkflowScopedDesignDocsUnindexed(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "auth.md"), "# Auth\n")
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "orphan.md"), "# Orphan\n")
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
+		"# Design Docs\n\n- [Auth](auth.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	var found []string
+	for _, w := range report.Warnings {
+		if w.Code == "design_doc_unindexed" {
+			found = append(found, w.Path)
+		}
+	}
+	if len(found) != 1 || found[0] != "docs/design-docs/orphan.md" {
+		t.Fatalf("expected 1 design_doc_unindexed for orphan.md, got %#v", found)
+	}
+}
+
+func TestValidateWorkflowScopedDesignDocsIndexEntryMissing(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// The index points at a source file that does not exist. This reuses the
+	// project-doc relative-link finding rather than adding a parallel check.
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
+		"# Design Docs\n\n- [Gone](gone.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	foundLink := false
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" && strings.HasPrefix(w.Path, "docs/design-docs/index.md") {
+			foundLink = true
+		}
+		if w.Code == "design_doc_unindexed" {
+			t.Fatalf("design_doc_unindexed should not fire for missing index entry: %#v", w)
+		}
+	}
+	if !foundLink {
+		t.Fatal("expected project_doc_link_missing for missing design-doc index entry")
+	}
+}
+
+func TestValidateWorkflowScopedDesignDocsNotDefault(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "orphan.md"), "# Orphan\n")
+	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"), "# Design Docs\n")
+
+	report, _ := validateWorkflowScoped(root, nil)
+	for _, w := range report.Warnings {
+		if w.Code == "design_doc_unindexed" {
+			t.Fatalf("design-doc check ran by default; found %#v", w)
+		}
+	}
+}
+
 func TestValidateWorkflowScopedAll(t *testing.T) {
 	// nil scopes = default checks (same as validateWorkflow): workflow + links,
 	// but not the opt-in project-docs scope.

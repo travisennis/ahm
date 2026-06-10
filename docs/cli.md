@@ -313,10 +313,18 @@ ahm --check project-docs status
 project's own documentation. It discovers common documentation surfaces rather
 than requiring a fixed layout: root-level `README*`, `CONTRIBUTING*`,
 `CHANGELOG*`, `ARCHITECTURE*`, and `DESIGN*` Markdown files, plus every Markdown
-file under `docs/` (which covers `docs/adr/`). It currently reports broken
-relative Markdown links in those files via `project_doc_link_missing`. The
-checks are deterministic, read-only, never call models, and never edit source
-files.
+file under `docs/` (which covers `docs/adr/`). It reports broken relative
+Markdown links in those files via `project_doc_link_missing`.
+
+When the repository already uses the `docs/design-docs/` convention (a
+`docs/design-docs/` directory containing an `index.md`), this scope also checks
+that every design-doc Markdown file is represented in the index and emits
+`design_doc_unindexed` for any that are not. Index entries that point at missing
+files, and broken relative links inside design-doc files, are reported through
+the shared `project_doc_link_missing` finding rather than a separate check.
+`ahm` never creates, rewrites, or formats design-doc indexes. Repositories
+without a `docs/design-docs/index.md` get no design-doc findings. The checks are
+deterministic, read-only, never call models, and never edit source files.
 
 ### `doctor`
 
@@ -928,3 +936,4 @@ Finding codes:
 | `markdown_link_check_failed` | A workflow Markdown link check could not be completed. |
 | `project_doc_link_missing` | A relative Markdown link in a discovered project documentation file points at a missing file. Emitted only under the opt-in `--check project-docs` scope. |
 | `project_doc_link_check_failed` | A project documentation Markdown link check could not be completed. Emitted only under the opt-in `--check project-docs` scope. |
+| `design_doc_unindexed` | A design-doc Markdown file under `docs/design-docs/` is not represented in `docs/design-docs/index.md`. Emitted only under the opt-in `--check project-docs` scope, and only when the repository already uses the `docs/design-docs/` convention with an `index.md`. |
