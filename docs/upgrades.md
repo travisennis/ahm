@@ -34,3 +34,40 @@ running with `--force`).
 
 Use `--dry-run` to preview changes. Use `--force` only when the embedded
 template should replace local edits to managed workflow files.
+
+## Version Separation (2026-06-10)
+
+The binary version and the workflow template version are now separate.
+
+- `internal/version.Binary` (var, set by goreleaser ldflags) is the release
+  version shown by `ahm --version` and `ahm version`. It advances with every
+  tagged release.
+- `internal/templates.Version` (const) is the embedded workflow template schema
+  version. It advances only when the content of the embedded workflow templates
+  under `internal/templates/workflow/` changes.
+- `.agents/ahm.json`'s `version` field continues to track the template version
+  (`templates.Version`), not the binary version. This ensures that `ahm upgrade`
+  correctly detects template changes regardless of the release tag.
+
+This separation avoids the bug where `ahm --version` silently reported the
+wrong version because `templates.Version` was a `const` and the linker `-X`
+flag only sets `var` symbols. Task 023 had made `Version` a `const` on the
+assumption there was no separate release pipeline — that assumption was wrong.
+
+### Impact
+
+- `ahm init` and `ahm upgrade` still stamp `templates.Version` into metadata.
+- `ahm status` and `ahm doctor` still report `template_version` from
+  `templates.Version`.
+- `ahm --version` and `ahm version` now return the injected binary version,
+  which matches the release tag in goreleaser builds.
+- Dev builds (`go build`, `just build`) without ldflags will show the default
+  value from `internal/version.Binary` (currently `"0.2.0"`), which is
+  acceptable for local development.
+
+### Rejected Alternative
+
+Reverting `templates.Version` to `var` would have fixed the injection but
+would conflate the binary release version with the template schema version,
+causing every release to bump the template version even when templates hadn't
+changed.

@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/travisennis/ahm/internal/templates"
+	"github.com/travisennis/ahm/internal/version"
 )
 
 type options struct {
@@ -94,7 +94,7 @@ func (a *app) command() *cobra.Command {
 		Short:         "Manage repo-local .agents workflows",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       templates.Version,
+		Version:       version.Binary,
 		Args:          noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
@@ -121,7 +121,7 @@ func (a *app) command() *cobra.Command {
 		Short: "Print version",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(a.out, templates.Version)
+			fmt.Fprintln(a.out, version.Binary)
 			return nil
 		},
 	})

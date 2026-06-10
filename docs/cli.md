@@ -50,7 +50,7 @@ Global flags must appear before the command.
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
-| `--version` | Prints the embedded workflow template version. |
+| `--version` | Prints the ahm binary version. |
 
 Examples:
 
@@ -150,7 +150,9 @@ ahm help
 
 ### `version`
 
-Prints the embedded workflow template version.
+Prints the ahm binary version. This is the release tag version injected at
+build time, distinct from the embedded workflow template version shown in
+`status` and `doctor`.
 
 Alias:
 
