@@ -140,48 +140,76 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 
 func parseFrontMatter(text string) (map[string]string, string, error) {
 	meta := map[string]string{}
-	text = strings.ReplaceAll(text, "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return meta, text, nil
+	raw, body, ok := splitFrontMatter(text)
+	if !ok {
+		return meta, body, nil
 	}
-	end := strings.Index(text[4:], "\n---\n")
-	if end < 0 {
-		return meta, text, nil
-	}
-	raw := text[4 : 4+end]
-	body := text[4+end+5:]
 	for _, line := range strings.Split(raw, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || trimmed[0] == '#' {
-			continue
+		key, value, ok, err := parseFrontMatterLine(line)
+		if err != nil {
+			return nil, "", err
 		}
-		// Reject YAML block list items before the colon check so the line
-		// isn't silently dropped.
-		if len(trimmed) > 1 && trimmed[0] == '-' && trimmed[1] == ' ' {
-			return nil, "", fmt.Errorf("unsupported block list syntax in front matter")
-		}
-		key, value, ok := strings.Cut(trimmed, ":")
 		if !ok {
 			continue
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		if strings.ContainsAny(key, " :") {
-			return nil, "", fmt.Errorf("invalid front matter key %q", key)
-		}
-		value = strings.TrimSpace(value)
-		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
-			value = value[1 : len(value)-1]
-			value = strings.TrimSpace(value)
-		}
-		if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
-			return nil, "", fmt.Errorf("unsupported block scalar in front matter field %q", key)
 		}
 		meta[key] = value
 	}
 	return meta, body, nil
+}
+
+func splitFrontMatter(text string) (string, string, bool) {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	if !strings.HasPrefix(text, "---\n") {
+		return "", text, false
+	}
+	end := strings.Index(text[4:], "\n---\n")
+	if end < 0 {
+		return "", text, false
+	}
+	return text[4 : 4+end], text[4+end+5:], true
+}
+
+func parseFrontMatterLine(line string) (string, string, bool, error) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || trimmed[0] == '#' {
+		return "", "", false, nil
+	}
+	if strings.HasPrefix(trimmed, "- ") {
+		return "", "", false, fmt.Errorf("unsupported block list syntax in front matter")
+	}
+	key, value, ok := strings.Cut(trimmed, ":")
+	if !ok {
+		return "", "", false, nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", "", false, nil
+	}
+	if strings.ContainsAny(key, " :") {
+		return "", "", false, fmt.Errorf("invalid front matter key %q", key)
+	}
+	value = unquoteFrontMatterScalar(value)
+	if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
+		return "", "", false, fmt.Errorf("unsupported block scalar in front matter field %q", key)
+	}
+	return key, value, true, nil
+}
+
+func frontMatterValue(line string) string {
+	_, value, ok := strings.Cut(line, ":")
+	if !ok {
+		return ""
+	}
+	return unquoteFrontMatterScalar(value)
+}
+
+func unquoteFrontMatterScalar(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
+		value = value[1 : len(value)-1]
+		value = strings.TrimSpace(value)
+	}
+	return value
 }
 
 // metaExtra returns the subset of meta keys that are not known task fields.

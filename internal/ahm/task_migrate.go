@@ -82,10 +82,9 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 		return text, nil
 	}
 	lines := strings.Split(raw, "\n")
-	// Reject YAML block list syntax to avoid silent mangling.
 	for _, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "- ") {
-			return text, []string{"unsupported block list syntax in front matter; fix manually"}
+		if _, _, _, err := parseFrontMatterLine(line); err != nil {
+			return text, []string{err.Error() + "; fix manually"}
 		}
 	}
 	index := frontMatterLineIndex(lines)
@@ -124,18 +123,6 @@ func migrateTaskFrontMatter(text string) (string, []string) {
 		return text, changes
 	}
 	return out, changes
-}
-
-func splitFrontMatter(text string) (string, string, bool) {
-	text = strings.ReplaceAll(text, "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return "", text, false
-	}
-	end := strings.Index(text[4:], "\n---\n")
-	if end < 0 {
-		return "", text, false
-	}
-	return text[4 : 4+end], text[4+end+5:], true
 }
 
 func frontMatterLineIndex(lines []string) map[string]int {
@@ -181,29 +168,12 @@ func normalizeEnumField(lines []string, index map[string]int, field string, plac
 	return nil
 }
 
-func frontMatterValue(line string) string {
-	_, value, ok := strings.Cut(line, ":")
-	if !ok {
-		return ""
-	}
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
-		value = value[1 : len(value)-1]
-		value = strings.TrimSpace(value)
-	}
-	return value
-}
-
 var leadingTaskIDPattern = regexp.MustCompile(`^([0-9]+[A-Za-z]?)\b`)
 var followsTaskIDPattern = regexp.MustCompile(`(?i)^follows\s+([0-9]+[A-Za-z]?)\.?$`)
 var completedByTaskIDPattern = regexp.MustCompile(`(?i)^completed by\s+([0-9]+[A-Za-z]?)\.?$`)
 
 func normalizeDependsOnValue(value string) (string, bool) {
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
-		value = value[1 : len(value)-1]
-		value = strings.TrimSpace(value)
-	}
+	value = unquoteFrontMatterScalar(value)
 	if value == "" || value == "-" || value == "[]" {
 		return "-", true
 	}
