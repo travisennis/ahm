@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/travisennis/ahm/internal/version"
@@ -227,10 +228,8 @@ func (a *app) lenientCommand(use string, short string, run func() error) *cobra.
 
 func (a *app) validateCheckScopes() error {
 	for _, s := range a.opts.check {
-		switch s {
-		case CheckScopeWorkflow, CheckScopeLinks, CheckScopeProjectDocs:
-		default:
-			return usageError(fmt.Sprintf("unknown check scope %q (valid: workflow, links, project-docs)", s))
+		if !containsScope(validCheckScopes(), s) {
+			return usageError(fmt.Sprintf("unknown check scope %q (valid: %s)", s, strings.Join(validCheckScopes(), ", ")))
 		}
 	}
 	return nil

@@ -19,19 +19,6 @@ func (a *app) emit(value any) error {
 	}
 }
 
-// outputMode returns the effective output mode as a human-readable string
-// for documentation and diagnostic purposes.
-func (a *app) outputMode() string {
-	switch {
-	case a.opts.json:
-		return "json"
-	case a.opts.plain:
-		return "plain"
-	default:
-		return "text"
-	}
-}
-
 func (a *app) emitJSON(value any) error {
 	if value == nil {
 		_, err := fmt.Fprintln(a.out, "{}")

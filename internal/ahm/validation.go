@@ -33,8 +33,8 @@ const (
 	CheckScopeProjectDocs = "project-docs"
 )
 
-// ValidCheckScopes returns the list of recognised check-scope values.
-func ValidCheckScopes() []string {
+// validCheckScopes returns the list of recognised check-scope values.
+func validCheckScopes() []string {
 	return []string{CheckScopeWorkflow, CheckScopeLinks, CheckScopeProjectDocs}
 }
 

@@ -252,28 +252,3 @@ func TestEmitJSON_NilValue(t *testing.T) {
 		t.Fatalf("emitJSON(nil) = %q, want %q", got, "{}\n")
 	}
 }
-
-func TestEmitText_OutputMode(t *testing.T) {
-	tests := []struct {
-		name string
-		opts options
-		want string
-	}{
-		{"default", options{}, "text"},
-		{"json", options{json: true}, "json"},
-		{"plain", options{plain: true}, "plain"},
-		{"text explicit", options{text: true}, "text"},
-		{"json over plain", options{json: true, plain: true}, "json"},
-		{"json over text", options{json: true, text: true}, "json"},
-		{"plain over text", options{plain: true, text: true}, "plain"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := app{opts: tt.opts}
-			if got := a.outputMode(); got != tt.want {
-				t.Fatalf("outputMode() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
