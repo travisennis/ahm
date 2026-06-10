@@ -811,6 +811,15 @@ Adds a dependency to a task, rewrites the task file, and regenerates indexes.
 Both IDs use normal task resolution. Dependencies are stored by canonical task
 ID, deduplicated, and sorted by task ID.
 
+The command rejects unsatisfiable dependencies:
+
+- **Self-dependency**: the operation fails with an error if the task ID and
+  dependency ID are the same.
+- **Cancelled dependency**: the operation fails with an error if the dependency
+  task has status `Cancelled`, because a cancelled task will never be completed.
+- **Cycle creation**: the operation fails with an error if the new edge would
+  introduce a dependency cycle among non-completed, non-cancelled tasks.
+
 Useful flags:
 
 - `--dry-run`: previews the resulting dependency list without writing.
@@ -929,6 +938,7 @@ Finding codes:
 | `task_bucket_mismatch` | A task status does not match its active, completed, or cancelled bucket. |
 | `task_dependency_missing` | A task depends on an ID that does not exist. |
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
+| `task_dependency_cancelled` | A non-completed task depends on a cancelled task, which can never be satisfied. |
 | `task_acceptance_missing` | A completed task is missing an acceptance section. |
 | `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |
 | `task_acceptance_unchecked` | A completed task acceptance section contains unchecked `- [ ]` or `* [ ]` items. |

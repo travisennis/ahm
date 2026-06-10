@@ -83,6 +83,29 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 	}
 }
 
+func TestValidationReportsCancelledDependency(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Active Task", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"ok": true`,
+		`"code": "task_dependency_cancelled"`,
+		`task 001 depends on cancelled task 002`,
+	)
+}
+
 func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder

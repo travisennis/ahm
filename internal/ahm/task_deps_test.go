@@ -211,6 +211,53 @@ func TestTaskDepRemoveNoOp(t *testing.T) {
 	}
 }
 
+func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	err := a.taskDepUpdate([]string{"001", "001"}, true)
+	if err == nil {
+		t.Fatal("expected error for self-dependency, got nil")
+	}
+	if !strings.Contains(err.Error(), "001 cannot depend on itself") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	err := a.taskDepUpdate([]string{"001", "002"}, true)
+	if err == nil {
+		t.Fatal("expected error for cancelled dependency, got nil")
+	}
+	if !strings.Contains(err.Error(), "001 cannot depend on cancelled task 002") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTaskDepAddRejectsCycle(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Task B", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	err := a.taskDepUpdate([]string{"002", "001"}, true)
+	if err == nil {
+		t.Fatal("expected error for cycle, got nil")
+	}
+	if !strings.Contains(err.Error(), "would create a cycle") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestMainDependencyCyclesIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

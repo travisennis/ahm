@@ -76,6 +76,16 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	if err != nil {
 		return err
 	}
+
+	if add {
+		if task.ID == dep.ID {
+			return fmt.Errorf("task %s cannot depend on itself", task.ID)
+		}
+		if dep.Status == "Cancelled" {
+			return fmt.Errorf("task %s cannot depend on cancelled task %s", task.ID, dep.ID)
+		}
+	}
+
 	set := map[string]bool{}
 	for _, item := range task.DependsOn {
 		set[item] = true
@@ -103,6 +113,32 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	sort.Slice(keys, func(i, j int) bool {
 		return taskLess(keys[i], keys[j])
 	})
+
+	// For add operations, check that the new dependency set does not introduce a cycle.
+	if add {
+		tasks, err := a.getTasks()
+		if err != nil {
+			// If we can't read all tasks, we can't check for cycles — reject to be safe.
+			return fmt.Errorf("cannot verify dependency cycle safety: %w", err)
+		}
+		byID := map[string]Task{}
+		for _, t := range tasks {
+			byID[t.ID] = t
+		}
+		modified := task
+		modified.DependsOn = keys
+		byID[modified.ID] = modified
+
+		modifiedTasks := make([]Task, 0, len(byID))
+		for _, t := range byID {
+			modifiedTasks = append(modifiedTasks, t)
+		}
+		cycles := taskDependencyCycles(modifiedTasks)
+		if len(cycles) > 0 {
+			return fmt.Errorf("adding dependency %s to %s would create a cycle: %s", dep.ID, task.ID, strings.Join(cycles[0], " -> "))
+		}
+	}
+
 	task.DependsOn = keys
 
 	task.Updated = time.Now().Format(time.RFC3339)

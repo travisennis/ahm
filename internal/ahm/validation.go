@@ -188,6 +188,17 @@ func validateTaskDependencies(root string, tasks []Task, report *validationRepor
 			}
 		}
 	}
+	for _, task := range tasks {
+		if task.Status == "Completed" || task.Status == "Cancelled" {
+			continue
+		}
+		for _, dep := range task.DependsOn {
+			depTask, ok := byID[dep]
+			if ok && depTask.Status == "Cancelled" {
+				report.addWarning("task_dependency_cancelled", relPath(root, task.Path), fmt.Sprintf("task %s depends on cancelled task %s", task.ID, dep))
+			}
+		}
+	}
 	for _, cycle := range taskDependencyCycles(tasks) {
 		report.addError("task_dependency_cycle", "", "dependency cycle: "+strings.Join(cycle, " -> "))
 	}
