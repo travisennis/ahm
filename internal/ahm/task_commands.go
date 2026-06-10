@@ -24,6 +24,9 @@ func (a *app) taskCommand() *cobra.Command {
 		Use:   "task",
 		Short: "Manage tasks",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
+			}
 			return usageError("task requires a subcommand")
 		},
 	}
@@ -743,15 +746,26 @@ func (a *app) taskStatus(argv []string, status string) error {
 }
 
 func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
-	// Exact match returns immediately.
+	// Exact string match returns immediately.
 	for _, task := range tasks {
 		if task.ID == pattern {
 			return task, nil
 		}
 	}
-	// Constrained prefix matching: parse the numeric prefix so that "1"
-	// matches "001", "01" matches "001", and "1a" matches "001a".
+	// Exact numeric match: parsed numeric value + suffix equal.
+	// This resolves "1" to "001" before falling through to prefix matching.
 	patNum, patSuffix, patOk := splitTaskID(pattern)
+	if patOk {
+		for _, task := range tasks {
+			taskNum, taskSuffix, taskOk := splitTaskID(task.ID)
+			if taskOk && taskNum == patNum && taskSuffix == patSuffix {
+				return task, nil
+			}
+		}
+	}
+	// Constrained prefix matching: parse the numeric prefix so that "1a"
+	// matches "001a" and similar short forms match zero-padded task IDs.
+	// If a prefix matches more than one task, the command reports ambiguity.
 	var matches []Task
 	for _, task := range tasks {
 		taskNum, taskSuffix, taskOk := splitTaskID(task.ID)

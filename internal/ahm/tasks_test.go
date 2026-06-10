@@ -375,13 +375,16 @@ func TestResolveTask(t *testing.T) {
 		}
 	})
 
-	t.Run("ambiguous 01 when multiple tasks share numeric part", func(t *testing.T) {
+	t.Run("exact numeric match preferred over prefix match", func(t *testing.T) {
 		// Add a task with a suffix that also has num=1
 		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001a.md"), "001a", "Task One A", "Pending", "")
 		a.invalidateTasks()
-		_, err := a.resolveTask("1")
-		if err == nil || !strings.Contains(err.Error(), "ambiguous") {
-			t.Fatalf("expected ambiguous, got: %v", err)
+		task, err := a.resolveTask("1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if task.ID != "001" {
+			t.Fatalf("expected 001, got %s", task.ID)
 		}
 	})
 }

@@ -403,7 +403,7 @@ Task commands operate on Markdown task files under:
 - `.agents/.tasks/completed/`
 - `.agents/.tasks/cancelled/`
 
-Task IDs are resolved by exact match first. If no exact match is found, numeric prefix matching is used: `1` matches `001`, `01` matches `001`, and `10` matches `010`. Suffixed IDs like `1a` match `001a`. If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
+Task IDs are resolved by exact string match first. If no exact match is found, an exact numeric match is attempted: the pattern and task ID are parsed by numeric value and optional letter suffix, so `1` matches `001` and `1a` matches `001a`. If no exact numeric match exists, numeric prefix matching is used, which can match multiple tasks (e.g., `1` matches both `001` and `001a`). If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
 
 All task front matter fields are preserved during status transitions,
 dependency edits, and other task mutations. Known fields (`id`, `title`,

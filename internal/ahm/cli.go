@@ -179,6 +179,9 @@ func (a *app) agentsCommand() *cobra.Command {
 		Use:   "agents",
 		Short: "Show AGENTS.md guidance",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
+			}
 			return usageError("agents requires a subcommand")
 		},
 	}

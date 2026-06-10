@@ -14,6 +14,9 @@ func (a *app) taskDepCommand() *cobra.Command {
 		Use:   "dep",
 		Short: "Manage task dependencies",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
+			}
 			return usageError("task dep requires a subcommand")
 		},
 	}

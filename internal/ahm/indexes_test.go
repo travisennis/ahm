@@ -19,7 +19,8 @@ func TestEscapeCell(t *testing.T) {
 		{"newline", "a\nb", "a b"},
 		{"backtick", "a`b", "a\\`b"},
 		{"angle brackets", "a<b>c", "a&lt;b&gt;c"},
-		{"all special chars", "a|b\nc`d<e>f", "a\\|b c\\`d&lt;e&gt;f"},
+		{"square brackets", "a[b]c", "a\\[b\\]c"},
+		{"all special chars", "a|b\nc`d<e>[f]g", "a\\|b c\\`d&lt;e&gt;\\[f\\]g"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

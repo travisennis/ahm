@@ -47,7 +47,7 @@ func TestUsageErrorsExitCode2(t *testing.T) {
 		{
 			name:    "unknown subcommand",
 			args:    []string{"task", "bogus"},
-			message: "task requires a subcommand",
+			message: `unknown subcommand "bogus" for "ahm task"`,
 		},
 		{
 			name:    "extra args to no-args command",

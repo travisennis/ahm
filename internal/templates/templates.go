@@ -10,7 +10,7 @@ const Version = "0.2.0"
 
 // FS contains the embedded workflow template files.
 //
-//go:embed workflow/**
+//go:embed workflow/*
 var FS embed.FS
 
 // File maps one embedded template source to its repository target path.
