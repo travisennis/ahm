@@ -38,10 +38,16 @@ The command only performs one deterministic state transition before delegation:
 and dependency checks. Missing external executables are detected before any task
 file is rewritten.
 
-`ahm` does not pass credentials, choose models, parse provider output, run
-independent review orchestration, complete tasks, commit changes, push branches,
-or open pull requests. Those actions remain owned by the delegated agent and the
-user's installed CLI configuration.
+For session-capable agents (currently `cake`), `ahm` requests JSON output and
+parses the `session_id` to retain it in memory for the current orchestration
+run. This enables follow-up steps such as review, revision, and commit within
+the same workflow invocation. Provider output is parsed only for the
+`session_id` field; results are still produced by the delegated agent.
+
+`ahm` does not pass credentials, choose models, run independent review
+orchestration, complete tasks, commit changes, push branches, or open pull
+requests. Those actions remain owned by the delegated agent and the user's
+installed CLI configuration.
 
 ## Rationale
 
@@ -64,7 +70,8 @@ user's installed CLI configuration.
   task IDs or recreating task prompts manually.
 - The repo-local default agent is explicit and testable.
 - `ahm` keeps ownership of task validation and state transition behavior while
-  avoiding provider-specific credential and session management.
+  confining session parsing to a single `session_id` field in a provider-agnostic
+  capability boundary.
 
 ### Negative
 

@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -1063,7 +1064,7 @@ func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
 	if captured.executable != "/stub/cake" {
 		t.Fatalf("runner executable = %q, want /stub/cake", captured.executable)
 	}
-	if len(captured.args) != 3 || captured.args[0] != "--output-format" || captured.args[1] != "text" {
+	if len(captured.args) != 3 || captured.args[0] != "--output-format" || captured.args[1] != "json" {
 		t.Fatalf("cake args = %#v", captured.args)
 	}
 	assertContainsAll(t, captured.args[2], "Work on task 001.", ".agents/.tasks/active/001.md", "Do not commit or push")
@@ -1271,11 +1272,12 @@ func TestTaskWorkMissingExecutableLeavesPendingTaskUnchanged(t *testing.T) {
 
 func TestTaskWorkAgentInvocations(t *testing.T) {
 	for _, tt := range []struct {
-		name       string
-		executable string
-		prefix     []string
+		name             string
+		executable       string
+		prefix           []string
+		supportsSessions bool
 	}{
-		{name: "cake", executable: "cake", prefix: []string{"--output-format", "text"}},
+		{name: "cake", executable: "cake", prefix: []string{"--output-format", "json"}, supportsSessions: true},
 		{name: "codex", executable: "codex", prefix: []string{"exec"}},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "text"}},
 	} {
@@ -1287,6 +1289,9 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 			if agent.executable != tt.executable {
 				t.Fatalf("executable = %q, want %q", agent.executable, tt.executable)
 			}
+			if agent.supportsSessions != tt.supportsSessions {
+				t.Fatalf("supportsSessions = %v, want %v", agent.supportsSessions, tt.supportsSessions)
+			}
 			args := agent.args("prompt")
 			for i, want := range tt.prefix {
 				if args[i] != want {
@@ -1295,6 +1300,15 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 			}
 			if args[len(args)-1] != "prompt" {
 				t.Fatalf("args = %#v, final arg should be prompt", args)
+			}
+			// Verify session methods are set only for session-capable agents.
+			if agent.supportsSessions {
+				if agent.resumeArgs == nil {
+					t.Fatal("session-capable agent must have resumeArgs")
+				}
+				if agent.parseSessionID == nil {
+					t.Fatal("session-capable agent must have parseSessionID")
+				}
 			}
 		})
 	}
@@ -1329,6 +1343,140 @@ func stubTaskWorkRunner(t *testing.T, fn func(string, string, []string, io.Reade
 	t.Cleanup(func() {
 		taskWorkRunCommand = orig
 	})
+}
+
+func TestTaskWorkCakeSessionCapture(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task With Session", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	// Stub the runner to produce valid cake JSON output.
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		if len(args) < 3 || args[0] != "--output-format" || args[1] != "json" {
+			t.Fatalf("unexpected args = %#v", args)
+		}
+		_, err := fmt.Fprint(stdout, `{"session_id":"sess_abc123","result":"Work completed."}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// The result text should be printed to stdout (through MultiWriter).
+	assertContainsAll(t, stdout, `session_id`, `sess_abc123`, `result`, `Work completed.`)
+	// The session warning should not appear.
+	assertNotContains(t, stderr, "could not capture session ID")
+	assertNotContains(t, stderr, "no session ID returned")
+	// Task should be marked In Progress.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
+func TestTaskWorkCakeSessionParseInvalidJSON(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Session Parse Failure", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	// Stub the runner to produce invalid JSON.
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		_, err := fmt.Fprint(stdout, `not json`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Should warn about invalid JSON but not fail.
+	assertContainsAll(t, stderr, "warning: could not capture session ID from cake output: invalid JSON from cake")
+}
+
+func TestTaskWorkCakeSessionMissingID(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "No Session ID", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	// Stub the runner to produce JSON without a session_id.
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		_, err := fmt.Fprint(stdout, `{"result":"Done."}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Should warn about missing session ID but not fail.
+	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
+}
+
+func TestCakeSessionIDParsing(t *testing.T) {
+	tests := []struct {
+		name      string
+		output    string
+		wantID    string
+		wantError bool
+	}{
+		{name: "valid", output: `{"session_id":"sess_xyz","result":"ok"}`, wantID: "sess_xyz"},
+		{name: "empty session", output: `{"session_id":"","result":"ok"}`, wantID: ""},
+		{name: "missing session", output: `{"result":"ok"}`, wantID: ""},
+		{name: "invalid JSON", output: `not json`, wantID: "", wantError: true},
+		{name: "empty output", output: ``, wantID: "", wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, err := parseCakeSessionID([]byte(tt.output))
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tt.wantID {
+				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestCakeResumeArgs(t *testing.T) {
+	args := cakeResumeArgs("sess_abc", "Continue working")
+	want := []string{"--resume", "sess_abc", "--output-format", "json", "Continue working"}
+	if len(args) != len(want) {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+		}
+	}
+}
+
+func TestTaskWorkNonSessionAgentStreamsDirectly(t *testing.T) {
+	// Non-session agents (codex, cursor) should stream stdout directly
+	// rather than going through the session capture path.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Non-Session Work", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/codex", nil
+	})
+	// Capture that the runner is called directly (not wrapped by session capture).
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if captured.executable != "/stub/codex" {
+		t.Fatalf("executable = %q, want /stub/codex", captured.executable)
+	}
 }
 
 func TestTaskAcceptMovesOpenToPending(t *testing.T) {

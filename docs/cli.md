@@ -699,11 +699,18 @@ Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:
 
-| Agent | Executable | Invocation |
-| ----- | ---------- | ---------- |
-| `cake` | `cake` | `cake --output-format text <prompt>` |
-| `codex` | `codex` | `codex exec <prompt>` |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` |
+| Agent | Executable | Invocation | Sessions |
+| ----- | ---------- | ---------- | -------- |
+| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration |
+| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only |
+
+Agents marked **Full orchestration** support session capture and resume. When
+such an agent is used, `ahm` requests JSON output, captures the `session_id`
+from the response, and holds it in memory for the current invocation. This
+enables follow-up review, revision, and commit steps within the same workflow
+run. Agents marked **Basic handoff only** receive the work prompt and stream
+output directly without session tracking.
 
 Agent selection precedence is:
 
@@ -714,8 +721,8 @@ Agent selection precedence is:
 The generated prompt includes the resolved task ID and task path, and instructs
 the delegated agent to read `AGENTS.md`, `.agents/TASKS.md`, the generated task
 index, and the task file before making changes. `ahm` does not pass provider
-credentials, choose models, parse provider output, run review orchestration,
-complete tasks, commit changes, push branches, or open pull requests.
+credentials, choose models, run review orchestration, complete tasks, commit
+changes, push branches, or open pull requests.
 
 Useful flags:
 

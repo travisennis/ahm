@@ -1,6 +1,8 @@
 package ahm
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -198,9 +200,12 @@ type taskStatusArgs struct {
 }
 
 type taskWorkAgent struct {
-	name       string
-	executable string
-	args       func(string) []string
+	name             string
+	executable       string
+	args             func(string) []string
+	supportsSessions bool
+	resumeArgs       func(string, string) []string // sessionID, prompt
+	parseSessionID   func([]byte) (string, error)
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
@@ -238,6 +243,9 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
+	if agent.supportsSessions {
+		return a.taskWorkWithSession(agent, executable, args)
+	}
 	return taskWorkRunCommand(a.opts.root, executable, args, a.in, a.out, a.err)
 }
 
@@ -274,8 +282,11 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "cake",
 			executable: "cake",
 			args: func(prompt string) []string {
-				return []string{"--output-format", "text", prompt}
+				return []string{"--output-format", "json", prompt}
 			},
+			supportsSessions: true,
+			resumeArgs:       cakeResumeArgs,
+			parseSessionID:   parseCakeSessionID,
 		}, nil
 	case "codex":
 		return taskWorkAgent{
@@ -369,6 +380,58 @@ func runTaskWorkCommand(root string, executable string, args []string, stdin io.
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return cmd.Run()
+}
+
+// taskWorkWithSession runs a session-capable agent, captures its stdout,
+// parses the session ID from the response, and tees the full output to the
+// user's terminal. The session ID is kept in memory for the current
+// orchestration run and is available for later review, completion, and commit
+// handoff steps.
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string) error {
+	var stdoutBuf bytes.Buffer
+	// Write captured output to both the user's terminal and the buffer.
+	out := io.MultiWriter(a.out, &stdoutBuf)
+	if err := taskWorkRunCommand(a.opts.root, executable, args, a.in, out, a.err); err != nil {
+		return err
+	}
+	sessionID, parseErr := agent.parseSessionID(stdoutBuf.Bytes())
+	if parseErr != nil {
+		fmt.Fprintf(a.err, "warning: could not capture session ID from %s output: %v\n", agent.name, parseErr)
+		return nil
+	}
+	if sessionID == "" {
+		fmt.Fprintln(a.err, "warning: no session ID returned by", agent.name)
+		return nil
+	}
+	// Session captured successfully. The session ID lives in this function's
+	// scope and will be wired into multi-step orchestration by future tasks.
+	_ = sessionID
+	return nil
+}
+
+// cakeSessionOutput represents the JSON structure cake returns with
+// --output-format json.
+type cakeSessionOutput struct {
+	SessionID string `json:"session_id"`
+	Result    string `json:"result"`
+}
+
+// parseCakeSessionID parses cake's JSON output and returns the session_id.
+func parseCakeSessionID(output []byte) (string, error) {
+	var parsed cakeSessionOutput
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return "", fmt.Errorf("invalid JSON from cake: %w", err)
+	}
+	if parsed.SessionID == "" {
+		return "", nil
+	}
+	return parsed.SessionID, nil
+}
+
+// cakeResumeArgs constructs the arguments to resume a cake session with a
+// follow-up prompt.
+func cakeResumeArgs(sessionID, prompt string) []string {
+	return []string{"--resume", sessionID, "--output-format", "json", prompt}
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
