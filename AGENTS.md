@@ -169,9 +169,10 @@ Workflow templates:
   practical. If you edit only the completed task body afterward, no index
   regeneration is needed. If you edit task front matter afterward, rerun
   `ahm index`.
-- When marking a task as cancelled, use `ahm task cancel <id>`. It updates task
-  front matter, moves the file from `.agents/.tasks/active/` to
-  `.agents/.tasks/cancelled/`, and regenerates indexes.
+- When marking a task as cancelled, use `ahm task cancel <id> --reason <text>`.
+  It updates task front matter, records the reason in the task body, moves the
+  file from `.agents/.tasks/active/` to `.agents/.tasks/cancelled/`, and
+  regenerates indexes.
 - Do not leave completed or cancelled tasks in `.agents/.tasks/active/`.
 - Do not run `ahm index` after `ahm task start`, `ahm task complete`, or
   `ahm task cancel` unless you edit task metadata by hand afterward; those
@@ -304,7 +305,7 @@ update an ADR under `docs/adr/` before implementation. Follow
   overwritten by `upgrade` or `--force`.
 - Generated indexes are owned by `ahm`; update source files and run `ahm index`.
 - Completed and cancelled tasks must be moved with `ahm task complete <id>` or
-  `ahm task cancel <id>`.
+  `ahm task cancel <id> --reason <text>`.
 - `just fix` is mutating; use it intentionally and report resulting changes.
 - Template changes may require updating template tests and CLI install/upgrade
   expectations.

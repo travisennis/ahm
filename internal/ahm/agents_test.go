@@ -24,7 +24,7 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 		"When asked to create, choose, update, or work on a task",
 		"## AHM-Owned Files",
 		"Do not edit generated task, research, or ExecPlan indexes by hand",
-		"Use `ahm task complete <id>` and `ahm task cancel <id>` for task state moves",
+		"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for",
 	)
 	assertNotContains(t, stdout, "Do not commit or push unless explicitly asked.")
 	assertNotContains(t, stdout, "## Operating Loop")

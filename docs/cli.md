@@ -776,20 +776,26 @@ Example:
 ahm task complete 001
 ```
 
-### `task cancel <id>`
+### `task cancel <id> --reason <text>`
 
 Sets a task status to `Cancelled`, moves it to
 `.agents/.tasks/cancelled/<id>.md`, removes the old file when the bucket changed,
-and regenerates indexes.
+stores the supplied reason in a `## Cancellation Reason` body section, and
+regenerates indexes. The reason is required after trimming whitespace. The
+global `--force` flag does not bypass this requirement.
+
+When the task's acceptance notes still contain the seeded `- [ ] TODO`
+placeholder, cancellation prints a warning but still proceeds.
 
 Useful flags:
 
-- `--dry-run`: previews the target path and status without writing.
+- `--reason <text>`: required reason for cancelling the task.
+- `--dry-run`: previews the target path, status, and reason without writing.
 
 Example:
 
 ```bash
-ahm task cancel 001
+ahm task cancel 001 --reason "Superseded by 002"
 ```
 
 ### `task reopen <id>`

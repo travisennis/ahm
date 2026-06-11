@@ -77,7 +77,8 @@ var agentSuggestions = []AgentSuggestion{
 		Body: "Do not edit generated task, research, or ExecPlan indexes by hand. Update the\n" +
 			"source records and run the appropriate `ahm` command.\n" +
 			"\n" +
-			"Use `ahm task complete <id>` and `ahm task cancel <id>` for task state moves.\n" +
+			"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for\n" +
+			"task state moves.\n" +
 			"\n" +
 			"Treat `.agents/*` workflow guides and `docs/adr/README.md` as ahm-managed\n" +
 			"templates. Change canonical guidance in the AHM repository, not through local\n" +

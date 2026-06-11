@@ -28,7 +28,8 @@ Before auditing or updating documentation, read `.agents/DOCS.md`.
 Do not edit generated task, research, or ExecPlan indexes by hand. Update the
 source records and run the appropriate `ahm` command.
 
-Use `ahm task complete <id>` and `ahm task cancel <id>` for task state moves.
+Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for
+task state moves.
 
 Treat `.agents/*` workflow guides and `docs/adr/README.md` as ahm-managed
 templates. Change canonical guidance in the AHM repository, not through local

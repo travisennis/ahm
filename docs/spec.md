@@ -87,6 +87,14 @@ The optional `default_work_agent` string selects the agent used by
 `cake`, `codex`, and `cursor`; the command defaults to `cake` when neither the
 flag nor metadata setting is present.
 
+`ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
+must be non-empty; `--force` does not bypass this requirement. Cancellation
+stores the reason in the task Markdown body under `## Cancellation Reason`,
+updating that section when it already exists and appending it otherwise.
+`--dry-run` validates and previews the reason without writing. Cancellation
+warns, but does not fail, when acceptance notes still contain the seeded
+`- [ ] TODO` placeholder.
+
 ## File Ownership Boundary
 
 `ahm` owns the workflow files it installs, maintains, generates, and upgrades.

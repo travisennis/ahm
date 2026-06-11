@@ -368,7 +368,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Cancelled"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{ids: []string{"001"}, status: "Cancelled", reason: "No longer needed"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -383,6 +383,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	if !strings.Contains(out.String(), "001 -> Cancelled") {
 		t.Fatalf("output missing move message: %q", out.String())
 	}
+	assertFileContainsAll(t, cancelledPath, "## Cancellation Reason", "No longer needed")
 }
 
 func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
@@ -715,12 +716,12 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "001 [Pending] P1 M First Task")
 
-	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "002")
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "002", "--reason", "No longer needed")
 	if code != 0 {
 		t.Fatalf("cancel exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Cancelled")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled", "## Cancellation Reason", "No longer needed")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "list", "--status", "cancelled")
 	if code != 0 {
@@ -798,6 +799,119 @@ func TestTaskCompleteWarnsForIncompleteAcceptanceByDefault(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
+}
+
+func TestTaskCancelRequiresReason(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "No Reason")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001")
+	if code == 0 {
+		t.Fatalf("expected cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "task cancel requires --reason")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
+		t.Fatal("cancelled file should not exist after missing reason failure")
+	}
+}
+
+func TestTaskCancelForceDoesNotBypassMissingReason(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "No Reason")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--force", "task", "cancel", "001")
+	if code == 0 {
+		t.Fatalf("expected force cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "task cancel requires --reason")
+}
+
+func TestTaskCancelPersistsReason(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Cancelled Task", "--status", "Pending")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001", "--reason", "Superseded by 002")
+	if code != 0 {
+		t.Fatalf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Cancelled")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md"),
+		"status: Cancelled",
+		"## Cancellation Reason\n\nSuperseded by 002",
+	)
+}
+
+func TestTaskCancelDryRunShowsReasonWithoutWriting(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dry Run Cancel")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "cancel", "001", "--reason", "Superseded")
+	if code != 0 {
+		t.Fatalf("dry-run cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/cancelled/001.md", "status: Cancelled", "reason: Superseded")
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
+		t.Fatal("cancelled file should not exist after dry-run cancellation")
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+}
+
+func TestTaskCancelWarnsForSeededAcceptanceTODO(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001", "--reason", "Obsolete")
+	if code != 0 {
+		t.Fatalf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
+}
+
+func TestTaskCancelReplacesExistingReason(t *testing.T) {
+	body := "## Summary\n\nOld work.\n\n## Cancellation Reason\n\nOld reason.\n\n## Notes\n\nKeep this."
+	got := upsertCancellationReason(body, "New reason.")
+	assertContainsAll(t, got,
+		"## Summary\n\nOld work.",
+		"## Cancellation Reason\n\nNew reason.\n\n## Notes",
+		"## Notes\n\nKeep this.",
+	)
+	assertNotContains(t, got, "Old reason.")
 }
 
 func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {

@@ -116,19 +116,21 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(work)
 
 	for _, spec := range []struct {
-		use     string
-		aliases []string
-		short   string
-		status  string
+		use        string
+		aliases    []string
+		short      string
+		status     string
+		withReason bool
 	}{
 		{use: "accept <id>", short: "Accept a task into the ready queue", status: "Pending"},
 		{use: "start <id>", short: "Mark a task in progress", status: "In Progress"},
 		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", status: "Completed"},
-		{use: "cancel <id>", short: "Mark a task cancelled", status: "Cancelled"},
+		{use: "cancel <id>", short: "Mark a task cancelled", status: "Cancelled", withReason: true},
 		{use: "reopen <id>", short: "Reopen a task", status: "Pending"},
 	} {
 		status := spec.status
-		task.AddCommand(&cobra.Command{
+		reason := ""
+		cmd := &cobra.Command{
 			Use:     spec.use,
 			Aliases: spec.aliases,
 			Short:   spec.short,
@@ -137,9 +139,17 @@ func (a *app) taskCommand() *cobra.Command {
 				if err := a.detectRoot(); err != nil {
 					return err
 				}
-				return a.taskStatus(args, status)
+				return a.taskStatusWithArgs(taskStatusArgs{
+					ids:    args,
+					status: status,
+					reason: reason,
+				})
 			},
-		})
+		}
+		if spec.withReason {
+			cmd.Flags().StringVar(&reason, "reason", "", "Reason for cancelling the task")
+		}
+		task.AddCommand(cmd)
 	}
 
 	task.AddCommand(a.taskDepCommand())
@@ -179,6 +189,12 @@ type taskCreateArgs struct {
 type taskWorkArgs struct {
 	id    string
 	agent string
+}
+
+type taskStatusArgs struct {
+	ids    []string
+	status string
+	reason string
 }
 
 type taskWorkAgent struct {
@@ -665,9 +681,18 @@ func (a *app) taskShow(argv []string) error {
 }
 
 func (a *app) taskStatus(argv []string, status string) error {
-	task, err := a.resolveTask(argv[0])
+	return a.taskStatusWithArgs(taskStatusArgs{ids: argv, status: status})
+}
+
+func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
+	task, err := a.resolveTask(parsed.ids[0])
 	if err != nil {
 		return err
+	}
+	status := parsed.status
+	cancelReason := strings.TrimSpace(parsed.reason)
+	if status == "Cancelled" && cancelReason == "" {
+		return usageError("task cancel requires --reason")
 	}
 
 	// Enforce dependency completion before completing a task,
@@ -695,9 +720,10 @@ func (a *app) taskStatus(argv []string, status string) error {
 		}
 	}
 
-	// True no-op: status and bucket both match.
+	// True no-op: status and bucket both match. Cancellation still rewrites the
+	// task so the required reason can be inserted or replaced.
 	expectedBucket := bucketForStatus(status)
-	if task.Status == status && task.Bucket == expectedBucket {
+	if task.Status == status && task.Bucket == expectedBucket && status != "Cancelled" {
 		fmt.Fprintf(a.out, "%s already %s\n", task.ID, status)
 		return nil
 	}
@@ -722,13 +748,21 @@ func (a *app) taskStatus(argv []string, status string) error {
 			}
 		}
 	}
+	if status == "Cancelled" {
+		warnCancellationAcceptancePlaceholder(a.err, task)
+		task.Body = upsertCancellationReason(task.Body, cancelReason)
+	}
 
 	task.Status = status
 	task.Updated = time.Now().Format(time.RFC3339)
 	bucket := bucketForStatus(status)
 	target := filepath.Join(a.opts.root, ".agents", ".tasks", bucket, task.ID+".md")
 	if a.opts.dryRun {
-		return a.emit(map[string]any{"move": target, "status": status})
+		preview := map[string]any{"move": target, "status": status}
+		if status == "Cancelled" {
+			preview["reason"] = cancelReason
+		}
+		return a.emit(preview)
 	}
 	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 		return err
@@ -743,6 +777,58 @@ func (a *app) taskStatus(argv []string, status string) error {
 	}
 	fmt.Fprintf(a.out, "%s -> %s\n", task.ID, status)
 	return nil
+}
+
+func warnCancellationAcceptancePlaceholder(stderr io.Writer, task Task) {
+	if stderr == nil {
+		return
+	}
+	for _, finding := range parseAcceptanceNotes([]byte(task.Body)) {
+		if finding == taskAcceptancePlaceholder {
+			fmt.Fprintln(stderr, "warning:", finding.message(task.ID))
+		}
+	}
+}
+
+func upsertCancellationReason(body string, reason string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		level := headingLevel(line)
+		if level != 2 && level != 3 {
+			continue
+		}
+		trimmedLine := strings.TrimSpace(line)
+		if !isCancellationReasonHeading(trimmedLine[level:]) {
+			continue
+		}
+		end := len(lines)
+		for j := i + 1; j < len(lines); j++ {
+			nextLevel := headingLevel(lines[j])
+			if nextLevel > 0 && nextLevel <= level {
+				end = j
+				break
+			}
+		}
+		replacement := []string{trimmedLine, "", reason}
+		if end < len(lines) {
+			replacement = append(replacement, "")
+		}
+		updated := append([]string{}, lines[:i]...)
+		updated = append(updated, replacement...)
+		updated = append(updated, lines[end:]...)
+		return strings.TrimSpace(strings.Join(updated, "\n"))
+	}
+	body = strings.TrimSpace(body)
+	section := "## Cancellation Reason\n\n" + reason
+	if body == "" {
+		return section
+	}
+	return body + "\n\n" + section
+}
+
+func isCancellationReasonHeading(heading string) bool {
+	return strings.EqualFold(strings.TrimSpace(heading), "Cancellation Reason")
 }
 
 func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
