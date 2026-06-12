@@ -699,11 +699,11 @@ Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:
 
-| Agent | Executable | Invocation | Sessions | Review |
-| ----- | ---------- | ---------- | -------- | ------ |
-| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration |
-| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported |
+| Agent | Executable | Invocation | Sessions | Review | Completion |
+| ----- | ---------- | ---------- | -------- | ------ | ---------- |
+| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration | Full orchestration |
+| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported | Not supported |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported | Not supported |
 
 Agents marked **Full orchestration** for Sessions support session capture and
 resume. When such an agent is used, `ahm` requests JSON output, captures the
@@ -727,6 +727,22 @@ because they lack the session capture needed for the feedback-resume step.
 Passing `--review` with a non-review-capable agent prints a warning and
 proceeds without the review step.
 
+Agents marked **Full orchestration** for Completion support session-based
+completion handoff. When `--complete` is passed, `ahm` resumes the original
+work session after the work (and after review, if `--review` is also set) and
+asks the delegated agent to fill the task Acceptance Notes, run the required
+verification, and mark the task completed with `ahm task complete <id>` when
+acceptance is satisfied.
+
+`ahm` does not silently complete tasks. The completion action is owned by the
+delegated agent. Strict acceptance failures remain surfaced by `ahm task complete`.
+`--complete` is an opt-in flag; without it, no completion handoff runs.
+Passing `--complete` with a non-session-capable agent prints a warning and
+proceeds without the completion step.
+
+When `--complete` is combined with `--review`, the review and feedback-resume
+step runs first, then the completion handoff runs.
+
 Agent selection precedence is:
 
 1. `--agent <cake|codex|cursor>`
@@ -745,6 +761,9 @@ Useful flags:
 - `--agent <cake|codex|cursor>`: selects the external coding-agent CLI.
 - `--review`: runs an independent review pass (deslop for `cake`) after the
   work session, and feeds actionable feedback back into the work session.
+- `--complete`: runs a completion handoff after the work session (and after
+  review, if `--review` is also set) that asks the delegated agent to fill
+  acceptance notes, run verification, and run `ahm task complete <id>`.
 - `--dry-run`: previews the selected executable, arguments, task ID, agent, and
   resulting status without rewriting the task or invoking the external CLI.
 
@@ -762,6 +781,8 @@ Examples:
 ahm task work 001
 ahm task work 001 --agent codex
 ahm task work 001 --review
+ahm task work 001 --complete
+ahm task work 001 --review --complete
 ahm --dry-run task work 001 --agent cursor
 ```
 

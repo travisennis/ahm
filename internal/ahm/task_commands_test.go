@@ -1784,6 +1784,311 @@ func TestTaskWorkReviewWithoutFlag(t *testing.T) {
 	assertNotContains(t, stderr, "--- Running review ---")
 }
 
+func TestTaskWorkCompletionHandoff(t *testing.T) {
+	// --complete should resume the session with a completion prompt after work.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Completable", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocations []struct {
+		root       string
+		executable string
+		args       []string
+	}
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocations = append(invocations, struct {
+			root       string
+			executable string
+			args       []string
+		}{root, executable, args})
+		// First invocation: session work.
+		if len(invocations) == 1 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_complete123","result":"Work done."}`)
+			return err
+		}
+		// Second invocation: resume with completion prompt.
+		_, err := fmt.Fprint(stdout, `{"result":"Completed task."}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
+	if code != 0 {
+		t.Fatalf("task work with --complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have 2 invocations: session work, completion resume.
+	if len(invocations) != 2 {
+		t.Fatalf("expected 2 invocations (session, completion), got %d", len(invocations))
+	}
+
+	// First invocation: session work args.
+	if len(invocations[0].args) < 3 || invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "json" {
+		t.Fatalf("first invocation args = %#v, want session work prefix", invocations[0].args)
+	}
+
+	// Second invocation: resume with session ID and completion prompt.
+	args := invocations[1].args
+	if len(args) < 4 || args[0] != "--resume" || args[1] != "sess_complete123" {
+		t.Fatalf("second invocation args = %#v, want resume with session ID", args)
+	}
+	lastArg := args[len(args)-1]
+	if !strings.Contains(lastArg, "Complete task 001") {
+		t.Fatalf("completion prompt should mention task ID, got %q", lastArg)
+	}
+	if !strings.Contains(lastArg, "ahm task complete 001") {
+		t.Fatalf("completion prompt should mention ahm task complete, got %q", lastArg)
+	}
+
+	// Status messages should appear on stderr.
+	assertContainsAll(t, stderr, "--- Running completion handoff ---")
+
+	// Task should be marked In Progress.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
+func TestTaskWorkCompletionOnNonSessionAgent(t *testing.T) {
+	// Non-session-capable agents (codex) should get a warning with --complete.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Codex No Complete", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/codex", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex", "--complete")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have exactly 1 invocation (direct stream, no completion).
+	if invocationCount != 1 {
+		t.Fatalf("expected 1 invocation (direct stream), got %d", invocationCount)
+	}
+
+	// Should warn that --complete is unsupported.
+	assertContainsAll(t, stderr, "warning: --complete is not supported by agent codex")
+	// Should not contain completion messages.
+	assertNotContains(t, stderr, "--- Running completion handoff ---")
+}
+
+func TestTaskWorkCompletionWithReview(t *testing.T) {
+	// --review and --complete should run review first, then completion.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Both Flags", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	type invocation struct {
+		args     []string
+		hasStdin bool
+	}
+	var invocations []invocation
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		inv := invocation{args: append([]string(nil), args...), hasStdin: stdin != nil}
+		invocations = append(invocations, inv)
+		switch len(invocations) {
+		case 1:
+			// Session work.
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_both456","result":"Work."}`)
+			return err
+		case 2:
+			// Review.
+			_, err := fmt.Fprint(stdout, `{"result":"Minor issues found."}`)
+			return err
+		case 3:
+			// Resume with review feedback.
+			_, err := fmt.Fprint(stdout, `{"result":"Addressed."}`)
+			return err
+		default:
+			// Resume with completion prompt.
+			_, err := fmt.Fprint(stdout, `{"result":"Completed."}`)
+			return err
+		}
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review", "--complete")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have 4 invocations: session, review, resume-feedback, completion.
+	if len(invocations) != 4 {
+		t.Fatalf("expected 4 invocations (session, review, resume, completion), got %d", len(invocations))
+	}
+
+	// First: session work.
+	if len(invocations[0].args) < 3 || invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "json" {
+		t.Fatalf("first invocation args = %#v, want session work", invocations[0].args)
+	}
+	if !invocations[0].hasStdin {
+		t.Fatal("first invocation should have stdin")
+	}
+
+	// Second: review (no stdin).
+	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "deslop" {
+		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
+	}
+	if invocations[1].hasStdin {
+		t.Fatal("review invocation should have no stdin")
+	}
+
+	// Third: resume with feedback.
+	if len(invocations[2].args) < 4 || invocations[2].args[0] != "--resume" || invocations[2].args[1] != "sess_both456" {
+		t.Fatalf("third invocation args = %#v, want resume with session", invocations[2].args)
+	}
+
+	// Fourth: resume with completion prompt.
+	if len(invocations[3].args) < 4 || invocations[3].args[0] != "--resume" || invocations[3].args[1] != "sess_both456" {
+		t.Fatalf("fourth invocation args = %#v, want resume with session", invocations[3].args)
+	}
+	lastArg := invocations[3].args[len(invocations[3].args)-1]
+	if !strings.Contains(lastArg, "Complete task 001") {
+		t.Fatalf("completion prompt should mention task ID, got %q", lastArg)
+	}
+
+	assertContainsAll(t, stderr, "--- Running review ---")
+	assertContainsAll(t, stderr, "--- Running completion handoff ---")
+}
+
+func TestTaskWorkCompletionMissingSession(t *testing.T) {
+	// When no session ID is captured, completion handoff should warn and skip.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "No Session", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			// Session work returns no session_id.
+			_, err := fmt.Fprint(stdout, `{"result":"Done."}`)
+			return err
+		}
+		t.Fatal("should not have additional invocations without a session ID")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Only the session work invocation should happen.
+	if invocationCount != 1 {
+		t.Fatalf("expected 1 invocation (session only), got %d", invocationCount)
+	}
+
+	// Should warn about missing session ID, not about completion.
+	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
+	assertNotContains(t, stderr, "--- Running completion handoff ---")
+}
+
+func TestTaskWorkCompletionFails(t *testing.T) {
+	// When the completion handoff command fails, the error should be wrapped
+	// with a descriptive prefix, matching the runReview error pattern.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Failing Complete", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			// Session work succeeds.
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_failcomplete","result":"Work."}`)
+			return err
+		}
+		// Completion handoff fails.
+		return fmt.Errorf("exit status 1")
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
+	if code == 0 {
+		t.Fatal("expected task work to fail when completion handoff fails")
+	}
+
+	assertContainsAll(t, stderr, "completion handoff failed:")
+	assertContainsAll(t, stderr, "exit status 1")
+}
+
+func TestTaskWorkCompletionDryRun(t *testing.T) {
+	// Dry run with --complete should preview the completion flag.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dry Complete", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--complete")
+	if code != 0 {
+		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "complete: true")
+	assertNotContains(t, stderr, "--- Running completion handoff ---")
+	// Task should remain Pending.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkCompletionPromptContent(t *testing.T) {
+	// Verify the completion prompt structure and content.
+	agent, err := parseTaskWorkAgent("cake")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !agent.supportsSessions {
+		t.Fatal("cake should support sessions")
+	}
+
+	// Build a minimal app to generate the prompt.
+	a := &app{opts: options{root: "/tmp"}}
+	prompt := a.buildTaskWorkCompletionPrompt("042")
+
+	assertContainsAll(t, prompt,
+		"Complete task 042",
+		"Fill the task Acceptance Notes",
+		"run the required verification",
+		"ahm task complete 042",
+		"Do not commit or push",
+	)
+}
+
+func TestTaskWorkCompletionDryRunWithReview(t *testing.T) {
+	// Dry run with both --review and --complete previews both flags.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Both Dry", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	// Note: review flag is not included in dry-run output, but complete should be.
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--review", "--complete")
+	if code != 0 {
+		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "complete: true")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
 func TestTaskAcceptMovesOpenToPending(t *testing.T) {
 	root := t.TempDir()
 	_, stderr, code := runCLI(t, "--root", root, "init")
