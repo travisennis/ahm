@@ -540,9 +540,11 @@ Text output is sorted by priority rank and then task ID:
 
 Useful flags:
 
-- `--status <status>`: filters tasks by status, such as `Pending`,
-  `Completed`, or `Cancelled`. Status matching is case-insensitive and accepts
-  `in-progress` for `In Progress`.
+- `--status <status>`: filters tasks by one or more statuses. Accepts a
+  comma-separated list (`--status pending,completed`) or repeated flags
+  (`--status pending --status completed`). Status matching is per-entry
+  case-insensitive and accepts `in-progress` for `In Progress`.
+  Duplicate statuses are ignored.
 - `--json`: emits parsed task structs.
 
 Example:
@@ -550,8 +552,8 @@ Example:
 ```bash
 ahm task list
 ahm task list --status pending
-ahm task list --status completed
-ahm task list --status cancelled
+ahm task list --status pending,completed
+ahm task list --status open --status "in progress"
 ```
 
 ### `task ready`

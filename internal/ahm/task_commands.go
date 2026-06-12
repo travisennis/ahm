@@ -162,7 +162,7 @@ func (a *app) taskCommand() *cobra.Command {
 }
 
 func (a *app) taskListCommand(use string, aliases []string, short string, mode string) *cobra.Command {
-	status := ""
+	var statuses []string
 	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
@@ -172,11 +172,11 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskList(mode, status)
+			return a.taskList(mode, statuses)
 		},
 	}
 	if mode == "all" {
-		cmd.Flags().StringVar(&status, "status", "", "Filter tasks by status")
+		cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter tasks by status (comma-separated or repeatable)")
 	}
 	return cmd
 }
@@ -696,18 +696,22 @@ func nextTaskID(tasks []Task, root string) string {
 	return fmt.Sprintf("%03d", maxID+1)
 }
 
-func (a *app) taskList(mode string, status string) error {
+func (a *app) taskList(mode string, statuses []string) error {
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 	}
 	filtered := filterTasks(tasks, mode)
-	if status != "" {
-		normalized, err := normalizeTaskStatus(status)
-		if err != nil {
-			return err
+	if len(statuses) > 0 {
+		allowed := make(map[string]bool, len(statuses))
+		for _, raw := range statuses {
+			normalized, err := normalizeTaskStatus(raw)
+			if err != nil {
+				return err
+			}
+			allowed[normalized] = true
 		}
-		filtered = filterTasksByStatus(filtered, normalized)
+		filtered = filterTasksByStatus(filtered, allowed)
 	}
 	if a.opts.json {
 		return a.emit(filtered)
@@ -775,10 +779,10 @@ func filterTasks(tasks []Task, mode string) []Task {
 	return out
 }
 
-func filterTasksByStatus(tasks []Task, status string) []Task {
+func filterTasksByStatus(tasks []Task, allowed map[string]bool) []Task {
 	var out []Task
 	for _, task := range tasks {
-		if task.Status == status {
+		if allowed[task.Status] {
 			out = append(out, task)
 		}
 	}

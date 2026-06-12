@@ -460,14 +460,74 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "002.md"), "002", "Completed Task", "Completed", "")
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "003.md"), "003", "Cancelled Task", "Cancelled", "")
 
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskList("all", "completed"); err != nil {
-		t.Fatal(err)
-	}
-	got := out.String()
-	assertContainsAll(t, got, "002 [Completed] P2 S Completed Task")
-	assertNotContains(t, got, "001 [Pending]", "003 [Cancelled]")
+	t.Run("single status", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", []string{"completed"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "002 [Completed] P2 S Completed Task")
+		assertNotContains(t, got, "001 [Pending]", "003 [Cancelled]")
+	})
+
+	t.Run("multiple statuses", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", []string{"pending", "cancelled"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S Pending Task", "003 [Cancelled] P2 S Cancelled Task")
+		assertNotContains(t, got, "002 [Completed]")
+	})
+
+	t.Run("normalization applies per entry", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", []string{"PENDING", "CANCELLED"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S Pending Task", "003 [Cancelled] P2 S Cancelled Task")
+		assertNotContains(t, got, "002 [Completed]")
+	})
+
+	t.Run("duplicate statuses are deduplicated", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", []string{"pending", "Pending"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending]")
+		assertNotContains(t, got, "002 [Completed]", "003 [Cancelled]")
+	})
+
+	t.Run("invalid status returns error", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		err := a.taskList("all", []string{"pending", "bogus"})
+		if err == nil {
+			t.Fatal("expected error for invalid status")
+		}
+		if !strings.Contains(err.Error(), "unsupported task status") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("empty string in comma tokens returns error", func(t *testing.T) {
+		// Simulate what happens when --status pending, is used (trailing comma)
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		err := a.taskList("all", []string{"pending", ""})
+		if err == nil {
+			t.Fatal("expected error for empty status")
+		}
+		if !strings.Contains(err.Error(), "unsupported task status") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
@@ -513,7 +573,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task list skips malformed task with warning", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("all", ""); err != nil {
+		if err := a.taskList("all", nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -531,7 +591,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task ready skips malformed task", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("ready", ""); err != nil {
+		if err := a.taskList("ready", nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
