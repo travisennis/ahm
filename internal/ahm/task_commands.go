@@ -326,8 +326,16 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "codex",
 			executable: "codex",
 			args: func(prompt string) []string {
-				return []string{"exec", prompt}
+				return []string{"exec", "--json", prompt}
 			},
+			supportsSessions: true,
+			resumeArgs:       codexResumeArgs,
+			parseSessionID:   parseCodexSessionID,
+			supportsReview:   true,
+			reviewArgs: func(prompt string) []string {
+				return []string{"review", "--uncommitted", prompt}
+			},
+			parseReviewFeedback: parseCodexReviewFeedback,
 		}, nil
 	case "cursor", "cursoragent":
 		return taskWorkAgent{
@@ -603,6 +611,51 @@ func parseCakeReviewFeedback(output []byte) (string, error) {
 		}
 	}
 	return lastResult, nil
+}
+
+// codexStreamEvent represents a single JSONL event in codex's --json output.
+type codexStreamEvent struct {
+	Type     string          `json:"type"`
+	ThreadID string          `json:"thread_id,omitempty"`
+	Item     *codexItemEvent `json:"item,omitempty"`
+}
+
+type codexItemEvent struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+// parseCodexSessionID parses codex JSONL output and returns the thread_id
+// from the first thread.started event.
+func parseCodexSessionID(output []byte) (string, error) {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt codexStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "thread.started" && evt.ThreadID != "" {
+			return evt.ThreadID, nil
+		}
+	}
+	return "", nil
+}
+
+// codexResumeArgs constructs the arguments to resume a codex session with a
+// follow-up prompt.
+func codexResumeArgs(sessionID, prompt string) []string {
+	return []string{"exec", "resume", "--json", sessionID, prompt}
+}
+
+// parseCodexReviewFeedback parses codex review --uncommitted plain-text output
+// and returns it as review feedback. The codex review command does not support
+// --json, so the full stdout is treated as feedback.
+func parseCodexReviewFeedback(output []byte) (string, error) {
+	feedback := strings.TrimSpace(string(output))
+	return feedback, nil
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {

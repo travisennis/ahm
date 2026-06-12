@@ -1150,7 +1150,7 @@ func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if configured.executable != "/stub/codex" || len(configured.args) != 2 || configured.args[0] != "exec" {
+	if configured.executable != "/stub/codex" || len(configured.args) != 3 || configured.args[0] != "exec" || configured.args[1] != "--json" {
 		t.Fatalf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
 	}
 
@@ -1339,7 +1339,7 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		supportsReview   bool
 	}{
 		{name: "cake", executable: "cake", prefix: []string{"--output-format", "stream-json"}, supportsSessions: true, supportsReview: true},
-		{name: "codex", executable: "codex", prefix: []string{"exec"}},
+		{name: "codex", executable: "codex", prefix: []string{"exec", "--json"}, supportsSessions: true, supportsReview: true},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "text"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1540,24 +1540,85 @@ func TestCakeResumeArgs(t *testing.T) {
 	}
 }
 
+func TestCodexResumeArgs(t *testing.T) {
+	args := codexResumeArgs("thread_abc", "Continue working")
+	want := []string{"exec", "resume", "--json", "thread_abc", "Continue working"}
+	if len(args) != len(want) {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+		}
+	}
+}
+
+func TestParseCodexSessionID(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		wantID string
+	}{
+		{name: "thread.started", output: `{"type":"thread.started","thread_id":"thread_abc123"}`, wantID: "thread_abc123"},
+		{name: "multiple events", output: "{\"type\":\"turn.started\"}\n{\"type\":\"thread.started\",\"thread_id\":\"thread_xyz\"}", wantID: "thread_xyz"},
+		{name: "no thread.started", output: `{"type":"turn.started"}`, wantID: ""},
+		{name: "empty thread_id", output: `{"type":"thread.started","thread_id":""}`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "empty output", output: ``, wantID: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, err := parseCodexSessionID([]byte(tt.output))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tt.wantID {
+				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestParseCodexReviewFeedback(t *testing.T) {
+	output := "Found 3 issues:\n1. Missing error handling\n2. Hardcoded value\n"
+	feedback, err := parseCodexReviewFeedback([]byte(output))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "Found 3 issues:\n1. Missing error handling\n2. Hardcoded value"
+	if feedback != want {
+		t.Fatalf("feedback = %q, want %q", feedback, want)
+	}
+}
+
+func TestParseCodexReviewFeedbackEmpty(t *testing.T) {
+	feedback, err := parseCodexReviewFeedback([]byte(""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if feedback != "" {
+		t.Fatalf("feedback = %q, want empty", feedback)
+	}
+}
+
 func TestTaskWorkNonSessionAgentStreamsDirectly(t *testing.T) {
-	// Non-session agents (codex, cursor) should stream stdout directly
+	// Non-session agents (cursor) should stream stdout directly
 	// rather than going through the session capture path.
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Non-Session Work", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
-		return "/stub/codex", nil
+		return "/stub/cursor-agent", nil
 	})
 	// Capture that the runner is called directly (not wrapped by session capture).
 	var captured taskWorkCapture
 	stubTaskWorkRunner(t, captured.runner)
 
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex")
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor")
 	if code != 0 {
 		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if captured.executable != "/stub/codex" {
-		t.Fatalf("executable = %q, want /stub/codex", captured.executable)
+	if captured.executable != "/stub/cursor-agent" {
+		t.Fatalf("executable = %q, want /stub/cursor-agent", captured.executable)
 	}
 }
 
@@ -1761,12 +1822,12 @@ func TestTaskWorkReviewFails(t *testing.T) {
 }
 
 func TestTaskWorkReviewOnNonSessionAgent(t *testing.T) {
-	// Non-session-capable agents (codex) should not get review orchestration
+	// Non-session-capable agents (cursor) should not get review orchestration
 	// even when --review is set, because they don't have session capture.
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Codex No Review", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cursor No Review", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
-		return "/stub/codex", nil
+		return "/stub/cursor-agent", nil
 	})
 
 	var invocationCount int
@@ -1775,7 +1836,7 @@ func TestTaskWorkReviewOnNonSessionAgent(t *testing.T) {
 		return nil
 	})
 
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex", "--review")
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--review")
 	if code != 0 {
 		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -1788,7 +1849,7 @@ func TestTaskWorkReviewOnNonSessionAgent(t *testing.T) {
 	// Should not contain review messages.
 	assertNotContains(t, stderr, "--- Running review ---")
 	// But should warn that --review is unsupported.
-	assertContainsAll(t, stderr, "warning: --review is not supported by agent codex")
+	assertContainsAll(t, stderr, "warning: --review is not supported by agent cursor")
 }
 
 func TestTaskWorkReviewParseError(t *testing.T) {
@@ -1927,11 +1988,11 @@ func TestTaskWorkCompletionHandoff(t *testing.T) {
 }
 
 func TestTaskWorkCompletionOnNonSessionAgent(t *testing.T) {
-	// Non-session-capable agents (codex) should get a warning with --complete.
+	// Non-session-capable agents (cursor) should get a warning with --complete.
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Codex No Complete", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cursor No Complete", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
-		return "/stub/codex", nil
+		return "/stub/cursor-agent", nil
 	})
 
 	var invocationCount int
@@ -1940,7 +2001,7 @@ func TestTaskWorkCompletionOnNonSessionAgent(t *testing.T) {
 		return nil
 	})
 
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex", "--complete")
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--complete")
 	if code != 0 {
 		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -1951,7 +2012,7 @@ func TestTaskWorkCompletionOnNonSessionAgent(t *testing.T) {
 	}
 
 	// Should warn that --complete is unsupported.
-	assertContainsAll(t, stderr, "warning: --complete is not supported by agent codex")
+	assertContainsAll(t, stderr, "warning: --complete is not supported by agent cursor")
 	// Should not contain completion messages.
 	assertNotContains(t, stderr, "--- Running completion handoff ---")
 }

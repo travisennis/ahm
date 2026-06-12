@@ -44,12 +44,14 @@ The command only performs one deterministic state transition before delegation:
 and dependency checks. Missing external executables are detected before any task
 file is rewritten.
 
-For session-capable agents (currently `cake`), `ahm` requests `stream-json` output
-and parses the `session_id` from the first `task_start` event to retain it in
-memory for the current orchestration run. This enables follow-up steps such as
+For session-capable agents (`cake` and `codex`), `ahm` requests structured JSON output
+(`--output-format stream-json` for `cake`, `--json` for `codex`) and parses the
+session identifier from the first output event — `task_start.session_id` for `cake`,
+`thread.started.thread_id` for `codex` — to retain it in memory for the current
 review, revision, and commit within the same workflow invocation. Provider
-output is parsed only for the `session_id` and `result` fields; results are
-still produced by the delegated agent.
+output is parsed only for the session identifier and review-feedback fields
+needed by the orchestration hooks; results are still produced by the delegated
+agent.
 
 With `--review`, `ahm` runs an independent review pass (deslop for `cake`)
 using the delegated agent and feeds actionable feedback back into the original
@@ -82,8 +84,8 @@ the delegated agent and the user's installed CLI configuration.
   task IDs or recreating task prompts manually.
 - The repo-local default agent is explicit and testable.
 - `ahm` keeps ownership of task validation and state transition behavior while
-  confining session parsing to a single `session_id` field in a provider-agnostic
-  capability boundary.
+  confining provider-specific output parsing to the small capability boundary
+  needed for session resume and review feedback.
 
 ### Negative
 
