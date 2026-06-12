@@ -470,6 +470,12 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	return nil
 }
 
+// taskWorkReviewPrompt is the prompt runReview sends to the review agent.
+// The fixture capture script (scripts/capture-agent-fixtures.sh) replays the
+// same prompt so the committed review golden reflects a real review run;
+// TestCaptureScriptUsesReviewPrompt keeps the two in sync.
+const taskWorkReviewPrompt = "Run the deslop skill on the current uncommitted changes."
+
 // runReview runs an independent review pass using the agent's review
 // capability, then feeds actionable feedback back into the original work
 // session. If the review produces no feedback, the feedback-resume step is
@@ -477,8 +483,7 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewPrompt := "Run the deslop skill on the current uncommitted changes."
-	reviewArgs := agent.reviewArgs(reviewPrompt)
+	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt)
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)

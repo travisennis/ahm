@@ -55,6 +55,11 @@ install-tools:
 	go install golang.org/x/vuln/cmd/govulncheck@{{ govulncheck_version }}
 	go install github.com/goreleaser/goreleaser/v2@{{ goreleaser_version }}
 
+# Refresh golden agent transcripts from the real agent CLIs. Makes real LLM
+# calls (costs money); run manually after agent upgrades, never in CI.
+capture-agent-fixtures:
+	./scripts/capture-agent-fixtures.sh
+
 quick:
 	go test ./...
 	go vet ./...

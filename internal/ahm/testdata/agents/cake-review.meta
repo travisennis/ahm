@@ -1,0 +1,3 @@
+agent: cake 0.1.0
+captured: 2026-06-12
+command: cake --max-tokens 512 --no-session --skills deslop --output-format stream-json Run the deslop skill on the current uncommitted changes.

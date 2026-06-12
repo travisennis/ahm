@@ -1,0 +1,40 @@
+# Golden Agent Transcripts
+
+These files are real output captured from the agent CLIs that `ahm task work`
+orchestrates. They exist so the output parsers in
+`internal/ahm/task_commands.go` are tested against actual tool output instead
+of hand-written fixtures that can encode a parser's own invented schema (the
+failure mode behind the cake stream-json regression fixed in task 087).
+
+## Layout
+
+Each `<name>.jsonl` transcript has a `<name>.meta` provenance sidecar
+recording the agent version, capture date, and the exact command used
+(JSONL cannot carry comments). `task_commands_golden_test.go` consumes the
+transcripts in `just ci` and fails — never skips — when one is missing.
+
+- `cake-work.jsonl` — `cake --output-format stream-json` work run.
+- `cake-review.jsonl` — `cake --no-session --skills deslop` review run.
+- `codex-exec.jsonl` — `codex exec --json` work run.
+- `codex-resume.jsonl` — `codex exec resume --json <thread-id>` resuming the
+  session captured in `codex-exec.jsonl`; the two are a linked pair.
+
+## Refreshing
+
+```bash
+just capture-agent-fixtures
+```
+
+The recipe re-runs each agent found on PATH with a trivial prompt and low
+token limits, scrubs machine-specific paths and the local username, and
+rewrites the goldens and sidecars. Agents not on PATH are skipped.
+
+This makes real LLM calls and costs money: run it manually when an agent CLI
+upgrade may have changed its output schema, never in CI. Session IDs and
+usage numbers in the transcripts are fine to commit.
+
+The `command:` recorded in each sidecar is the capture command, not the exact
+invocation ahm builds: captures add cost-limiting flags (`--max-tokens`,
+`model_reasoning_effort`) that ahm never passes. The flags that shape the
+output schema — output format, session mode, skills, resume form — match the
+arg builders in `internal/ahm/task_commands.go`.
