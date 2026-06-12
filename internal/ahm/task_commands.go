@@ -561,8 +561,10 @@ func truncatedID(id string, maxLen int) string {
 }
 
 // cakeStreamEvent represents a single line in cake's stream-json output.
+// Records are serde-tagged with a top-level "type" field; task_complete
+// flattens the outcome, so "result" appears at the top level too.
 type cakeStreamEvent struct {
-	Event     string `json:"event"`
+	Type      string `json:"type"`
 	SessionID string `json:"session_id,omitempty"`
 	Result    string `json:"result,omitempty"`
 }
@@ -579,7 +581,7 @@ func parseCakeSessionID(output []byte) (string, error) {
 		if err := json.Unmarshal(line, &evt); err != nil {
 			continue
 		}
-		if evt.Event == "task_start" && evt.SessionID != "" {
+		if evt.Type == "task_start" && evt.SessionID != "" {
 			return evt.SessionID, nil
 		}
 	}
@@ -606,7 +608,7 @@ func parseCakeReviewFeedback(output []byte) (string, error) {
 		if err := json.Unmarshal(line, &evt); err != nil {
 			continue
 		}
-		if evt.Event == "task_complete" {
+		if evt.Type == "task_complete" {
 			lastResult = evt.Result
 		}
 	}

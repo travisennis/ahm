@@ -1429,9 +1429,9 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 		if len(args) < 3 || args[0] != "--output-format" || args[1] != "stream-json" {
 			t.Fatalf("unexpected args = %#v", args)
 		}
-		fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_abc123","task_id":"tsk_xyz"}`)
-		fmt.Fprintln(stdout, `{"event":"message","content":"Working..."}`)
-		fmt.Fprint(stdout, `{"event":"task_complete","result":"Work completed.","session_id":"sess_abc123"}`)
+		fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_abc123","task_id":"tsk_xyz"}`)
+		fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"Working..."}`)
+		fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work completed.","session_id":"sess_abc123"}`)
 		return nil
 	})
 
@@ -1440,7 +1440,7 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// The result text should be printed to stdout (through MultiWriter).
-	assertContainsAll(t, stdout, "session_id", "sess_abc123", "event", "task_start")
+	assertContainsAll(t, stdout, "session_id", "sess_abc123", "type", "task_start")
 	// The session started message should appear on stderr.
 	assertContainsAll(t, stderr, "cake session started: sess_abc")
 	// The session warning should not appear.
@@ -1478,8 +1478,8 @@ func TestTaskWorkCakeSessionMissingID(t *testing.T) {
 	})
 	// Stub the runner to produce stream-json without a task_start event.
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		fmt.Fprintln(stdout, `{"event":"message","content":"Done."}`)
-		fmt.Fprint(stdout, `{"event":"task_complete","result":"Done.","session_id":""}`)
+		fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"Done."}`)
+		fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done.","session_id":""}`)
 		return nil
 	})
 
@@ -1498,15 +1498,21 @@ func TestCakeSessionIDParsing(t *testing.T) {
 		wantID    string
 		wantError bool
 	}{
-		{name: "task_start first", output: `{"event":"task_start","session_id":"sess_xyz","task_id":"tsk_1"}
-{"event":"task_complete","result":"ok"}`, wantID: "sess_xyz"},
-		{name: "task_start second line", output: `{"event":"message","content":"hi"}
-{"event":"task_start","session_id":"sess_abc","task_id":"tsk_2"}`, wantID: "sess_abc"},
-		{name: "empty session", output: `{"event":"task_start","session_id":""}`, wantID: ""},
-		{name: "non-task_start", output: `{"event":"message","content":"ok"}`, wantID: ""},
+		{name: "task_start first", output: `{"type":"task_start","session_id":"sess_xyz","task_id":"tsk_1"}
+{"type":"task_complete","subtype":"success","is_error":false,"result":"ok"}`, wantID: "sess_xyz"},
+		{name: "task_start second line", output: `{"type":"message","role":"assistant","content":"hi"}
+{"type":"task_start","session_id":"sess_abc","task_id":"tsk_2"}`, wantID: "sess_abc"},
+		{name: "full cake record shape", output: `{"type":"task_start","session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","timestamp":"2026-06-12T17:00:00Z"}
+{"type":"reasoning","id":"rs_1","summary":["planning"]}
+{"type":"function_call","id":"fc_1","call_id":"call_1","name":"shell","arguments":"{}"}
+{"type":"function_call_output","call_id":"call_1","output":"ok"}
+{"type":"task_complete","subtype":"success","is_error":false,"result":"done","duration_ms":1000,"turn_count":2,"tool_call_count":1,"session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}`, wantID: "0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b"},
+		{name: "empty session", output: `{"type":"task_start","session_id":""}`, wantID: ""},
+		{name: "non-task_start", output: `{"type":"message","role":"assistant","content":"ok"}`, wantID: ""},
 		{name: "non-JSON line", output: `not json`, wantID: ""},
 		{name: "empty output", output: ``, wantID: ""},
-		{name: "no event field", output: `{"session_id":"sess_xyz"}`, wantID: ""},
+		{name: "no type field", output: `{"session_id":"sess_xyz"}`, wantID: ""},
+		{name: "legacy event key ignored", output: `{"event":"task_start","session_id":"sess_xyz"}`, wantID: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1629,14 +1635,17 @@ func TestParseCakeReviewFeedback(t *testing.T) {
 		wantResult string
 		wantError  bool
 	}{
-		{name: "task_complete with result", output: `{"event":"message","content":"checking..."}
-{"event":"task_complete","result":"Found 3 issues.","session_id":"sess_abc"}`, wantResult: "Found 3 issues."},
-		{name: "empty result", output: `{"event":"task_complete","result":""}`, wantResult: ""},
-		{name: "no task_complete", output: `{"event":"message","content":"ok"}`, wantResult: ""},
+		{name: "task_complete with result", output: `{"type":"message","role":"assistant","content":"checking..."}
+{"type":"task_complete","subtype":"success","is_error":false,"result":"Found 3 issues.","session_id":"sess_abc"}`, wantResult: "Found 3 issues."},
+		{name: "full cake record shape", output: `{"type":"task_start","session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","timestamp":"2026-06-12T17:00:00Z"}
+{"type":"task_complete","subtype":"success","is_error":false,"result":"Found 2 issues.","duration_ms":1000,"turn_count":2,"tool_call_count":1,"session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}`, wantResult: "Found 2 issues."},
+		{name: "empty result", output: `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`, wantResult: ""},
+		{name: "result omitted", output: `{"type":"task_complete","subtype":"success","is_error":false,"duration_ms":1000,"turn_count":1,"tool_call_count":0,"session_id":"sess_abc","task_id":"tsk_1","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}`, wantResult: ""},
+		{name: "no task_complete", output: `{"type":"message","role":"assistant","content":"ok"}`, wantResult: ""},
 		{name: "non-JSON line", output: `not json`, wantResult: ""},
 		{name: "empty output", output: ``, wantResult: ""},
-		{name: "last task_complete wins", output: `{"event":"task_complete","result":"First"}
-{"event":"task_complete","result":"Final"}`, wantResult: "Final"},
+		{name: "last task_complete wins", output: `{"type":"task_complete","subtype":"success","is_error":false,"result":"First"}
+{"type":"task_complete","subtype":"success","is_error":false,"result":"Final"}`, wantResult: "Final"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1695,19 +1704,19 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		// On the first call (session work), produce valid session JSON.
 		if len(invocations) == 0 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_review123","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_review123","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
 			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
 			return err
 		}
 		// On the second call (review), produce review feedback JSON.
 		if len(invocations) == 1 {
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Found 2 style issues and 1 missing test."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Found 2 style issues and 1 missing test."}`)
 			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
 			return err
 		}
 		// On the third call (resume with feedback), return success.
-		_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Addressed feedback."}`)
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Addressed feedback."}`)
 		invocations = append(invocations, invocation{root, executable, args, stdin != nil})
 		return err
 	})
@@ -1770,12 +1779,12 @@ func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work.
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_empty","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_empty","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
 		}
 		// Review produces empty feedback.
-		_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":""}`)
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
 		return err
 	})
 
@@ -1804,8 +1813,8 @@ func TestTaskWorkReviewFails(t *testing.T) {
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_fail","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_fail","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			return err
 		}
 		// Review fails with a non-zero exit.
@@ -1867,8 +1876,8 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work succeeds.
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_parse","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_parse","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
 		}
 		// Review produces non-JSON output (tolerated, treated as empty feedback).
@@ -1902,8 +1911,8 @@ func TestTaskWorkReviewWithoutFlag(t *testing.T) {
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_noreview","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_noreview","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
 		}
 		return nil
@@ -1943,12 +1952,12 @@ func TestTaskWorkCompletionHandoff(t *testing.T) {
 		}{root, executable, args})
 		// First invocation: session work.
 		if len(invocations) == 1 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_complete123","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_complete123","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
 			return err
 		}
 		// Second invocation: resume with completion prompt.
-		_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Completed task."}`)
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Completed task."}`)
 		return err
 	})
 
@@ -2036,20 +2045,20 @@ func TestTaskWorkCompletionWithReview(t *testing.T) {
 		switch len(invocations) {
 		case 1:
 			// Session work.
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_both456","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_both456","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			return err
 		case 2:
 			// Review.
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Minor issues found."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Minor issues found."}`)
 			return err
 		case 3:
 			// Resume with review feedback.
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Addressed."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Addressed."}`)
 			return err
 		default:
 			// Resume with completion prompt.
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Completed."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Completed."}`)
 			return err
 		}
 	})
@@ -2147,8 +2156,8 @@ func TestTaskWorkCompletionFails(t *testing.T) {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work succeeds.
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_failcomplete","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_failcomplete","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			return err
 		}
 		// Completion handoff fails.
@@ -2179,11 +2188,11 @@ func TestTaskWorkCommitHandoff(t *testing.T) {
 			args []string
 		}{append([]string(nil), args...)})
 		if len(invocations) == 1 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_commit123","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work done."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_commit123","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
 			return err
 		}
-		_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Committed."}`)
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Committed."}`)
 		return err
 	})
 
@@ -2220,17 +2229,17 @@ func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
 		prompts = append(prompts, args[len(args)-1])
 		switch len(prompts) {
 		case 1:
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_reviewcommit","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_reviewcommit","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			return err
 		case 2:
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Fix the docs."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Fix the docs."}`)
 			return err
 		case 3:
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Feedback addressed."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Feedback addressed."}`)
 			return err
 		default:
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Committed."}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Committed."}`)
 			return err
 		}
 	})
@@ -2258,8 +2267,8 @@ func TestTaskWorkCommitFails(t *testing.T) {
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
-			fmt.Fprintln(stdout, `{"event":"task_start","session_id":"sess_failcommit","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"event":"task_complete","result":"Work."}`)
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_failcommit","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			return err
 		}
 		return fmt.Errorf("exit status 1")
