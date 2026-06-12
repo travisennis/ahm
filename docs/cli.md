@@ -699,11 +699,11 @@ Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:
 
-| Agent | Executable | Invocation | Sessions | Review | Completion |
-| ----- | ---------- | ---------- | -------- | ------ | ---------- |
-| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration | Full orchestration |
-| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported | Not supported |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported | Not supported |
+| Agent | Executable | Invocation | Sessions | Review | Completion | Commit |
+| ----- | ---------- | ---------- | -------- | ------ | ---------- | ------ |
+| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported | Not supported | Not supported |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported | Not supported | Not supported |
 
 Agents marked **Full orchestration** for Sessions support session capture and
 resume. When such an agent is used, `ahm` requests JSON output, captures the
@@ -743,6 +743,20 @@ proceeds without the completion step.
 When `--complete` is combined with `--review`, the review and feedback-resume
 step runs first, then the completion handoff runs.
 
+Agents marked **Full orchestration** for Commit support session-based commit
+handoff. When `--commit` is passed, `ahm` resumes the original work session
+after the work, after review feedback is addressed when `--review` is also set,
+and after completion handoff when `--complete` is also set. The commit prompt
+asks the delegated agent to commit the completed task work, make sure the task
+is marked completed before committing, and include both task files and project
+source files in a single commit.
+
+`ahm` does not run `git commit`, choose commit messages, push branches, or open
+pull requests. Commit-message convention is owned by the target project and its
+hooks. `--commit` is an opt-in flag; without it, no commit handoff runs.
+Passing `--commit` with a non-session-capable agent prints a warning and
+proceeds without the commit step.
+
 Agent selection precedence is:
 
 1. `--agent <cake|codex|cursor>`
@@ -752,9 +766,10 @@ Agent selection precedence is:
 The generated prompt includes the resolved task ID and task path, and instructs
 the delegated agent to read `AGENTS.md`, `.agents/TASKS.md`, the generated task
 index, and the task file before making changes. `ahm` does not pass provider
-credentials, choose models, complete tasks, commit changes, push branches, or
-open pull requests. With `--review`, `ahm` does run the review orchestration
-step, but the review itself is performed by the delegated agent.
+credentials, choose models, complete tasks, run git commands, push branches, or
+open pull requests. With `--review`, `--complete`, and `--commit`, `ahm`
+orchestrates follow-up prompts, but the review, completion, and commit actions
+are performed by the delegated agent.
 
 Useful flags:
 
@@ -764,8 +779,12 @@ Useful flags:
 - `--complete`: runs a completion handoff after the work session (and after
   review, if `--review` is also set) that asks the delegated agent to fill
   acceptance notes, run verification, and run `ahm task complete <id>`.
+- `--commit`: runs a commit handoff after the work session (and after review or
+  completion follow-ups when those flags are also set) that asks the delegated
+  agent to commit the completed task work. `ahm` does not run git itself.
 - `--dry-run`: previews the selected executable, arguments, task ID, agent, and
-  resulting status without rewriting the task or invoking the external CLI.
+  requested orchestration flags without rewriting the task or invoking the
+  external CLI.
 
 Repository configuration:
 
@@ -783,6 +802,7 @@ ahm task work 001 --agent codex
 ahm task work 001 --review
 ahm task work 001 --complete
 ahm task work 001 --review --complete
+ahm task work 001 --review --commit
 ahm --dry-run task work 001 --agent cursor
 ```
 

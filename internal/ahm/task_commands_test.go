@@ -2023,6 +2023,136 @@ func TestTaskWorkCompletionFails(t *testing.T) {
 	assertContainsAll(t, stderr, "exit status 1")
 }
 
+func TestTaskWorkCommitHandoff(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Committable", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocations []struct {
+		args []string
+	}
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocations = append(invocations, struct {
+			args []string
+		}{append([]string(nil), args...)})
+		if len(invocations) == 1 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_commit123","result":"Work done."}`)
+			return err
+		}
+		_, err := fmt.Fprint(stdout, `{"result":"Committed."}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
+	if code != 0 {
+		t.Fatalf("task work with --commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if len(invocations) != 2 {
+		t.Fatalf("expected 2 invocations (session, commit), got %d", len(invocations))
+	}
+	args := invocations[1].args
+	if len(args) < 4 || args[0] != "--resume" || args[1] != "sess_commit123" {
+		t.Fatalf("second invocation args = %#v, want resume with session ID", args)
+	}
+	prompt := args[len(args)-1]
+	assertContainsAll(t, prompt,
+		"Commit the completed work for task 001",
+		"Make sure the task is marked completed before committing",
+		"Include both task files and project source files in a single commit",
+		"Do not push or open a pull request",
+	)
+	assertContainsAll(t, stderr, "--- Running commit handoff ---")
+}
+
+func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Review Then Commit", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var prompts []string
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		prompts = append(prompts, args[len(args)-1])
+		switch len(prompts) {
+		case 1:
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_reviewcommit","result":"Work."}`)
+			return err
+		case 2:
+			_, err := fmt.Fprint(stdout, `{"result":"Fix the docs."}`)
+			return err
+		case 3:
+			_, err := fmt.Fprint(stdout, `{"result":"Feedback addressed."}`)
+			return err
+		default:
+			_, err := fmt.Fprint(stdout, `{"result":"Committed."}`)
+			return err
+		}
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review", "--commit")
+	if code != 0 {
+		t.Fatalf("task work with review+commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if len(prompts) != 4 {
+		t.Fatalf("expected 4 invocations (session, review, feedback, commit), got %d", len(prompts))
+	}
+	assertContainsAll(t, prompts[2], "Please address the following review feedback", "Fix the docs.")
+	assertContainsAll(t, prompts[3], "Commit the completed work for task 001")
+	assertContainsAll(t, stderr, "--- Running review ---", "--- Running commit handoff ---")
+}
+
+func TestTaskWorkCommitFails(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Failing Commit", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_failcommit","result":"Work."}`)
+			return err
+		}
+		return fmt.Errorf("exit status 1")
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
+	if code == 0 {
+		t.Fatal("expected task work to fail when commit handoff fails")
+	}
+	assertContainsAll(t, stderr, "commit handoff failed:", "exit status 1")
+}
+
+func TestTaskWorkCommitMissingSessionFails(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "No Commit Session", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			_, err := fmt.Fprint(stdout, `{"result":"Work."}`)
+			return err
+		}
+		t.Fatal("commit handoff should not run without a session ID")
+		return nil
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
+	if code == 0 {
+		t.Fatal("expected task work to fail when commit handoff lacks a session ID")
+	}
+	assertContainsAll(t, stderr, "cannot run commit handoff: no session ID returned by cake")
+}
+
 func TestTaskWorkCompletionDryRun(t *testing.T) {
 	// Dry run with --complete should preview the completion flag.
 	root := t.TempDir()
@@ -2042,6 +2172,26 @@ func TestTaskWorkCompletionDryRun(t *testing.T) {
 	assertContainsAll(t, stdout, "complete: true")
 	assertNotContains(t, stderr, "--- Running completion handoff ---")
 	// Task should remain Pending.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkCommitDryRun(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dry Commit", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--review", "--commit")
+	if code != 0 {
+		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "commit: true", "review: true")
+	assertNotContains(t, stderr, "--- Running commit handoff ---")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 }
 
@@ -2068,6 +2218,19 @@ func TestTaskWorkCompletionPromptContent(t *testing.T) {
 	)
 }
 
+func TestTaskWorkCommitPromptContent(t *testing.T) {
+	a := &app{opts: options{root: "/tmp"}}
+	prompt := a.buildTaskWorkCommitPrompt("042")
+
+	assertContainsAll(t, prompt,
+		"Commit the completed work for task 042",
+		"Make sure the task is marked completed before committing",
+		"Include both task files and project source files in a single commit",
+		"Do not push or open a pull request",
+	)
+	assertNotContains(t, prompt, "Conventional Commit")
+}
+
 func TestTaskWorkCompletionDryRunWithReview(t *testing.T) {
 	// Dry run with both --review and --complete previews both flags.
 	root := t.TempDir()
@@ -2080,12 +2243,11 @@ func TestTaskWorkCompletionDryRunWithReview(t *testing.T) {
 		return nil
 	})
 
-	// Note: review flag is not included in dry-run output, but complete should be.
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--review", "--complete")
 	if code != 0 {
 		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "complete: true")
+	assertContainsAll(t, stdout, "complete: true", "review: true")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 }
 

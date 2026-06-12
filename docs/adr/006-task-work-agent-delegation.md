@@ -1,7 +1,14 @@
 # ADR 006: Task Work Agent Delegation
 
-**Status:** Accepted
+**Status:** Accepted, superseded in part by ADR 008
 **Date:** 2026-06-06
+
+## Supersession Note
+
+ADR 008 supersedes the commit-handoff portion of this decision. `ahm` still
+does not run git operations directly, but it may perform an explicit delegated
+commit handoff to a supported session-capable agent when the user passes
+`--commit`.
 
 ## Context
 

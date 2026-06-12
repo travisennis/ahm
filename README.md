@@ -22,8 +22,7 @@ ahm status
 ahm task create "Add release workflow" --priority P2 --effort M --labels type:task,area:ci
 ahm task ready
 ahm task show 001
-ahm task work 001 --agent codex
-ahm task complete 001
+ahm task work 001 --review --commit
 ```
 
 Useful global flags:
@@ -43,11 +42,13 @@ is missing, but `ahm` never overwrites an existing project `AGENTS.md`.
 
 ## Safety
 
-`ahm` does not commit, push, open PRs, or modify source code. Write commands are
-explicit and operate on the `.agents` workflow files unless a future command
-states otherwise. `ahm task work <id>` is an explicit delegation command: it
-validates the task workflow state, then invokes the selected external
-coding-agent CLI from the repository root.
+`ahm` does not run git commits, pushes, PRs, or source-code patches itself.
+Write commands are explicit and operate on the `.agents` workflow files unless a
+future command states otherwise. `ahm task work <id>` is an explicit delegation
+command: it validates the task workflow state, then invokes the selected
+external coding-agent CLI from the repository root. With `--commit`, `ahm`
+resumes the delegated agent session and asks that agent to commit the completed
+work; the delegated agent and project hooks own the actual git operation.
 
 ## Development
 

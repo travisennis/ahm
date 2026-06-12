@@ -117,6 +117,7 @@ func (a *app) taskCommand() *cobra.Command {
 	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, codex, or cursor")
 	work.Flags().BoolVar(&workArgs.review, "review", false, "Run review orchestration after work session")
 	work.Flags().BoolVar(&workArgs.complete, "complete", false, "Run completion handoff after work session")
+	work.Flags().BoolVar(&workArgs.commit, "commit", false, "Run commit handoff after work session")
 	task.AddCommand(work)
 
 	for _, spec := range []struct {
@@ -195,6 +196,7 @@ type taskWorkArgs struct {
 	agent    string
 	review   bool
 	complete bool
+	commit   bool
 }
 
 type taskStatusArgs struct {
@@ -247,6 +249,12 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		if parsed.complete {
 			preview["complete"] = true
 		}
+		if parsed.commit {
+			preview["commit"] = true
+		}
+		if parsed.review {
+			preview["review"] = true
+		}
 		return a.emit(preview)
 	}
 	if task.Status == "Pending" {
@@ -260,8 +268,11 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if parsed.complete && !agent.supportsSessions {
 		fmt.Fprintf(a.err, "warning: --complete is not supported by agent %s; completion handoff will not run\n", agent.name)
 	}
+	if parsed.commit && !agent.supportsSessions {
+		fmt.Fprintf(a.err, "warning: --commit is not supported by agent %s; commit handoff will not run\n", agent.name)
+	}
 	if agent.supportsSessions {
-		return a.taskWorkWithSession(agent, executable, args, parsed.review, parsed.complete, task.ID)
+		return a.taskWorkWithSession(agent, executable, args, parsed.review, parsed.complete, parsed.commit, task.ID)
 	}
 	return taskWorkRunCommand(a.opts.root, executable, args, a.in, a.out, a.err)
 }
@@ -409,7 +420,7 @@ func runTaskWorkCommand(root string, executable string, args []string, stdin io.
 // user's terminal. The session ID is kept in memory for the current
 // orchestration run and is available for later review, completion, and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, complete bool, taskID string) error {
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, complete bool, commit bool, taskID string) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
@@ -418,10 +429,16 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	}
 	sessionID, parseErr := agent.parseSessionID(stdoutBuf.Bytes())
 	if parseErr != nil {
+		if commit {
+			return fmt.Errorf("cannot run commit handoff: could not capture session ID from %s output: %w", agent.name, parseErr)
+		}
 		fmt.Fprintf(a.err, "warning: could not capture session ID from %s output: %v\n", agent.name, parseErr)
 		return nil
 	}
 	if sessionID == "" {
+		if commit {
+			return fmt.Errorf("cannot run commit handoff: no session ID returned by %s", agent.name)
+		}
 		fmt.Fprintln(a.err, "warning: no session ID returned by", agent.name)
 		return nil
 	}
@@ -433,7 +450,12 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	}
 
 	if complete {
-		return a.runCompletion(agent, executable, sessionID, taskID)
+		if err := a.runCompletion(agent, executable, sessionID, taskID); err != nil {
+			return err
+		}
+	}
+	if commit {
+		return a.runCommit(agent, executable, sessionID, taskID)
 	}
 	return nil
 }
@@ -497,6 +519,28 @@ Fill the task Acceptance Notes, run the required verification (such as "just ci"
   ahm task complete %s
 
 If verification fails, address the findings and retry. Do not commit or push unless the user explicitly asked for that.`, taskID, taskID)
+}
+
+// runCommit resumes the agent session with a commit handoff prompt. The
+// delegated agent owns the actual git operation; ahm only sends the prompt.
+func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID string) error {
+	fmt.Fprintln(a.err, "--- Running commit handoff ---")
+	prompt := a.buildTaskWorkCommitPrompt(taskID)
+	resumeArgs := agent.resumeArgs(sessionID, prompt)
+	if err := taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
+		return fmt.Errorf("commit handoff failed: %w", err)
+	}
+	return nil
+}
+
+// buildTaskWorkCommitPrompt returns the prompt used to ask the delegated agent
+// to commit completed task work. Commit message policy remains project-owned.
+func (a *app) buildTaskWorkCommitPrompt(taskID string) string {
+	return fmt.Sprintf(`Commit the completed work for task %s.
+
+Make sure the task is marked completed before committing. Include both task files and project source files in a single commit.
+
+Do not push or open a pull request.`, taskID)
 }
 
 func truncatedID(id string, maxLen int) string {

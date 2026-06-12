@@ -11,7 +11,9 @@ docs when `ahm` ships newer templates.
 - No model or coding-agent calls except explicit `ahm task work <id>`
   delegation to a user-selected external coding-agent CLI.
 - No source-code patching.
-- No implicit git commits, pushes, PRs, or branch operations.
+- No implicit git commits, pushes, PRs, or branch operations. `ahm task work
+  <id> --commit` may explicitly ask the delegated external agent to commit
+  completed work, but `ahm` does not run git operations itself.
 - No database.
 
 ## CLI Contract
