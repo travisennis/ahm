@@ -60,6 +60,12 @@ install-tools:
 capture-agent-fixtures:
 	./scripts/capture-agent-fixtures.sh
 
+# Live agent smoke test: runs each installed agent CLI end-to-end through
+# `ahm task work` (a few real LLM calls per agent; costs money). Run after
+# changing agent arg builders, parsers, or orchestration; not part of `ci`.
+smoke-agents:
+	AHM_AGENT_SMOKE=1 go test ./internal/ahm -run TestAgentSmoke -v -count=1 -timeout 30m
+
 quick:
 	go test ./...
 	go vet ./...
