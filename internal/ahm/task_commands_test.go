@@ -1276,8 +1276,9 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		executable       string
 		prefix           []string
 		supportsSessions bool
+		supportsReview   bool
 	}{
-		{name: "cake", executable: "cake", prefix: []string{"--output-format", "json"}, supportsSessions: true},
+		{name: "cake", executable: "cake", prefix: []string{"--output-format", "json"}, supportsSessions: true, supportsReview: true},
 		{name: "codex", executable: "codex", prefix: []string{"exec"}},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "text"}},
 	} {
@@ -1291,6 +1292,9 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 			}
 			if agent.supportsSessions != tt.supportsSessions {
 				t.Fatalf("supportsSessions = %v, want %v", agent.supportsSessions, tt.supportsSessions)
+			}
+			if agent.supportsReview != tt.supportsReview {
+				t.Fatalf("supportsReview = %v, want %v", agent.supportsReview, tt.supportsReview)
 			}
 			args := agent.args("prompt")
 			for i, want := range tt.prefix {
@@ -1308,6 +1312,15 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 				}
 				if agent.parseSessionID == nil {
 					t.Fatal("session-capable agent must have parseSessionID")
+				}
+			}
+			// Verify review methods are set only for review-capable agents.
+			if agent.supportsReview {
+				if agent.reviewArgs == nil {
+					t.Fatal("review-capable agent must have reviewArgs")
+				}
+				if agent.parseReviewFeedback == nil {
+					t.Fatal("review-capable agent must have parseReviewFeedback")
 				}
 			}
 		})
@@ -1477,6 +1490,298 @@ func TestTaskWorkNonSessionAgentStreamsDirectly(t *testing.T) {
 	if captured.executable != "/stub/codex" {
 		t.Fatalf("executable = %q, want /stub/codex", captured.executable)
 	}
+}
+
+func TestParseCakeReviewFeedback(t *testing.T) {
+	tests := []struct {
+		name       string
+		output     string
+		wantResult string
+		wantError  bool
+	}{
+		{name: "valid with result", output: `{"result":"Found 3 issues."}`, wantResult: "Found 3 issues."},
+		{name: "empty result", output: `{"result":""}`, wantResult: ""},
+		{name: "missing result", output: `{}`, wantResult: ""},
+		{name: "invalid JSON", output: `not json`, wantResult: "", wantError: true},
+		{name: "empty output", output: ``, wantResult: "", wantError: true},
+		{name: "valid with session", output: `{"session_id":"sess_abc","result":"LGTM"}`, wantResult: "LGTM"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseCakeReviewFeedback([]byte(tt.output))
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result != tt.wantResult {
+				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestTaskWorkReviewArgs(t *testing.T) {
+	agent, err := parseTaskWorkAgent("cake")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !agent.supportsReview {
+		t.Fatal("cake should support review")
+	}
+	args := agent.reviewArgs("Review the changes.")
+	want := []string{"--no-session", "--skills", "deslop", "--output-format", "json", "Review the changes."}
+	if len(args) != len(want) {
+		t.Fatalf("reviewArgs = %#v, want %#v", args, want)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("reviewArgs[%d] = %q, want %q", i, args[i], want[i])
+		}
+	}
+}
+
+func TestTaskWorkReviewOrchestration(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Reviewable", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	// Record all invocations of the runner so we can verify order.
+	type invocation struct {
+		root       string
+		executable string
+		args       []string
+		hasStdin   bool
+	}
+	var invocations []invocation
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		// On the first call (session work), produce valid session JSON.
+		if len(invocations) == 0 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_review123","result":"Work done."}`)
+			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
+			return err
+		}
+		// On the second call (review), produce review feedback JSON.
+		if len(invocations) == 1 {
+			_, err := fmt.Fprint(stdout, `{"result":"Found 2 style issues and 1 missing test."}`)
+			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
+			return err
+		}
+		// On the third call (resume with feedback), return success.
+		_, err := fmt.Fprint(stdout, `{"result":"Addressed feedback."}`)
+		invocations = append(invocations, invocation{root, executable, args, stdin != nil})
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
+	if code != 0 {
+		t.Fatalf("task work with review exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have 3 invocations: session work, review, resume.
+	if len(invocations) != 3 {
+		t.Fatalf("expected 3 invocations (session, review, resume), got %d", len(invocations))
+	}
+
+	// First invocation: session work with --output-format json.
+	if invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "json" {
+		t.Fatalf("first invocation args = %#v, want session work prefix", invocations[0].args)
+	}
+	// First invocation should have stdin (user input passed through).
+	if !invocations[0].hasStdin {
+		t.Fatal("first invocation should have stdin connected")
+	}
+
+	// Second invocation: review with --no-session --skills deslop.
+	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "deslop" {
+		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
+	}
+	// Review invocation should have no stdin (independent run).
+	if invocations[1].hasStdin {
+		t.Fatal("review invocation should have no stdin")
+	}
+
+	// Third invocation: resume with the session ID.
+	if len(invocations[2].args) < 4 || invocations[2].args[0] != "--resume" || invocations[2].args[1] != "sess_review123" {
+		t.Fatalf("third invocation args = %#v, want resume prefix with session ID", invocations[2].args)
+	}
+	// Resume should contain the feedback in the prompt.
+	lastArg := invocations[2].args[len(invocations[2].args)-1]
+	if !strings.Contains(lastArg, "Found 2 style issues and 1 missing test.") {
+		t.Fatalf("resume prompt should contain review feedback, got %q", lastArg)
+	}
+
+	// Review status messages should appear on stderr.
+	assertContainsAll(t, stderr, "--- Running review ---")
+	assertContainsAll(t, stderr, "Review produced feedback, applying to session")
+
+	// Task should be marked In Progress.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
+func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Empty Review", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			// Session work.
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_empty","result":"Done."}`)
+			return err
+		}
+		// Review produces empty feedback.
+		_, err := fmt.Fprint(stdout, `{"result":""}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have exactly 2 invocations: session work and review (no resume).
+	if invocationCount != 2 {
+		t.Fatalf("expected 2 invocations (session, review), got %d", invocationCount)
+	}
+
+	assertContainsAll(t, stderr, "--- Running review ---")
+	assertContainsAll(t, stderr, "No review feedback to address, skipping feedback step.")
+}
+
+func TestTaskWorkReviewFails(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Failing Review", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_fail","result":"Work."}`)
+			return err
+		}
+		// Review fails with a non-zero exit.
+		return fmt.Errorf("review command exited with status 1")
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
+	if code == 0 {
+		t.Fatal("expected task work to fail when review fails")
+	}
+
+	assertContainsAll(t, stderr, "review failed:")
+	assertContainsAll(t, stderr, "review command exited with status 1")
+}
+
+func TestTaskWorkReviewOnNonSessionAgent(t *testing.T) {
+	// Non-session-capable agents (codex) should not get review orchestration
+	// even when --review is set, because they don't have session capture.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Codex No Review", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/codex", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex", "--review")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have exactly 1 invocation (session work not supported, so direct stream).
+	if invocationCount != 1 {
+		t.Fatalf("expected 1 invocation (direct stream), got %d", invocationCount)
+	}
+
+	// Should not contain review messages.
+	assertNotContains(t, stderr, "--- Running review ---")
+	// But should warn that --review is unsupported.
+	assertContainsAll(t, stderr, "warning: --review is not supported by agent codex")
+}
+
+func TestTaskWorkReviewParseError(t *testing.T) {
+	// When the review command succeeds but produces unparseable output,
+	// a warning is printed and the command exits successfully (graceful degradation).
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Review Output", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			// Session work succeeds.
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_parse","result":"Done."}`)
+			return err
+		}
+		// Review produces non-JSON output.
+		_, err := fmt.Fprint(stdout, `not valid json`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have 2 invocations: session work and review (no resume after parse failure).
+	if invocationCount != 2 {
+		t.Fatalf("expected 2 invocations (session, review), got %d", invocationCount)
+	}
+
+	assertContainsAll(t, stderr, "--- Running review ---")
+	assertContainsAll(t, stderr, "warning: could not parse review feedback from cake output")
+}
+
+func TestTaskWorkReviewWithoutFlag(t *testing.T) {
+	// Without --review, review should not run even for review-capable agents.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "No Review", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		if invocationCount == 1 {
+			_, err := fmt.Fprint(stdout, `{"session_id":"sess_noreview","result":"Done."}`)
+			return err
+		}
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have exactly 1 invocation (no review step).
+	if invocationCount != 1 {
+		t.Fatalf("expected 1 invocation (session only), got %d", invocationCount)
+	}
+
+	assertNotContains(t, stderr, "--- Running review ---")
 }
 
 func TestTaskAcceptMovesOpenToPending(t *testing.T) {

@@ -16,8 +16,7 @@ The project specification currently says v1 has no model or coding-agent calls
 and no implicit git operations. Adding `ahm task work <id>` changes the
 coding-agent boundary, so the command needs a durable contract that keeps `ahm`
 responsible for deterministic task workflow behavior while leaving provider
-credentials, model behavior, edits, review passes, and commits to the selected
-external CLI.
+credentials, model behavior, edits, and commits to the selected external CLI.
 
 ## Decision
 
@@ -44,10 +43,12 @@ run. This enables follow-up steps such as review, revision, and commit within
 the same workflow invocation. Provider output is parsed only for the
 `session_id` field; results are still produced by the delegated agent.
 
-`ahm` does not pass credentials, choose models, run independent review
-orchestration, complete tasks, commit changes, push branches, or open pull
-requests. Those actions remain owned by the delegated agent and the user's
-installed CLI configuration.
+With `--review`, `ahm` runs an independent review pass (deslop for `cake`)
+using the delegated agent and feeds actionable feedback back into the original
+work session. Review orchestration is opt-in and requires a session-capable
+agent. `ahm` does not pass credentials, choose models, complete tasks, commit
+changes, push branches, or open pull requests. Those actions remain owned by
+the delegated agent and the user's installed CLI configuration.
 
 ## Rationale
 
@@ -57,8 +58,11 @@ installed CLI configuration.
 - Marking `Pending` tasks `In Progress` before a successful handoff records that
   the task has been claimed while avoiding status drift when the selected agent
   executable is missing.
-- Making review orchestration and commits out of scope preserves the existing
-  `ahm` rule that it must not perform implicit git operations.
+- Review orchestration is an optional step requested via `--review` and is
+  always performed by the delegated agent, preserving the `ahm` rule that it
+  must not perform implicit git operations.
+- Making commits out of scope preserves the existing `ahm` rule that it must
+  not perform implicit git operations.
 - Command-line precedence over repository config follows common CLI practice and
   lets one-off invocations use a different agent without mutating repo policy.
 
@@ -90,13 +94,17 @@ installed CLI configuration.
   does not justify a second workflow configuration file.
 - **Do not update task state**: Rejected because a successful handoff should be
   visible in the task queue.
-- **Run the full cake review and commit workflow**: Rejected because review
-  orchestration and commits are provider-specific and conflict with the
-  no-implicit-git boundary.
+- **Run the full cake review and commit workflow**: Initially rejected because
+  review orchestration conflicted with the no-implicit-git boundary. Task 055
+  added opt-in review orchestration as a separate `--review` flag, keeping
+  review as a delegated agent action rather than an `ahm` action. Commits
+  remain excluded.
 
 ## References
 
 - Task 050: Add task work agent handoff command
+- Task 055: Add optional task work review orchestration
+- Task 056: Capture and reuse task work agent sessions
 - `.agents/exec-plans/completed/050-task-work-agent-handoff.md`
 - `scripts/task-workflow.sh`
 - `docs/spec.md`

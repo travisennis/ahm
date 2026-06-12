@@ -699,18 +699,33 @@ Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:
 
-| Agent | Executable | Invocation | Sessions |
-| ----- | ---------- | ---------- | -------- |
-| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration |
-| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only |
+| Agent | Executable | Invocation | Sessions | Review |
+| ----- | ---------- | ---------- | -------- | ------ |
+| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration |
+| `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported |
 
-Agents marked **Full orchestration** support session capture and resume. When
-such an agent is used, `ahm` requests JSON output, captures the `session_id`
-from the response, and holds it in memory for the current invocation. This
-enables follow-up review, revision, and commit steps within the same workflow
-run. Agents marked **Basic handoff only** receive the work prompt and stream
-output directly without session tracking.
+Agents marked **Full orchestration** for Sessions support session capture and
+resume. When such an agent is used, `ahm` requests JSON output, captures the
+`session_id` from the response, and holds it in memory for the current
+invocation. This enables follow-up review, revision, and commit steps within
+the same workflow run. Agents marked **Basic handoff only** receive the work
+prompt and stream output directly without session tracking.
+
+Agents marked **Full orchestration** for Review support independent review
+invocation. When `--review` is passed, `ahm` runs an independent review pass
+(for `cake`, the deslop skill) against the current uncommitted changes. If the
+review produces actionable feedback, `ahm` resumes the original work session
+with the feedback and asks the agent to address each issue. If the review
+produces no feedback, the feedback-resume step is skipped. If the review
+command itself fails, the failure is surfaced and the command exits with
+a non-zero code.
+
+When `--review` is not set, no review orchestration runs even for
+review-capable agents. Non-session-capable agents do not support review,
+because they lack the session capture needed for the feedback-resume step.
+Passing `--review` with a non-review-capable agent prints a warning and
+proceeds without the review step.
 
 Agent selection precedence is:
 
@@ -721,12 +736,15 @@ Agent selection precedence is:
 The generated prompt includes the resolved task ID and task path, and instructs
 the delegated agent to read `AGENTS.md`, `.agents/TASKS.md`, the generated task
 index, and the task file before making changes. `ahm` does not pass provider
-credentials, choose models, run review orchestration, complete tasks, commit
-changes, push branches, or open pull requests.
+credentials, choose models, complete tasks, commit changes, push branches, or
+open pull requests. With `--review`, `ahm` does run the review orchestration
+step, but the review itself is performed by the delegated agent.
 
 Useful flags:
 
 - `--agent <cake|codex|cursor>`: selects the external coding-agent CLI.
+- `--review`: runs an independent review pass (deslop for `cake`) after the
+  work session, and feeds actionable feedback back into the work session.
 - `--dry-run`: previews the selected executable, arguments, task ID, agent, and
   resulting status without rewriting the task or invoking the external CLI.
 
@@ -743,6 +761,7 @@ Examples:
 ```bash
 ahm task work 001
 ahm task work 001 --agent codex
+ahm task work 001 --review
 ahm --dry-run task work 001 --agent cursor
 ```
 

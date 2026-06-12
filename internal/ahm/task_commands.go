@@ -115,6 +115,7 @@ func (a *app) taskCommand() *cobra.Command {
 		},
 	}
 	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, codex, or cursor")
+	work.Flags().BoolVar(&workArgs.review, "review", false, "Run review orchestration after work session")
 	task.AddCommand(work)
 
 	for _, spec := range []struct {
@@ -189,8 +190,9 @@ type taskCreateArgs struct {
 }
 
 type taskWorkArgs struct {
-	id    string
-	agent string
+	id     string
+	agent  string
+	review bool
 }
 
 type taskStatusArgs struct {
@@ -200,12 +202,15 @@ type taskStatusArgs struct {
 }
 
 type taskWorkAgent struct {
-	name             string
-	executable       string
-	args             func(string) []string
-	supportsSessions bool
-	resumeArgs       func(string, string) []string // sessionID, prompt
-	parseSessionID   func([]byte) (string, error)
+	name                string
+	executable          string
+	args                func(string) []string
+	supportsSessions    bool
+	resumeArgs          func(string, string) []string // sessionID, prompt
+	parseSessionID      func([]byte) (string, error)
+	supportsReview      bool
+	reviewArgs          func(string) []string // prompt
+	parseReviewFeedback func([]byte) (string, error)
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
@@ -243,8 +248,11 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
+	if parsed.review && !agent.supportsReview {
+		fmt.Fprintf(a.err, "warning: --review is not supported by agent %s; review will not run\n", agent.name)
+	}
 	if agent.supportsSessions {
-		return a.taskWorkWithSession(agent, executable, args)
+		return a.taskWorkWithSession(agent, executable, args, parsed.review)
 	}
 	return taskWorkRunCommand(a.opts.root, executable, args, a.in, a.out, a.err)
 }
@@ -287,6 +295,11 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			supportsSessions: true,
 			resumeArgs:       cakeResumeArgs,
 			parseSessionID:   parseCakeSessionID,
+			supportsReview:   true,
+			reviewArgs: func(prompt string) []string {
+				return []string{"--no-session", "--skills", "deslop", "--output-format", "json", prompt}
+			},
+			parseReviewFeedback: parseCakeReviewFeedback,
 		}, nil
 	case "codex":
 		return taskWorkAgent{
@@ -387,7 +400,7 @@ func runTaskWorkCommand(root string, executable string, args []string, stdin io.
 // user's terminal. The session ID is kept in memory for the current
 // orchestration run and is available for later review, completion, and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string) error {
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
@@ -403,10 +416,53 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 		fmt.Fprintln(a.err, "warning: no session ID returned by", agent.name)
 		return nil
 	}
-	// Session captured successfully. The session ID lives in this function's
-	// scope and will be wired into multi-step orchestration by future tasks.
-	_ = sessionID
+
+	if review && agent.supportsReview {
+		return a.runReview(agent, executable, sessionID)
+	}
 	return nil
+}
+
+// runReview runs an independent review pass using the agent's review
+// capability, then feeds actionable feedback back into the original work
+// session. If the review produces no feedback, the feedback-resume step is
+// skipped. If the review command itself fails, the error is surfaced.
+func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error {
+	fmt.Fprintln(a.err, "--- Running review ---")
+
+	reviewPrompt := "Run the deslop skill on the current uncommitted changes."
+	reviewArgs := agent.reviewArgs(reviewPrompt)
+
+	var reviewBuf bytes.Buffer
+	reviewOut := io.MultiWriter(a.out, &reviewBuf)
+
+	if err := taskWorkRunCommand(a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
+		return fmt.Errorf("review failed: %w", err)
+	}
+
+	feedback, parseErr := agent.parseReviewFeedback(reviewBuf.Bytes())
+	if parseErr != nil {
+		fmt.Fprintf(a.err, "warning: could not parse review feedback from %s output: %v\n", agent.name, parseErr)
+		return nil
+	}
+
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		fmt.Fprintln(a.err, "No review feedback to address, skipping feedback step.")
+		return nil
+	}
+
+	fmt.Fprintf(a.err, "Review produced feedback, applying to session %s...\n", truncatedID(sessionID, 8))
+	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
+	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
+	return taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
+}
+
+func truncatedID(id string, maxLen int) string {
+	if len(id) <= maxLen {
+		return id
+	}
+	return id[:maxLen]
 }
 
 // cakeSessionOutput represents the JSON structure cake returns with
@@ -432,6 +488,16 @@ func parseCakeSessionID(output []byte) (string, error) {
 // follow-up prompt.
 func cakeResumeArgs(sessionID, prompt string) []string {
 	return []string{"--resume", sessionID, "--output-format", "json", prompt}
+}
+
+// parseCakeReviewFeedback parses cake's JSON output and returns the result
+// field, which contains the review feedback from a deslop or other review run.
+func parseCakeReviewFeedback(output []byte) (string, error) {
+	var parsed cakeSessionOutput
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return "", fmt.Errorf("invalid JSON from cake review: %w", err)
+	}
+	return parsed.Result, nil
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
