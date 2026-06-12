@@ -12,11 +12,11 @@ No investigation documents yet.
 
 ## Sources
 
-No source notes yet.
+- [adrs CLI and MADR 4 Format](sources/adrs-cli-and-madr-format.md)
 
 ## Topics
 
-No topic documents yet.
+- [MADR ADR Management Design (ahm adr)](topics/madr-adr-management-design.md)
 
 ## Archived
 
