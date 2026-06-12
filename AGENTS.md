@@ -50,6 +50,17 @@ patching source code or performing git operations.
 - When changing embedded workflow templates, also verify the behavior that
   consumes them. At minimum, run `go test ./internal/templates ./internal/ahm`
   before `just ci`.
+- When changing agent integration in `internal/ahm/task_commands.go` — the
+  `taskWorkAgent` arg builders, agent output parsers, or the orchestration
+  flow — follow the agent integration smoke checklist in `docs/testing.md`:
+  run the real agents via `just smoke-agents` (or `ahm task work` directly)
+  and verify session capture. Tasks labeled `area:agent` and
+  `risk:external-service` must include live-run evidence (agent version and
+  a transcript snippet) in their Acceptance Notes before
+  `ahm task complete`.
+- When an agent CLI upgrade may have changed its output schema, refresh the
+  golden transcripts with `just capture-agent-fixtures` (makes real LLM
+  calls; never run in CI).
 - When changing CLI behavior, update `docs/cli.md` in the same change unless
   the behavior is intentionally undocumented.
 - Before final handoff for CLI behavior changes:
@@ -103,6 +114,12 @@ just ci
 
 # Mutating cleanup pass
 just fix
+
+# Live agent smoke test (real LLM calls; see docs/testing.md)
+just smoke-agents
+
+# Refresh golden agent transcripts (real LLM calls; see docs/testing.md)
+just capture-agent-fixtures
 ```
 
 Install local verification tools with:
@@ -328,3 +345,5 @@ update an ADR under `docs/adr/` before implementation. Follow
 - CLI reference: `docs/cli.md`.
 - Workflow semantics: `docs/spec.md`.
 - Upgrade behavior: `docs/upgrades.md`.
+- Testing beyond `just ci`, including the agent smoke checklist:
+  `docs/testing.md`.
