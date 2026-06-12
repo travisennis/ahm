@@ -703,16 +703,16 @@ Supported agents:
 
 | Agent | Executable | Invocation | Sessions | Review | Completion | Commit |
 | ----- | ---------- | ---------- | -------- | ------ | ---------- | ------ |
-| `cake` | `cake` | `cake --output-format json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `cake` | `cake` | `cake --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 | `codex` | `codex` | `codex exec <prompt>` | Basic handoff only | Not supported | Not supported | Not supported |
 | `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported | Not supported | Not supported |
 
 Agents marked **Full orchestration** for Sessions support session capture and
-resume. When such an agent is used, `ahm` requests JSON output, captures the
-`session_id` from the response, and holds it in memory for the current
-invocation. This enables follow-up review, revision, and commit steps within
-the same workflow run. Agents marked **Basic handoff only** receive the work
-prompt and stream output directly without session tracking.
+resume. When such an agent is used, `ahm` requests stream-json output, captures
+the `session_id` from the first `task_start` event, and holds it in memory for
+the current invocation. This enables follow-up review, revision, and commit
+steps within the same workflow run. Agents marked **Basic handoff only** receive
+the work prompt and stream output directly without session tracking.
 
 Agents marked **Full orchestration** for Review support independent review
 invocation. When `--review` is passed, `ahm` runs an independent review pass

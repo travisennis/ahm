@@ -310,14 +310,14 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "cake",
 			executable: "cake",
 			args: func(prompt string) []string {
-				return []string{"--output-format", "json", prompt}
+				return []string{"--output-format", "stream-json", prompt}
 			},
 			supportsSessions: true,
 			resumeArgs:       cakeResumeArgs,
 			parseSessionID:   parseCakeSessionID,
 			supportsReview:   true,
 			reviewArgs: func(prompt string) []string {
-				return []string{"--no-session", "--skills", "deslop", "--output-format", "json", prompt}
+				return []string{"--no-session", "--skills", "deslop", "--output-format", "stream-json", prompt}
 			},
 			parseReviewFeedback: parseCakeReviewFeedback,
 		}, nil
@@ -443,6 +443,8 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 		return nil
 	}
 
+	fmt.Fprintf(a.err, "%s session started: %s\n", agent.name, truncatedID(sessionID, 8))
+
 	if review && agent.supportsReview {
 		if err := a.runReview(agent, executable, sessionID); err != nil {
 			return err
@@ -550,39 +552,57 @@ func truncatedID(id string, maxLen int) string {
 	return id[:maxLen]
 }
 
-// cakeSessionOutput represents the JSON structure cake returns with
-// --output-format json.
-type cakeSessionOutput struct {
-	SessionID string `json:"session_id"`
-	Result    string `json:"result"`
+// cakeStreamEvent represents a single line in cake's stream-json output.
+type cakeStreamEvent struct {
+	Event     string `json:"event"`
+	SessionID string `json:"session_id,omitempty"`
+	Result    string `json:"result,omitempty"`
 }
 
-// parseCakeSessionID parses cake's JSON output and returns the session_id.
+// parseCakeSessionID parses cake's stream-json output and returns the
+// session_id from the first task_start event.
 func parseCakeSessionID(output []byte) (string, error) {
-	var parsed cakeSessionOutput
-	if err := json.Unmarshal(output, &parsed); err != nil {
-		return "", fmt.Errorf("invalid JSON from cake: %w", err)
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt cakeStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Event == "task_start" && evt.SessionID != "" {
+			return evt.SessionID, nil
+		}
 	}
-	if parsed.SessionID == "" {
-		return "", nil
-	}
-	return parsed.SessionID, nil
+	return "", nil
 }
 
 // cakeResumeArgs constructs the arguments to resume a cake session with a
 // follow-up prompt.
 func cakeResumeArgs(sessionID, prompt string) []string {
-	return []string{"--resume", sessionID, "--output-format", "json", prompt}
+	return []string{"--resume", sessionID, "--output-format", "stream-json", prompt}
 }
 
-// parseCakeReviewFeedback parses cake's JSON output and returns the result
-// field, which contains the review feedback from a deslop or other review run.
+// parseCakeReviewFeedback parses cake's stream-json output and returns the
+// result field from the final task_complete event, which contains the review
+// feedback from a deslop or other review run.
 func parseCakeReviewFeedback(output []byte) (string, error) {
-	var parsed cakeSessionOutput
-	if err := json.Unmarshal(output, &parsed); err != nil {
-		return "", fmt.Errorf("invalid JSON from cake review: %w", err)
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	var lastResult string
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt cakeStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Event == "task_complete" {
+			lastResult = evt.Result
+		}
 	}
-	return parsed.Result, nil
+	return lastResult, nil
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {

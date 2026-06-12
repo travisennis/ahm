@@ -44,11 +44,12 @@ The command only performs one deterministic state transition before delegation:
 and dependency checks. Missing external executables are detected before any task
 file is rewritten.
 
-For session-capable agents (currently `cake`), `ahm` requests JSON output and
-parses the `session_id` to retain it in memory for the current orchestration
-run. This enables follow-up steps such as review, revision, and commit within
-the same workflow invocation. Provider output is parsed only for the
-`session_id` field; results are still produced by the delegated agent.
+For session-capable agents (currently `cake`), `ahm` requests `stream-json` output
+and parses the `session_id` from the first `task_start` event to retain it in
+memory for the current orchestration run. This enables follow-up steps such as
+review, revision, and commit within the same workflow invocation. Provider
+output is parsed only for the `session_id` and `result` fields; results are
+still produced by the delegated agent.
 
 With `--review`, `ahm` runs an independent review pass (deslop for `cake`)
 using the delegated agent and feeds actionable feedback back into the original
