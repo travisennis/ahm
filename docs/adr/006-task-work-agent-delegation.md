@@ -55,14 +55,19 @@ workflow invocation. Provider output is parsed only for the session identifier
 and review-feedback fields needed by the orchestration hooks; results are still
 produced by the delegated agent.
 
-With `--review`, `ahm` runs an independent review pass (deslop for `cake`,
-`codex review --uncommitted` for `codex`, and a fresh ask-mode stream-json
-`cursor-agent` run for `cursor`) using the delegated agent and feeds actionable
-feedback back into the original work session. Review orchestration is opt-in
-and requires a session-capable agent. `ahm` does not pass credentials, choose
-models, complete tasks, commit changes, push branches, or open pull requests.
-Those actions remain owned by the delegated agent and the user's installed CLI
-configuration.
+For Codex specifically, `ahm` invokes `codex exec` and `codex exec resume` with
+`--dangerously-bypass-approvals-and-sandbox`. This is a deliberately broad
+non-interactive automation posture: it avoids sandbox and approval deadlocks
+while allowing Codex to edit files, run verification that writes outside the
+repository cache, complete tasks, and perform the optional commit handoff.
+
+With `--review`, `ahm` runs an independent review pass using the
+repository-owned deslop review workflow through the selected delegated agent
+and feeds actionable feedback back into the original work session. Review
+orchestration is opt-in and requires a session-capable agent. `ahm` does not
+pass credentials, choose models, complete tasks, commit changes, push branches,
+or open pull requests. Those actions remain owned by the delegated agent and
+the user's installed CLI configuration.
 
 ## Rationale
 
@@ -97,6 +102,10 @@ configuration.
   the selected CLI is not installed or authenticated.
 - The generated prompt and argument shapes must be maintained as external CLIs
   evolve.
+- Codex task work runs without Codex sandboxing or approval prompts, so it can
+  perform broad local actions under the user's account. Users should only select
+  Codex for task work in repositories and working trees where that trust tradeoff
+  is acceptable.
 - A delegated agent can still edit files or run git commands according to its
   own configuration; `ahm` only controls the handoff boundary.
 

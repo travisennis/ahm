@@ -77,10 +77,10 @@ fi
 if command -v codex >/dev/null 2>&1; then
   codex_version="$(codex --version)"
   capture codex-exec "$codex_version" \
-    codex exec -c model_reasoning_effort=low --json "$work_prompt"
+    codex exec -c model_reasoning_effort=low --dangerously-bypass-approvals-and-sandbox --json "$work_prompt"
 
   capture codex-review "$codex_version" \
-    codex exec -c model_reasoning_effort=low --json "$review_prompt"
+    codex exec -c model_reasoning_effort=low --dangerously-bypass-approvals-and-sandbox --json "$review_prompt"
 
   thread_id="$(jq -r 'select(.type == "thread.started") | .thread_id' "$fixtures_dir/codex-exec.jsonl" | head -n 1)"
   if [ -z "$thread_id" ] || [ "$thread_id" = "null" ]; then
@@ -89,7 +89,7 @@ if command -v codex >/dev/null 2>&1; then
   fi
 
   capture codex-resume "$codex_version" \
-    codex exec resume -c model_reasoning_effort=low --json "$thread_id" "$resume_prompt"
+    codex exec resume -c model_reasoning_effort=low --dangerously-bypass-approvals-and-sandbox --json "$thread_id" "$resume_prompt"
 else
   echo "── codex not on PATH, skipping codex captures ──" >&2
 fi

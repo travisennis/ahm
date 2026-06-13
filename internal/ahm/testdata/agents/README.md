@@ -15,9 +15,9 @@ transcripts in `just ci` and fails — never skips — when one is missing.
 
 - `cake-work.jsonl` — `cake --output-format stream-json` work run.
 - `cake-review.jsonl` — `cake --no-session --skills deslop` review run.
-- `codex-exec.jsonl` — `codex exec --json` work run.
-- `codex-review.jsonl` — `codex exec --json` review run with the deslop prompt.
-- `codex-resume.jsonl` — `codex exec resume --json <thread-id>` resuming the
+- `codex-exec.jsonl` — Codex JSONL work run.
+- `codex-review.jsonl` — Codex JSONL review run with the deslop prompt.
+- `codex-resume.jsonl` — Codex JSONL resume run resuming the
   session captured in `codex-exec.jsonl`; the two are a linked pair.
 
 ## Refreshing
@@ -38,4 +38,6 @@ The `command:` recorded in each sidecar is the capture command, not the exact
 invocation ahm builds: captures add cost-limiting flags (`--max-tokens`,
 `model_reasoning_effort`) that ahm never passes. The flags that shape the
 output schema — output format, session mode, skills, resume form — match the
-arg builders in `internal/ahm/task_commands.go`.
+arg builders in `internal/ahm/task_commands.go`. The Codex capture recipe also
+uses `--dangerously-bypass-approvals-and-sandbox` so future refreshes exercise
+the same non-interactive permission posture as `ahm task work`.

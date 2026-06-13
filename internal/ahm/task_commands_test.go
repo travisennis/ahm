@@ -1313,7 +1313,7 @@ func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if configured.executable != "/stub/codex" || len(configured.args) != 3 || configured.args[0] != "exec" || configured.args[1] != "--json" {
+	if configured.executable != "/stub/codex" || len(configured.args) != 4 || configured.args[0] != "exec" || configured.args[1] != "--dangerously-bypass-approvals-and-sandbox" || configured.args[2] != "--json" {
 		t.Fatalf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
 	}
 
@@ -1532,7 +1532,7 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		supportsReview   bool
 	}{
 		{name: "cake", executable: "cake", prefix: []string{"--output-format", "stream-json"}, supportsSessions: true, supportsReview: true},
-		{name: "codex", executable: "codex", prefix: []string{"exec", "--json"}, supportsSessions: true, supportsReview: true},
+		{name: "codex", executable: "codex", prefix: []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "--json"}, supportsSessions: true, supportsReview: true},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "stream-json", "--trust"}, supportsSessions: true, supportsReview: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1741,7 +1741,7 @@ func TestCakeResumeArgs(t *testing.T) {
 
 func TestCodexResumeArgs(t *testing.T) {
 	args := codexResumeArgs("thread_abc", "Continue working")
-	want := []string{"exec", "resume", "--json", "thread_abc", "Continue working"}
+	want := []string{"exec", "resume", "--dangerously-bypass-approvals-and-sandbox", "--json", "thread_abc", "Continue working"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %#v, want %#v", args, want)
 	}
@@ -1993,7 +1993,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 		},
 		{
 			name: "codex",
-			want: []string{"exec", "--json", "Review the changes."},
+			want: []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "--json", "Review the changes."},
 		},
 		{
 			name: "cursor",

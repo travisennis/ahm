@@ -742,7 +742,7 @@ Supported agents:
 | Agent | Executable | Invocation | Sessions | Review | Completion | Commit |
 | ----- | ---------- | ---------- | -------- | ------ | ---------- | ------ |
 | `cake` | `cake` | `cake --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
-| `codex` | `codex` | `codex exec --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `codex` | `codex` | `codex exec --dangerously-bypass-approvals-and-sandbox --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 | `cursor` | `cursor-agent` | `cursor-agent -p --output-format stream-json --trust <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 
 Agents marked **Full orchestration** for Sessions support session capture and
@@ -759,7 +759,8 @@ review workflow (`.agents/skills/deslop/SKILL.md`) against the current
 uncommitted changes, using each agent's normal execution path:
 
 - `cake`: `--no-session --skills deslop --output-format stream-json`
-- `codex`: `codex exec --json` with the deslop prompt
+- `codex`: `codex exec --dangerously-bypass-approvals-and-sandbox --json`
+  with the deslop prompt
 - `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`
   with the deslop prompt
 
@@ -775,6 +776,13 @@ review-capable agents. Non-session-capable agents do not support review,
 because they lack the session capture needed for the feedback-resume step.
 Passing `--review` with a non-review-capable agent prints a warning and
 proceeds without the review step.
+
+Codex is run with `--dangerously-bypass-approvals-and-sandbox` for
+non-interactive task work. This is intentionally broad: it avoids sandbox and
+approval deadlocks while allowing Codex to edit files, run verification that
+writes outside the repository cache, complete tasks, and perform the optional
+commit handoff. Only use Codex task work in repositories and working trees where
+that trust tradeoff is acceptable.
 
 Agents marked **Full orchestration** for Completion support session-based
 completion handoff. When `--complete` is passed, `ahm` resumes the original

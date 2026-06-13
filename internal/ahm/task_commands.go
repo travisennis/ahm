@@ -21,6 +21,8 @@ var (
 	taskWorkRunCommand = runTaskWorkCommand
 )
 
+const codexBypassApprovalsAndSandboxFlag = "--dangerously-bypass-approvals-and-sandbox"
+
 func (a *app) taskCommand() *cobra.Command {
 	task := &cobra.Command{
 		Use:   "task",
@@ -339,14 +341,14 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "codex",
 			executable: "codex",
 			args: func(prompt string) []string {
-				return []string{"exec", "--json", prompt}
+				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
 			},
 			supportsSessions: true,
 			resumeArgs:       codexResumeArgs,
 			parseSessionID:   parseCodexSessionID,
 			supportsReview:   true,
 			reviewArgs: func(prompt string) []string {
-				return []string{"exec", "--json", prompt}
+				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
 			},
 			parseReviewFeedback: parseCodexReviewFeedback,
 		}, nil
@@ -677,10 +679,10 @@ func parseCodexSessionID(output []byte) (string, error) {
 // codexResumeArgs constructs the arguments to resume a codex session with a
 // follow-up prompt.
 func codexResumeArgs(sessionID, prompt string) []string {
-	return []string{"exec", "resume", "--json", sessionID, prompt}
+	return []string{"exec", "resume", codexBypassApprovalsAndSandboxFlag, "--json", sessionID, prompt}
 }
 
-// parseCodexReviewFeedback parses codex exec --json output and returns the
+// parseCodexReviewFeedback parses codex JSONL output and returns the
 // concatenated text from all agent_message item.completed events, which
 // contains the deslop review feedback.
 func parseCodexReviewFeedback(output []byte) (string, error) {
