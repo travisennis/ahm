@@ -31,7 +31,8 @@ For each affected agent that is installed:
    ahm-managed repository.
 2. Verify stderr contains `session started:` and does not contain
    `no session ID returned by` or `could not capture session ID`.
-3. Record the agent version (`cake --version`, `codex --version`) and a
+3. Record the agent version (`cake --version`, `codex --version`,
+   `cursor-agent --version`) and a
    short transcript snippet in the task's Acceptance Notes as live-run
    evidence.
 

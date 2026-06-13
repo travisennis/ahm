@@ -44,21 +44,25 @@ The command only performs one deterministic state transition before delegation:
 and dependency checks. Missing external executables are detected before any task
 file is rewritten.
 
-For session-capable agents (`cake` and `codex`), `ahm` requests structured JSON output
-(`--output-format stream-json` for `cake`, `--json` for `codex`) and parses the
-session identifier from the first output event — `task_start.session_id` for `cake`,
-`thread.started.thread_id` for `codex` — to retain it in memory for the current
-review, revision, and commit within the same workflow invocation. Provider
-output is parsed only for the session identifier and review-feedback fields
-needed by the orchestration hooks; results are still produced by the delegated
-agent.
+For session-capable agents (`cake`, `codex`, and `cursor`), `ahm` requests
+structured JSON output (`--output-format stream-json` for `cake`,
+`--json` for `codex`, `--output-format stream-json` for `cursor-agent`) and
+parses the session identifier from the first output event:
+`task_start.session_id` for `cake`, `thread.started.thread_id` for `codex`,
+and `system/init.session_id` for `cursor`. The session ID is retained in
+memory for the current review, revision, completion, and commit within the same
+workflow invocation. Provider output is parsed only for the session identifier
+and review-feedback fields needed by the orchestration hooks; results are still
+produced by the delegated agent.
 
-With `--review`, `ahm` runs an independent review pass (deslop for `cake`)
-using the delegated agent and feeds actionable feedback back into the original
-work session. Review orchestration is opt-in and requires a session-capable
-agent. `ahm` does not pass credentials, choose models, complete tasks, commit
-changes, push branches, or open pull requests. Those actions remain owned by
-the delegated agent and the user's installed CLI configuration.
+With `--review`, `ahm` runs an independent review pass (deslop for `cake`,
+`codex review --uncommitted` for `codex`, and a fresh ask-mode stream-json
+`cursor-agent` run for `cursor`) using the delegated agent and feeds actionable
+feedback back into the original work session. Review orchestration is opt-in
+and requires a session-capable agent. `ahm` does not pass credentials, choose
+models, complete tasks, commit changes, push branches, or open pull requests.
+Those actions remain owned by the delegated agent and the user's installed CLI
+configuration.
 
 ## Rationale
 
@@ -115,6 +119,7 @@ the delegated agent and the user's installed CLI configuration.
 - Task 050: Add task work agent handoff command
 - Task 055: Add optional task work review orchestration
 - Task 056: Capture and reuse task work agent sessions
+- Task 084: Upgrade cursor agent to full task work orchestration
 - `.agents/exec-plans/completed/050-task-work-agent-handoff.md`
 - `scripts/task-workflow.sh`
 - `docs/spec.md`

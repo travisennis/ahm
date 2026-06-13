@@ -705,24 +705,25 @@ Supported agents:
 | ----- | ---------- | ---------- | -------- | ------ | ---------- | ------ |
 | `cake` | `cake` | `cake --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 | `codex` | `codex` | `codex exec --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format text <prompt>` | Basic handoff only | Not supported | Not supported | Not supported |
+| `cursor` | `cursor-agent` | `cursor-agent -p --output-format stream-json --trust <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 
 Agents marked **Full orchestration** for Sessions support session capture and
 resume. When such an agent is used, `ahm` requests structured output, captures
 the session identifier from the first session-start event (`task_start.session_id`
-for `cake`, `thread.started.thread_id` for `codex`), and holds it in memory for
-the current invocation. This enables follow-up review, revision, and commit steps
-within the same workflow run. Agents marked **Basic handoff only** receive the
-work prompt and stream output directly without session tracking.
+for `cake`, `thread.started.thread_id` for `codex`,
+`system/init.session_id` for `cursor`), and holds it in memory for the
+current invocation. This enables follow-up review, revision, and commit steps
+within the same workflow run.
 
 Agents marked **Full orchestration** for Review support independent review
 invocation. When `--review` is passed, `ahm` runs an independent review pass
-(for `cake`, the deslop skill) against the current uncommitted changes. If the
-review produces actionable feedback, `ahm` resumes the original work session
-with the feedback and asks the agent to address each issue. If the review
-produces no feedback, the feedback-resume step is skipped. If the review
-command itself fails, the failure is surfaced and the command exits with
-a non-zero code.
+(for `cake`, the deslop skill; for `codex`, `codex review --uncommitted`;
+for `cursor`, a fresh `cursor-agent` ask-mode stream-json run) against the
+current uncommitted changes. If the review produces actionable feedback, `ahm`
+resumes the original work session with the feedback and asks the agent to
+address each issue. If the review produces no feedback, the feedback-resume
+step is skipped. If the review command itself fails, the failure is surfaced
+and the command exits with a non-zero code.
 
 When `--review` is not set, no review orchestration runs even for
 review-capable agents. Non-session-capable agents do not support review,
@@ -802,6 +803,7 @@ Examples:
 ```bash
 ahm task work 001
 ahm task work 001 --agent codex
+ahm task work 001 --agent cursor --review --complete
 ahm task work 001 --review
 ahm task work 001 --complete
 ahm task work 001 --review --complete

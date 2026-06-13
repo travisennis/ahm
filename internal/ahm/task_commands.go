@@ -342,8 +342,16 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "cursor",
 			executable: "cursor-agent",
 			args: func(prompt string) []string {
-				return []string{"-p", "--output-format", "text", prompt}
+				return []string{"-p", "--output-format", "stream-json", "--trust", prompt}
 			},
+			supportsSessions: true,
+			resumeArgs:       cursorResumeArgs,
+			parseSessionID:   parseCursorSessionID,
+			supportsReview:   true,
+			reviewArgs: func(prompt string) []string {
+				return []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust", prompt}
+			},
+			parseReviewFeedback: parseCursorReviewFeedback,
 		}, nil
 	default:
 		return taskWorkAgent{}, usageError(fmt.Sprintf("unsupported task work agent %q (supported: cake, codex, cursor)", value))
@@ -476,6 +484,8 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 // TestCaptureScriptUsesReviewPrompt keeps the two in sync.
 const taskWorkReviewPrompt = "Run the deslop skill on the current uncommitted changes."
 
+const cursorTaskWorkReviewPrompt = "Review the current uncommitted changes and report only actionable issues. If there are no issues, say so briefly."
+
 // runReview runs an independent review pass using the agent's review
 // capability, then feeds actionable feedback back into the original work
 // session. If the review produces no feedback, the feedback-resume step is
@@ -483,7 +493,7 @@ const taskWorkReviewPrompt = "Run the deslop skill on the current uncommitted ch
 func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt)
+	reviewArgs := agent.reviewArgs(taskWorkReviewPromptForAgent(agent))
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
@@ -508,6 +518,13 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
 	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
 	return taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
+}
+
+func taskWorkReviewPromptForAgent(agent taskWorkAgent) string {
+	if agent.name == "cursor" {
+		return cursorTaskWorkReviewPrompt
+	}
+	return taskWorkReviewPrompt
 }
 
 // runCompletion resumes the agent session with a completion handoff prompt,
@@ -663,6 +680,60 @@ func codexResumeArgs(sessionID, prompt string) []string {
 func parseCodexReviewFeedback(output []byte) (string, error) {
 	feedback := strings.TrimSpace(string(output))
 	return feedback, nil
+}
+
+// cursorStreamEvent represents a single JSONL event in cursor-agent
+// stream-json output.
+type cursorStreamEvent struct {
+	Type      string `json:"type"`
+	Subtype   string `json:"subtype,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	Result    string `json:"result,omitempty"`
+}
+
+// parseCursorSessionID parses cursor-agent stream-json output and returns the
+// session_id from the first system/init event.
+func parseCursorSessionID(output []byte) (string, error) {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt cursorStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "system" && evt.Subtype == "init" && evt.SessionID != "" {
+			return evt.SessionID, nil
+		}
+	}
+	return "", nil
+}
+
+// cursorResumeArgs constructs the arguments to resume a cursor-agent session
+// with a follow-up prompt.
+func cursorResumeArgs(sessionID, prompt string) []string {
+	return []string{"-p", "--output-format", "stream-json", "--trust", "--resume", sessionID, prompt}
+}
+
+// parseCursorReviewFeedback parses cursor-agent stream-json output and returns
+// the result field from the final result event.
+func parseCursorReviewFeedback(output []byte) (string, error) {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	var lastResult string
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt cursorStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "result" {
+			lastResult = evt.Result
+		}
+	}
+	return lastResult, nil
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
