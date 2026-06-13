@@ -68,6 +68,17 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready"))
 	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked"))
 	task.AddCommand(&cobra.Command{
+		Use:   "labels",
+		Short: "List task labels",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskLabels()
+		},
+	})
+	task.AddCommand(&cobra.Command{
 		Use:   "next",
 		Short: "Show the next ready task",
 		Args:  noArgs,
@@ -163,6 +174,7 @@ func (a *app) taskCommand() *cobra.Command {
 
 func (a *app) taskListCommand(use string, aliases []string, short string, mode string) *cobra.Command {
 	var statuses []string
+	var labels []string
 	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
@@ -172,12 +184,13 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskList(mode, statuses)
+			return a.taskList(mode, statuses, labels)
 		},
 	}
 	if mode == "all" {
 		cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter tasks by status (comma-separated or repeatable)")
 	}
+	cmd.Flags().StringSliceVar(&labels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
 	return cmd
 }
 
@@ -856,7 +869,7 @@ func nextTaskID(tasks []Task, root string) string {
 	return fmt.Sprintf("%03d", maxID+1)
 }
 
-func (a *app) taskList(mode string, statuses []string) error {
+func (a *app) taskList(mode string, statuses []string, labels []string) error {
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
@@ -873,11 +886,41 @@ func (a *app) taskList(mode string, statuses []string) error {
 		}
 		filtered = filterTasksByStatus(filtered, allowed)
 	}
+	if len(labels) > 0 {
+		required, err := normalizeTaskLabels(labels)
+		if err != nil {
+			return err
+		}
+		filtered = filterTasksByLabels(filtered, required)
+	}
 	if a.opts.json {
 		return a.emit(filtered)
 	}
 	for _, task := range filtered {
 		a.printTaskLine(task)
+	}
+	return nil
+}
+
+type taskLabelSummary struct {
+	Label  string `json:"label"`
+	Total  int    `json:"total"`
+	Active int    `json:"active"`
+	Open   int    `json:"open"`
+	Ready  int    `json:"ready"`
+}
+
+func (a *app) taskLabels() error {
+	tasks, err := a.getTasks()
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+	}
+	summaries := summarizeTaskLabels(tasks)
+	if a.opts.json {
+		return a.emit(summaries)
+	}
+	for _, summary := range summaries {
+		fmt.Fprintf(a.out, "%s total=%d active=%d open=%d ready=%d\n", summary.Label, summary.Total, summary.Active, summary.Open, summary.Ready)
 	}
 	return nil
 }
@@ -947,6 +990,90 @@ func filterTasksByStatus(tasks []Task, allowed map[string]bool) []Task {
 		}
 	}
 	return out
+}
+
+func filterTasksByLabels(tasks []Task, required []string) []Task {
+	var out []Task
+	for _, task := range tasks {
+		labels := taskLabelSet(task)
+		matches := true
+		for _, label := range required {
+			if !labels[label] {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			out = append(out, task)
+		}
+	}
+	return out
+}
+
+func normalizeTaskLabels(rawLabels []string) ([]string, error) {
+	seen := make(map[string]bool, len(rawLabels))
+	var labels []string
+	for _, raw := range rawLabels {
+		if strings.TrimSpace(raw) == "" {
+			return nil, usageError("task label filter cannot be empty")
+		}
+		for _, part := range strings.Split(raw, ",") {
+			label := strings.TrimSpace(part)
+			if label == "" || label == "-" {
+				return nil, usageError("task label filter cannot be empty")
+			}
+			if !seen[label] {
+				seen[label] = true
+				labels = append(labels, label)
+			}
+		}
+	}
+	return labels, nil
+}
+
+func taskLabelSet(task Task) map[string]bool {
+	labels := map[string]bool{}
+	for _, label := range parseList(task.Labels) {
+		labels[label] = true
+	}
+	return labels
+}
+
+func summarizeTaskLabels(tasks []Task) []taskLabelSummary {
+	ready := map[string]bool{}
+	for _, task := range filterTasks(tasks, "ready") {
+		ready[task.ID] = true
+	}
+	byLabel := map[string]*taskLabelSummary{}
+	for _, task := range tasks {
+		for label := range taskLabelSet(task) {
+			summary := byLabel[label]
+			if summary == nil {
+				summary = &taskLabelSummary{Label: label}
+				byLabel[label] = summary
+			}
+			summary.Total++
+			if task.Bucket == "active" {
+				summary.Active++
+			}
+			if task.Status == "Open" {
+				summary.Open++
+			}
+			if ready[task.ID] {
+				summary.Ready++
+			}
+		}
+	}
+	labels := make([]string, 0, len(byLabel))
+	for label := range byLabel {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	summaries := make([]taskLabelSummary, 0, len(labels))
+	for _, label := range labels {
+		summaries = append(summaries, *byLabel[label])
+	}
+	return summaries
 }
 
 func depsComplete(task Task, completed map[string]bool) bool {

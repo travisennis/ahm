@@ -40,6 +40,11 @@ If the user names a task id or title, work from that task even if another task i
 3. Check dependencies before starting. If a dependency is incomplete, do the dependency first or tell the user why the requested task is blocked.
 4. Treat parent tracker tasks as planning references. Work their child tasks in the order stated by the parent tracker or the index.
 5. Use task labels to filter work by type, area, and risk when the user asks for focused work.
+   Prefer `ahm task ready --label <label>` for ready work in a specific area,
+   `ahm task list --label <label>` for broader searches, and
+   `ahm task labels` to inspect the label vocabulary currently present in the
+   repository. Repeat `--label` or pass comma-separated labels to require all
+   listed labels.
 
 Before editing code, read the full task file and inspect the relevant source files. If the task is vague, stale, or conflicts with the current code, update the task with the discovery or ask the user for the missing product decision.
 

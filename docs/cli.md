@@ -125,6 +125,7 @@ mode:
   used.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
+- `task labels` prints label summary lines.
 - `task show` prints the task Markdown file unless `--json` is used.
 - `task migrate --dry-run` prints grouped task migration changes.
 - Task status transitions print `<id> -> <status>`; if the task already has the target status, prints `<id> already <status>` instead and skips writing.
@@ -441,10 +442,10 @@ Task efforts must be one of:
 ### Malformed Task Resilience
 
 List-like commands (`task list`, `task ls`, `task ready`, `task blocked`,
-`task next`, `task dep cycles`, `task dep tree`) and `ahm index` tolerate
-malformed task files. When one or more task files cannot be parsed, these
-commands skip the malformed files, produce output from the remaining valid
-tasks, and print a warning to stderr.
+`task labels`, `task next`, `task dep cycles`, `task dep tree`) and `ahm index`
+tolerate malformed task files. When one or more task files cannot be parsed,
+these commands skip the malformed files, produce output from the remaining
+valid tasks, and print a warning to stderr.
 
 `task create` also tolerates malformed task files: it warns on stderr and
 still assigns the next available ID, scanning both parsed tasks and task
@@ -549,6 +550,10 @@ Useful flags:
   (`--status pending --status completed`). Status matching is per-entry
   case-insensitive and accepts `in-progress` for `In Progress`.
   Duplicate statuses are ignored.
+- `--label <label>`: filters tasks by one or more labels. Accepts a
+  comma-separated list (`--label type:feature,area:cli`) or repeated flags
+  (`--label type:feature --label area:cli`). Matching uses AND semantics:
+  every supplied label must be present on the task.
 - `--json`: emits parsed task structs.
 
 Example:
@@ -558,6 +563,7 @@ ahm task list
 ahm task list --status pending
 ahm task list --status pending,completed
 ahm task list --status open --status "in progress"
+ahm task list --label type:feature --label area:cli
 ```
 
 ### `task ready`
@@ -569,12 +575,15 @@ bucket alone.
 
 Useful flags:
 
+- `--label <label>`: filters ready tasks by one or more labels. Matching uses
+  the same AND semantics as `task list --label`.
 - `--json`: emits parsed task structs.
 
 Example:
 
 ```bash
 ahm task ready
+ahm task ready --label area:cli
 ```
 
 ### `task blocked`
@@ -588,12 +597,37 @@ A task is considered blocked when either:
 
 Useful flags:
 
+- `--label <label>`: filters blocked tasks by one or more labels. Matching uses
+  the same AND semantics as `task list --label`.
 - `--json`: emits parsed task structs.
 
 Example:
 
 ```bash
 ahm task blocked
+ahm task blocked --label risk:external-service
+```
+
+### `task labels`
+
+Lists labels currently used by parsed task files. Text output is sorted by
+label and includes total task count, active-bucket count, `Open` status count,
+and ready task count:
+
+```text
+area:cli total=7 active=4 open=0 ready=2
+```
+
+Useful flags:
+
+- `--json`: emits label summary objects with `label`, `total`, `active`,
+  `open`, and `ready` fields.
+
+Example:
+
+```bash
+ahm task labels
+ahm --json task labels
 ```
 
 ### `task next`

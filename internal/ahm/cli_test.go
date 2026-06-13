@@ -10,7 +10,7 @@ func TestNestedHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("task help exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "Manage tasks", "create", "dep")
+	assertContainsAll(t, stdout, "Manage tasks", "create", "dep", "labels")
 
 	stdout, stderr, code = runCLI(t, "task", "create", "--help")
 	if code != 0 {

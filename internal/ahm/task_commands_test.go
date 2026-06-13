@@ -550,7 +550,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("single status", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"completed"}); err != nil {
+		if err := a.taskList("all", []string{"completed"}, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -561,7 +561,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("multiple statuses", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"pending", "cancelled"}); err != nil {
+		if err := a.taskList("all", []string{"pending", "cancelled"}, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -572,7 +572,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("normalization applies per entry", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"PENDING", "CANCELLED"}); err != nil {
+		if err := a.taskList("all", []string{"PENDING", "CANCELLED"}, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -583,7 +583,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("duplicate statuses are deduplicated", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"pending", "Pending"}); err != nil {
+		if err := a.taskList("all", []string{"pending", "Pending"}, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -594,7 +594,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("invalid status returns error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", []string{"pending", "bogus"})
+		err := a.taskList("all", []string{"pending", "bogus"}, nil)
 		if err == nil {
 			t.Fatal("expected error for invalid status")
 		}
@@ -607,7 +607,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		// Simulate what happens when --status pending, is used (trailing comma)
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", []string{"pending", ""})
+		err := a.taskList("all", []string{"pending", ""}, nil)
 		if err == nil {
 			t.Fatal("expected error for empty status")
 		}
@@ -615,6 +615,82 @@ func TestTaskListFiltersStatus(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
+}
+
+func TestTaskListFiltersLabels(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "CLI Feature", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Docs Feature", "Pending", "labels: type:feature, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "CLI Bug", "Pending", "labels: type:bug, area:cli\n")
+
+	t.Run("matches all labels", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", nil, []string{"type:feature", "area:cli"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S CLI Feature")
+		assertNotContains(t, got, "002 [Pending]", "003 [Pending]")
+	})
+
+	t.Run("splits comma-separated labels", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskList("all", nil, []string{"type:feature, area:docs"}); err != nil {
+			t.Fatal(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "002 [Pending] P2 S Docs Feature")
+		assertNotContains(t, got, "001 [Pending]", "003 [Pending]")
+	})
+
+	t.Run("empty label returns usage error", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		err := a.taskList("all", nil, []string{"type:feature,"})
+		if err == nil {
+			t.Fatal("expected error for empty label")
+		}
+		if !strings.Contains(err.Error(), "task label filter cannot be empty") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestTaskReadyFiltersLabels(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:task, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "CLI Ready", "Pending", "labels: type:feature, area:cli\ndepends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Docs Ready", "Pending", "labels: type:feature, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "CLI Waiting", "Pending", "labels: type:feature, area:cli\ndepends_on: 999\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "ready", "--label", "type:feature,area:cli")
+	if code != 0 {
+		t.Fatalf("ready --label exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "002 [Pending] P2 S CLI Ready")
+	assertNotContains(t, stdout, "003 [Pending]", "004 [Pending]")
+}
+
+func TestTaskLabelsListsCounts(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Ready", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Needs Triage", "Open", "labels: type:bug, area:cli\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "labels")
+	if code != 0 {
+		t.Fatalf("labels exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"area:cli total=3 active=2 open=1 ready=1",
+		"type:bug total=1 active=1 open=1 ready=0",
+		"type:feature total=2 active=1 open=0 ready=1",
+	)
+	if strings.Index(stdout, "area:cli") > strings.Index(stdout, "type:bug") {
+		t.Fatalf("labels are not sorted:\n%s", stdout)
+	}
 }
 
 func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
@@ -660,7 +736,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task list skips malformed task with warning", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("all", nil); err != nil {
+		if err := a.taskList("all", nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
@@ -678,7 +754,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task ready skips malformed task", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("ready", nil); err != nil {
+		if err := a.taskList("ready", nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		got := out.String()
