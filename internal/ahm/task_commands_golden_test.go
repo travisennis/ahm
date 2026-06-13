@@ -44,6 +44,16 @@ func TestGoldenCakeReviewFeedback(t *testing.T) {
 	}
 }
 
+func TestGoldenCodexReviewFeedback(t *testing.T) {
+	feedback, err := parseCodexReviewFeedback(readAgentGolden(t, "codex-review.jsonl"))
+	if err != nil {
+		t.Fatalf("parseCodexReviewFeedback: %v", err)
+	}
+	if strings.TrimSpace(feedback) == "" {
+		t.Fatal("no review feedback parsed from codex review golden")
+	}
+}
+
 func TestGoldenCodexExecSessionID(t *testing.T) {
 	id, err := parseCodexSessionID(readAgentGolden(t, "codex-exec.jsonl"))
 	if err != nil {

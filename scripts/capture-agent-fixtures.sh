@@ -79,6 +79,9 @@ if command -v codex >/dev/null 2>&1; then
   capture codex-exec "$codex_version" \
     codex exec -c model_reasoning_effort=low --json "$work_prompt"
 
+  capture codex-review "$codex_version" \
+    codex exec -c model_reasoning_effort=low --json "$review_prompt"
+
   thread_id="$(jq -r 'select(.type == "thread.started") | .thread_id' "$fixtures_dir/codex-exec.jsonl" | head -n 1)"
   if [ -z "$thread_id" ] || [ "$thread_id" = "null" ]; then
     echo "Error: no thread.started thread_id in codex exec transcript; cannot capture resume" >&2

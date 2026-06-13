@@ -16,6 +16,7 @@ transcripts in `just ci` and fails — never skips — when one is missing.
 - `cake-work.jsonl` — `cake --output-format stream-json` work run.
 - `cake-review.jsonl` — `cake --no-session --skills deslop` review run.
 - `codex-exec.jsonl` — `codex exec --json` work run.
+- `codex-review.jsonl` — `codex exec --json` review run with the deslop prompt.
 - `codex-resume.jsonl` — `codex exec resume --json <thread-id>` resuming the
   session captured in `codex-exec.jsonl`; the two are a linked pair.
 

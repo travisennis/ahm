@@ -716,10 +716,17 @@ current invocation. This enables follow-up review, revision, and commit steps
 within the same workflow run.
 
 Agents marked **Full orchestration** for Review support independent review
-invocation. When `--review` is passed, `ahm` runs an independent review pass
-(for `cake`, the deslop skill; for `codex`, `codex review --uncommitted`;
-for `cursor`, a fresh `cursor-agent` ask-mode stream-json run) against the
-current uncommitted changes. If the review produces actionable feedback, `ahm`
+invocation. When `--review` is passed, `ahm` runs the repository-owned deslop
+review workflow (`.agents/skills/deslop/SKILL.md`) against the current
+uncommitted changes, using each agent's normal execution path:
+
+- `cake`: `--no-session --skills deslop --output-format stream-json`
+- `codex`: `codex exec --json` with the deslop prompt
+- `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`
+  with the deslop prompt
+
+This means `--review` has consistent semantics across all agents: it runs the
+deslop review workflow. If the review produces actionable feedback, `ahm`
 resumes the original work session with the feedback and asks the agent to
 address each issue. If the review produces no feedback, the feedback-resume
 step is skipped. If the review command itself fails, the failure is surfaced
@@ -778,8 +785,9 @@ are performed by the delegated agent.
 Useful flags:
 
 - `--agent <cake|codex|cursor>`: selects the external coding-agent CLI.
-- `--review`: runs an independent review pass (deslop for `cake`) after the
-  work session, and feeds actionable feedback back into the work session.
+- `--review`: runs the deslop review workflow (`.agents/skills/deslop/SKILL.md`)
+  against current uncommitted changes and feeds actionable feedback back into
+  the work session. Behaves consistently across all agents.
 - `--complete`: runs a completion handoff after the work session (and after
   review, if `--review` is also set) that asks the delegated agent to fill
   acceptance notes, run verification, and run `ahm task complete <id>`.

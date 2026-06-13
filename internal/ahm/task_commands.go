@@ -333,7 +333,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			parseSessionID:   parseCodexSessionID,
 			supportsReview:   true,
 			reviewArgs: func(prompt string) []string {
-				return []string{"review", "--uncommitted"}
+				return []string{"exec", "--json", prompt}
 			},
 			parseReviewFeedback: parseCodexReviewFeedback,
 		}, nil
@@ -478,13 +478,13 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	return nil
 }
 
-// taskWorkReviewPrompt is the prompt runReview sends to the review agent.
-// The fixture capture script (scripts/capture-agent-fixtures.sh) replays the
-// same prompt so the committed review golden reflects a real review run;
+// taskWorkReviewPrompt is the prompt runReview sends to every review-capable
+// agent. It asks the agent to run the repo-owned deslop review skill against
+// current uncommitted changes. The fixture capture script
+// (scripts/capture-agent-fixtures.sh) replays the same prompt so the committed
+// review golden reflects a real review run;
 // TestCaptureScriptUsesReviewPrompt keeps the two in sync.
 const taskWorkReviewPrompt = "Run the deslop skill on the current uncommitted changes."
-
-const cursorTaskWorkReviewPrompt = "Review the current uncommitted changes and report only actionable issues. If there are no issues, say so briefly."
 
 // runReview runs an independent review pass using the agent's review
 // capability, then feeds actionable feedback back into the original work
@@ -493,7 +493,7 @@ const cursorTaskWorkReviewPrompt = "Review the current uncommitted changes and r
 func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewArgs := agent.reviewArgs(taskWorkReviewPromptForAgent(agent))
+	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt)
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
@@ -518,13 +518,6 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
 	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
 	return taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
-}
-
-func taskWorkReviewPromptForAgent(agent taskWorkAgent) string {
-	if agent.name == "cursor" {
-		return cursorTaskWorkReviewPrompt
-	}
-	return taskWorkReviewPrompt
 }
 
 // runCompletion resumes the agent session with a completion handoff prompt,
@@ -674,12 +667,25 @@ func codexResumeArgs(sessionID, prompt string) []string {
 	return []string{"exec", "resume", "--json", sessionID, prompt}
 }
 
-// parseCodexReviewFeedback parses codex review --uncommitted plain-text output
-// and returns it as review feedback. The codex review command does not support
-// --json, so the full stdout is treated as feedback.
+// parseCodexReviewFeedback parses codex exec --json output and returns the
+// concatenated text from all agent_message item.completed events, which
+// contains the deslop review feedback.
 func parseCodexReviewFeedback(output []byte) (string, error) {
-	feedback := strings.TrimSpace(string(output))
-	return feedback, nil
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	var texts []string
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt codexStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "item.completed" && evt.Item != nil && evt.Item.Text != "" {
+			texts = append(texts, evt.Item.Text)
+		}
+	}
+	return strings.Join(texts, "\n"), nil
 }
 
 // cursorStreamEvent represents a single JSONL event in cursor-agent

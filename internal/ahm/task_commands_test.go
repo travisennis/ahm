@@ -1629,14 +1629,65 @@ func TestParseCodexSessionID(t *testing.T) {
 }
 
 func TestParseCodexReviewFeedback(t *testing.T) {
-	output := "Found 3 issues:\n1. Missing error handling\n2. Hardcoded value\n"
-	feedback, err := parseCodexReviewFeedback([]byte(output))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name       string
+		output     string
+		wantResult string
+	}{
+		{
+			name: "single agent_message",
+			output: `{"type":"thread.started","thread_id":"thr_abc"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Found 2 style issues."}}
+{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50}}`,
+			wantResult: "Found 2 style issues.",
+		},
+		{
+			name: "multiple items",
+			output: `{"type":"thread.started","thread_id":"thr_abc"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Issue 1: missing tests."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Issue 2: unused variable."}}
+{"type":"turn.completed"}`,
+			wantResult: "Issue 1: missing tests.\nIssue 2: unused variable.",
+		},
+		{
+			name:       "non-agent_message item",
+			output:     `{"type":"item.completed","item":{"id":"item_0","type":"tool_call"}}`,
+			wantResult: "",
+		},
+		{
+			name:       "no text field",
+			output:     `{"type":"item.completed","item":{"id":"item_0","type":"agent_message"}}`,
+			wantResult: "",
+		},
+		{
+			name:       "empty output",
+			output:     ``,
+			wantResult: "",
+		},
+		{
+			name:       "non-JSON line",
+			output:     `not json`,
+			wantResult: "",
+		},
+		{
+			name: "no relevant events",
+			output: `{"type":"thread.started","thread_id":"thr_abc"}
+{"type":"turn.completed"}`,
+			wantResult: "",
+		},
 	}
-	want := "Found 3 issues:\n1. Missing error handling\n2. Hardcoded value"
-	if feedback != want {
-		t.Fatalf("feedback = %q, want %q", feedback, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseCodexReviewFeedback([]byte(tt.output))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result != tt.wantResult {
+				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+			}
+		})
 	}
 }
 
@@ -1779,7 +1830,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 		},
 		{
 			name: "codex",
-			want: []string{"review", "--uncommitted"},
+			want: []string{"exec", "--json", "Review the changes."},
 		},
 		{
 			name: "cursor",
@@ -1986,8 +2037,7 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--mode" || invocations[1][4] != "ask" || invocations[1][5] != "--trust" {
 		t.Fatalf("review args = %#v, want cursor ask-mode review args", invocations[1])
 	}
-	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Review the current uncommitted changes", "actionable issues")
-	assertNotContains(t, invocations[1][len(invocations[1])-1], "deslop skill")
+	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Run the deslop skill on the current uncommitted changes.")
 	if len(invocations[2]) < 7 || invocations[2][0] != "-p" || invocations[2][1] != "--output-format" || invocations[2][2] != "stream-json" || invocations[2][3] != "--trust" || invocations[2][4] != "--resume" || invocations[2][5] != "cursor_review123" {
 		t.Fatalf("resume args = %#v, want cursor resume args", invocations[2])
 	}
