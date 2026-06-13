@@ -709,19 +709,54 @@ ahm task start 001
 
 ### `task accept <id>`
 
-Sets a task status to `Pending`, moves it to
-`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
-stamps `updated`, and regenerates indexes. This is the intentional transition
-from `Open` (newly captured, untriaged) into the ready backlog.
+Sets a task status to `Pending`, stamps `updated`, and regenerates indexes.
+This is the intentional transition from `Open` (newly captured, untriaged)
+into the ready backlog. The file stays in `.agents/.tasks/active/` because
+both `Open` and `Pending` live in the same bucket.
+
+Before accepting a task, verify:
+
+- The problem statement is clear and the scope is well defined.
+- The relevant files, commands, or modules are identified.
+- Labels, priority, and effort are set to reasonable values.
+- Upfront dependencies are resolved or documented.
+- An ExecPlan exists for `Effort: L` and `Effort: XL` tasks.
+- An ADR exists for `type:feature` tasks that introduce durable
+  architectural decisions.
+- At least a skeleton Acceptance Notes section is present so completion
+  criteria are known.
+
+Reasons not to accept a task (leave it `Open` until resolved):
+
+- The scope or problem is vague and needs more discovery.
+- Product or design decisions are still outstanding.
+- Required dependencies are underspecified or unsatisfiable.
+- A required ExecPlan or ADR has not been created yet.
+
+Tasks that are fully scoped at creation can skip the accept step entirely
+by using `--status Pending` with `ahm task create`. This is appropriate
+when the creator already knows the problem, affected surface, and completion
+criteria.
 
 Useful flags:
 
 - `--dry-run`: previews the target path and status without writing.
 
-Example:
+Examples:
 
 ```bash
+# Accept a task after triage confirms it is actionable
 ahm task accept 001
+
+# Preview the change without writing
+ahm --dry-run task accept 001
+
+# Create a fully scoped task that skips the accept step
+ahm task create "Fix index sort order" \
+  --priority P2 --effort S \
+  --labels "type:bug, area:workflow" \
+  --description "Tasks list is unsorted; sort by ID ascending." \
+  --status Pending
 ```
 
 ### `task work <id> [flags]`

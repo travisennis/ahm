@@ -72,6 +72,47 @@ supply the full body. See `docs/cli.md` for details and examples.
 `ahm task create` regenerates task, research, and ExecPlan indexes
 automatically, so no separate `ahm index` is needed after creation.
 
+## Accepting Tasks
+
+Newly created tasks start as `Open` by default—meaning they have been
+captured but have not been triaged into the ready queue. Before a task is
+ready to be worked, it must be accepted.
+
+Use `ahm task accept <id>` to transition a task from `Open` to `Pending`
+(the ready backlog). The command sets the front-matter `status:` to
+`Pending`, stamps `updated`, and regenerates indexes.
+
+A task should be accepted only when all of the following are true:
+
+- **Clear problem**: The task body states what needs to be done and why.
+- **Relevant files or commands**: The task lists the files, modules, or
+  command surface that will change.
+- **Labels set**: At least one `type:*` and one `area:*` label are present.
+- **Priority and effort set**: The priority and effort reflect a reasonable
+  first estimate.
+- **Dependencies resolved**: All upfront dependencies are set, and none are
+  impossible to satisfy.
+- **ExecPlan or ADR created if required**: Tasks with `Effort: L` or
+  `Effort: XL` already have an ExecPlan; `type:feature` tasks have an ADR
+  when the change introduces a durable architectural decision.
+- **Acceptance Notes present**: The task includes at least a skeleton
+  acceptance section so the completion criteria are known.
+
+Do not accept a task when:
+
+- The problem statement is vague or the scope is unclear.
+- Product or design decisions are still outstanding.
+- Required dependencies are unresolved or underspecified.
+- An ExecPlan or ADR is needed but has not been written.
+
+Tasks that are fully scoped at creation time can skip acceptance by passing
+`--status Pending` to `ahm task create`. This is appropriate when the
+creator already knows the problem, the affected surface, and the completion
+criteria.
+
+`ahm task accept` regenerates task, research, and ExecPlan indexes
+automatically, so no separate `ahm index` is needed.
+
 If you cannot run `ahm` or need full control over the body, create tasks by
 hand:
 
@@ -134,8 +175,8 @@ Use this effort scale:
 
 Use this standard status set:
 
-- `Open` means newly captured work that still needs triage before it is ready for the queue.
-- `Pending` means ready backlog work that can be picked up when its priority and dependencies allow.
+- `Open` means newly captured work that still needs triage before it is ready for the queue. Use `ahm task accept <id>` to move a task from `Open` to `Pending`.
+- `Pending` means ready backlog work that can be picked up when its priority and dependencies allow. Tasks reach `Pending` via `ahm task accept <id>` (from `Open`) or directly when created with `--status Pending`.
 - `In Progress` means the task is currently being worked. `ahm task start <id>` sets this status.
 - `Blocked` means the task is not ready because it is underspecified, waiting on another task, or needs a product or design decision.
 - `Tracking` means a parent task whose implementation happens through child tasks.
