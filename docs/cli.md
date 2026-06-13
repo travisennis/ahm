@@ -500,6 +500,10 @@ the active task location, and index regeneration; only the body content below
 the H1 is taken from the file. The file content is whitespace-trimmed and CRLF
 line endings are normalized to LF.
 
+If the body file starts with an `# <title>` line that matches the task title,
+it is automatically stripped to avoid a duplicate top-level heading. A
+different H1 is preserved as intentional body content.
+
 ```bash
 ahm task create "Cache Immutable Tool Definitions For Agent Turns" \
   --priority P2 \

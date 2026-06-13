@@ -753,6 +753,9 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if err != nil {
 		return err
 	}
+	// Strip any H1 matching the task title to avoid duplicates.
+	// renderTask always emits the H1 from front matter.
+	body = stripHeading(body, parsed.title)
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")

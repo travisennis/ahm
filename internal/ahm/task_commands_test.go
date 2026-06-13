@@ -192,6 +192,93 @@ func TestTaskCreateBodyFileErrors(t *testing.T) {
 	})
 }
 
+func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Body file includes an H1 that matches the task title.
+	// It should be stripped to avoid duplication since the CLI
+	// always generates the H1 from front matter.
+	bodyPath := filepath.Join(root, "body.md")
+	body := "# Dedup Test\n## Problem\n\nBody content.\n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dedup Test", "--body-file", bodyPath)
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+
+	// Should have exactly one H1 heading (from renderTask).
+	// Count occurrences of "# Dedup Test" in the file.
+	h1Count := strings.Count(content, "# Dedup Test")
+	if h1Count != 1 {
+		t.Fatalf("expected exactly 1 H1 %q, got %d:\n%s", "# Dedup Test", h1Count, content)
+	}
+
+	// Body content after the H1 should still be present.
+	assertContainsAll(t, content, "## Problem", "Body content.")
+}
+
+func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Body file has leading blank lines before the matching H1.
+	bodyPath := filepath.Join(root, "body.md")
+	body := "\n\n\n# Lead Blanks\n## Problem\n\nBody.\n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Lead Blanks", "--body-file", bodyPath)
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	h1Count := strings.Count(content, "# Lead Blanks")
+	if h1Count != 1 {
+		t.Fatalf("expected exactly 1 H1 %q, got %d:\n%s", "# Lead Blanks", h1Count, content)
+	}
+	assertContainsAll(t, content, "## Problem", "Body.")
+}
+
+func TestTaskCreateBodyFilePreservesDifferentH1(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Body file has a different H1 than the task title.
+	// This is unusual but should be preserved — it's intentional content.
+	bodyPath := filepath.Join(root, "body.md")
+	body := "# Different Header\n## Problem\n\nBody.\n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "My Title", "--body-file", bodyPath)
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	// Both H1s should exist: the generated one from renderTask and the one from the body.
+	// This is intentional — the body's H1 is different content, not a duplicate.
+	assertContainsAll(t, content, "# My Title", "# Different Header", "## Problem", "Body.")
+}
+
 func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 	tests := []struct {
 		name string
