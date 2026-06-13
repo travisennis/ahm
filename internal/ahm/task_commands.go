@@ -333,7 +333,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			parseSessionID:   parseCodexSessionID,
 			supportsReview:   true,
 			reviewArgs: func(prompt string) []string {
-				return []string{"review", "--uncommitted", prompt}
+				return []string{"review", "--uncommitted"}
 			},
 			parseReviewFeedback: parseCodexReviewFeedback,
 		}, nil

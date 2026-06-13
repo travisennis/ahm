@@ -1769,22 +1769,41 @@ func TestParseCakeReviewFeedback(t *testing.T) {
 }
 
 func TestTaskWorkReviewArgs(t *testing.T) {
-	agent, err := parseTaskWorkAgent("cake")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !agent.supportsReview {
-		t.Fatal("cake should support review")
-	}
-	args := agent.reviewArgs("Review the changes.")
-	want := []string{"--no-session", "--skills", "deslop", "--output-format", "stream-json", "Review the changes."}
-	if len(args) != len(want) {
-		t.Fatalf("reviewArgs = %#v, want %#v", args, want)
-	}
-	for i := range want {
-		if args[i] != want[i] {
-			t.Fatalf("reviewArgs[%d] = %q, want %q", i, args[i], want[i])
-		}
+	for _, tt := range []struct {
+		name string
+		want []string
+	}{
+		{
+			name: "cake",
+			want: []string{"--no-session", "--skills", "deslop", "--output-format", "stream-json", "Review the changes."},
+		},
+		{
+			name: "codex",
+			want: []string{"review", "--uncommitted"},
+		},
+		{
+			name: "cursor",
+			want: []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust", "Review the changes."},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			agent, err := parseTaskWorkAgent(tt.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !agent.supportsReview {
+				t.Fatalf("%s should support review", tt.name)
+			}
+			args := agent.reviewArgs("Review the changes.")
+			if len(args) != len(tt.want) {
+				t.Fatalf("reviewArgs = %#v, want %#v", args, tt.want)
+			}
+			for i := range tt.want {
+				if args[i] != tt.want[i] {
+					t.Fatalf("reviewArgs[%d] = %q, want %q", i, args[i], tt.want[i])
+				}
+			}
+		})
 	}
 }
 
