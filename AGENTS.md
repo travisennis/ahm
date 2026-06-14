@@ -23,9 +23,11 @@ patching source code or performing git operations.
 
 1. Read this file fully before making changes.
 2. For the first task in a session, read `.agents/TASKS.md`, then
-   `.agents/.tasks/index.md`, then the specific task file. For later tasks in
-   the same session, reread only the task index and specific task file unless
-   `.agents/TASKS.md` changed or the task changes task workflow semantics.
+   use `ahm task next`, `ahm task ready`, `ahm task list`, or
+   `ahm task show <id>` to inspect task state, then open the specific task
+   file. For later tasks in the same session, rerun the relevant `ahm task`
+   command and reread the specific task file unless `.agents/TASKS.md` changed
+   or the task changes task workflow semantics.
 3. Prefer narrow checks first, then `go fmt` or `just fmt` after Go edits, then
    `just ci` before final handoff for code changes.
 4. Do not commit or push unless explicitly asked.
@@ -173,12 +175,14 @@ Workflow templates:
 ## Task Queue Rules
 
 - When asked to create, choose, update, or work on a task, first read
-  `.agents/TASKS.md`, then use `.agents/.tasks/index.md` as the task queue and
-  open the specific task file before acting.
+  `.agents/TASKS.md`, then use `ahm task next`, `ahm task ready`,
+  `ahm task list`, `ahm task blocked`, or `ahm task show <id>` to inspect
+  task state before acting.
 - Use task labels to filter work by type, area, and risk when the user asks for
   focused work.
-- Do not edit generated task indexes by hand. Update task files and run
-  `ahm index`.
+- Do not edit generated task indexes by hand. Prefer `ahm task ...` lifecycle
+  commands; update task files and run `ahm index` only for manual fallback
+  edits.
 - When marking a task as completed, use `ahm task complete <id>`. It updates
   task front matter, moves the file from `.agents/.tasks/active/` to
   `.agents/.tasks/completed/`, and regenerates indexes.

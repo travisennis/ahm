@@ -53,9 +53,10 @@ var agentSuggestions = []AgentSuggestion{
 		Body: "### Tasks\n" +
 			"\n" +
 			"When asked to create, choose, update, or work on a task, read\n" +
-			"`.agents/TASKS.md`, then `.agents/.tasks/index.md`, then the specific task\n" +
-			"file. Do not edit generated task indexes by hand; use `ahm` commands or\n" +
-			"regenerate with `ahm index` when source metadata changes.\n" +
+			"`.agents/TASKS.md`, then use `ahm task next`, `ahm task ready`,\n" +
+			"`ahm task list`, `ahm task blocked`, or `ahm task show <id>` to inspect task\n" +
+			"state before acting. Do not edit generated task indexes by hand; use `ahm`\n" +
+			"commands or regenerate with `ahm index` when source metadata changes.\n" +
 			"\n" +
 			"### Research\n" +
 			"\n" +

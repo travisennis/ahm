@@ -5,9 +5,10 @@
 ### Tasks
 
 When asked to create, choose, update, or work on a task, read
-`.agents/TASKS.md`, then `.agents/.tasks/index.md`, then the specific task
-file. Do not edit generated task indexes by hand; use `ahm` commands or
-regenerate with `ahm index` when source metadata changes.
+`.agents/TASKS.md`, then use `ahm task next`, `ahm task ready`,
+`ahm task list`, `ahm task blocked`, or `ahm task show <id>` to inspect task
+state before acting. Do not edit generated task indexes by hand; use `ahm`
+commands or regenerate with `ahm index` when source metadata changes.
 
 ### Research
 

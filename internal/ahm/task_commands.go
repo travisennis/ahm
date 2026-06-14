@@ -403,10 +403,10 @@ func (a *app) buildTaskWorkPrompt(task Task) string {
 	taskPath := relPath(a.opts.root, task.Path)
 	return fmt.Sprintf(`Work on task %s.
 
-Before making changes, read AGENTS.md, .agents/TASKS.md, .agents/.tasks/index.md, and %s.
+Before making changes, read AGENTS.md and .agents/TASKS.md, run ahm task show %s, and open %s.
 
 Use the repository task workflow. Keep changes scoped to the task. Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied. Do not commit or push unless the user explicitly asked for that.
-`, task.ID, taskPath)
+`, task.ID, task.ID, taskPath)
 }
 
 func (a *app) markTaskInProgress(task Task) error {

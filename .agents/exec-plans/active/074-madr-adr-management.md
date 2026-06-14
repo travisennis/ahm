@@ -87,7 +87,7 @@ Milestone 7 is task 081, migration. Implement `ahm adr migrate` as an idempotent
 
 ## Concrete Steps
 
-From repository root `/Users/travisennis/Projects/ahm`, start each implementation task by reading `.agents/.tasks/index.md` and the specific task file. Do not start tasks 076-081 until their declared dependencies are complete.
+From repository root `/Users/travisennis/Projects/ahm`, start each implementation task by reading `.agents/TASKS.md`, running `ahm task show <id>`, and opening the specific task file. Do not start tasks 076-081 until their declared dependencies are complete.
 
 For task 075, run:
 

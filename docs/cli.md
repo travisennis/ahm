@@ -1051,10 +1051,10 @@ Agent selection precedence is:
 3. `cake`
 
 The generated prompt includes the resolved task ID and task path, and instructs
-the delegated agent to read `AGENTS.md`, `.agents/TASKS.md`, the generated task
-index, and the task file before making changes. `ahm` does not pass provider
-credentials, choose models, complete tasks, run git commands, push branches, or
-open pull requests. With `--review`, `--complete`, and `--commit`, `ahm`
+the delegated agent to read `AGENTS.md` and `.agents/TASKS.md`, run
+`ahm task show <id>`, and open the task file before making changes. `ahm` does
+not pass provider credentials, choose models, complete tasks, run git commands,
+push branches, or open pull requests. With `--review`, `--complete`, and `--commit`, `ahm`
 orchestrates follow-up prompts, but the review, completion, and commit actions
 are performed by the delegated agent.
 

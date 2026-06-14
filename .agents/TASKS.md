@@ -1,12 +1,26 @@
 # Task Workflow
 
-This document explains how tasks are handled in this repository. For the first task you work in a session, read this file, then use `.agents/.tasks/index.md` as the task queue and open the relevant task file under `.agents/.tasks/active/`, `.agents/.tasks/completed/`, or `.agents/.tasks/cancelled/`. For later tasks in the same session, reread only `.agents/.tasks/index.md` and the specific task file unless this file changed or the task changes task workflow semantics.
+This document explains how tasks are handled in this repository. For the first
+task you work in a session, read this file, then use `ahm task next`,
+`ahm task ready`, `ahm task list`, `ahm task blocked`, or
+`ahm task show <id>` to inspect task state. Open the specific task file before
+making changes. For later tasks in the same session, rerun the relevant
+`ahm task ...` command and reread the specific task file unless this file
+changed or the task changes task workflow semantics.
 
 ## Task Storage
 
 Tasks live in `.agents/.tasks/active/` while they are not complete, `.agents/.tasks/completed/` after they are finished, and `.agents/.tasks/cancelled/` when they have been abandoned. Each task is a Markdown file named with a stable task id, such as `046.md` or `109.md`. Parent tasks may have lettered child tasks, such as `047a.md`, `047b.md`, and `047c.md`.
 
-The file `.agents/.tasks/index.md` is the generated queue and summary. It lists status counts, the next ready work, blocked or untriaged tasks, parent trackers, and links to the generated active, completed, and cancelled indexes. Use the index to orient yourself, but always open the task file before making changes or deciding the implementation approach.
+The `ahm task ...` commands are the primary task interface. Use them for queue
+inspection, filtering, lifecycle changes, dependency updates, and completion.
+
+The file `.agents/.tasks/index.md` is a generated read-only dashboard and
+fallback reference. It lists status counts, the next ready work, blocked or
+untriaged tasks, parent trackers, and links to the generated active,
+completed, and cancelled indexes. Use it when `ahm` is unavailable or when you
+need to inspect the deterministic generated artifact itself, but always open
+the task file before making changes or deciding the implementation approach.
 
 The generated indexes are:
 
@@ -15,7 +29,10 @@ The generated indexes are:
 - `.agents/.tasks/completed/index.md` for historical lookup of completed tasks.
 - `.agents/.tasks/cancelled/index.md` for historical lookup of cancelled tasks.
 
-Do not edit generated indexes by hand. After changing task metadata by hand, moving tasks between `active/`, `completed/`, and `cancelled/` by hand, or creating tasks by hand, run:
+Do not edit generated indexes by hand. Prefer `ahm task ...` commands for
+task changes. After changing task metadata by hand, moving tasks between
+`active/`, `completed/`, and `cancelled/` by hand, or creating tasks by hand,
+run:
 
 ```bash
 ahm index
@@ -33,12 +50,32 @@ Do not run `ahm index` after `ahm task create`, `ahm task start <id>`, `ahm task
 
 ## Choosing Work
 
-If the user names a task id or title, work from that task even if another task is higher in the queue. If the user asks for the next task, choose from `.agents/.tasks/index.md` using these rules:
+If the user names a task id or title, work from that task even if another task
+is higher in the queue. Use `ahm task show <id>` to inspect the task before
+acting.
+
+If the user asks for the next task, run:
+
+```bash
+ahm task next
+```
+
+If you need a broader queue view, run:
+
+```bash
+ahm task ready
+ahm task blocked
+ahm task list --status Open
+ahm task labels
+```
+
+Choose work using these rules:
 
 1. Prefer the lowest priority number first: `P0`, then `P1`, `P2`, `P3`, and `P4`.
 2. Skip tasks marked `Completed`, `Cancelled`, `Blocked`, `Open`, `In Progress`, or `Tracking`.
 3. Check dependencies before starting. If a dependency is incomplete, do the dependency first or tell the user why the requested task is blocked.
-4. Treat parent tracker tasks as planning references. Work their child tasks in the order stated by the parent tracker or the index.
+4. Treat parent tracker tasks as planning references. Work their child tasks in
+   the order stated by the parent tracker or shown by `ahm task ready`.
 5. Use task labels to filter work by type, area, and risk when the user asks for focused work.
    Prefer `ahm task ready --label <label>` for ready work in a specific area,
    `ahm task list --label <label>` for broader searches, and
@@ -46,7 +83,12 @@ If the user names a task id or title, work from that task even if another task i
    repository. Repeat `--label` or pass comma-separated labels to require all
    listed labels.
 
-Before editing code, read the full task file and inspect the relevant source files. If the task is vague, stale, or conflicts with the current code, update the task with the discovery or ask the user for the missing product decision.
+If `ahm` is unavailable, use `.agents/.tasks/index.md` as the fallback queue
+artifact and follow the same priority, status, dependency, and label rules.
+
+Before editing code, read the full task file and inspect the relevant source
+files. If the task is vague, stale, or conflicts with the current code, update
+the task with the discovery or ask the user for the missing product decision.
 
 ## Creating Tasks
 
@@ -113,8 +155,7 @@ criteria.
 `ahm task accept` regenerates task, research, and ExecPlan indexes
 automatically, so no separate `ahm index` is needed.
 
-If you cannot run `ahm` or need full control over the body, create tasks by
-hand:
+If you cannot run `ahm`, create tasks by hand:
 
 Create new tasks in `.agents/.tasks/active/` with the next available three-digit
 id across `active/`, `completed/`, and `cancelled/`. For example, if the highest
@@ -185,9 +226,22 @@ Use this standard status set:
 
 ## Updating Tasks
 
-Tasks are working records. When you complete a task, discover it is blocked, change its priority, add or finish dependencies, or split it into subtasks, update the task file front matter and regenerate indexes with `ahm index`. If you use an `ahm task ...` command for the change, do not run a separate `ahm index` unless you make more metadata edits afterward.
+Tasks are working records. Prefer `ahm task ...` commands for lifecycle and
+queue changes:
 
-Keep task storage consistent with status:
+```bash
+ahm task accept <id>
+ahm task start <id>
+ahm task dep add <id> <dependency-id>
+ahm task complete <id>
+ahm task cancel <id> --reason <text>
+```
+
+When a command can express the change, use it and do not run a separate
+`ahm index` afterward. If you manually update front matter, move a task file,
+or create a task by hand, run `ahm index` after the edit.
+
+When editing by hand as a fallback, keep task storage consistent with status:
 
 - Non-completed, non-cancelled tasks stay in `.agents/.tasks/active/`.
 - Completed tasks move to `.agents/.tasks/completed/`.
@@ -237,4 +291,7 @@ Tasks that introduce or change an architectural decision must have an Architectu
 - ADRs are optional for localized fixes, tests, docs, small refactors, and implementation-only follow-through that does not create a new durable decision.
 - When an ADR is required, create or update it before code changes begin, then reference it from the task body or implementation notes. If the task also requires an ExecPlan, the ExecPlan should cite the ADR and implement the accepted decision.
 
-After finishing a task that changes code, config, or dependencies, run the project's Full CI check as instructed in `AGENTS.md`. For docs-only task updates, verify the Markdown and links; full CI is not required unless code, config, or dependency files changed.
+After finishing a task that changes code, config, dependencies, fixtures, or
+templates, run the project's Full CI check as instructed in `AGENTS.md`. For
+docs-only task updates, verify the Markdown and links; full CI is not required
+unless code, config, dependency, fixture, or template files changed.
