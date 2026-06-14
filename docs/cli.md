@@ -47,7 +47,7 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
@@ -259,6 +259,61 @@ Example:
 ahm adr show 009
 ahm adr show 9
 ahm --json adr show 009-madr-adr-management
+```
+
+### `adr accept <id>`
+
+Sets a MADR-profile ADR's `status:` to `accepted`, updates `date:` to today's
+date, and regenerates indexes. The command rewrites only front matter.
+
+Example:
+
+```bash
+ahm adr accept 009
+```
+
+### `adr reject <id>`
+
+Sets a MADR-profile ADR's `status:` to `rejected`, updates `date:` to today's
+date, and regenerates indexes. The command rewrites only front matter.
+
+Example:
+
+```bash
+ahm adr reject 009
+```
+
+### `adr deprecate <id>`
+
+Sets a MADR-profile ADR's `status:` to `deprecated`, updates `date:` to today's
+date, and regenerates indexes. The command rewrites only front matter.
+
+Example:
+
+```bash
+ahm adr deprecate 009
+```
+
+### `adr supersede <old-id> --by <new-id>`
+
+Marks one MADR-profile ADR as superseded by another and writes the reciprocal
+body references in one command.
+
+The old ADR gets:
+
+- `status: superseded by ADR-NNN`
+- `date:` updated to today's date
+- a `## Supersession` note linking to the replacement ADR
+
+The replacement ADR gets a `## More Information` reference back to the
+superseded ADR. Rerunning the same command replaces the managed notes instead
+of duplicating them. The command rejects unknown IDs, self-supersession, and
+attempts to point an already-superseded ADR at a different replacement.
+
+Example:
+
+```bash
+ahm adr supersede 009 --by 010
 ```
 
 ### `agents suggestions`

@@ -39,7 +39,7 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	}
 
 	// Write the temp file.
-	if err := os.WriteFile(tmpPath, data, perm); err != nil {
+	if err := os.WriteFile(tmpPath, data, perm); err != nil { // #nosec G703 // tmpPath is derived from the canonical target path validated above.
 		_ = os.Remove(tmpPath) // best-effort cleanup
 		return fmt.Errorf("atomic write: write tmp %s: %w", tmpPath, err)
 	}

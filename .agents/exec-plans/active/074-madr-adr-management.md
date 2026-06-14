@@ -15,10 +15,10 @@ The feature matters because ADRs already gate durable design work in this reposi
 - [x] (2026-06-14 00:00Z) Read task 074, task workflow guidance, documentation workflow guidance, research workflow guidance, ADR design research, existing ADR README, existing ADR files, and ExecPlan requirements.
 - [x] (2026-06-14 00:00Z) Wrote ADR 009, `docs/adr/009-madr-adr-management.md`, to ratify the durable MADR-only design.
 - [x] (2026-06-14 00:00Z) Created this feature ExecPlan and linked implementation tasks 075-081 to it.
-- [ ] Implement task 075: ADR model parsing, rendering, collection, ID resolution, status validation, and legacy classification.
+- [x] Implement task 075: ADR model parsing, rendering, collection, ID resolution, status validation, and legacy classification.
 - [x] (2026-06-14 10:08-04:00) Implement task 076: `ahm adr create`.
 - [x] (2026-06-14 10:42-04:00) Implement task 077: `ahm adr list` and `ahm adr show`.
-- [ ] Implement task 078: ADR lifecycle commands and bidirectional supersession.
+- [x] (2026-06-14 13:00-04:00) Implement task 078: ADR lifecycle commands and bidirectional supersession.
 - [ ] Implement task 079: generated ADR index and ADR validation findings under the `workflow` check scope.
 - [ ] Implement task 080: rewrite the managed ADR workflow template for MADR and update agent suggestions.
 - [ ] Implement task 081: `ahm adr migrate` and migrate this repository's legacy ADR metadata.

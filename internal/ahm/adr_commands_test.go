@@ -221,6 +221,129 @@ func TestADRShowOutputModes(t *testing.T) {
 	})
 }
 
+func TestADRStatusCommandsRewriteOnlyFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	path := filepath.Join(root, "docs", "adr", "001-status-decision.md")
+	body := "# Status Decision\n\n## Context\n\nBody with trailing spaces.  \n\n## More Information\n\n- Keep this.\n"
+	writeADRFile(t, root, "001-status-decision.md", "---\nstatus: proposed\ndate: 2000-01-01\nsource: hand-authored\n---\n"+body)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "accept", "001")
+	if code != 0 {
+		t.Fatalf("accept exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> accepted")
+	content := mustRead(t, path)
+	assertContainsAll(t, content, "status: accepted", "date: ")
+	assertNotContains(t, content, "date: 2000-01-01")
+	if got := bodyAfterRawFrontMatter(t, content); got != body {
+		t.Fatalf("body changed\ngot:\n%q\nwant:\n%q", got, body)
+	}
+}
+
+func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	oldPath := filepath.Join(root, "docs", "adr", "001-old-decision.md")
+	newPath := filepath.Join(root, "docs", "adr", "002-new-decision.md")
+	writeADRFile(t, root, "001-old-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Old Decision\n\n## Context\n\nOld body.\n\n## Supersession\n\nStale note.\n")
+	writeADRFile(t, root, "002-new-decision.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\n## Context\n\nNew body.\n\n## More Information\n\n- Existing reference.\n")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
+	if code != 0 {
+		t.Fatalf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> superseded by ADR-002")
+
+	oldContent := mustRead(t, oldPath)
+	assertContainsAll(t, oldContent, "status: superseded by ADR-002", "## Supersession", "Superseded by [ADR-002](002-new-decision.md).")
+	assertNotContains(t, oldContent, "Stale note.")
+	newContent := mustRead(t, newPath)
+	assertContainsAll(t, newContent, "## More Information", "- Existing reference.", "- Supersedes [ADR-001](001-old-decision.md).")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
+	if code != 0 {
+		t.Fatalf("rerun supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	oldContent = mustRead(t, oldPath)
+	newContent = mustRead(t, newPath)
+	if got := strings.Count(oldContent, "Superseded by [ADR-002](002-new-decision.md)."); got != 1 {
+		t.Fatalf("old supersession note count = %d\n%s", got, oldContent)
+	}
+	if got := strings.Count(newContent, "- Supersedes [ADR-001](001-old-decision.md)."); got != 1 {
+		t.Fatalf("new supersession reference count = %d\n%s", got, newContent)
+	}
+}
+
+func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	oldPath := filepath.Join(root, "docs", "adr", "001-old-decision.md")
+	newPath := filepath.Join(root, "docs", "adr", "002-new-decision.md")
+	writeADRFile(t, root, "001-old-decision.md", strings.ReplaceAll("---\nstatus: accepted\ndate: 2026-06-01\n---\n# Old Decision\n\n## Context\n\nOld body.\n", "\n", "\r\n"))
+	writeADRFile(t, root, "002-new-decision.md", strings.ReplaceAll("---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\n## More Information\n\n- Existing reference.\n", "\n", "\r\n"))
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
+	if code != 0 {
+		t.Fatalf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> superseded by ADR-002")
+
+	oldContent := mustRead(t, oldPath)
+	newContent := mustRead(t, newPath)
+	assertContainsAll(t, oldContent, "status: superseded by ADR-002\r\n", "Superseded by [ADR-002](002-new-decision.md).")
+	assertContainsAll(t, newContent, "- Existing reference.\r\n", "\r\n- Supersedes [ADR-001](001-old-decision.md).")
+	if strings.Contains(strings.ReplaceAll(bodyAfterRawFrontMatter(t, oldContent), "\r\n", ""), "\n") {
+		t.Fatalf("old ADR body contains bare LF:\n%q", oldContent)
+	}
+	if strings.Contains(strings.ReplaceAll(bodyAfterRawFrontMatter(t, newContent), "\r\n", ""), "\n") {
+		t.Fatalf("new ADR body contains bare LF:\n%q", newContent)
+	}
+}
+
+func TestADRSupersedeErrors(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	writeADRFile(t, root, "001-old-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Old Decision\n\nBody.\n")
+	writeADRFile(t, root, "002-new-decision.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\nBody.\n")
+	writeADRFile(t, root, "003-other-decision.md", "---\nstatus: accepted\ndate: 2026-06-03\n---\n# Other Decision\n\nBody.\n")
+	writeADRFile(t, root, "004-superseded-decision.md", "---\nstatus: superseded by ADR-002\ndate: 2026-06-04\n---\n# Superseded Decision\n\nBody.\n")
+
+	tests := []struct {
+		name string
+		args []string
+		code int
+		want string
+	}{
+		{name: "missing replacement", args: []string{"adr", "supersede", "001"}, code: 2, want: "adr supersede requires --by"},
+		{name: "unknown old", args: []string{"adr", "supersede", "999", "--by", "002"}, code: 1, want: `ADR "999" not found`},
+		{name: "unknown new", args: []string{"adr", "supersede", "001", "--by", "999"}, code: 1, want: `ADR "999" not found`},
+		{name: "self", args: []string{"adr", "supersede", "001", "--by", "001"}, code: 2, want: "cannot supersede an ADR with itself"},
+		{name: "already superseded elsewhere", args: []string{"adr", "supersede", "004", "--by", "003"}, code: 1, want: "ADR 004 is already superseded by ADR-002"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, stderr, code := runCLI(t, append([]string{"--root", root}, tt.args...)...)
+			if code != tt.code {
+				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			}
+			assertContainsAll(t, stderr, tt.want)
+		})
+	}
+}
+
 func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 	root := t.TempDir()
 	writeADRFile(t, root, "001-good-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Good Decision\n\nBody.\n")
@@ -252,4 +375,13 @@ func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 		}
 		assertContainsAll(t, stderr, `ADR "002" not found`)
 	})
+}
+
+func bodyAfterRawFrontMatter(t *testing.T, text string) string {
+	t.Helper()
+	_, body, _, ok := splitRawFrontMatter(text)
+	if !ok {
+		t.Fatalf("missing front matter:\n%s", text)
+	}
+	return body
 }

@@ -74,6 +74,44 @@ func (a *app) adrCommand() *cobra.Command {
 		},
 	})
 
+	for _, spec := range []struct {
+		use    string
+		short  string
+		status string
+	}{
+		{use: "accept <id>", short: "Accept an ADR", status: "accepted"},
+		{use: "reject <id>", short: "Reject an ADR", status: "rejected"},
+		{use: "deprecate <id>", short: "Deprecate an ADR", status: "deprecated"},
+	} {
+		status := spec.status
+		adr.AddCommand(&cobra.Command{
+			Use:   spec.use,
+			Short: spec.short,
+			Args:  exactArgs(1, "adr status command requires an id"),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := a.detectRoot(); err != nil {
+					return err
+				}
+				return a.adrSetStatus(args[0], status)
+			},
+		})
+	}
+
+	var supersedeBy string
+	supersede := &cobra.Command{
+		Use:   "supersede <old-id> --by <new-id>",
+		Short: "Supersede an ADR with another ADR",
+		Args:  exactArgs(1, "adr supersede requires an old id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.adrSupersede(args[0], supersedeBy)
+		},
+	}
+	supersede.Flags().StringVar(&supersedeBy, "by", "", "Replacement ADR id")
+	adr.AddCommand(supersede)
+
 	return adr
 }
 
@@ -177,6 +215,98 @@ func (a *app) adrShow(id string) error {
 	}
 	_, err = a.out.Write(data)
 	return err
+}
+
+func (a *app) adrSetStatus(id string, status string) error {
+	adr, err := a.resolveMutableADR(id)
+	if err != nil {
+		return err
+	}
+	today := time.Now().Format(time.DateOnly)
+	if a.opts.dryRun {
+		return a.emit(map[string]any{"adr": adr.ID, "status": status, "date": today})
+	}
+	if err := rewriteADRFrontMatter(adr.Path, map[string]string{
+		"status": status,
+		"date":   today,
+	}); err != nil {
+		return err
+	}
+	if err := a.writeIndexes(); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s -> %s\n", adr.ID, status)
+	return nil
+}
+
+func (a *app) adrSupersede(oldID string, newID string) error {
+	newID = strings.TrimSpace(newID)
+	if newID == "" {
+		return usageError("adr supersede requires --by")
+	}
+	adrs, err := collectADRs(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+	}
+	readable := filterReadableADRs(adrs)
+	oldADR, err := resolveADR(oldID, readable)
+	if err != nil {
+		return err
+	}
+	newADR, err := resolveADR(newID, readable)
+	if err != nil {
+		return err
+	}
+	if oldADR.ID == newADR.ID {
+		return usageError("adr supersede cannot supersede an ADR with itself")
+	}
+	if oldADR.Kind != adrKindMADR {
+		return fmt.Errorf("ADR %s is not a MADR record", oldADR.ID)
+	}
+	if newADR.Kind != adrKindMADR {
+		return fmt.Errorf("ADR %s is not a MADR record", newADR.ID)
+	}
+	nextStatus := "superseded by ADR-" + newADR.ID
+	if strings.HasPrefix(oldADR.Status, "superseded by ADR-") && oldADR.Status != nextStatus {
+		return fmt.Errorf("ADR %s is already %s", oldADR.ID, oldADR.Status)
+	}
+	today := time.Now().Format(time.DateOnly)
+	if a.opts.dryRun {
+		return a.emit(map[string]any{"adr": oldADR.ID, "status": nextStatus, "by": newADR.ID, "date": today})
+	}
+	if err := rewriteADR(oldADR.Path, map[string]string{
+		"status": nextStatus,
+		"date":   today,
+	}, func(body string) string {
+		return upsertADRSupersessionNote(body, newADR)
+	}); err != nil {
+		return err
+	}
+	if err := rewriteADR(newADR.Path, nil, func(body string) string {
+		return upsertADRMoreInformationReference(body, oldADR)
+	}); err != nil {
+		return err
+	}
+	if err := a.writeIndexes(); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.out, "%s -> %s\n", oldADR.ID, nextStatus)
+	return nil
+}
+
+func (a *app) resolveMutableADR(id string) (ADR, error) {
+	adrs, err := collectADRs(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+	}
+	adr, err := resolveADR(id, filterReadableADRs(adrs))
+	if err != nil {
+		return ADR{}, err
+	}
+	if adr.Kind != adrKindMADR {
+		return ADR{}, fmt.Errorf("ADR %s is not a MADR record", adr.ID)
+	}
+	return adr, nil
 }
 
 func (a *app) resolveADRCreateBody(parsed adrCreateArgs) (string, error) {

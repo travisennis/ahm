@@ -260,6 +260,203 @@ func validADRStatus(status string) bool {
 	}
 }
 
+func rewriteADRFrontMatter(path string, fields map[string]string) error {
+	return rewriteADR(path, fields, nil)
+}
+
+func rewriteADR(path string, fields map[string]string, updateBody func(string) string) error {
+	data, err := os.ReadFile(path) // #nosec G304 // path comes from resolved ADR files under docs/adr.
+	if err != nil {
+		return err
+	}
+	text := string(data)
+	raw, body, newline, ok := splitRawFrontMatter(text)
+	if !ok {
+		return fmt.Errorf("ADR front matter is missing or not closed")
+	}
+	if updateBody != nil {
+		body = updateBody(body)
+	}
+	updated := renderRawFrontMatter(updateRawFrontMatter(raw, newline, fields), body, newline)
+	if updated == text {
+		return nil
+	}
+	return writeFileAtomic(path, []byte(updated), 0o644)
+}
+
+func splitRawFrontMatter(text string) (string, string, string, bool) {
+	for _, newline := range []string{"\n", "\r\n"} {
+		open := "---" + newline
+		close := newline + "---" + newline
+		if !strings.HasPrefix(text, open) {
+			continue
+		}
+		end := strings.Index(text[len(open):], close)
+		if end < 0 {
+			return "", "", newline, false
+		}
+		rawStart := len(open)
+		rawEnd := rawStart + end
+		bodyStart := rawEnd + len(close)
+		return text[rawStart:rawEnd], text[bodyStart:], newline, true
+	}
+	return "", text, "\n", false
+}
+
+func updateRawFrontMatter(raw string, newline string, fields map[string]string) string {
+	if len(fields) == 0 {
+		return raw
+	}
+	lines := strings.Split(raw, newline)
+	seen := map[string]bool{}
+	for i, line := range lines {
+		key, _, ok, err := parseFrontMatterLine(line)
+		if err != nil || !ok {
+			continue
+		}
+		value, replace := fields[key]
+		if !replace {
+			continue
+		}
+		lines[i] = key + ": " + value
+		seen[key] = true
+	}
+	for _, key := range sortedKeys(fields) {
+		if seen[key] {
+			continue
+		}
+		lines = append(lines, key+": "+fields[key])
+	}
+	return strings.Join(lines, newline)
+}
+
+func renderRawFrontMatter(raw string, body string, newline string) string {
+	return "---" + newline + raw + newline + "---" + newline + body
+}
+
+func upsertADRSupersessionNote(body string, replacement ADR) string {
+	return upsertADRSection(body, "Supersession", "Superseded by "+adrMarkdownLink(replacement)+".")
+}
+
+func upsertADRMoreInformationReference(body string, superseded ADR) string {
+	return upsertADRMoreInformationLine(body, "- Supersedes "+adrMarkdownLink(superseded)+".", "ADR-"+superseded.ID)
+}
+
+func upsertADRSection(body string, heading string, content string) string {
+	newline := dominantNewline(body)
+	lines := splitLinesForEdit(body)
+	for i, line := range lines {
+		level := headingLevel(line)
+		if level != 2 && level != 3 {
+			continue
+		}
+		trimmedLine := strings.TrimSpace(line)
+		if !strings.EqualFold(strings.TrimSpace(trimmedLine[level:]), heading) {
+			continue
+		}
+		end := len(lines)
+		for j := i + 1; j < len(lines); j++ {
+			nextLevel := headingLevel(lines[j])
+			if nextLevel > 0 && nextLevel <= level {
+				end = j
+				break
+			}
+		}
+		replacement := []string{trimmedLine, "", content}
+		if end < len(lines) {
+			replacement = append(replacement, "")
+		}
+		updated := append([]string{}, lines[:i]...)
+		updated = append(updated, replacement...)
+		updated = append(updated, lines[end:]...)
+		return joinLinesForEdit(updated, newline)
+	}
+	section := "## " + heading + "\n\n" + content
+	normalizedBody := strings.ReplaceAll(body, "\r\n", "\n")
+	if strings.TrimSpace(normalizedBody) == "" {
+		return withNewlineStyle(section+"\n", newline)
+	}
+	separator := "\n\n"
+	if strings.HasSuffix(normalizedBody, "\n\n") {
+		separator = ""
+	} else if strings.HasSuffix(normalizedBody, "\n") {
+		separator = "\n"
+	}
+	return withNewlineStyle(normalizedBody+separator+section+"\n", newline)
+}
+
+func upsertADRMoreInformationLine(body string, line string, match string) string {
+	newline := dominantNewline(body)
+	lines := splitLinesForEdit(body)
+	for i, current := range lines {
+		level := headingLevel(current)
+		if level != 2 && level != 3 {
+			continue
+		}
+		trimmedLine := strings.TrimSpace(current)
+		if !strings.EqualFold(strings.TrimSpace(trimmedLine[level:]), "More Information") {
+			continue
+		}
+		end := len(lines)
+		for j := i + 1; j < len(lines); j++ {
+			nextLevel := headingLevel(lines[j])
+			if nextLevel > 0 && nextLevel <= level {
+				end = j
+				break
+			}
+		}
+		section := append([]string{}, lines[i+1:end]...)
+		filtered := section[:0]
+		for _, existing := range section {
+			if strings.Contains(existing, match) {
+				continue
+			}
+			filtered = append(filtered, existing)
+		}
+		for len(filtered) > 0 && strings.TrimSpace(filtered[len(filtered)-1]) == "" {
+			filtered = filtered[:len(filtered)-1]
+		}
+		if len(filtered) > 0 && strings.TrimSpace(filtered[len(filtered)-1]) != "" {
+			filtered = append(filtered, "")
+		}
+		filtered = append(filtered, line)
+		if end < len(lines) {
+			filtered = append(filtered, "")
+		}
+		updated := append([]string{}, lines[:i+1]...)
+		updated = append(updated, filtered...)
+		updated = append(updated, lines[end:]...)
+		return joinLinesForEdit(updated, newline)
+	}
+	return upsertADRSection(body, "More Information", line)
+}
+
+func dominantNewline(text string) string {
+	if strings.Contains(text, "\r\n") {
+		return "\r\n"
+	}
+	return "\n"
+}
+
+func splitLinesForEdit(text string) []string {
+	return strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+}
+
+func joinLinesForEdit(lines []string, newline string) string {
+	return withNewlineStyle(strings.Join(lines, "\n"), newline)
+}
+
+func withNewlineStyle(text string, newline string) string {
+	if newline == "\r\n" {
+		return strings.ReplaceAll(text, "\n", "\r\n")
+	}
+	return text
+}
+
+func adrMarkdownLink(adr ADR) string {
+	return fmt.Sprintf("[ADR-%s](%s-%s.md)", adr.ID, adr.ID, adr.Slug)
+}
+
 func splitADRFileName(path string) (int, string, bool) {
 	base := strings.TrimSuffix(filepath.Base(path), ".md")
 	idPart, slug, ok := strings.Cut(base, "-")
