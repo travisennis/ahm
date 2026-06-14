@@ -1,7 +1,8 @@
-# ADR 002: Advisory AGENTS.md Suggestions
-
-**Status:** Accepted
-**Date:** 2026-05-30
+---
+status: accepted
+date: 2026-05-30
+---
+# Advisory AGENTS.md Suggestions
 
 ## Context
 
@@ -81,3 +82,4 @@ do not drift.
   command wiring and implementation
 - `internal/templates/templates.go` — suggestion source of truth
 - `docs/spec.md` — `AGENTS.md` ownership semantics
+

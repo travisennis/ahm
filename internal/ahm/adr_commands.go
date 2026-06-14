@@ -112,6 +112,18 @@ func (a *app) adrCommand() *cobra.Command {
 	supersede.Flags().StringVar(&supersedeBy, "by", "", "Replacement ADR id")
 	adr.AddCommand(supersede)
 
+	adr.AddCommand(&cobra.Command{
+		Use:   "migrate",
+		Short: "Migrate legacy ADRs to MADR front matter",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.adrMigrate()
+		},
+	})
+
 	return adr
 }
 

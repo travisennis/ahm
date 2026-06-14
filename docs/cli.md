@@ -316,6 +316,45 @@ Example:
 ahm adr supersede 009 --by 010
 ```
 
+### `adr migrate`
+
+Converts legacy ADR records (H1 + bold `**Status:**` / `**Date:**` metadata) to
+the constrained MADR front matter profile that `ahm` commands require. The
+conversion is metadata-only: body sections such as Context, Decision, and
+Rationale are never rewritten.
+
+The command finds all ADR files under `docs/adr/` and converts each one that
+still uses the legacy format. Already-migrated files (those with YAML front
+matter) are skipped, so rerunning is safe and produces no changes.
+
+Legacy status mapping:
+
+| Legacy status | MADR status |
+| ------------- | ----------- |
+| `Proposed` | `proposed` |
+| `Accepted` | `accepted` |
+| `Deprecated` | `deprecated` |
+| `Accepted, superseded in part by ADR NNN` | `accepted` + `## Supersession` body note |
+| `Superseded` | `superseded by ADR-NNN` (resolved from body) |
+
+If a supersession replacement cannot be resolved unambiguously, the file is
+reported and requires a manual fix. If a `## Supersession` or similar heading
+already exists in the body, the migration preserves it rather than adding a
+redundant note.
+
+Useful flags:
+
+- `--dry-run`: preview which files would change without modifying them.
+- `--json` or `--plain`: structured migration report for scripting.
+
+Examples:
+
+```bash
+ahm adr migrate --dry-run
+ahm adr migrate
+ahm --json adr migrate --dry-run
+```
+
 ### `agents suggestions`
 
 Prints advisory snippets that a project may consider adding to an existing

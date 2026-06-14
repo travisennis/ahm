@@ -1,7 +1,8 @@
-# ADR 008: Delegated Task Work Commit Handoff
-
-**Status:** Accepted
-**Date:** 2026-06-12
+---
+status: accepted
+date: 2026-06-12
+---
+# Delegated Task Work Commit Handoff
 
 ## Context
 
@@ -107,3 +108,4 @@ Pushes and pull-request creation remain out of scope for this feature.
 - `scripts/task-workflow.sh`
 - `internal/ahm/task_commands.go`
 - `docs/cli.md`
+

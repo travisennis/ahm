@@ -1,7 +1,8 @@
-# ADR 004: ExecPlan Lifecycle Validation
-
-**Status:** Accepted
-**Date:** 2026-06-04
+---
+status: accepted
+date: 2026-06-04
+---
+# ExecPlan Lifecycle Validation
 
 ## Context
 
@@ -77,3 +78,4 @@ Only errors affect `ok` and command exit status.
 - `internal/ahm/validation.go` — workflow validation implementation
 - `docs/cli.md` — validation finding reference
 - `docs/spec.md` — workflow validation semantics
+

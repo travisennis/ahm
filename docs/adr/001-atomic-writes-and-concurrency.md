@@ -1,7 +1,8 @@
-# ADR 001: Atomic Writes and Concurrency Protection
-
-**Status:** Accepted
-**Date:** 2026-05-29
+---
+status: accepted
+date: 2026-05-29
+---
+# Atomic Writes and Concurrency Protection
 
 ## Context
 
@@ -120,3 +121,4 @@ path is reserved for that future use.
 - `internal/ahm/write.go` — implementation of `writeFileAtomic`
 - `internal/ahm/write_test.go` — tests for `writeFileAtomic`
 - `.gitignore` — `*.tmp` pattern added for `.agents/` temp files
+

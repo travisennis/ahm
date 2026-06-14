@@ -1,7 +1,8 @@
-# ADR 006: Task Work Agent Delegation
-
-**Status:** Accepted, superseded in part by ADR 008
-**Date:** 2026-06-06
+---
+status: accepted
+date: 2026-06-06
+---
+# Task Work Agent Delegation
 
 ## Supersession Note
 
@@ -134,3 +135,4 @@ the user's installed CLI configuration.
 - `docs/spec.md`
 - `internal/ahm/task_commands.go`
 - `internal/ahm/install.go`
+

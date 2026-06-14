@@ -1,7 +1,8 @@
-# ADR 007: Task Cancellation Reasons
-
-**Status:** Accepted
-**Date:** 2026-06-11
+---
+status: accepted
+date: 2026-06-11
+---
+# Task Cancellation Reasons
 
 ## Context
 
@@ -76,3 +77,4 @@ does not block cancellation.
 - `.agents/TASKS.md` - task cancellation workflow
 - `internal/ahm/task_commands.go` - task cancellation behavior
 - `internal/ahm/task_acceptance.go` - acceptance TODO parser
+

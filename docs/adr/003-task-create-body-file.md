@@ -1,7 +1,8 @@
-# ADR 003: Task Create Body Input From File or Stdin
-
-**Status:** Accepted
-**Date:** 2026-06-04
+---
+status: accepted
+date: 2026-06-04
+---
+# Task Create Body Input From File or Stdin
 
 ## Context
 
@@ -81,3 +82,4 @@ test.
 - `internal/ahm/task_commands.go` — `task create` body resolution
 - `internal/ahm/cli.go` — app stdin wiring
 - `docs/cli.md` — `task create` command documentation
+

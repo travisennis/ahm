@@ -1,7 +1,8 @@
-# ADR 005: Task Acceptance Completion Checks
-
-**Status:** Accepted
-**Date:** 2026-06-05
+---
+status: accepted
+date: 2026-06-05
+---
+# Task Acceptance Completion Checks
 
 ## Context
 
@@ -81,3 +82,4 @@ tasks with incomplete acceptance notes:
 - `internal/ahm/task_acceptance.go` - acceptance parser
 - `internal/ahm/task_commands.go` - task completion behavior
 - `internal/ahm/validation.go` - workflow validation findings
+
