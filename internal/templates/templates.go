@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // FS contains the embedded workflow template files.
 //
@@ -67,6 +67,13 @@ var agentSuggestions = []AgentSuggestion{
 			"Use `.agents/PLANS.md` for L/XL work and significant refactors or workflow\n" +
 			"semantics changes.\n" +
 			"\n" +
+			"### Architecture Decision Records\n" +
+			"\n" +
+			"When creating, updating, or managing ADRs, read `docs/adr/README.md` for\n" +
+			"the format and workflow rules. Use `ahm adr create`, `ahm adr accept`,\n" +
+			"`ahm adr reject`, `ahm adr deprecate`, and `ahm adr supersede` for\n" +
+			"ADR lifecycle management.\n" +
+			"\n" +
 			"### Documentation\n" +
 			"\n" +
 			"Before auditing or updating documentation, read `.agents/DOCS.md`.",
@@ -74,11 +81,11 @@ var agentSuggestions = []AgentSuggestion{
 	{
 		ID:    "ahm-owned-files",
 		Title: "AHM-Owned Files",
-		Body: "Do not edit generated task, research, or ExecPlan indexes by hand. Update the\n" +
-			"source records and run the appropriate `ahm` command.\n" +
+		Body: "Do not edit generated task, research, ExecPlan, or ADR indexes by hand. Update\n" +
+			"the source records and run the appropriate `ahm` command.\n" +
 			"\n" +
 			"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for\n" +
-			"task state moves.\n" +
+			"task state moves. Use `ahm adr` commands for ADR lifecycle changes.\n" +
 			"\n" +
 			"Treat `.agents/*` workflow guides and `docs/adr/README.md` as ahm-managed\n" +
 			"templates. Change canonical guidance in the AHM repository, not through local\n" +

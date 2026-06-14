@@ -65,6 +65,33 @@ assumption there was no separate release pipeline — that assumption was wrong.
   value from `internal/version.Binary` (currently `"0.2.0"`), which is
   acceptable for local development.
 
+## ADR Template Rewrite for MADR (2026-06-14)
+
+`internal/templates.Version` advanced from `0.2.0` to `0.3.0`.
+
+`docs/adr/README.md` was rewritten to document only the constrained MADR
+profile instead of the legacy Nygard-style format. The new template covers:
+
+- Constrained MADR front matter and section guidance.
+- The `ahm adr` command family (create/list/show/accept/reject/deprecate/
+  supersede/migrate).
+- The generated `docs/adr/index.md` ownership rule.
+- Updated supersession rules from ADR 009 (no "Superseded in part" status;
+  partial supersession via body notes).
+
+The starter `AGENTS.md` suggestions were updated to route ADR work through
+`ahm adr` commands and list `docs/adr/index.md` as an ahm-owned generated
+index.
+
+### Impact
+
+- `ahm upgrade` will update `docs/adr/README.md` in consumer repositories
+  that have not locally modified it. Locally customized ADR guides will be
+  preserved and reported as conflicts.
+- `ahm init` in new repositories will install the MADR-only guidance.
+- The `ahm-workflow-routing` and `ahm-owned-files` agent suggestions now
+  cover ADR commands and the generated ADR index.
+
 ### Rejected Alternative
 
 Reverting `templates.Version` to `var` would have fixed the injection but
