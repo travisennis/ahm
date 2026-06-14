@@ -204,7 +204,7 @@ completion unless `--force` is used. If you edit only the completed task body
 afterward, no index regeneration is needed. If you edit task front matter
 afterward, rerun `ahm index`.
 
-To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/completed/<id>.md`, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
+To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/completed/<id>.md`, changes directly dependent `Blocked` tasks to `Pending` when all of their dependencies are now complete, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
 
 To mark a task as Cancelled, use `ahm task cancel <id> --reason <text>`. It requires a non-empty reason, stores that reason in a `## Cancellation Reason` body section, sets the front-matter `status:` to `Cancelled`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/cancelled/<id>.md`, and regenerates the indexes in one step. The global `--force` flag does not bypass the reason requirement. Do not leave Cancelled tasks in `active/`.
 

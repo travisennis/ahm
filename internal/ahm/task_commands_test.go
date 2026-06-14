@@ -1006,6 +1006,81 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	}
 }
 
+func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertContainsAll(t, out.String(), "001 -> Completed", "002 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "status: Pending", "depends_on: 001")
+}
+
+func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First Dependency", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Second Dependency", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertContainsAll(t, out.String(), "001 -> Completed")
+	assertNotContains(t, out.String(), "003 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "status: Blocked", "depends_on: 001, 002")
+}
+
+func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Finished Dependency", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "002.md"), "002", "Other Dependency", "Completed", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Unrelated Blocked Task", "Blocked", "002")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertContainsAll(t, out.String(), "001 -> Completed")
+	assertNotContains(t, out.String(), "003 -> Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "status: Blocked", "depends_on: 002")
+}
+
+func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	assertContainsAll(t, stdout,
+		"move: ", ".agents/.tasks/completed/001.md",
+		"status: Completed",
+		"unblocked:",
+		"id: 002",
+		".agents/.tasks/active/002.md",
+		"status: Pending",
+	)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "status: Blocked")
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+		t.Fatal("completed file should not exist after dry-run completion")
+	}
+}
+
 func TestTaskCompleteWarnsForIncompleteAcceptanceByDefault(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

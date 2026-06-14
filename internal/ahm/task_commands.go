@@ -1202,15 +1202,26 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		return usageError("task cancel requires --reason")
 	}
 
-	// Enforce dependency completion before completing a task,
-	// but only when the status is actually changing.
-	if task.Status != status && status == "Completed" && len(task.DependsOn) > 0 {
-		allTasks, collErr := a.getTasks()
+	var allTasks []Task
+	var allTasksLoaded bool
+	loadTasks := func() []Task {
+		if allTasksLoaded {
+			return allTasks
+		}
+		allTasksLoaded = true
+		tasks, collErr := a.getTasks()
 		if collErr != nil {
 			fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
 		}
+		allTasks = tasks
+		return allTasks
+	}
+
+	// Enforce dependency completion before completing a task,
+	// but only when the status is actually changing.
+	if task.Status != status && status == "Completed" && len(task.DependsOn) > 0 {
 		completed := map[string]bool{}
-		for _, t := range allTasks {
+		for _, t := range loadTasks() {
 			if t.Status == "Completed" {
 				completed[t.ID] = true
 			}
@@ -1260,14 +1271,22 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		task.Body = upsertCancellationReason(task.Body, cancelReason)
 	}
 
+	now := time.Now().Format(time.RFC3339)
 	task.Status = status
-	task.Updated = time.Now().Format(time.RFC3339)
+	task.Updated = now
 	bucket := bucketForStatus(status)
 	target := filepath.Join(a.opts.root, ".agents", ".tasks", bucket, task.ID+".md")
+	var unblocked []Task
+	if status == "Completed" {
+		unblocked = a.taskUnblockDependents(loadTasks(), task.ID, now)
+	}
 	if a.opts.dryRun {
 		preview := map[string]any{"move": target, "status": status}
 		if status == "Cancelled" {
 			preview["reason"] = cancelReason
+		}
+		if len(unblocked) > 0 {
+			preview["unblocked"] = taskUnblockPreview(unblocked)
 		}
 		return a.emit(preview)
 	}
@@ -1279,11 +1298,62 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 			return err
 		}
 	}
+	for _, task := range unblocked {
+		if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+			return err
+		}
+	}
 	if err := a.writeIndexes(); err != nil {
 		return err
 	}
 	fmt.Fprintf(a.out, "%s -> %s\n", task.ID, status)
+	for _, task := range unblocked {
+		fmt.Fprintf(a.out, "%s -> Pending\n", task.ID)
+	}
 	return nil
+}
+
+func (a *app) taskUnblockDependents(tasks []Task, completedID string, updated string) []Task {
+	completed := map[string]bool{completedID: true}
+	for _, task := range tasks {
+		if task.Status == "Completed" {
+			completed[task.ID] = true
+		}
+	}
+	var unblocked []Task
+	for _, task := range tasks {
+		if task.Bucket != "active" || task.Status != "Blocked" || !taskDependsOn(task, completedID) {
+			continue
+		}
+		if !depsComplete(task, completed) {
+			continue
+		}
+		task.Status = "Pending"
+		task.Updated = updated
+		unblocked = append(unblocked, task)
+	}
+	return unblocked
+}
+
+func taskDependsOn(task Task, depID string) bool {
+	for _, dep := range task.DependsOn {
+		if dep == depID {
+			return true
+		}
+	}
+	return false
+}
+
+func taskUnblockPreview(tasks []Task) []map[string]any {
+	preview := make([]map[string]any, 0, len(tasks))
+	for _, task := range tasks {
+		preview = append(preview, map[string]any{
+			"id":     task.ID,
+			"path":   task.Path,
+			"status": "Pending",
+		})
+	}
+	return preview
 }
 
 func warnCancellationAcceptancePlaceholder(stderr io.Writer, task Task) {

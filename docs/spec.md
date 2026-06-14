@@ -97,6 +97,14 @@ updating that section when it already exists and appending it otherwise.
 warns, but does not fail, when acceptance notes still contain the seeded
 `- [ ] TODO` placeholder.
 
+When `ahm task complete <id>` completes a task, it also scans active `Blocked`
+tasks that directly depend on that completed ID. Dependents whose full
+`depends_on` list is now satisfied are moved to `Pending` with an `updated`
+timestamp before indexes are regenerated. Dependents with remaining incomplete
+dependencies, and blocked tasks that do not depend on the completed task, are
+left unchanged. `--dry-run` reports the completion move and dependent unblock
+changes without writing task files or indexes.
+
 ## File Ownership Boundary
 
 `ahm` owns the workflow files it installs, maintains, generates, and upgrades.

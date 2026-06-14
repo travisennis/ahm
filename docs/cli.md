@@ -911,6 +911,12 @@ Before completing, `ahm` verifies that all task dependencies (listed in
 completed, the command returns an error listing the incomplete dependencies
 and does not modify the task file or indexes.
 
+After completing a task, `ahm` scans active `Blocked` tasks that directly depend
+on the completed task. Any dependent task whose full dependency list is now
+completed is changed to `Pending`, stamped with `updated`, and included in the
+same index regeneration. Tasks blocked for unrelated reasons, or tasks that
+still have incomplete dependencies, stay `Blocked`.
+
 Before moving the task, `ahm` also checks for an acceptance section. It accepts
 `##` or `###` headings named `Acceptance Notes`, `Acceptance Criteria`, or
 `Acceptance`, case-insensitively. Completion prints stderr warnings when the
@@ -928,7 +934,8 @@ Alias:
 
 Useful flags:
 
-- `--dry-run`: previews the target path and status without writing.
+- `--dry-run`: previews the target path, status, and any dependent tasks that
+  would be unblocked without writing.
 - `--force`: overrides `"strict_acceptance": true` for this completion.
 
 Example:
