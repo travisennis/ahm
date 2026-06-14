@@ -47,6 +47,33 @@ func (a *app) adrCommand() *cobra.Command {
 	create.Flags().StringVar(&createArgs.decisionMakers, "decision-makers", "", "Set ADR decision-makers")
 	adr.AddCommand(create)
 
+	var listStatuses []string
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List ADRs",
+		Args:  noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.adrList(listStatuses)
+		},
+	}
+	list.Flags().StringSliceVar(&listStatuses, "status", nil, "Filter ADRs by status (comma-separated or repeatable)")
+	adr.AddCommand(list)
+
+	adr.AddCommand(&cobra.Command{
+		Use:   "show <id>",
+		Short: "Show an ADR",
+		Args:  exactArgs(1, "adr show requires an id"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.adrShow(args[0])
+		},
+	})
+
 	return adr
 }
 
@@ -56,6 +83,13 @@ type adrCreateArgs struct {
 	description    string
 	bodyFile       string
 	decisionMakers string
+}
+
+type adrListEntry struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+	Date   string `json:"date"`
 }
 
 func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
@@ -104,6 +138,45 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 	}
 	fmt.Fprintln(a.out, id)
 	return nil
+}
+
+func (a *app) adrList(statuses []string) error {
+	adrs, err := collectADRs(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+	}
+	filtered := filterReadableADRs(adrs)
+	if len(statuses) > 0 {
+		filtered = filterADRsByStatus(filtered, statuses)
+	}
+	entries := adrListEntries(filtered)
+	if a.opts.json || a.opts.plain {
+		return a.emit(entries)
+	}
+	for _, entry := range entries {
+		fmt.Fprintf(a.out, "%s [%s] %s %s\n", entry.ID, entry.Status, entry.Date, entry.Title)
+	}
+	return nil
+}
+
+func (a *app) adrShow(id string) error {
+	adrs, err := collectADRs(a.opts.root)
+	if err != nil {
+		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+	}
+	adr, err := resolveADR(id, filterReadableADRs(adrs))
+	if err != nil {
+		return err
+	}
+	if a.opts.json || a.opts.plain {
+		return a.emit(adr)
+	}
+	data, err := os.ReadFile(adr.Path)
+	if err != nil {
+		return err
+	}
+	_, err = a.out.Write(data)
+	return err
 }
 
 func (a *app) resolveADRCreateBody(parsed adrCreateArgs) (string, error) {
@@ -176,4 +249,52 @@ func adrSlug(title string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+func filterReadableADRs(adrs []ADR) []ADR {
+	out := make([]ADR, 0, len(adrs))
+	for _, adr := range adrs {
+		if adr.Kind == adrKindMalformed {
+			continue
+		}
+		out = append(out, adr)
+	}
+	return out
+}
+
+func filterADRsByStatus(adrs []ADR, statuses []string) []ADR {
+	allowed := make(map[string]bool, len(statuses))
+	for _, raw := range statuses {
+		status := strings.ToLower(strings.TrimSpace(raw))
+		if status != "" {
+			allowed[status] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return adrs
+	}
+	out := make([]ADR, 0, len(adrs))
+	for _, adr := range adrs {
+		status := strings.ToLower(strings.TrimSpace(adr.Status))
+		for allowedStatus := range allowed {
+			if status == allowedStatus || strings.HasPrefix(status, allowedStatus+" ") {
+				out = append(out, adr)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func adrListEntries(adrs []ADR) []adrListEntry {
+	entries := make([]adrListEntry, 0, len(adrs))
+	for _, adr := range adrs {
+		entries = append(entries, adrListEntry{
+			ID:     adr.ID,
+			Title:  adr.Title,
+			Status: adr.Status,
+			Date:   adr.Date,
+		})
+	}
+	return entries
 }

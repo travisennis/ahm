@@ -213,6 +213,54 @@ Useful global flags:
 - `--json` or `--plain`: affects only dry-run output. Successful non-dry-run
   creation prints the ADR ID.
 
+### `adr list`
+
+Lists ADRs parsed from `docs/adr/`, including legacy ADR records that have not
+yet been migrated. Malformed ADR files are skipped with a warning so readable
+records remain usable.
+
+Text output is sorted by ADR ID:
+
+```text
+009 [accepted] 2026-06-14 MADR ADR Management
+```
+
+Useful flags:
+
+- `--status <status>`: filters ADRs by one or more statuses. Accepts a
+  comma-separated list (`--status proposed,accepted`) or repeated flags
+  (`--status proposed --status deprecated`). Matching is case-insensitive.
+  A prefix such as `--status superseded` matches statuses like
+  `superseded by ADR-009`.
+- `--json`: emits ADR list entries with `id`, `title`, `status`, and `date`.
+- `--plain`: emits the same entries as compact JSON.
+
+Example:
+
+```bash
+ahm adr list
+ahm adr list --status accepted
+ahm adr list --status superseded
+ahm --json adr list
+```
+
+### `adr show <id>`
+
+Shows one ADR. The ID accepts the same forms as ADR resolution elsewhere:
+`9`, `009`, or `009-madr-adr-management`.
+
+By default, this prints the raw ADR Markdown file. With `--json`, it prints the
+parsed ADR record. With `--plain`, it prints the parsed ADR record as compact
+JSON. Malformed ADR files are skipped with a warning during resolution.
+
+Example:
+
+```bash
+ahm adr show 009
+ahm adr show 9
+ahm --json adr show 009-madr-adr-management
+```
+
 ### `agents suggestions`
 
 Prints advisory snippets that a project may consider adding to an existing

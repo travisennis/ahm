@@ -147,3 +147,109 @@ func TestADRCreateErrors(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty body error", stderr)
 	}
 }
+
+func TestADRListOutputModesAndStatusFiltering(t *testing.T) {
+	root := t.TempDir()
+	writeADRFile(t, root, "001-legacy-decision.md", "# ADR 001: Legacy Decision\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\n## Context\n\nLegacy body.\n")
+	writeADRFile(t, root, "002-proposed-decision.md", "---\nstatus: proposed\ndate: 2026-06-02\n---\n# Proposed Decision\n\nBody.\n")
+	writeADRFile(t, root, "003-superseded-decision.md", "---\nstatus: superseded by ADR-004\ndate: 2026-06-03\n---\n# Superseded Decision\n\nBody.\n")
+
+	t.Run("text", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "adr", "list")
+		if code != 0 {
+			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout,
+			"001 [Accepted] 2026-06-01 Legacy Decision",
+			"002 [proposed] 2026-06-02 Proposed Decision",
+			"003 [superseded by ADR-004] 2026-06-03 Superseded Decision",
+		)
+	})
+
+	t.Run("plain", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "--plain", "adr", "list", "--status", "proposed")
+		if code != 0 {
+			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		got := strings.TrimSpace(stdout)
+		assertContainsAll(t, got, `"id":"002"`, `"title":"Proposed Decision"`, `"status":"proposed"`, `"date":"2026-06-02"`)
+		assertNotContains(t, got, "Legacy Decision", "Superseded Decision")
+	})
+
+	t.Run("json superseded prefix", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "--json", "adr", "list", "--status", "superseded")
+		if code != 0 {
+			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout,
+			`"id": "003"`,
+			`"title": "Superseded Decision"`,
+			`"status": "superseded by ADR-004"`,
+		)
+		assertNotContains(t, stdout, "Legacy Decision", "Proposed Decision")
+	})
+}
+
+func TestADRShowOutputModes(t *testing.T) {
+	root := t.TempDir()
+	writeADRFile(t, root, "009-madr-adr-management.md", "---\nstatus: accepted\ndate: 2026-06-14\n---\n# MADR ADR Management\n\n## Context\n\nBody.\n")
+
+	t.Run("text prints markdown", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "adr", "show", "9")
+		if code != 0 {
+			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout, "status: accepted", "# MADR ADR Management", "## Context")
+	})
+
+	t.Run("plain prints compact json", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "--plain", "adr", "show", "009-madr-adr-management")
+		if code != 0 {
+			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		got := strings.TrimSpace(stdout)
+		assertContainsAll(t, got, `"ID":"009"`, `"Title":"MADR ADR Management"`, `"Status":"accepted"`)
+		assertNotContains(t, got, "\n  ")
+	})
+
+	t.Run("json prints parsed record", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "--json", "adr", "show", "009")
+		if code != 0 {
+			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout, `"ID": "009"`, `"Title": "MADR ADR Management"`, `"Status": "accepted"`)
+	})
+}
+
+func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
+	root := t.TempDir()
+	writeADRFile(t, root, "001-good-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Good Decision\n\nBody.\n")
+	writeADRFile(t, root, "002-bad-decision.md", "---\nstatus: accepted\n# Missing close\n")
+
+	t.Run("list skips malformed record with warning", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "adr", "list")
+		if code != 0 {
+			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout, "001 [accepted] 2026-06-01 Good Decision")
+		assertNotContains(t, stdout, "002")
+		assertContainsAll(t, stderr, "warning:")
+	})
+
+	t.Run("show resolves valid record despite malformed record", func(t *testing.T) {
+		stdout, stderr, code := runCLI(t, "--root", root, "adr", "show", "001")
+		if code != 0 {
+			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout, "# Good Decision")
+		assertContainsAll(t, stderr, "warning:")
+	})
+
+	t.Run("show does not resolve malformed record", func(t *testing.T) {
+		_, stderr, code := runCLI(t, "--root", root, "adr", "show", "002")
+		if code != 1 {
+			t.Fatalf("show exit code = %d, stderr = %s", code, stderr)
+		}
+		assertContainsAll(t, stderr, `ADR "002" not found`)
+	})
+}
