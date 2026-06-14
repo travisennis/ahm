@@ -144,9 +144,6 @@ func parseADRFromData(data []byte, path string) (ADR, error) {
 		Body:           body,
 		Kind:           adrKindMADR,
 	}
-	if adr.Status != "" && !validADRStatus(adr.Status) {
-		return ADR{}, fmt.Errorf("unsupported ADR status %q", adr.Status)
-	}
 	return adr, nil
 }
 

@@ -19,7 +19,7 @@ The feature matters because ADRs already gate durable design work in this reposi
 - [x] (2026-06-14 10:08-04:00) Implement task 076: `ahm adr create`.
 - [x] (2026-06-14 10:42-04:00) Implement task 077: `ahm adr list` and `ahm adr show`.
 - [x] (2026-06-14 13:00-04:00) Implement task 078: ADR lifecycle commands and bidirectional supersession.
-- [ ] Implement task 079: generated ADR index and ADR validation findings under the `workflow` check scope.
+- [x] (2026-06-14 10:35-04:00) Implement task 079: generated ADR index and ADR validation findings under the `workflow` check scope.
 - [ ] Implement task 080: rewrite the managed ADR workflow template for MADR and update agent suggestions.
 - [ ] Implement task 081: `ahm adr migrate` and migrate this repository's legacy ADR metadata.
 - [ ] Complete the feature by running focused checks, template checks, and `just ci`; update this plan's Outcomes & Retrospective; then move this plan to `.agents/exec-plans/completed/`.

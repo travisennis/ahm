@@ -115,8 +115,8 @@ The ownership categories are:
 
 1. **Generated indexes** (`.agents/.tasks/index.md`,
    `.agents/.research/index.md`, `.agents/exec-plans/active/index.md`,
-   `.agents/exec-plans/completed/index.md`) — owned by `ahm`. Do not edit by
-   hand. Update source records and run `ahm index`.
+   `.agents/exec-plans/completed/index.md`, `docs/adr/index.md`) — owned by
+   `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
 2. **Managed template files** (`.agents/TASKS.md`, `.agents/RESEARCH.md`,
    `.agents/PLANS.md`, `.agents/DOCS.md`, `.agents/skills/*/SKILL.md`,
@@ -127,8 +127,9 @@ The ownership categories are:
 3. **Workflow source records** (task files in `.agents/.tasks/`, research
    notes in `.agents/.research/`, ExecPlans in `.agents/exec-plans/`, ADRs
    under `docs/adr/`) — project-owned. Update through their documented
-   workflows (e.g., `ahm task create`, `ahm task complete <id>`, manual edits
-   to source markdown files).
+   workflows (e.g., `ahm task create`, `ahm task complete <id>`,
+   `ahm adr create`, ADR lifecycle commands, or manual edits to source
+   markdown files).
 
 4. **`AGENTS.md`** — project-owned after creation. `ahm init` may create a
    starter `AGENTS.md` when it is missing, but `ahm` never overwrites an
@@ -139,9 +140,10 @@ The ownership categories are:
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,
 completed task acceptance-note drift, task-to-ExecPlan consistency issues,
-ExecPlan lifecycle coherence issues, and broken relative Markdown links within
-the managed workflow surface. Project-wide documentation is not scanned by
-default; `ahm` validates the workflow files and artifacts it manages or indexes.
+ExecPlan lifecycle coherence issues, ADR record issues, and broken relative
+Markdown links within the managed workflow surface. Project-wide documentation
+is not scanned by default; `ahm` validates the workflow files and artifacts it
+manages or indexes.
 
 ### Validation Scopes
 
@@ -153,8 +155,8 @@ and never runs as part of the default scope.
 Supported scopes:
 
 - `workflow` — managed file consistency, task front matter, dependency cycles,
-  task bucket placement, ExecPlan references and lifecycle, generated index
-  freshness. This is the core workflow validation set.
+  task bucket placement, ExecPlan references and lifecycle, ADR records,
+  generated index freshness. This is the core workflow validation set.
 - `links` — relative Markdown link existence within the managed workflow
   surface. Link validation is independent of workflow state and can be run
   separately to focus on documentation drift.
@@ -193,6 +195,13 @@ under `.agents/exec-plans/completed/`. Every ExecPlan must maintain
 outcomes, completed plans should have completed outcomes, and completed plans
 should not retain open `- [ ]` progress items. Unreferenced ExecPlans are
 reported as informational findings.
+
+ADR validation is part of the `workflow` scope. `ahm` reports malformed ADR
+records, invalid constrained-MADR statuses, filename/metadata ID mismatches,
+duplicate ADR IDs, supersession statuses that point at missing ADRs, and stale
+`docs/adr/index.md` content. Legacy bold-metadata ADR files are warning-tier
+findings that point at `ahm adr migrate`; they do not make `status` or
+`doctor` fail before migration is run.
 
 ## File Format
 

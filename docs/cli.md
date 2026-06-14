@@ -365,8 +365,8 @@ Writes:
 - Workflow guides under `.agents/`, including task, research, ExecPlan, and
   documentation guidance.
 - `.agents/ahm.json` metadata.
-- Generated index files under `.agents/.tasks/`, `.agents/.research/`, and
-  `.agents/exec-plans/`.
+- Generated index files under `.agents/.tasks/`, `.agents/.research/`,
+  `.agents/exec-plans/`, and `docs/adr/index.md`.
 - Workflow directories under `.agents/` and `docs/adr/`.
 
 Useful flags:
@@ -428,15 +428,15 @@ The report includes:
 - Installed workflow version from `.agents/ahm.json`.
 - Task counts by status.
 - Validation errors, warnings, and info findings for managed workflow files,
-  task consistency, generated indexes, ExecPlan references and lifecycle
-  checks, and scoped Markdown links.
+  task consistency, ADR records, generated indexes, ExecPlan references and
+  lifecycle checks, and scoped Markdown links.
 
 Validation checks include missing metadata, missing managed files, unreadable
 managed files, untracked managed files, locally modified managed files,
 malformed task front matter, task bucket mismatches, missing task dependencies,
-active dependency cycles, stale or missing generated indexes, task ExecPlan
-reference issues, ExecPlan lifecycle coherence, and broken relative Markdown
-links inside the managed workflow surface.
+active dependency cycles, ADR record issues, stale or missing generated indexes,
+task ExecPlan reference issues, ExecPlan lifecycle coherence, and broken
+relative Markdown links inside the managed workflow surface.
 
 When the validation report contains any error (not warnings or info findings),
 `status` exits with code 1. No `error:` prefix is printed to stderr; the JSON or
@@ -511,7 +511,7 @@ ahm --check workflow doctor
 
 ### `index`
 
-Regenerates generated task, research, and ExecPlan indexes.
+Regenerates generated task, research, ExecPlan, and ADR indexes.
 
 Writes:
 
@@ -522,10 +522,13 @@ Writes:
 - `.agents/.research/index.md`
 - `.agents/exec-plans/active/index.md`
 - `.agents/exec-plans/completed/index.md`
+- `docs/adr/index.md`
 
 The root index includes status counts, the next ready queue, blocked/open tasks,
 and an all-task table. Bucket indexes include task tables for their bucket. The
 research and ExecPlan indexes link Markdown files from their source folders.
+The ADR index lists readable ADR records from `docs/adr/` as a deterministic
+table of ADR, title, status, and date; `README.md` and `index.md` are excluded.
 
 Useful flags:
 
@@ -539,6 +542,8 @@ Behavior on errors:
   is printed to stderr and index generation continues with the remaining tasks.
 - Generated indexes never silently omit tasks or produce empty output due to
   task file parse failures.
+- Malformed ADR files are omitted from `docs/adr/index.md` and reported by
+  `status` / `doctor`; legacy-format ADRs remain readable until migrated.
 
 Example:
 
@@ -1279,6 +1284,12 @@ Finding codes:
 | `exec_plan_completed_with_open_progress` | A completed ExecPlan still has open `- [ ]` items in its `Progress` section. |
 | `exec_plan_missing_section` | An ExecPlan is missing one of the mandatory lifecycle sections. `ahm` emits one finding per missing section. |
 | `exec_plan_orphan` | An ExecPlan is not referenced by any task `exec_plan` field. This is an info-tier finding. |
+| `adr_malformed` | An ADR file could not be parsed. |
+| `adr_id_mismatch` | An ADR metadata `id` value does not match the numeric filename prefix. |
+| `adr_duplicate_id` | Multiple ADR files use the same numeric ADR ID. |
+| `adr_invalid_status` | A MADR-profile ADR has a status outside `proposed`, `accepted`, `rejected`, `deprecated`, or `superseded by ADR-NNN`. |
+| `adr_supersede_missing` | A MADR-profile ADR status references a missing superseding ADR. |
+| `adr_legacy_format` | An ADR uses the legacy bold-metadata format; run `ahm adr migrate`. This is a warning-tier finding. |
 | `generated_index_missing` | A generated workflow index is missing and should be regenerated with `ahm index`. |
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
