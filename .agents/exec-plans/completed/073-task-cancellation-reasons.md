@@ -39,7 +39,7 @@ After this change, cancelling a task with `ahm task cancel <id>` always records 
 
 Completed. `ahm task cancel <id>` now requires `--reason <text>`, rejects an empty trimmed reason even with `--force`, persists the reason in `## Cancellation Reason`, updates an existing cancellation section instead of duplicating it, includes the reason in dry-run output, and warns when acceptance notes still contain the seeded TODO placeholder. The CLI reference, workflow spec, installed task workflow, embedded task workflow template, and grooming-backlog skill guidance now describe the required reason flag.
 
-Deslop follow-up fixed two review findings: AGENTS guidance now includes the required `--reason` flag, and replacement of an existing `## Cancellation Reason` section preserves a blank line before the next Markdown heading. Post-deslop validation passed with `go test ./internal/ahm -run 'TestTaskCancel|TestAgentsSuggestions'`, `go test ./internal/templates ./internal/ahm`, `just fmt`, and `just ci`.
+Preflight follow-up fixed two review findings: AGENTS guidance now includes the required `--reason` flag, and replacement of an existing `## Cancellation Reason` section preserves a blank line before the next Markdown heading. Post-preflight validation passed with `go test ./internal/ahm -run 'TestTaskCancel|TestAgentsSuggestions'`, `go test ./internal/templates ./internal/ahm`, `just fmt`, and `just ci`.
 
 ## Context and Orientation
 
@@ -158,4 +158,4 @@ Revision note 2026-06-11: Created initial plan and ADR before implementation bec
 
 Revision note 2026-06-11: Updated progress, validation evidence, and outcomes after implementation and CI completed successfully.
 
-Revision note 2026-06-11: Recorded deslop follow-up fixes and validation after the review-readiness pass.
+Revision note 2026-06-11: Recorded preflight follow-up fixes and validation after the review-readiness pass.

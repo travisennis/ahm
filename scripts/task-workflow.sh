@@ -1,12 +1,12 @@
 #!/bin/bash
-# task-workflow.sh — Work a ticket through cake with automated deslop review
+# task-workflow.sh — Work a ticket through cake with automated preflight review
 #
 # Usage: ./task-workflow.sh <task-id>
 #
 # Runs four sequential cake invocations:
 #   1. Work the ticket (captured session)
-#   2. Run the deslop skill in a fresh session to get a review
-#   3. Resume the working session, feeding in deslop feedback
+#   2. Run the preflight skill in a fresh session to get a review
+#   3. Resume the working session, feeding in preflight feedback
 #   4. Commit the result
 #
 set -euo pipefail
@@ -43,35 +43,35 @@ echo "$json1" | jq -r '.result // "No response"'
 echo "" >&2
 
 # ────────────────────────────────────────────────────────────────────────────
-# Step 2 — Run the deslop skill in a fresh session to get an independent
+# Step 2 — Run the preflight skill in a fresh session to get an independent
 #          review of the current state of the repo.
 # ────────────────────────────────────────────────────────────────────────────
-echo "── Step 2/4: Running deslop review ──" >&2
+echo "── Step 2/4: Running preflight review ──" >&2
 
-deslop_json=$(cake --no-session --model glm5-1 --skills deslop --output-format json \
-  "Run the deslop skill on the current uncommitted changes." 2>/dev/null)
+preflight_json=$(cake --no-session --model glm5-1 --skills preflight --output-format json \
+  "Run the preflight skill on the current uncommitted changes." 2>/dev/null)
 
-deslop_feedback=$(echo "$deslop_json" | jq -r '.result // .error // "No feedback from deslop"')
+preflight_feedback=$(echo "$preflight_json" | jq -r '.result // .error // "No feedback from preflight"')
 
 # Show a summary of the feedback
-echo "  Deslop feedback: ${#deslop_feedback} characters" >&2
-echo "$deslop_feedback" | head -5
+echo "  Preflight feedback: ${#preflight_feedback} characters" >&2
+echo "$preflight_feedback" | head -5
 echo "  (...)" >&2
 echo "" >&2
 
 # ────────────────────────────────────────────────────────────────────────────
 # Step 3 — Resume the original session and ask the agent to address each
-#          issue the deslop review raised.
+#          issue the preflight review raised.
 # ────────────────────────────────────────────────────────────────────────────
-if [ -z "$deslop_feedback" ] || [ "$deslop_feedback" = "No feedback from deslop" ]; then
-  echo "  No deslop feedback to address, skipping Step 3" >&2
+if [ -z "$preflight_feedback" ] || [ "$preflight_feedback" = "No feedback from preflight" ]; then
+  echo "  No preflight feedback to address, skipping Step 3" >&2
 else
-  echo "── Step 3/4: Addressing deslop feedback in session ${session_id:0:8}… ──" >&2
+  echo "── Step 3/4: Addressing preflight feedback in session ${session_id:0:8}… ──" >&2
 
   {
-    printf '%s\n' "Please address the following deslop review feedback:"
+    printf '%s\n' "Please address the following preflight review feedback:"
     printf '%s\n' ""
-    printf '%s\n' "$deslop_feedback"
+    printf '%s\n' "$preflight_feedback"
   } | cake --resume "$session_id" --output-format json - 2>/dev/null | jq -r '.result // "No response"'
 
   echo "" >&2
@@ -81,7 +81,7 @@ fi
 # Step 4 — Commit the completed work
 # ────────────────────────────────────────────────────────────────────────────
 echo "── Step 4/4: Committing ──" >&2
-cake --resume "$session_id" "Now that all of the deslop feedback has been addressed, commit the completed work for ticket ${task_id}. Make sure the task is marked completed before committing. Include both task files and project source files in a single commit."
+cake --resume "$session_id" "Now that all of the preflight feedback has been addressed, commit the completed work for ticket ${task_id}. Make sure the task is marked completed before committing. Include both task files and project source files in a single commit."
 echo "" >&2
 
 echo "── Done ──" >&2

@@ -14,9 +14,9 @@ recording the agent version, capture date, and the exact command used
 transcripts in `just ci` and fails — never skips — when one is missing.
 
 - `cake-work.jsonl` — `cake --output-format stream-json` work run.
-- `cake-review.jsonl` — `cake --no-session --skills deslop` review run.
+- `cake-review.jsonl` — `cake --no-session --skills preflight` review run.
 - `codex-exec.jsonl` — Codex JSONL work run.
-- `codex-review.jsonl` — Codex JSONL review run with the deslop prompt.
+- `codex-review.jsonl` — Codex JSONL review run with the preflight prompt.
 - `codex-resume.jsonl` — Codex JSONL resume run resuming the
   session captured in `codex-exec.jsonl`; the two are a linked pair.
 

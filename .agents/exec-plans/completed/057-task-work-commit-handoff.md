@@ -6,7 +6,7 @@ This document follows `.agents/PLANS.md`. It is self-contained so a contributor 
 
 ## Purpose / Big Picture
 
-After this change, a user can run `ahm task work <id> --commit` to ask the same delegated coding-agent session that worked a task to commit the completed work. The behavior mirrors the final step of `scripts/task-workflow.sh`: after the work session, and after deslop review feedback is addressed when `--review` is also set, `ahm` resumes the original session and asks the agent to commit the completed work for the task. `ahm` does not run git commands itself.
+After this change, a user can run `ahm task work <id> --commit` to ask the same delegated coding-agent session that worked a task to commit the completed work. The behavior mirrors the final step of `scripts/task-workflow.sh`: after the work session, and after preflight review feedback is addressed when `--review` is also set, `ahm` resumes the original session and asks the agent to commit the completed work for the task. `ahm` does not run git commands itself.
 
 The observable behavior is that dry-run output previews `commit: true`, and a real `cake` orchestration with `--commit` runs an additional `cake --resume <session> --output-format json <prompt>` invocation whose prompt says to commit the completed work, ensure the task is marked completed before committing, and include task files and project source files in one commit.
 
@@ -19,7 +19,7 @@ The observable behavior is that dry-run output previews `commit: true`, and a re
 - [x] (2026-06-12 00:50Z) Updated README, CLI docs, and spec for the commit handoff boundary.
 - [x] (2026-06-12 00:53Z) Ran focused tests, package tests, formatting, and full CI.
 - [x] (2026-06-12 00:54Z) Filled task acceptance notes, updated this plan's outcomes, moved this plan to completed, and completed task 057.
-- [x] (2026-06-12 01:05Z) Ran deslop review and tightened `--commit` so missing session capture fails instead of silently skipping the requested commit handoff.
+- [x] (2026-06-12 01:05Z) Ran preflight review and tightened `--commit` so missing session capture fails instead of silently skipping the requested commit handoff.
 
 ## Surprises & Discoveries
 
@@ -27,7 +27,7 @@ The observable behavior is that dry-run output previews `commit: true`, and a re
   Evidence: `internal/ahm/task_commands.go` says the captured session is available for later review, completion, and commit handoff steps, while the function parameters only include `review` and `complete`.
 - Observation: The current dry-run preview records `complete: true` but omits `review: true`, even though docs say dry-run previews selected arguments and status.
   Evidence: `taskWork` only adds `preview["complete"] = true`.
-- Observation: Before the deslop pass, `--commit` could silently skip the
+- Observation: Before the preflight pass, `--commit` could silently skip the
   requested commit handoff when session capture failed.
   Evidence: `taskWorkWithSession` returned success after warning on missing or
   unparsable session IDs before checking follow-up flags.
@@ -35,7 +35,7 @@ The observable behavior is that dry-run output previews `commit: true`, and a re
 ## Decision Log
 
 - Decision: Implement `--commit` as a session follow-up after review and completion follow-ups, with the commit step last.
-  Rationale: This matches `scripts/task-workflow.sh`, where the commit happens after deslop feedback is addressed and after the task is completed or confirmed complete.
+  Rationale: This matches `scripts/task-workflow.sh`, where the commit happens after preflight feedback is addressed and after the task is completed or confirmed complete.
   Date/Author: 2026-06-12 / Codex
 - Decision: Do not require `--complete` when `--commit` is passed.
   Rationale: The base work prompt already instructs the delegated agent to complete the task; the commit prompt should only reinforce that the task must be marked completed before committing.
@@ -64,7 +64,7 @@ as explicit delegated orchestration. Tests cover commit handoff invocation,
 review-plus-commit ordering, dry-run preview, prompt content, and failure
 wrapping.
 
-A deslop pass found one correctness issue after completion: an explicit
+A preflight pass found one correctness issue after completion: an explicit
 `--commit` request should fail if session capture fails, because otherwise the
 CLI can report success without running the requested commit handoff. The
 implementation now returns an error for missing or unparsable session IDs when
@@ -79,7 +79,7 @@ Validation passed with:
     go test ./internal/templates
     just ci
 
-After the deslop fix, validation additionally passed with:
+After the preflight fix, validation additionally passed with:
 
     go test ./internal/ahm -run 'TestTaskWorkCommit|TestTaskWorkCakeSession|TestTaskWorkCompletionMissingSession'
 
@@ -89,7 +89,7 @@ After the deslop fix, validation additionally passed with:
 
 The relevant types and helpers are in `internal/ahm/task_commands.go`. `taskWorkArgs` stores parsed flags. `taskWorkAgent` stores provider-specific executable and argument builders. `taskWorkWithSession` captures `cake` JSON output, parses `session_id`, and then optionally calls `runReview` and `runCompletion`. `cakeResumeArgs` builds `cake --resume <sessionID> --output-format json <prompt>`.
 
-`scripts/task-workflow.sh` is the behavior source for this feature. Its final step runs `cake --resume "$session_id"` with this intent: now that deslop feedback has been addressed, commit the completed work for the ticket, make sure the task is marked completed before committing, and include task files and project source files in a single commit.
+`scripts/task-workflow.sh` is the behavior source for this feature. Its final step runs `cake --resume "$session_id"` with this intent: now that preflight feedback has been addressed, commit the completed work for the ticket, make sure the task is marked completed before committing, and include task files and project source files in a single commit.
 
 The durable decision is ADR 008, `docs/adr/008-delegated-task-work-commit-handoff.md`. ADR 006 is still valid for the original delegation boundary, except for the part that excluded commit handoff.
 
@@ -146,7 +146,7 @@ Creating ADR 008 and this ExecPlan is additive. Re-running `ahm index` is safe b
 
 The key script prompt to preserve is from `scripts/task-workflow.sh`:
 
-    Now that all of the deslop feedback has been addressed, commit the completed work for ticket ${task_id}. Make sure the task is marked completed before committing. Include both task files and project source files in a single commit.
+    Now that all of the preflight feedback has been addressed, commit the completed work for ticket ${task_id}. Make sure the task is marked completed before committing. Include both task files and project source files in a single commit.
 
 The prompt in Go can adjust wording from ticket to task, but must preserve the behavior.
 
@@ -171,7 +171,7 @@ The `taskWorkWithSession` signature should grow a commit flag:
 The plan was moved from active to completed after recording outcomes so workflow
 validation can confirm task-to-ExecPlan lifecycle coherence.
 
-2026-06-12: Ran the deslop review pass requested after completion. The review
+2026-06-12: Ran the preflight review pass requested after completion. The review
 kept one concrete fix: explicit `--commit` now fails when session capture fails
 instead of silently skipping commit handoff. This keeps `--complete` behavior
 unchanged pending a later decision.

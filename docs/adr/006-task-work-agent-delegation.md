@@ -63,7 +63,7 @@ while allowing Codex to edit files, run verification that writes outside the
 repository cache, complete tasks, and perform the optional commit handoff.
 
 With `--review`, `ahm` runs an independent review pass using the
-repository-owned deslop review workflow through the selected delegated agent
+repository-owned preflight review workflow through the selected delegated agent
 and feeds actionable feedback back into the original work session. Review
 orchestration is opt-in and requires a session-capable agent. `ahm` does not
 pass credentials, choose models, complete tasks, commit changes, push branches,

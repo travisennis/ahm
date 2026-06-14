@@ -157,7 +157,7 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		"  AGENTS.md",
 		"  .agents/DOCS.md",
 		"  .agents/TASKS.md",
-		"  .agents/skills/deslop/SKILL.md",
+		"  .agents/skills/preflight/SKILL.md",
 		"  docs/adr/README.md",
 	)
 
@@ -220,7 +220,7 @@ func TestUpgradeDecisions(t *testing.T) {
 			".agents/exec-plans/active/index.md":    hashBytes([]byte("old active plan index\n")),
 			".agents/exec-plans/completed/index.md": hashBytes([]byte("old completed plan index\n")),
 			"docs/adr/README.md":                    hashBytes([]byte("old managed adr\n")),
-			".agents/skills/deslop/SKILL.md":        hashBytes([]byte("old managed skill\n")),
+			".agents/skills/preflight/SKILL.md":     hashBytes([]byte("old managed skill\n")),
 		},
 	}
 	for target := range meta.Files {
@@ -248,7 +248,7 @@ func TestUpgradeDecisions(t *testing.T) {
 			content = "locally edited completed plan index\n"
 		case "docs/adr/README.md":
 			content = "old managed adr\n"
-		case ".agents/skills/deslop/SKILL.md":
+		case ".agents/skills/preflight/SKILL.md":
 			content = "old managed skill\n"
 		}
 		writeFile(t, filepath.Join(root, target), content)
@@ -306,6 +306,91 @@ func TestUpgradeDecisions(t *testing.T) {
 	}
 	if afterForce.Version != templates.Version {
 		t.Fatalf("forced metadata version = %q, want %q", afterForce.Version, templates.Version)
+	}
+}
+
+func TestUpgradeRemovesObsoleteManagedSkill(t *testing.T) {
+	root := t.TempDir()
+	oldTarget := ".agents/skills/deslop/SKILL.md"
+	oldContent := []byte("old managed skill\n")
+	meta := metadata{
+		Version: "0.2.0",
+		Files: map[string]string{
+			oldTarget: hashBytes(oldContent),
+		},
+	}
+	writeFile(t, filepath.Join(root, oldTarget), string(oldContent))
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(true); err != nil {
+		t.Fatal(err)
+	}
+
+	assertContainsAll(t, out.String(),
+		"removed:",
+		"  .agents/skills/deslop/SKILL.md",
+		"created:",
+		"  .agents/skills/preflight/SKILL.md",
+	)
+	if _, err := os.Stat(filepath.Join(root, oldTarget)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("obsolete skill file should be removed, err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "deslop")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("obsolete skill directory should be removed when empty, err = %v", err)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "skills", "preflight", "SKILL.md"), "name: preflight")
+
+	after, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := after.Files[oldTarget]; ok {
+		t.Fatal("obsolete skill should not remain in metadata")
+	}
+	if _, ok := after.Files[".agents/skills/preflight/SKILL.md"]; !ok {
+		t.Fatal("preflight skill should be tracked in metadata")
+	}
+}
+
+func TestUpgradePreservesModifiedObsoleteManagedSkillAsConflict(t *testing.T) {
+	root := t.TempDir()
+	oldTarget := ".agents/skills/deslop/SKILL.md"
+	oldContent := []byte("old managed skill\n")
+	localContent := "locally modified skill\n"
+	meta := metadata{
+		Version: "0.2.0",
+		Files: map[string]string{
+			oldTarget: hashBytes(oldContent),
+		},
+	}
+	writeFile(t, filepath.Join(root, oldTarget), localContent)
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(true); err != nil {
+		t.Fatal(err)
+	}
+
+	assertContainsAll(t, out.String(),
+		"conflicts:",
+		"  .agents/skills/deslop/SKILL.md",
+		"created:",
+		"  .agents/skills/preflight/SKILL.md",
+	)
+	assertFileContainsAll(t, filepath.Join(root, oldTarget), localContent)
+	after, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Files[oldTarget] != hashBytes(oldContent) {
+		t.Fatal("modified obsolete skill metadata should be preserved for conflict reporting")
 	}
 }
 

@@ -24,8 +24,8 @@ scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 git -C "$scratch" init -q
 # Install the ahm workflow so the scratch repo matches a real `ahm task work`
-# environment; without it the review capture cannot find the deslop skill at
-# .agents/skills/deslop and the agent wanders off searching the machine.
+# environment; without it the review capture cannot find the preflight skill at
+# .agents/skills/preflight and the agent wanders off searching the machine.
 (cd "$repo_root" && go run ./cmd/ahm --root "$scratch" init >/dev/null)
 # Seed an uncommitted change for the review capture to inspect.
 printf 'In order to demonstrate, this file utilizes very unique words.\n' >"$scratch/notes.txt"
@@ -35,7 +35,7 @@ resume_prompt="Reply with the single word: done. Do not use any tools or read an
 # Must match the prompt runReview sends (internal/ahm/task_commands.go) so the
 # transcript reflects a real review run. TestCaptureScriptUsesReviewPrompt
 # fails when the two drift apart.
-review_prompt="Run the deslop skill on the current uncommitted changes."
+review_prompt="Run the preflight skill on the current uncommitted changes."
 
 scrub() {
   # /private covers macOS, where mktemp paths resolve through /private/var.
@@ -69,7 +69,7 @@ if command -v cake >/dev/null 2>&1; then
   capture cake-work "$cake_version" \
     cake --max-tokens 512 --output-format stream-json "$work_prompt"
   capture cake-review "$cake_version" \
-    cake --max-tokens 512 --no-session --skills deslop --output-format stream-json "$review_prompt"
+    cake --max-tokens 512 --no-session --skills preflight --output-format stream-json "$review_prompt"
 else
   echo "── cake not on PATH, skipping cake captures ──" >&2
 fi

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
@@ -19,6 +20,18 @@ type metadata struct {
 	StrictAcceptance bool              `json:"strict_acceptance"`
 	DefaultWorkAgent string            `json:"default_work_agent,omitempty"`
 	Files            map[string]string `json:"files"`
+}
+
+type obsoleteManagedFile struct {
+	Target    string
+	EmptyDirs []string
+}
+
+var obsoleteManagedFiles = []obsoleteManagedFile{
+	{
+		Target:    ".agents/skills/deslop/SKILL.md",
+		EmptyDirs: []string{".agents/skills/deslop"},
+	},
 }
 
 func (a *app) install(upgrade bool) error {
@@ -38,8 +51,12 @@ func (a *app) install(upgrade bool) error {
 	result := map[string][]string{
 		"created":   {},
 		"updated":   {},
+		"removed":   {},
 		"skipped":   {},
 		"conflicts": {},
+	}
+	if err := a.removeObsoleteManagedFiles(upgrade, &meta, result); err != nil {
+		return err
 	}
 	for _, item := range templates.Files() {
 		var content []byte
@@ -134,6 +151,46 @@ func (a *app) install(upgrade bool) error {
 	return a.emit(result)
 }
 
+func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result map[string][]string) error {
+	if !upgrade {
+		return nil
+	}
+	for _, item := range obsoleteManagedFiles {
+		target := filepath.Join(a.opts.root, item.Target)
+		existing, err := readWorkflowFile(target)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			if !a.opts.dryRun {
+				delete(meta.Files, item.Target)
+			}
+			continue
+		case err != nil:
+			return err
+		}
+
+		if meta.Files[item.Target] == "" || meta.Files[item.Target] != hashBytes(existing) {
+			result["conflicts"] = append(result["conflicts"], item.Target)
+			continue
+		}
+
+		result["removed"] = append(result["removed"], item.Target)
+		if a.opts.dryRun {
+			continue
+		}
+		if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		delete(meta.Files, item.Target)
+		for _, dir := range item.EmptyDirs {
+			err := os.Remove(filepath.Join(a.opts.root, dir))
+			if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (a *app) ensureWorkflowDirs() ([]string, error) {
 	dirs := []string{
 		".agents/.tasks/active",
@@ -146,7 +203,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 		".agents/.research/archived",
 		".agents/exec-plans/active",
 		".agents/exec-plans/completed",
-		".agents/skills/deslop",
+		".agents/skills/preflight",
 		".agents/skills/grooming-backlog",
 		"docs/adr",
 	}

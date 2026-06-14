@@ -332,7 +332,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			parseSessionID:   parseCakeSessionID,
 			supportsReview:   true,
 			reviewArgs: func(prompt string) []string {
-				return []string{"--no-session", "--skills", "deslop", "--output-format", "stream-json", prompt}
+				return []string{"--no-session", "--skills", "preflight", "--output-format", "stream-json", prompt}
 			},
 			parseReviewFeedback: parseCakeReviewFeedback,
 		}, nil
@@ -494,12 +494,12 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 }
 
 // taskWorkReviewPrompt is the prompt runReview sends to every review-capable
-// agent. It asks the agent to run the repo-owned deslop review skill against
+// agent. It asks the agent to run the repo-owned preflight review skill against
 // current uncommitted changes. The fixture capture script
 // (scripts/capture-agent-fixtures.sh) replays the same prompt so the committed
 // review golden reflects a real review run;
 // TestCaptureScriptUsesReviewPrompt keeps the two in sync.
-const taskWorkReviewPrompt = "Run the deslop skill on the current uncommitted changes."
+const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted changes."
 
 // runReview runs an independent review pass using the agent's review
 // capability, then feeds actionable feedback back into the original work
@@ -626,7 +626,7 @@ func cakeResumeArgs(sessionID, prompt string) []string {
 
 // parseCakeReviewFeedback parses cake's stream-json output and returns the
 // result field from the final task_complete event, which contains the review
-// feedback from a deslop or other review run.
+// feedback from a preflight or other review run.
 func parseCakeReviewFeedback(output []byte) (string, error) {
 	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
 	var lastResult string
@@ -684,7 +684,7 @@ func codexResumeArgs(sessionID, prompt string) []string {
 
 // parseCodexReviewFeedback parses codex JSONL output and returns the
 // concatenated text from all agent_message item.completed events, which
-// contains the deslop review feedback.
+// contains the preflight review feedback.
 func parseCodexReviewFeedback(output []byte) (string, error) {
 	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
 	var texts []string

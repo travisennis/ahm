@@ -2064,7 +2064,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 	}{
 		{
 			name: "cake",
-			want: []string{"--no-session", "--skills", "deslop", "--output-format", "stream-json", "Review the changes."},
+			want: []string{"--no-session", "--skills", "preflight", "--output-format", "stream-json", "Review the changes."},
 		},
 		{
 			name: "codex",
@@ -2150,8 +2150,8 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		t.Fatal("first invocation should have stdin connected")
 	}
 
-	// Second invocation: review with --no-session --skills deslop.
-	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "deslop" {
+	// Second invocation: review with --no-session --skills preflight.
+	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "preflight" {
 		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
 	// Review invocation should have no stdin (independent run).
@@ -2275,7 +2275,7 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--mode" || invocations[1][4] != "ask" || invocations[1][5] != "--trust" {
 		t.Fatalf("review args = %#v, want cursor ask-mode review args", invocations[1])
 	}
-	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Run the deslop skill on the current uncommitted changes.")
+	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Run the preflight skill on the current uncommitted changes.")
 	if len(invocations[2]) < 7 || invocations[2][0] != "-p" || invocations[2][1] != "--output-format" || invocations[2][2] != "stream-json" || invocations[2][3] != "--trust" || invocations[2][4] != "--resume" || invocations[2][5] != "cursor_review123" {
 		t.Fatalf("resume args = %#v, want cursor resume args", invocations[2])
 	}
@@ -2545,7 +2545,7 @@ func TestTaskWorkCompletionWithReview(t *testing.T) {
 	}
 
 	// Second: review (no stdin).
-	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "deslop" {
+	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "preflight" {
 		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
 	if invocations[1].hasStdin {

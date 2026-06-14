@@ -15,7 +15,7 @@ invented schema. That failure mode shipped a broken cake integration in
 bf6c1ae (fixed in task 087) because no real agent run happened between
 implementation and use.
 
-All agents now use the repository-owned deslop review workflow for
+All agents now use the repository-owned preflight review workflow for
 `--review`, so each affected agent must be smoke-tested after changes.
 
 Any change that touches the following must be smoke-tested against the real
@@ -69,7 +69,7 @@ just capture-agent-fixtures
 The parser unit tests run hermetically in `just ci` against golden
 transcripts captured from the real agent CLIs, committed under
 `internal/ahm/testdata/agents/` with version-stamped provenance sidecars.
-The `codex-review.jsonl` golden exercises the new deslop-backed review path.
+The `codex-review.jsonl` golden exercises the new preflight-backed review path.
 Refresh them with the recipe above when an agent CLI upgrade may have changed
 its output schema; this also makes real LLM calls. See
 `internal/ahm/testdata/agents/README.md` for details on layout, scrubbing,

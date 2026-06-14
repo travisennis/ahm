@@ -28,7 +28,7 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 			want: "Treat the repository's existing docs as the source",
 		},
 		{
-			path: "workflow/deslop-SKILL.md",
+			path: "workflow/preflight-SKILL.md",
 			want: "Scale the review to the change size",
 		},
 		{
@@ -75,8 +75,8 @@ func TestAgentsTemplateMatchesSuggestionBlocks(t *testing.T) {
 	}
 }
 
-func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/deslop-SKILL.md")
+func TestPreflightTemplateIsProjectGeneric(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/preflight-SKILL.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestDeslopTemplateIsProjectGeneric(t *testing.T) {
 		"clippy-strict",
 	} {
 		if strings.Contains(body, term) {
-			t.Fatalf("deslop template should be project-generic, but contains %q", term)
+			t.Fatalf("preflight template should be project-generic, but contains %q", term)
 		}
 	}
 }
@@ -110,7 +110,7 @@ func TestGroomingBacklogTemplateIsProjectGeneric(t *testing.T) {
 		"Cobra",
 		"cargo",
 		"npm",
-		"deslop",
+		"preflight",
 		"052",
 		"053",
 		"051",

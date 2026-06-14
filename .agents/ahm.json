@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "strict_acceptance": false,
   "files": {
     ".agents/.research/README.md": "69343a0adf485ea1b22d4b12d7645e4f3b9d6a642aa19ebaff86bde2ec5ebc1a",
@@ -8,8 +8,8 @@
     ".agents/PLANS.md": "aa8e9175f96970bc5663e7312495fe7e630c95353835b818abd53c9d15e670d9",
     ".agents/RESEARCH.md": "264593a8e61bc8bbda96e2ceb8f0c29040f13fcc4e4d4d21d99278becc0c89d8",
     ".agents/TASKS.md": "5911822f17f40c11514a50752f5e63b242bf0b40f817b58e8d8577c86bc6311f",
-    ".agents/skills/deslop/SKILL.md": "b111f728823e33f5e385fa54760d7a66f8803c05f68c797d21e8387b264fc85f",
     ".agents/skills/grooming-backlog/SKILL.md": "ce6a31637ab7ae45151cd723f7f9054cd5e314b479485999c9ea71259a9ef248",
+    ".agents/skills/preflight/SKILL.md": "898e715dd0961abfe0ec3f7967d592659c6a40b067a0ae43fbac3b0c69c0a431",
     "docs/adr/README.md": "0486d491bbb78ad8dba611c0197d739d26a0e30dd2c63debdfb610f44f60456e"
   }
 }

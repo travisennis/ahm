@@ -29,7 +29,7 @@ The visible behavior is: `ahm task work 050 --agent codex` resolves task `050`, 
   Evidence: Official Cursor CLI docs describe `cursor-agent -p "..." --output-format text`.
 - Observation: Full CI flagged `exec.Command` with a variable executable as gosec G204.
   Evidence: `just ci` failed on `internal/ahm/task_commands.go` until the single launch site received a targeted `//nolint:gosec` rationale tied to the supported-agent allowlist.
-- Observation: The deslop pass found small documentation and coverage gaps after the initial CI pass.
+- Observation: The preflight pass found small documentation and coverage gaps after the initial CI pass.
   Evidence: ADR 006 still referenced the active ExecPlan path, the global `--dry-run` support table omitted `task work`, and focused tests did not cover dry-run preview or invalid configured agents.
 
 ## Decision Log
@@ -59,7 +59,7 @@ Validation passed with:
 
 The main tradeoff is that the executable launch needs a targeted gosec suppression because the command intentionally delegates to an external executable selected from a small allowlist.
 
-The post-implementation deslop pass corrected the stale ADR reference to the completed ExecPlan path, updated the global CLI dry-run support table to include `task work`, and added tests for dry-run preview and invalid configured agents.
+The post-implementation preflight pass corrected the stale ADR reference to the completed ExecPlan path, updated the global CLI dry-run support table to include `task work`, and added tests for dry-run preview and invalid configured agents.
 
 ## Context and Orientation
 
@@ -67,7 +67,7 @@ The post-implementation deslop pass corrected the stale ADR reference to the com
 
 Repository metadata is represented by the `metadata` struct in `internal/ahm/install.go` and read from `.agents/ahm.json` with `readMetadata`. This file already contains template version, managed file hashes, and the `strict_acceptance` workflow setting.
 
-The legacy helper `scripts/task-workflow.sh` shows the user goal but is broader than the MVP: it runs `cake`, an independent deslop review, resumes the original session, and asks the agent to commit. This plan intentionally implements only the initial deterministic handoff command.
+The legacy helper `scripts/task-workflow.sh` shows the user goal but is broader than the MVP: it runs `cake`, an independent preflight review, resumes the original session, and asks the agent to commit. This plan intentionally implements only the initial deterministic handoff command.
 
 An external coding-agent CLI means a separately installed executable such as `cake`, `codex`, or `cursor-agent`. `ahm` should detect whether the executable is present with `exec.LookPath`, then run it with a generated prompt. `ahm` should not know or handle credentials for any of those tools.
 
@@ -151,4 +151,4 @@ No new Go module dependency is needed. Use the standard library `os/exec`.
 
 2026-06-06: Completed the implementation, documentation, tests, and validation. The plan was moved from active to completed after recording outcomes so workflow validation can confirm the task-to-ExecPlan lifecycle.
 
-2026-06-06: Ran the deslop review pass requested after handoff. The review kept three concrete fixes: correct ADR path, document global dry-run support for `task work`, and add focused tests for dry-run plus invalid configured agents. No broader simplification was applied because the command helpers are locally justified by validation, prompt construction, process execution, and test isolation.
+2026-06-06: Ran the preflight review pass requested after handoff. The review kept three concrete fixes: correct ADR path, document global dry-run support for `task work`, and add focused tests for dry-run plus invalid configured agents. No broader simplification was applied because the command helpers are locally justified by validation, prompt construction, process execution, and test isolation.

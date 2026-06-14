@@ -13,7 +13,7 @@ invokes an external coding-agent CLI, while the external agent owns source
 edits, provider behavior, and git actions.
 
 The local `scripts/task-workflow.sh` still captures a useful full workflow. It
-starts a `cake` work session, runs an independent deslop review, resumes the
+starts a `cake` work session, runs an independent preflight review, resumes the
 original work session to fix review feedback, then resumes that same session to
 commit the completed work. The script's commit step explicitly tells the agent
 to make sure the task is marked completed before committing and to include both
