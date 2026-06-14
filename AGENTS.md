@@ -314,9 +314,11 @@ Recommended scopes:
 
 ## Architecture Decision Records
 
-When a task introduces or changes a durable architectural decision, write or
-update an ADR under `docs/adr/` before implementation. Follow
-`docs/adr/README.md` when it exists in the target workflow.
+When a task introduces or changes a durable architectural decision, use
+`ahm adr create`, `ahm adr accept`, `ahm adr reject`, `ahm adr deprecate`,
+or `ahm adr supersede` for lifecycle management. Follow
+`docs/adr/README.md` for the full ADR workflow, command reference, and
+format rules.
 
 --------------------------------------------------------------------------------
 
