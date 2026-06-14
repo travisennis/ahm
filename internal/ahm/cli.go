@@ -169,6 +169,7 @@ func (a *app) command() *cobra.Command {
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.agentsCommand())
+	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.taskCommand())
 	return root
 }

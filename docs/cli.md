@@ -47,7 +47,7 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
@@ -123,6 +123,7 @@ mode:
 
 - `agents suggestions` prints advisory Markdown snippets unless `--json` is
   used.
+- `adr create` prints the created ADR ID.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task labels` prints label summary lines.
@@ -164,6 +165,53 @@ Example:
 ```bash
 ahm version
 ```
+
+### `adr create <title> [flags]`
+
+Creates a new MADR-profile Architecture Decision Record under `docs/adr/` and
+regenerates indexes.
+
+The next ID is the next zero-padded numeric ID after the highest existing ADR
+filename, such as `001`, `002`, and `003`. The title is built from all non-flag
+arguments and becomes both the H1 and the kebab-case filename slug:
+
+```bash
+ahm adr create "Choose storage layout"
+ahm adr create Choose storage layout --status accepted
+```
+
+Command flags:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--status <value>` | Sets initial ADR status. Default is `proposed`; supported values are `proposed`, `accepted`, `rejected`, and `deprecated`. |
+| `--description <text>`, `-d <text>` | Seeds `## Context and Problem Statement`. Default is `TODO.` |
+| `--body-file <path>` | Reads the ADR body from a file, or from stdin when the path is `-`. |
+| `--decision-makers <text>` | Sets the scalar `decision-makers:` front matter value. |
+
+By default the created ADR has scalar front matter, today's `date:`, and MADR
+sections for context, decision drivers, considered options, decision outcome,
+consequences, and more information.
+
+`--body-file` provides the full Markdown body that appears after the generated
+H1 title. `ahm` still owns ID allocation, front matter, the `# <title>` heading,
+the ADR location, and index regeneration; only the body content below the H1 is
+taken from the file. The file content is whitespace-trimmed and CRLF line
+endings are normalized to LF.
+
+If the body file starts with an `# <title>` line that matches the ADR title, it
+is automatically stripped to avoid a duplicate top-level heading. A different
+H1 is preserved as intentional body content.
+
+`--body-file` and `--description` are mutually exclusive. The command reports an
+explicit error when the body file cannot be read, when stdin is requested but
+unavailable, or when the resolved body is empty.
+
+Useful global flags:
+
+- `--dry-run`: prints the target path and ID without creating the ADR.
+- `--json` or `--plain`: affects only dry-run output. Successful non-dry-run
+  creation prints the ADR ID.
 
 ### `agents suggestions`
 
