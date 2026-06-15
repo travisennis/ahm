@@ -11,11 +11,16 @@ import (
 // writeFileAtomic writes data to the specified path atomically.
 //
 // It creates parent directories if needed. The write strategy is:
-//  1. Write to a sibling <path>.tmp file in the same directory.
-//  2. Sync the temp file to disk.
+//  1. Create a unique sibling temp file in the same directory.
+//  2. Write data and sync to disk.
 //  3. Rename the temp file to the target path (atomic on Unix when
 //     source and destination are on the same filesystem).
 //  4. Sync the parent directory to ensure the rename is durable.
+//
+// Using a unique temp file name per invocation avoids races when multiple
+// processes write the same path concurrently (the previous fixed-name .tmp
+// strategy allowed one process's "remove stale tmp" to delete another
+// process's temp file before the rename).
 //
 // If any step before the rename fails, the original file is left intact
 // and the temp file is cleaned up.
@@ -31,23 +36,39 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 		return fmt.Errorf("atomic write: create dir %s: %w", dir, err)
 	}
 
-	tmpPath := path + ".tmp"
+	// Create a unique temp file in the target directory. Using a unique name
+	// prevents races when multiple processes write the same file concurrently.
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("atomic write: create temp in %s: %w", dir, err)
+	}
+	tmpPath := f.Name()
 
-	// Remove any stale .tmp file from a prior crash.
-	if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("atomic write: remove stale tmp %s: %w", tmpPath, err)
+	// Set the requested permissions. os.CreateTemp creates with 0o600 by default.
+	if err := f.Chmod(perm); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("atomic write: chmod temp %s: %w", tmpPath, err)
 	}
 
-	// Write the temp file.
-	if err := os.WriteFile(tmpPath, data, perm); err != nil { // #nosec G703 // tmpPath is derived from the canonical target path validated above.
-		_ = os.Remove(tmpPath) // best-effort cleanup
+	// Write the data.
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("atomic write: write tmp %s: %w", tmpPath, err)
 	}
 
 	// Sync the temp file.
-	if err := fsyncPath(tmpPath); err != nil {
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("atomic write: sync tmp %s: %w", tmpPath, err)
+	}
+
+	// Close the file before rename (Windows compatibility, good practice).
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("atomic write: close tmp %s: %w", tmpPath, err)
 	}
 
 	// Atomic rename.
@@ -62,19 +83,6 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	}
 
 	return nil
-}
-
-// fsyncPath opens the file at path, calls Sync, and closes it.
-func fsyncPath(path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR, 0) // #nosec G304 // path is canonical; caller validates non-canonical paths
-	if err != nil {
-		return err
-	}
-	err = f.Sync()
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	return err
 }
 
 // fsyncDir opens the directory, calls Sync, and closes it.

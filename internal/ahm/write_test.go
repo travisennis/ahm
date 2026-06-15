@@ -84,24 +84,19 @@ func TestWriteFileAtomic_RejectsEmptyPath(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomic_StaleTmpRemovedBeforeWrite(t *testing.T) {
+func TestWriteFileAtomic_SucceedsWithStaleFixedTmp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.txt")
-	tmpPath := path + ".tmp"
+	stalePath := path + ".tmp"
 
-	// Create a stale .tmp file left by a hypothetical crash.
-	if err := os.WriteFile(tmpPath, []byte("stale"), 0o644); err != nil {
+	// Create a stale fixed-name .tmp file left by a pre-unique-naming crash.
+	if err := os.WriteFile(stalePath, []byte("stale"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Perform a fresh atomic write.
+	// Perform a fresh atomic write — must succeed even with the stale .tmp present.
 	if err := writeFileAtomic(path, []byte("fresh"), 0o644); err != nil {
 		t.Fatalf("writeFileAtomic failed: %v", err)
-	}
-
-	// The .tmp file should no longer exist.
-	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
-		t.Fatalf("stale .tmp file was not cleaned up; stat err = %v", err)
 	}
 
 	// Content should be the new write.
@@ -111,6 +106,46 @@ func TestWriteFileAtomic_StaleTmpRemovedBeforeWrite(t *testing.T) {
 	}
 	if string(data) != "fresh" {
 		t.Fatalf("content = %q, want %q", string(data), "fresh")
+	}
+
+	// The stale .tmp file should still exist (writeFileAtomic no longer
+	// removes fixed-name .tmp files). cleanupStaleTemps handles that.
+	if _, err := os.Stat(stalePath); err != nil {
+		t.Fatalf("stale .tmp was removed, but cleanupStaleTemps is responsible for that: %v", err)
+	}
+}
+
+func TestWriteFileAtomic_StaleTmpCleanedByCleanupStaleTemps(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".agents")
+	path := filepath.Join(agentsDir, "test.txt")
+	stalePath := path + ".tmp"
+
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a real file.
+	if err := os.WriteFile(path, []byte("real"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a stale .tmp alongside it (crash that succeeded past rename).
+	if err := os.WriteFile(stalePath, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// cleanupStaleTemps must remove the stale .tmp.
+	if err := cleanupStaleTemps(dir); err != nil {
+		t.Fatalf("cleanupStaleTemps: %v", err)
+	}
+	if _, err := os.Stat(stalePath); !os.IsNotExist(err) {
+		t.Fatalf("stale .tmp file was not removed by cleanupStaleTemps")
+	}
+
+	// Real file must still exist.
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("real file was removed: %v", err)
 	}
 }
 

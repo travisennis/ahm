@@ -11,11 +11,6 @@ import (
 
 func (a *app) writeIndexes() error {
 	a.invalidateTasks()
-	if !a.opts.dryRun {
-		if err := cleanupStaleTemps(a.opts.root); err != nil {
-			return err
-		}
-	}
 	writes, err := a.indexWrites()
 	if err != nil {
 		return err

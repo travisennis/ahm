@@ -165,7 +165,8 @@ func (a *app) command() *cobra.Command {
 	}
 	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs")
 	root.AddCommand(doctorCmd)
-	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes", func() error {
+	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", func() error {
+		_ = cleanupStaleTemps(a.opts.root) // best-effort cleanup of crash leftovers
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.agentsCommand())
