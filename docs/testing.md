@@ -2,7 +2,7 @@
 
 This document covers verification that goes beyond `just ci`, in particular
 the live checks for agent integration. For the standard build and test
-commands, see the Build/Test/Run section of `AGENTS.md`.
+commands, see `CONTRIBUTING.md`.
 
 ## Agent Integration Smoke Checklist
 
@@ -41,7 +41,7 @@ For each affected agent that is installed:
 
 Tasks labeled `area:agent` and `risk:external-service` must include this
 live-run evidence in their Acceptance Notes before `ahm task complete`, per
-the Required Workflow in `AGENTS.md`.
+`docs/guardrails/external-agent-orchestration.md`.
 
 ## Live Smoke Test
 

@@ -1,355 +1,84 @@
-# AGENTS.md
+# Agent Instructions
 
-## Project Overview
+## Project
+`ahm` is a Go CLI that installs and manages repo-local `.agents` workflow
+files for tasks, research notes, ExecPlans, ADRs, generated indexes, and
+delegated coding-agent work.
 
-`ahm` is an agent harness manager CLI that:
+Compatibility surfaces: CLI commands, flags, exit codes, output formats,
+`.agents/ahm.json`, workflow file formats, generated indexes, embedded
+templates, atomic writes, root detection, validation codes, external agent
+orchestration, release/version semantics, and the guarantee that `ahm` does
+not implicitly patch source code or run git operations.
 
-- Is written in Go 1.26.3.
-- Installs and manages repo-local `.agents` workflow files for tasks, research
-  notes, ExecPlans, ADRs, and generated indexes.
-- Uses Cobra for CLI parsing.
-- Embeds canonical workflow templates from `internal/templates/workflow/`.
-- Tracks managed workflow files with `.agents/ahm.json` metadata.
-- Preserves existing project `AGENTS.md` files; `AGENTS.md` is create-only and
-  is never overwritten by `ahm init`, `ahm upgrade`, or `--force`.
+## Operating Loop
+1. Classify the request by the risk surface below before editing.
+2. Load only the routed docs needed for that request.
+3. Preserve compatibility surfaces unless the task explicitly changes them.
+4. Keep edits surgical and verify according to risk.
+5. Handoff with changes, exact checks, and remaining risk.
 
-Core mechanism: `ahm` writes and upgrades workflow documents, regenerates task,
-research, and ExecPlan indexes, and provides task-management commands without
-patching source code or performing git operations.
+When this file conflicts with a specialized workflow doc for that workflow,
+the specialized doc wins.
 
---------------------------------------------------------------------------------
+## Workflow Routing
 
-## Start Here
+### CLI, User Output, And Exit Behavior
+Use this workflow for command wiring, flags, help text, exit codes, output, and
+dry-run behavior. Consult `docs/guardrails/cli-and-user-output.md`,
+`docs/cli.md`, and `ARCHITECTURE.md`. Keep documented behavior stable unless
+the task is explicitly a breaking CLI change.
 
-1. Read this file fully before making changes.
-2. For the first task in a session, read `.agents/TASKS.md`, then
-   use `ahm task next`, `ahm task ready`, `ahm task list`, or
-   `ahm task show <id>` to inspect task state, then open the specific task
-   file. For later tasks in the same session, rerun the relevant `ahm task`
-   command and reread the specific task file unless `.agents/TASKS.md` changed
-   or the task changes task workflow semantics.
-3. Prefer narrow checks first, then `go fmt` or `just fmt` after Go edits, then
-   `just ci` before final handoff for code changes.
-4. Do not commit or push unless explicitly asked.
-5. Never edit generated task, research, or ExecPlan indexes by hand.
+### Workflow State, File Formats, And Upgrades
+Use this workflow for `.agents/ahm.json`, workflow formats, generated indexes,
+install/upgrade/status/doctor behavior, and embedded templates. Consult
+`docs/guardrails/workflow-state-and-file-formats.md`, `docs/spec.md`,
+`docs/upgrades.md`, and `ARCHITECTURE.md`. Do not edit generated indexes by
+hand.
 
---------------------------------------------------------------------------------
+### External Agent Orchestration
+Use this workflow for `ahm task work`, agent definitions, arg builders,
+parsers, session capture, handoff, and golden transcripts. Consult
+`docs/guardrails/external-agent-orchestration.md` and `docs/testing.md`. Parser
+fixtures are not enough when a real agent CLI contract changes.
 
-## Required Workflow
+### Safety, Permissions, And Atomic Writes
+Use this workflow for filesystem writes, path handling, root detection, command
+execution, and safety boundaries. Consult
+`docs/guardrails/safety-and-permissions.md`, `docs/spec.md`, and ADR 001.
+Keep writes explicit, dry-run aware, and crash-safe.
 
-- Before final handoff for any code, test, config, fixture, template, or
-  dependency change, run `just ci`.
-- If `just ci` cannot be run, state the exact reason and list the narrower
-  checks that were run instead.
-- For Go code changes, use this verification sequence:
-  1. Run the narrowest useful check first, such as `go test ./internal/ahm`,
-     `go test ./internal/ahm -run <TestName>`, or
-     `go test ./... -run <TestName>`.
-  2. For local iteration, prefer focused `go test` commands, `just quick`, and
-     `just fmt`.
-  3. Run `gofmt` through `just fmt` after Go edits.
-  4. Run `just ci` before final handoff or commit.
-- When changing embedded workflow templates, also verify the behavior that
-  consumes them. At minimum, run `go test ./internal/templates ./internal/ahm`
-  before `just ci`.
-- When changing agent integration in `internal/ahm/task_commands.go` — the
-  `taskWorkAgent` arg builders, agent output parsers, or the orchestration
-  flow — follow the agent integration smoke checklist in `docs/testing.md`:
-  run the real agents via `just smoke-agents` (or `ahm task work` directly)
-  and verify session capture. Tasks labeled `area:agent` and
-  `risk:external-service` must include live-run evidence (agent version and
-  a transcript snippet) in their Acceptance Notes before
-  `ahm task complete`.
-- When an agent CLI upgrade may have changed its output schema, refresh the
-  golden transcripts with `just capture-agent-fixtures` (makes real LLM
-  calls; never run in CI).
-- When changing CLI behavior, update `docs/cli.md` in the same change unless
-  the behavior is intentionally undocumented.
-- Before final handoff for CLI behavior changes:
-  1. Search `docs/cli.md` for the old behavior or affected command.
-  2. Update `docs/cli.md` in the same diff.
-  3. Mention the docs update in the final summary.
-- When changing durable workflow semantics, update `docs/spec.md` or
-  `docs/upgrades.md` as appropriate.
-- Do not commit or push code unless explicitly asked to.
+### Dependencies, Build, CI, And Release
+Use this workflow for dependencies, build scripts, CI, GoReleaser, version
+injection, and release behavior. Consult
+`docs/guardrails/dependencies-build-ci-release.md`, `CONTRIBUTING.md`,
+`docs/upgrades.md`, and `.github/workflows/`. Preserve binary/template version
+separation.
 
---------------------------------------------------------------------------------
+### Architecture And Implementation Quality
+Use this workflow for refactors, module boundaries, shared helpers, validation,
+parsers, and performance-sensitive code. Consult
+`docs/guardrails/implementation-quality.md`, `ARCHITECTURE.md`, and relevant
+ADRs. Prefer small concrete functions and deterministic output.
 
-## Build/Test/Run
+### Documentation And Workflow Overlays
+Use this workflow for project docs, agent workflow docs, tasks, research,
+ExecPlans, ADRs, and generated workflow indexes. Consult
+`docs/guardrails/documentation.md`, `.agents/DOCS.md`, `.agents/TASKS.md`,
+`.agents/RESEARCH.md`, `.agents/PLANS.md`, and `docs/adr/README.md` only as
+needed. Use `ahm` lifecycle commands for task and ADR state moves.
 
-```bash
-# Build local binary
-just build
-
-# Install ahm from this checkout
-just install
-
-# Run tests
-just test
-go test ./...
-
-# Run tests with race detector and coverage
-just test-race
-
-# Run a focused package or test
-go test ./internal/ahm
-go test ./internal/ahm -run <TestName>
-
-# Formatting
-just fmt
-just fmt-check
-
-# Module cleanup
-just tidy
-just tidy-check
-
-# Update Go module dependencies
-just update-deps
-
-# Vet, lint, and vulnerability checks
-just vet
-just lint
-just vuln
-
-# Full CI check
-just ci
-
-# Mutating cleanup pass
-just fix
-
-# Live agent smoke test (real LLM calls; see docs/testing.md)
-just smoke-agents
-
-# Refresh golden agent transcripts (real LLM calls; see docs/testing.md)
-just capture-agent-fixtures
-```
-
-Install local verification tools with:
-
-```bash
-just install-tools
-```
-
---------------------------------------------------------------------------------
-
-## Targeted Test Examples
-
-```bash
-# Good targeted test commands
-go test ./internal/ahm
-go test ./internal/templates
-go test ./internal/ahm -run TestTask
-go test ./... -run TestInstall
-```
-
---------------------------------------------------------------------------------
-
-## Code Map
-
-Task command implementation:
-
-- Cobra wiring and CLI entrypoint: `internal/ahm/cli.go`
-- Root detection: `internal/ahm/root.go`
-- Install and metadata handling: `internal/ahm/install.go`
-- Status and doctor commands: `internal/ahm/status.go`
-- Workflow validation: `internal/ahm/validation.go`
-- Task model, parsing, and rendering: `internal/ahm/tasks.go`
-- Task command behavior: `internal/ahm/task_commands.go`,
-  `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`
-- Acceptance notes validation: `internal/ahm/task_acceptance.go`
-- Task ID parsing/order helpers: `splitTaskID`, `nextTaskID`, `resolveTask`
-- Atomic write helpers and stale-temp cleanup: `internal/ahm/write.go`
-- Generated index rendering: `internal/ahm/indexes.go`
-- CLI tests: focused `internal/ahm/*_test.go` files, with shared helpers in
-  `internal/ahm/test_helpers_test.go`
-- User-facing CLI docs: `docs/cli.md`
-
-Workflow templates:
-
-- Embedded workflow templates: `internal/templates/workflow/`
-- Template embedding and metadata: `internal/templates/templates.go`
-- Template tests: `internal/templates`
-
---------------------------------------------------------------------------------
-
-## Task Queue Rules
-
-- When asked to create, choose, update, or work on a task, first read
-  `.agents/TASKS.md`, then use `ahm task next`, `ahm task ready`,
-  `ahm task list`, `ahm task blocked`, or `ahm task show <id>` to inspect
-  task state before acting.
-- Use task labels to filter work by type, area, and risk when the user asks for
-  focused work.
-- Do not edit generated task indexes by hand. Prefer `ahm task ...` lifecycle
-  commands; update task files and run `ahm index` only for manual fallback
-  edits.
-- When marking a task as completed, use `ahm task complete <id>`. It updates
-  task front matter, moves the file from `.agents/.tasks/active/` to
-  `.agents/.tasks/completed/`, and regenerates indexes.
-- Before running `ahm task complete <id>`, fill in Acceptance Notes when
-  practical. If you edit only the completed task body afterward, no index
-  regeneration is needed. If you edit task front matter afterward, rerun
-  `ahm index`.
-- When marking a task as cancelled, use `ahm task cancel <id> --reason <text>`.
-  It updates task front matter, records the reason in the task body, moves the
-  file from `.agents/.tasks/active/` to `.agents/.tasks/cancelled/`, and
-  regenerates indexes.
-- Do not leave completed or cancelled tasks in `.agents/.tasks/active/`.
-- Do not run `ahm index` after `ahm task start`, `ahm task complete`, or
-  `ahm task cancel` unless you edit task metadata by hand afterward; those
-  commands already regenerate indexes.
-
---------------------------------------------------------------------------------
-
-## Research Rules
-
-- When asked to create, update, organize, or use research, first read
-  `.agents/RESEARCH.md`, then use `.agents/.research/index.md` as the research
-  map and open the relevant research file before acting.
-- Do not edit generated research indexes by hand. Update research source files
-  and run `ahm index`.
-
---------------------------------------------------------------------------------
-
-## ExecPlans
-
-When writing complex features or significant refactors, use an ExecPlan as
-described in `.agents/PLANS.md`.
-
-Use an ExecPlan for:
-
-- Tasks marked `Effort: L` or `Effort: XL`.
-- Multi-package refactors.
-- Changes to workflow install or upgrade semantics.
-- Changes to generated index semantics.
-- Changes to task state transitions, dependency resolution, or validation.
-- Changes to embedded template ownership rules.
-
-Keep `.agents/exec-plans/active/index.md` current when creating, completing, or
-moving plans. Do not edit generated ExecPlan indexes by hand.
-
---------------------------------------------------------------------------------
-
-## Documentation Workflow
-
-Before auditing or updating documentation, read `.agents/DOCS.md`. Prefer the
-target repository's existing documentation conventions over adding new
-structures.
-
---------------------------------------------------------------------------------
-
-## Implementation Documentation
-
-When moving implementation between files or packages, update repository code
-maps and implementation-location references even if user-facing behavior is
-unchanged.
-
---------------------------------------------------------------------------------
-
-## Git Worktree Safety
-
+## Repository Rules
+- Do not commit or push unless explicitly asked.
 - Assume uncommitted changes may belong to the user.
 - Do not revert, overwrite, or clean files you did not intentionally change.
-- Before broad edits, inspect `git status --short`.
-- Before final handoff, report remaining uncommitted or untracked files when
-  relevant.
+- Inspect `git status --short` before broad edits.
+- Never hand-edit ahm-generated indexes; update source records and run the
+  appropriate `ahm` command.
+- `AGENTS.md` is project-owned after creation; `ahm init`, `ahm upgrade`, and
+  `--force` must not overwrite an existing project `AGENTS.md`.
 
---------------------------------------------------------------------------------
-
-## Commit Handoff Requirements
-
-After any commit:
-
-- Run `git status --short` before the final response.
-- Include the commit hash in the final response.
-- State whether the worktree is clean.
-- If the worktree is not clean, list the remaining modified, deleted, or
-  untracked files.
-- Distinguish files changed by the agent from unrelated or pre-existing
-  worktree changes when that context is known.
-
---------------------------------------------------------------------------------
-
-## Commit Conventions
-
-This project uses Conventional Commits. Commit messages and pull request titles
-must use this format:
-
-```text
-<type>[(scope)]: <description>
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
-`ci`, `chore`, `revert`.
-
-Recommended scopes:
-
-| Scope       | Description                                      |
-| ----------- | ------------------------------------------------ |
-| `cli`       | Command-line interface and argument parsing      |
-| `workflow`  | Managed workflow files and `.agents` behavior    |
-| `tasks`     | Task commands, parsing, indexes, and state moves |
-| `research`  | Research indexes and workflow docs               |
-| `plans`     | ExecPlan indexes and workflow docs               |
-| `templates` | Embedded templates and template metadata         |
-| `docs`      | Human-facing docs under `docs/`                  |
-| `release`   | Build, release, and versioning changes           |
-
---------------------------------------------------------------------------------
-
-## Code Style Guidelines
-
-- Keep CLI behavior explicit and documented in `docs/cli.md`.
-- Prefer small, focused functions over broad command handlers that mix parsing,
-  filesystem mutation, and output formatting.
-- Use concrete structs at command and file-format boundaries.
-- Validate file formats at the boundary and return explicit errors.
-- Preserve dry-run behavior for write commands.
-- Keep generated indexes deterministic by sorting output consistently.
-- Avoid global state except for embedded templates and constants.
-- Do not add implicit git operations. `ahm` must not commit, push, open PRs, or
-  modify source code in target repositories.
-
---------------------------------------------------------------------------------
-
-## Architecture Decision Records
-
-When a task introduces or changes a durable architectural decision, use
-`ahm adr create`, `ahm adr accept`, `ahm adr reject`, `ahm adr deprecate`,
-or `ahm adr supersede` for lifecycle management. Follow
-`docs/adr/README.md` for the full ADR workflow, command reference, and
-format rules.
-
---------------------------------------------------------------------------------
-
-## Common Pitfalls
-
-- `AGENTS.md` is create-only. Do not treat it as a managed file that can be
-  overwritten by `upgrade` or `--force`.
-- Generated indexes are owned by `ahm`; update source files and run `ahm index`.
-- Completed and cancelled tasks must be moved with `ahm task complete <id>` or
-  `ahm task cancel <id> --reason <text>`.
-- `just fix` is mutating; use it intentionally and report resulting changes.
-- Template changes may require updating template tests and CLI install/upgrade
-  expectations.
-
---------------------------------------------------------------------------------
-
-## Additional Notes
-
-- CLI entrypoint: `cmd/ahm/main.go`.
-- Command wiring: `internal/ahm/cli.go`.
-- Command implementation modules: `internal/ahm/root.go`,
-  `internal/ahm/install.go`, `internal/ahm/status.go`,
-  `internal/ahm/validation.go`, `internal/ahm/agents.go`,
-  `internal/ahm/output.go`, `internal/ahm/tasks.go`,
-  `internal/ahm/task_acceptance.go`, `internal/ahm/task_commands.go`,
-  `internal/ahm/task_deps.go`, `internal/ahm/task_migrate.go`,
-  `internal/ahm/write.go`, and `internal/ahm/indexes.go`.
-- Embedded workflow templates: `internal/templates/workflow/`.
-- Template embedding and metadata: `internal/templates/templates.go`.
-- CLI reference: `docs/cli.md`.
-- Workflow semantics: `docs/spec.md`.
-- Upgrade behavior: `docs/upgrades.md`.
-- Testing beyond `just ci`, including the agent smoke checklist:
-  `docs/testing.md`.
+## Handoff
+End with what changed, exact checks run, remaining risks or skipped checks, and
+actionable next steps. For commits, include the commit hash, whether the
+worktree is clean, and any leftover modified, deleted, or untracked files.

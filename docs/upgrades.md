@@ -98,3 +98,19 @@ Reverting `templates.Version` to `var` would have fixed the injection but
 would conflate the binary release version with the template schema version,
 causing every release to bump the template version even when templates hadn't
 changed.
+
+## Task Workflow Verification Link Update (2026-06-14)
+
+`internal/templates.Version` advanced from `0.3.0` to `0.3.1`.
+
+The task workflow template now points contributors to `CONTRIBUTING.md` for the
+project's full CI check instead of the root `AGENTS.md`. This supports the
+progressive-disclosure split where `AGENTS.md` routes work and
+`CONTRIBUTING.md` owns setup, commands, verification, and commit workflow.
+
+### Impact
+
+- `ahm upgrade` will update `.agents/TASKS.md` in consumer repositories that
+  have not locally modified it.
+- The generated task workflow semantics are unchanged; only the documentation
+  target for verification policy changed.

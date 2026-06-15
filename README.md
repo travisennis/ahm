@@ -52,6 +52,10 @@ work; the delegated agent and project hooks own the actual git operation.
 
 ## Development
 
+For the full local setup, command catalog, verification expectations, and
+commit conventions, see [`CONTRIBUTING.md`](CONTRIBUTING.md). For the module
+map and architectural invariants, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 Install Go 1.26.3 plus the local verification tools:
 
 ```bash
