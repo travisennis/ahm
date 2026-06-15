@@ -8,7 +8,7 @@ No inbox research documents yet.
 
 ## Investigations
 
-No investigation documents yet.
+- [docs-comparisons](investigations/docs-comparisons.md)
 
 ## Sources
 
