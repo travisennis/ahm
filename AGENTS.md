@@ -61,12 +61,18 @@ parsers, and performance-sensitive code. Consult
 `docs/guardrails/implementation-quality.md`, `ARCHITECTURE.md`, and relevant
 ADRs. Prefer small concrete functions and deterministic output.
 
-### Documentation And Workflow Overlays
-Use this workflow for project docs, agent workflow docs, tasks, research,
-ExecPlans, ADRs, and generated workflow indexes. Consult
-`docs/guardrails/documentation.md`, `.agents/DOCS.md`, `.agents/TASKS.md`,
-`.agents/RESEARCH.md`, `.agents/PLANS.md`, and `docs/adr/README.md` only as
-needed. Use `ahm` lifecycle commands for task and ADR state moves.
+### Workflow Overlays
+These overlays do not replace the specific workflow routes above. Use them first
+to identify or manage the work item, then re-classify the concrete task and load
+the relevant routed workflow docs before editing.
+
+When asked to create, choose, update, or work on a task, read `.agents/TASKS.md`,
+inspect the task with `ahm task ...`, open the task file, then return to
+Workflow Routing and choose the specific route or routes required by the task
+content. When a task, workflow doc, or user request calls for an ExecPlan, read
+`.agents/PLANS.md`. When one calls for an ADR, read [docs/adr/README.md](docs/adr/README.md).
+When asked to create, update, organize, or use research, read `.agents/RESEARCH.md`,
+then use `.agents/.research/index.md` as the map.
 
 ## Repository Rules
 - Do not commit or push unless explicitly asked.
