@@ -105,6 +105,13 @@ dependencies, and blocked tasks that do not depend on the completed task, are
 left unchanged. `--dry-run` reports the completion move and dependent unblock
 changes without writing task files or indexes.
 
+`ahm task create` allocates task IDs under a repository-local workflow lock.
+The lock is held while the command computes the next numeric ID, writes the new
+task file, and regenerates indexes, so concurrent creates in the same
+repository receive distinct IDs and the final generated indexes include all
+created tasks. `--dry-run` does not take the lock because it does not write
+workflow state.
+
 ## File Ownership Boundary
 
 `ahm` owns the workflow files it installs, maintains, generates, and upgrades.
@@ -293,7 +300,7 @@ All managed writes (metadata, generated indexes, task files, installed/upgraded
 templates) use a temporary-file-then-atomic-rename strategy that guarantees
 crash safety:
 
-1. Content is written to a sibling `<path>.tmp` file in the same directory.
+1. Content is written to a unique sibling temp file in the same directory.
 2. The temp file is synced to disk (`fsync`).
 3. The temp file is atomically renamed to the target path (`os.Rename`, which
    is atomic on Unix when source and destination are on the same filesystem).
@@ -302,10 +309,12 @@ crash safety:
 A crash before the rename leaves the original file intact. A crash after the
 rename is indistinguishable from a successful write. Stale `.tmp` files left
 by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
-and `index` commands, and are overwritten on the next write to the same path.
+and `index` commands.
 
-Advisory locking has been evaluated but is not implemented (see
-`docs/adr/001-atomic-writes-and-concurrency.md` for the rationale).
+`ahm task create` also uses a repository-local lock under `.agents/.lock/` to
+serialize ID allocation and index regeneration across concurrent invocations.
+Other managed write paths rely on atomic rename semantics unless their
+read-compute-write behavior needs a narrower lock.
 
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include

@@ -6,8 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
@@ -67,6 +70,126 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 		"created: ",
 		"Verify task creation",
 	)
+}
+
+func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	const creates = 5
+	var wg sync.WaitGroup
+	ids := make(chan string, creates)
+	errs := make(chan error, creates)
+	for i := 0; i < creates; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var out strings.Builder
+			a := app{opts: options{root: root}, out: &out}
+			err := a.taskCreateParsed(taskCreateArgs{
+				title:    fmt.Sprintf("Parallel Task %d", i+1),
+				priority: "P2",
+				effort:   "S",
+				labels:   "type:task, area:unknown",
+				status:   "Open",
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			ids <- strings.TrimSpace(out.String())
+		}()
+	}
+	wg.Wait()
+	close(ids)
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for id := range ids {
+		got = append(got, id)
+	}
+	sort.Strings(got)
+	want := []string{"001", "002", "003", "004", "005"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("parallel task IDs = %v, want %v", got, want)
+	}
+	for _, id := range want {
+		if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", id+".md")); err != nil {
+			t.Fatalf("task %s not written: %v", id, err)
+		}
+	}
+	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	for i := 0; i < creates; i++ {
+		assertContainsAll(t, indexContent, fmt.Sprintf("Parallel Task %d", i+1))
+	}
+}
+
+func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
+	oldRetryDelay := workflowLockRetryDelay
+	oldTimeout := workflowLockTimeout
+	workflowLockRetryDelay = time.Millisecond
+	workflowLockTimeout = 2 * time.Second
+	defer func() {
+		workflowLockRetryDelay = oldRetryDelay
+		workflowLockTimeout = oldTimeout
+	}()
+
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	release, err := acquireWorkflowLock(root, "task-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	var out strings.Builder
+	go func() {
+		a := app{opts: options{root: root}, out: &out}
+		done <- a.taskCreateParsed(taskCreateArgs{
+			title:    "Created After Lock",
+			priority: "P2",
+			effort:   "S",
+			labels:   "type:task, area:unknown",
+			status:   "Open",
+		})
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("task create finished while workflow lock was held: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Existing Task", "Pending", "")
+	if err := release(); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("task create did not finish after workflow lock was released")
+	}
+	if strings.TrimSpace(out.String()) != "002" {
+		t.Fatalf("create stdout = %q, want 002", out.String())
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "title: Created After Lock")
 }
 
 func TestTaskCreateBodyFile(t *testing.T) {

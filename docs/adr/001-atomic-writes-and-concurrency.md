@@ -27,10 +27,10 @@ locking.
 
 ### Atomic writes (accepted)
 
-Introduce a single `writeFileAtomic` helper that writes to a sibling `.tmp`
-file in the same directory, calls `fsync` on the temp file, atomically
-renames it to the target path, and `fsync`s the parent directory on Unix.
-All managed write paths are routed through this helper.
+Introduce a single `writeFileAtomic` helper that writes to a unique sibling
+`.tmp` file in the same directory, calls `fsync` on the temp file, atomically
+renames it to the target path, and `fsync`s the parent directory on Unix. All
+managed write paths are routed through this helper.
 
 The helper guarantees:
 
@@ -38,11 +38,10 @@ The helper guarantees:
   A crash after the rename is indistinguishable from a successful write.
 - **No partial content**: Readers always see either the old content or the new
   content, never a truncated or mixed write.
-- **Stale `.tmp` cleanup**: Before writing, any existing `.tmp` file for the
-  target path is removed. On write failure, the `.tmp` file is cleaned up.
-  A broader stale-`.tmp` scan runs opportunistically at the start of
-  `init`, `upgrade`, and `index` commands to clean up orphaned temp files
-  left by a previous crash.
+- **Stale `.tmp` cleanup**: On write failure, the unique `.tmp` file from that
+  attempt is cleaned up. A broader stale-`.tmp` scan runs opportunistically at
+  the start of `init`, `upgrade`, and `index` commands to clean up orphaned
+  temp files left by a previous crash.
 
 ### Advisory locking (deferred)
 
@@ -67,6 +66,8 @@ path is reserved for that future use.
 - `writeFileAtomic` (tmp + rename + fsync) is a well-understood pattern used
   by tools like `etcd`, `consul`, and the Go standard library's `os.Rename`
   guidance.
+- Unique temp file names avoid races where one process's stale-temp cleanup
+  could delete another process's in-progress temp file.
 - Keeping the helper in a separate file (`internal/ahm/write.go`) avoids
   further bloating `cli.go` and makes the write guarantee easy to audit.
 - Routing every managed write through one function makes it trivial to add
@@ -115,10 +116,15 @@ path is reserved for that future use.
 - **Use a database (SQLite, etc.)**: Rejected as over-engineered for a small
   set of JSON metadata and Markdown index files.
 
+## More Information
+
+- Superseded in part by [ADR-010](010-task-create-id-allocation-lock.md),
+  which adopts a narrow repository-local lock for `ahm task create` ID
+  allocation while preserving this ADR's rejection of broad advisory locking.
+
 ## References
 
 - Task 008: Add atomic writes and concurrency protection
 - `internal/ahm/write.go` — implementation of `writeFileAtomic`
 - `internal/ahm/write_test.go` — tests for `writeFileAtomic`
 - `.gitignore` — `*.tmp` pattern added for `.agents/` temp files
-

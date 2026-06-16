@@ -48,6 +48,8 @@ delegate a resolved task to an external coding-agent CLI.
 - `internal/ahm/adr_commands.go`: ADR lifecycle commands.
 - `internal/ahm/adr_migrate.go`: legacy ADR migration.
 - `internal/ahm/indexes.go`: task, research, ExecPlan, and ADR index rendering.
+- `internal/ahm/lock.go`: repository-local workflow locks for serialized
+  cross-process mutations.
 - `internal/ahm/write.go`: atomic writes and stale temp cleanup.
 - `internal/templates/templates.go`: embedded template registry and template
   version.
@@ -59,6 +61,8 @@ delegate a resolved task to an external coding-agent CLI.
 
 - Writes are explicit and use the atomic temp-file-then-rename path in
   `internal/ahm/write.go`.
+- Cross-process workflow mutations that require read-compute-write consistency
+  use repository-local locks under `.agents/.lock/`.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
 - Managed templates are updated through `init` and `upgrade`; project-owned

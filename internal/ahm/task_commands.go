@@ -771,6 +771,22 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	// Strip any H1 matching the task title to avoid duplicates.
 	// renderTask always emits the H1 from front matter.
 	body = stripHeading(body, parsed.title)
+	if !a.opts.dryRun {
+		release, err := acquireWorkflowLock(a.opts.root, "task-create")
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := release(); err != nil {
+				fmt.Fprintln(a.err, err)
+			}
+		}()
+		return a.taskCreateParsedLocked(parsed, body)
+	}
+	return a.taskCreateParsedLocked(parsed, body)
+}
+
+func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	tasks, err := a.getTasks()
 	if err != nil {
 		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
@@ -791,6 +807,11 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	})
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"create": path, "id": id})
+	}
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("task id %s already exists at %s; retry task create", id, relPath(a.opts.root, path))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checking task path %s: %w", relPath(a.opts.root, path), err)
 	}
 	if err := writeFileAtomic(path, []byte(content), 0o644); err != nil {
 		return err

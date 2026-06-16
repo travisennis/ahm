@@ -669,6 +669,11 @@ The next ID is the next zero-padded numeric ID after the highest existing
 numeric task ID, such as `001`, `002`, and `003`. Non-numeric suffix IDs are
 ignored for this calculation.
 
+Concurrent `task create` commands in the same repository are serialized with a
+repo-local workflow lock while the ID is allocated, the task file is written,
+and indexes are regenerated. This prevents parallel creates from receiving the
+same numeric ID or leaving task indexes stale.
+
 The title is built from all non-flag arguments, so both of these are valid:
 
 ```bash
