@@ -50,8 +50,7 @@ func adrFilePaths(root string) ([]string, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		switch entry.Name() {
-		case "README.md", "index.md":
+		if strings.EqualFold(entry.Name(), "README.md") || strings.EqualFold(entry.Name(), "index.md") {
 			continue
 		}
 		files = append(files, filepath.Join(dir, entry.Name()))

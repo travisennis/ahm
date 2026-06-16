@@ -157,6 +157,29 @@ func TestCollectADRsClassifiesLegacyAndMalformed(t *testing.T) {
 	}
 }
 
+func TestAdrFilePathsExcludesCaseVariants(t *testing.T) {
+	root := t.TempDir()
+	// Create a real ADR and various case variants of README.md and index.md
+	writeADRFile(t, root, "001-real-decision.md", "# ADR 001: Real\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\n## Context\n\nBody.\n")
+	writeADRFile(t, root, "readme.md", "# readme\n")
+	writeADRFile(t, root, "README.MD", "# README uppercase extension\n")
+	writeADRFile(t, root, "ReadMe.md", "# ReadMe mixed\n")
+	writeADRFile(t, root, "index.md", "# index\n")
+	writeADRFile(t, root, "INDEX.md", "# INDEX\n")
+	writeADRFile(t, root, "IndEx.md", "# IndEx mixed\n")
+
+	files, err := adrFilePaths(root)
+	if err != nil {
+		t.Fatalf("adrFilePaths: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("len(files) = %d, want 1 (got %v)", len(files), files)
+	}
+	if !strings.HasSuffix(files[0], "001-real-decision.md") {
+		t.Fatalf("unexpected file: %s", files[0])
+	}
+}
+
 func TestCollectADRsCurrentRepoRecords(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	adrs, err := collectADRs(root)
