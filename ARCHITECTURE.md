@@ -81,9 +81,11 @@ delegate a resolved task to an external coding-agent CLI.
 
 ## Reference Docs
 
-- CLI contract: `docs/cli.md`.
-- Workflow state, file ownership, formats, and atomic writes: `docs/spec.md`.
-- Upgrade and version behavior: `docs/upgrades.md`.
-- Agent integration smoke checks: `docs/testing.md`.
+- Documentation index: `docs/README.md`.
+- CLI contract: `docs/cli.md` and `docs/references/cli/`.
+- Workflow state, file ownership, formats, and atomic writes:
+  `docs/references/workflow-spec.md`.
+- Upgrade and version behavior: `docs/guides/workflow-upgrades.md`.
+- Agent integration smoke checks: `docs/guides/testing.md`.
 - ADR workflow and decision history: `docs/adr/README.md` and `docs/adr/`.
 - Contributor commands and handoff expectations: `CONTRIBUTING.md`.

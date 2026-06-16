@@ -77,5 +77,4 @@ Only errors affect `ok` and command exit status.
 - `.agents/PLANS.md` — ExecPlan section and lifecycle requirements
 - `internal/ahm/validation.go` — workflow validation implementation
 - `docs/cli.md` — validation finding reference
-- `docs/spec.md` — workflow validation semantics
-
+- `docs/references/workflow-spec.md` — workflow validation semantics

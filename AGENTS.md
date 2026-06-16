@@ -26,34 +26,36 @@ the specialized doc wins.
 ### CLI, User Output, And Exit Behavior
 Use this workflow for command wiring, flags, help text, exit codes, output, and
 dry-run behavior. Consult `docs/guardrails/cli-and-user-output.md`,
-`docs/cli.md`, and `ARCHITECTURE.md`. Keep documented behavior stable unless
-the task is explicitly a breaking CLI change.
+`docs/cli.md`, the relevant `docs/references/cli/` page, and
+`ARCHITECTURE.md`. Keep documented behavior stable unless the task is
+explicitly a breaking CLI change.
 
 ### Workflow State, File Formats, And Upgrades
 Use this workflow for `.agents/ahm.json`, workflow formats, generated indexes,
 install/upgrade/status/doctor behavior, and embedded templates. Consult
-`docs/guardrails/workflow-state-and-file-formats.md`, `docs/spec.md`,
-`docs/upgrades.md`, and `ARCHITECTURE.md`. Do not edit generated indexes by
-hand.
+`docs/guardrails/workflow-state-and-file-formats.md`,
+`docs/references/workflow-spec.md`, `docs/guides/workflow-upgrades.md`, and
+`ARCHITECTURE.md`. Do not edit generated indexes by hand.
 
 ### External Agent Orchestration
 Use this workflow for `ahm task work`, agent definitions, arg builders,
 parsers, session capture, handoff, and golden transcripts. Consult
-`docs/guardrails/external-agent-orchestration.md` and `docs/testing.md`. Parser
+`docs/guardrails/external-agent-orchestration.md` and `docs/guides/testing.md`. Parser
 fixtures are not enough when a real agent CLI contract changes.
 
 ### Safety, Permissions, And Atomic Writes
 Use this workflow for filesystem writes, path handling, root detection, command
 execution, and safety boundaries. Consult
-`docs/guardrails/safety-and-permissions.md`, `docs/spec.md`, and ADR 001.
+`docs/guardrails/safety-and-permissions.md`,
+`docs/references/workflow-spec.md`, and ADR 001.
 Keep writes explicit, dry-run aware, and crash-safe.
 
 ### Dependencies, Build, CI, And Release
 Use this workflow for dependencies, build scripts, CI, GoReleaser, version
 injection, and release behavior. Consult
 `docs/guardrails/dependencies-build-ci-release.md`, `CONTRIBUTING.md`,
-`docs/upgrades.md`, and `.github/workflows/`. Preserve binary/template version
-separation.
+`docs/guides/workflow-upgrades.md`, and `.github/workflows/`. Preserve
+binary/template version separation.
 
 ### Architecture And Implementation Quality
 Use this workflow for refactors, module boundaries, shared helpers, validation,

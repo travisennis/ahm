@@ -48,7 +48,7 @@ just smoke-agents
 just capture-agent-fixtures
 ```
 
-See `docs/testing.md` before running either command.
+See `docs/guides/testing.md` before running either command.
 
 ## Verification Expectations
 
@@ -68,7 +68,7 @@ go test ./internal/templates ./internal/ahm
 ```
 
 Changes to external agent argument builders, parsers, or orchestration require
-the live smoke checklist in `docs/testing.md`.
+the live smoke checklist in `docs/guides/testing.md`.
 
 ## Code Style
 
@@ -87,9 +87,10 @@ Update documentation when a change affects user-visible behavior, commands,
 configuration, file formats, workflow semantics, architecture, release
 behavior, setup, security, or compatibility.
 
-- CLI behavior changes usually require `docs/cli.md`.
-- Durable workflow semantics usually require `docs/spec.md` or
-  `docs/upgrades.md`.
+- CLI behavior changes usually require `docs/cli.md` and the affected
+  `docs/references/cli/` page.
+- Durable workflow semantics usually require
+  `docs/references/workflow-spec.md` or `docs/guides/workflow-upgrades.md`.
 - Implementation moves require `ARCHITECTURE.md` updates when the module map or
   boundary descriptions change.
 - ADR lifecycle and format changes must stay aligned with `docs/adr/README.md`.

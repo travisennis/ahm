@@ -81,5 +81,4 @@ do not drift.
 - `internal/ahm/cli.go` and `internal/ahm/agents.go` — `agents suggestions`
   command wiring and implementation
 - `internal/templates/templates.go` — suggestion source of truth
-- `docs/spec.md` — `AGENTS.md` ownership semantics
-
+- `docs/references/workflow-spec.md` — `AGENTS.md` ownership semantics

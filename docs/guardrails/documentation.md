@@ -12,7 +12,7 @@ and generated documentation indexes.
 - `ARCHITECTURE.md` repository map and invariants.
 - `CONTRIBUTING.md` command catalog, verification, and commit workflow.
 - `docs/cli.md` command contract.
-- `docs/spec.md` workflow semantics and file formats.
+- `docs/references/workflow-spec.md` workflow semantics and file formats.
 - `.agents/*` workflow guides and generated indexes.
 - `docs/adr/README.md` and generated `docs/adr/index.md`.
 
@@ -28,8 +28,8 @@ and generated documentation indexes.
 
 - Duplicating authority instead of linking to the source of truth.
 - Updating CLI behavior without updating `docs/cli.md`.
-- Updating workflow semantics without updating `docs/spec.md` or
-  `docs/upgrades.md`.
+- Updating workflow semantics without updating
+  `docs/references/workflow-spec.md` or `docs/guides/workflow-upgrades.md`.
 - Leaving module maps stale after moving implementation.
 - Putting long one-off procedure details back into `AGENTS.md`.
 
@@ -40,6 +40,7 @@ and generated documentation indexes.
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`
 - `docs/cli.md`
-- `docs/spec.md`
-- `docs/upgrades.md`
+- `docs/README.md`
+- `docs/references/workflow-spec.md`
+- `docs/guides/workflow-upgrades.md`
 - `docs/adr/README.md`

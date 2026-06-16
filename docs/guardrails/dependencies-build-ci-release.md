@@ -35,7 +35,7 @@ release behavior.
 ## Related Docs
 
 - `CONTRIBUTING.md`
-- `docs/upgrades.md`
+- `docs/guides/workflow-upgrades.md`
 - `.github/workflows/`
 - `.goreleaser.yaml`
 - `justfile`

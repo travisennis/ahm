@@ -16,9 +16,10 @@ command behavior.
 
 ## Required Checks
 
-- Update `docs/cli.md` in the same change unless the behavior is intentionally
-  undocumented.
-- Search `docs/cli.md` for the affected command or old behavior before handoff.
+- Update `docs/cli.md` or the affected `docs/references/cli/` page in the
+  same change unless the behavior is intentionally undocumented.
+- Search `docs/cli.md` and `docs/references/cli/` for the affected command or
+  old behavior before handoff.
 - Run focused CLI tests first, then the repository verification expected by
   `CONTRIBUTING.md`.
 
@@ -32,6 +33,7 @@ command behavior.
 ## Related Docs
 
 - `docs/cli.md`
-- `docs/spec.md`
+- `docs/references/cli/`
+- `docs/references/workflow-spec.md`
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`

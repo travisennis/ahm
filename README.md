@@ -34,7 +34,7 @@ Useful global flags:
 - `--dry-run`: preview write operations for commands that support it.
 - `--force`: overwrite managed workflow files when supported.
 
-For the full command, flag, output, and task-file contract, see
+For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
 `AGENTS.md` is create-only: `ahm init` can add the starter entrypoint when it
@@ -55,6 +55,7 @@ work; the delegated agent and project hooks own the actual git operation.
 For the full local setup, command catalog, verification expectations, and
 commit conventions, see [`CONTRIBUTING.md`](CONTRIBUTING.md). For the module
 map and architectural invariants, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+For the documentation map, see [`docs/README.md`](docs/README.md).
 
 Install Go 1.26.3 plus the local verification tools:
 

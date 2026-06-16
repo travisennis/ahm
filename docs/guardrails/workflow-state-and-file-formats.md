@@ -18,9 +18,10 @@ embedded templates, and file-format parsing or rendering.
 
 ## Required Checks
 
-- Update `docs/spec.md` when durable workflow semantics or file formats change.
-- Update `docs/upgrades.md` when install, upgrade, template version, or managed
-  template behavior changes.
+- Update `docs/references/workflow-spec.md` when durable workflow semantics or
+  file formats change.
+- Update `docs/guides/workflow-upgrades.md` when install, upgrade, template
+  version, or managed template behavior changes.
 - For template changes, run `go test ./internal/templates ./internal/ahm`
   before the final verification pass.
 - Regenerate indexes only through source changes plus `ahm` commands; never
@@ -36,8 +37,8 @@ embedded templates, and file-format parsing or rendering.
 
 ## Related Docs
 
-- `docs/spec.md`
-- `docs/upgrades.md`
+- `docs/references/workflow-spec.md`
+- `docs/guides/workflow-upgrades.md`
 - `.agents/TASKS.md`
 - `.agents/PLANS.md`
 - `.agents/RESEARCH.md`

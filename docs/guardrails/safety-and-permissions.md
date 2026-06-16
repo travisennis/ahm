@@ -19,8 +19,8 @@ atomic writes, and dry-run behavior.
 
 - Add or update tests for write paths, dry-run paths, and root/path edge cases.
 - Re-read ADR 001 before changing atomic write behavior.
-- Re-read `docs/spec.md` before changing ownership boundaries or validation
-  side effects.
+- Re-read `docs/references/workflow-spec.md` before changing ownership
+  boundaries or validation side effects.
 - Run focused tests first, then the verification expected by `CONTRIBUTING.md`.
 
 ## Common Failure Modes
@@ -34,7 +34,7 @@ atomic writes, and dry-run behavior.
 
 ## Related Docs
 
-- `docs/spec.md`
+- `docs/references/workflow-spec.md`
 - `docs/adr/001-atomic-writes-and-concurrency.md`
 - `docs/cli.md`
 - `ARCHITECTURE.md`

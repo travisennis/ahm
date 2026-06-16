@@ -18,7 +18,7 @@ golden transcripts, and live agent smoke tests.
 
 - Run focused parser and task-work tests for local iteration.
 - If argument builders, parsers, or orchestration change, follow
-  `docs/testing.md` and run the real agents with `just smoke-agents` when
+  `docs/guides/testing.md` and run the real agents with `just smoke-agents` when
   available.
 - Refresh golden transcripts with `just capture-agent-fixtures` when an agent
   CLI upgrade changes output schema.
@@ -34,7 +34,7 @@ golden transcripts, and live agent smoke tests.
 
 ## Related Docs
 
-- `docs/testing.md`
+- `docs/guides/testing.md`
 - `docs/cli.md`
 - `internal/ahm/testdata/agents/README.md`
 - `docs/adr/006-task-work-agent-delegation.md`

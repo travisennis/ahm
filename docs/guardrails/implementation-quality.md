@@ -34,5 +34,5 @@ shared helpers, generated rendering, and performance-sensitive code paths.
 
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`
-- `docs/spec.md`
+- `docs/references/workflow-spec.md`
 - `docs/cli.md`

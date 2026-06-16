@@ -132,7 +132,6 @@ the user's installed CLI configuration.
 - Task 084: Upgrade cursor agent to full task work orchestration
 - `.agents/exec-plans/completed/050-task-work-agent-handoff.md`
 - `scripts/task-workflow.sh`
-- `docs/spec.md`
+- `docs/references/workflow-spec.md`
 - `internal/ahm/task_commands.go`
 - `internal/ahm/install.go`
-
