@@ -471,6 +471,12 @@ func TestValidateADRsReportsFindings(t *testing.T) {
 			t.Fatalf("missing ADR error %q: %#v", code, report.Errors)
 		}
 	}
+	// Verify duplicate ID error has an empty path (no single file blamed).
+	for _, f := range report.Errors {
+		if f.Code == "adr_duplicate_id" && f.Path != "" {
+			t.Fatalf("adr_duplicate_id should have empty path, got %q", f.Path)
+		}
+	}
 	if !hasFinding(report.Warnings, "adr_legacy_format") {
 		t.Fatalf("missing adr_legacy_format warning: %#v", report.Warnings)
 	}

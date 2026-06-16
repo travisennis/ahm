@@ -511,7 +511,7 @@ func validateADRs(root string, report *validationReport) {
 			paths = append(paths, relPath(root, adr.Path))
 		}
 		sort.Strings(paths)
-		report.addError("adr_duplicate_id", paths[0], fmt.Sprintf("ADR ID %s is used by multiple files: %s", id, strings.Join(paths, ", ")))
+		report.addError("adr_duplicate_id", "", fmt.Sprintf("ADR ID %s is used by multiple files: %s", id, strings.Join(paths, ", ")))
 	}
 
 	for _, adr := range adrs {
