@@ -320,6 +320,7 @@ func TestADRSupersedeErrors(t *testing.T) {
 	writeADRFile(t, root, "002-new-decision.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\nBody.\n")
 	writeADRFile(t, root, "003-other-decision.md", "---\nstatus: accepted\ndate: 2026-06-03\n---\n# Other Decision\n\nBody.\n")
 	writeADRFile(t, root, "004-superseded-decision.md", "---\nstatus: superseded by ADR-002\ndate: 2026-06-04\n---\n# Superseded Decision\n\nBody.\n")
+	writeADRFile(t, root, "005-noncanonical-superseded.md", "---\nstatus: Superseded by ADR-002\ndate: 2026-06-05\n---\n# Non-Canonical Superseded\n\nBody.\n")
 
 	tests := []struct {
 		name string
@@ -332,6 +333,7 @@ func TestADRSupersedeErrors(t *testing.T) {
 		{name: "unknown new", args: []string{"adr", "supersede", "001", "--by", "999"}, code: 1, want: `ADR "999" not found`},
 		{name: "self", args: []string{"adr", "supersede", "001", "--by", "001"}, code: 2, want: "cannot supersede an ADR with itself"},
 		{name: "already superseded elsewhere", args: []string{"adr", "supersede", "004", "--by", "003"}, code: 1, want: "ADR 004 is already superseded by ADR-002"},
+		{name: "already superseded non-canonical casing", args: []string{"adr", "supersede", "005", "--by", "003"}, code: 1, want: "ADR 005 is already Superseded by ADR-002"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -279,7 +279,7 @@ func (a *app) adrSupersede(oldID string, newID string) error {
 		return fmt.Errorf("ADR %s is not a MADR record", newADR.ID)
 	}
 	nextStatus := "superseded by ADR-" + newADR.ID
-	if strings.HasPrefix(oldADR.Status, "superseded by ADR-") && oldADR.Status != nextStatus {
+	if strings.HasPrefix(strings.ToLower(oldADR.Status), "superseded by adr-") && oldADR.Status != nextStatus {
 		return fmt.Errorf("ADR %s is already %s", oldADR.ID, oldADR.Status)
 	}
 	today := time.Now().Format(time.DateOnly)
