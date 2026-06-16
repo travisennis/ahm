@@ -115,7 +115,12 @@ func (a *app) adrCommand() *cobra.Command {
 	adr.AddCommand(&cobra.Command{
 		Use:   "migrate",
 		Short: "Migrate legacy ADRs to MADR front matter",
-		Args:  noArgs,
+		Long: `Migrate legacy ADRs to MADR front matter.
+
+CRLF line endings are normalized to LF during migration. This is a side effect of
+internal file handling and may appear as line-ending changes in version control
+diffs.`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
