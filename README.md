@@ -19,13 +19,13 @@ supported external coding-agent CLI.
 Install the latest release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/travisennis/ahm/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/travisennis/ahm/master/scripts/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/travisennis/ahm/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/travisennis/ahm/master/scripts/install.ps1 | iex
 ```
 
 ```bash
