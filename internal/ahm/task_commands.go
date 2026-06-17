@@ -127,7 +127,7 @@ func (a *app) taskCommand() *cobra.Command {
 			return a.taskWork(workArgs)
 		},
 	}
-	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, codex, or cursor")
+	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, claude, codex, or cursor")
 	work.Flags().BoolVar(&workArgs.review, "review", false, "Run review orchestration after work session")
 	work.Flags().BoolVar(&workArgs.complete, "complete", false, "Run completion handoff after work session")
 	work.Flags().BoolVar(&workArgs.commit, "commit", false, "Run commit handoff after work session")
@@ -368,8 +368,24 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			},
 			parseReviewFeedback: parseCursorReviewFeedback,
 		}, nil
+	case "claude", "claudecode":
+		return taskWorkAgent{
+			name:       "claude",
+			executable: "claude",
+			args: func(prompt string) []string {
+				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
+			},
+			supportsSessions: true,
+			resumeArgs:       claudeResumeArgs,
+			parseSessionID:   parseClaudeSessionID,
+			supportsReview:   true,
+			reviewArgs: func(prompt string) []string {
+				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
+			},
+			parseReviewFeedback: parseClaudeReviewFeedback,
+		}, nil
 	default:
-		return taskWorkAgent{}, usageError(fmt.Sprintf("unsupported task work agent %q (supported: cake, codex, cursor)", value))
+		return taskWorkAgent{}, usageError(fmt.Sprintf("unsupported task work agent %q (supported: cake, claude, codex, cursor)", value))
 	}
 }
 
@@ -747,6 +763,60 @@ func parseCursorReviewFeedback(output []byte) (string, error) {
 			continue
 		}
 		var evt cursorStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "result" {
+			lastResult = evt.Result
+		}
+	}
+	return lastResult, nil
+}
+
+// claudeStreamEvent represents a single JSONL event in Claude Code's
+// stream-json output (claude -p --verbose --output-format stream-json).
+type claudeStreamEvent struct {
+	Type      string `json:"type"`
+	Subtype   string `json:"subtype,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	Result    string `json:"result,omitempty"`
+}
+
+// parseClaudeSessionID parses Claude Code stream-json output and returns the
+// session_id from the first system/init event.
+func parseClaudeSessionID(output []byte) (string, error) {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt claudeStreamEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+		if evt.Type == "system" && evt.Subtype == "init" && evt.SessionID != "" {
+			return evt.SessionID, nil
+		}
+	}
+	return "", nil
+}
+
+// claudeResumeArgs constructs the arguments to resume a Claude Code session
+// with a follow-up prompt.
+func claudeResumeArgs(sessionID, prompt string) []string {
+	return []string{"-p", "--verbose", "--resume", sessionID, "--output-format", "stream-json", prompt}
+}
+
+// parseClaudeReviewFeedback parses Claude Code stream-json output and returns
+// the result field from the final result event.
+func parseClaudeReviewFeedback(output []byte) (string, error) {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	var lastResult string
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var evt claudeStreamEvent
 		if err := json.Unmarshal(line, &evt); err != nil {
 			continue
 		}

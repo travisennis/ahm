@@ -34,10 +34,11 @@ task dependencies are complete, selects a supported external agent, marks a
 pending task `In Progress`, and then executes the selected external CLI from the
 repository root with a generated task-work prompt.
 
-The supported agents are `cake`, `codex`, and `cursor`. `cake` is the default.
-Repositories may set `"default_work_agent": "<agent>"` in `.agents/ahm.json`.
-The `--agent <cake|codex|cursor>` flag overrides repository configuration for a
-single invocation. Unsupported agent names are usage errors.
+The supported agents are `cake`, `claude`, `codex`, and `cursor`. `cake` is the
+default. Repositories may set `"default_work_agent": "<agent>"` in
+`.agents/ahm.json`. The `--agent <cake|claude|codex|cursor>` flag overrides
+repository configuration for a single invocation. Unsupported agent names are
+usage errors.
 
 The command only performs one deterministic state transition before delegation:
 `Pending` becomes `In Progress`. Tasks already `In Progress`, `Open`, or
@@ -45,12 +46,14 @@ The command only performs one deterministic state transition before delegation:
 and dependency checks. Missing external executables are detected before any task
 file is rewritten.
 
-For session-capable agents (`cake`, `codex`, and `cursor`), `ahm` requests
-structured JSON output (`--output-format stream-json` for `cake`,
-`--json` for `codex`, `--output-format stream-json` for `cursor-agent`) and
+For session-capable agents (`cake`, `claude`, `codex`, and `cursor`), `ahm`
+requests structured JSON output (`--output-format stream-json` for `cake`,
+`--json` for `codex`, `--output-format stream-json` for `cursor-agent`,
+`--verbose --output-format stream-json` for `claude`) and
 parses the session identifier from the first output event:
 `task_start.session_id` for `cake`, `thread.started.thread_id` for `codex`,
-and `system/init.session_id` for `cursor`. The session ID is retained in
+`system/init.session_id` for `cursor`, and `system/init.session_id` for
+`claude`. The session ID is retained in
 memory for the current review, revision, completion, and commit within the same
 workflow invocation. Provider output is parsed only for the session identifier
 and review-feedback fields needed by the orchestration hooks; results are still
@@ -130,6 +133,7 @@ the user's installed CLI configuration.
 - Task 055: Add optional task work review orchestration
 - Task 056: Capture and reuse task work agent sessions
 - Task 084: Upgrade cursor agent to full task work orchestration
+- Task 082: Add Claude Code agent support to ahm task work
 - `.agents/exec-plans/completed/050-task-work-agent-handoff.md`
 - `scripts/task-workflow.sh`
 - `docs/references/workflow-spec.md`

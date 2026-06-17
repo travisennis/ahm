@@ -1537,7 +1537,7 @@ func TestTaskWorkUnsupportedAgentIsUsageError(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, codex, cursor")
+	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, claude, codex, cursor")
 }
 
 func TestTaskWorkUnsupportedConfiguredAgentIsUsageError(t *testing.T) {
@@ -1554,7 +1554,7 @@ func TestTaskWorkUnsupportedConfiguredAgentIsUsageError(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, codex, cursor")
+	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, claude, codex, cursor")
 }
 
 func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
@@ -1732,6 +1732,7 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		{name: "cake", executable: "cake", prefix: []string{"--output-format", "stream-json"}, supportsSessions: true, supportsReview: true},
 		{name: "codex", executable: "codex", prefix: []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "--json"}, supportsSessions: true, supportsReview: true},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "stream-json", "--trust"}, supportsSessions: true, supportsReview: true},
+		{name: "claude", executable: "claude", prefix: []string{"-p", "--verbose", "--output-format", "stream-json"}, supportsSessions: true, supportsReview: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(tt.name)
@@ -1963,6 +1964,19 @@ func TestCursorResumeArgs(t *testing.T) {
 	}
 }
 
+func TestClaudeResumeArgs(t *testing.T) {
+	args := claudeResumeArgs("sess_abc", "Continue working")
+	want := []string{"-p", "--verbose", "--resume", "sess_abc", "--output-format", "stream-json", "Continue working"}
+	if len(args) != len(want) {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+		}
+	}
+}
+
 func TestParseCodexSessionID(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -2142,6 +2156,116 @@ func TestTaskWorkCursorSessionCapture(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
 }
 
+func TestParseClaudeSessionID(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		wantID string
+	}{
+		{name: "system init", output: `{"type":"system","subtype":"init","session_id":"claude_sess_123"}`, wantID: "claude_sess_123"},
+		{name: "multiple events", output: "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"claude_sess_456\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\"}}\n{\"type\":\"result\",\"result\":\"ok\",\"session_id\":\"claude_sess_456\"}", wantID: "claude_sess_456"},
+		{name: "result session ignored", output: `{"type":"result","result":"ok","session_id":"claude_sess_result"}`, wantID: ""},
+		{name: "wrong subtype", output: `{"type":"system","subtype":"other","session_id":"claude_sess_wrong"}`, wantID: ""},
+		{name: "empty session", output: `{"type":"system","subtype":"init","session_id":""}`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "empty output", output: ``, wantID: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, err := parseClaudeSessionID([]byte(tt.output))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tt.wantID {
+				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestParseClaudeReviewFeedback(t *testing.T) {
+	tests := []struct {
+		name       string
+		output     string
+		wantResult string
+	}{
+		{name: "result event", output: `{"type":"result","subtype":"success","result":"Found 1 issue.","is_error":false,"session_id":"claude_sess"}`, wantResult: "Found 1 issue."},
+		{name: "last result wins", output: "{\"type\":\"result\",\"result\":\"First\"}\n{\"type\":\"result\",\"result\":\"Final\"}", wantResult: "Final"},
+		{name: "empty result", output: `{"type":"result","result":""}`, wantResult: ""},
+		{name: "no result event", output: `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, wantResult: ""},
+		{name: "non-JSON line", output: `not json`, wantResult: ""},
+		{name: "empty output", output: ``, wantResult: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseClaudeReviewFeedback([]byte(tt.output))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result != tt.wantResult {
+				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestTaskWorkClaudeDryRunPreviewsStreamJSONArgs(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Claude Dry Run", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Fatal("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "claude", "--review", "--complete", "--commit")
+	if code != 0 {
+		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"agent: claude",
+		"executable: /stub/claude",
+		"status: In Progress",
+		"task: 001",
+		"-p",
+		"--verbose",
+		"stream-json",
+		"review: true",
+		"complete: true",
+		"commit: true",
+	)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
+func TestTaskWorkClaudeSessionCapture(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Claude Task With Session", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/claude", nil
+	})
+	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		if len(args) < 5 || args[0] != "-p" || args[1] != "--verbose" || args[2] != "--output-format" || args[3] != "stream-json" {
+			t.Fatalf("unexpected claude args = %#v", args)
+		}
+		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"claude_sess_abc123"}`)
+		fmt.Fprintln(stdout, `{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}`)
+		fmt.Fprint(stdout, `{"type":"result","subtype":"success","result":"Work completed.","is_error":false,"session_id":"claude_sess_abc123"}`)
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "claude")
+	if code != 0 {
+		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "session_id", "claude_sess_abc123", "system", "init")
+	assertContainsAll(t, stderr, "claude session started: claude_s")
+	assertNotContains(t, stderr, "could not capture session ID")
+	assertNotContains(t, stderr, "no session ID returned")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
 func TestParseCakeReviewFeedback(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -2196,6 +2320,10 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 		{
 			name: "cursor",
 			want: []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust", "Review the changes."},
+		},
+		{
+			name: "claude",
+			want: []string{"-p", "--verbose", "--output-format", "stream-json", "Review the changes."},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

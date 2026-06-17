@@ -6,7 +6,7 @@ commands, see `CONTRIBUTING.md`.
 
 ## Agent Integration Smoke Checklist
 
-`ahm task work` orchestrates external coding-agent CLIs (cake, codex,
+`ahm task work` orchestrates external coding-agent CLIs (cake, claude, codex,
 cursor). The argument builders and output parsers in
 `internal/ahm/task_commands.go` encode assumptions about those CLIs —
 flag shapes, JSONL event schemas, session resume semantics — that unit tests

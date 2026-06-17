@@ -392,12 +392,14 @@ Supported agents:
 | `cake` | `cake` | `cake --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 | `codex` | `codex` | `codex exec --dangerously-bypass-approvals-and-sandbox --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 | `cursor` | `cursor-agent` | `cursor-agent -p --output-format stream-json --trust <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `claude` | `claude` | `claude -p --verbose --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 
 Agents marked **Full orchestration** for Sessions support session capture and
 resume. When such an agent is used, `ahm` requests structured output, captures
 the session identifier from the first session-start event (`task_start.session_id`
 for `cake`, `thread.started.thread_id` for `codex`,
-`system/init.session_id` for `cursor`), and holds it in memory for the
+`system/init.session_id` for `cursor`, `system/init.session_id` for `claude`),
+and holds it in memory for the
 current invocation. This enables follow-up review, revision, and commit steps
 within the same workflow run.
 
@@ -410,6 +412,8 @@ uncommitted changes, using each agent's normal execution path:
 - `codex`: `codex exec --dangerously-bypass-approvals-and-sandbox --json`
   with the preflight prompt
 - `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`
+  with the preflight prompt
+- `claude`: `claude -p --verbose --output-format stream-json`
   with the preflight prompt
 
 This means `--review` has consistent semantics across all agents: it runs the
@@ -464,7 +468,7 @@ proceeds without the commit step.
 
 Agent selection precedence is:
 
-1. `--agent <cake|codex|cursor>`
+1. `--agent <cake|claude|codex|cursor>`
 2. `.agents/ahm.json` `"default_work_agent": "<agent>"`
 3. `cake`
 
@@ -478,7 +482,7 @@ are performed by the delegated agent.
 
 Useful flags:
 
-- `--agent <cake|codex|cursor>`: selects the external coding-agent CLI.
+- `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
 - `--review`: runs the preflight review workflow (`.agents/skills/preflight/SKILL.md`)
   against current uncommitted changes and feeds actionable feedback back into
   the work session. Behaves consistently across all agents.
@@ -506,6 +510,7 @@ Examples:
 ahm task work 001
 ahm task work 001 --agent codex
 ahm task work 001 --agent cursor --review --complete
+ahm task work 001 --agent claude --review --complete
 ahm task work 001 --review
 ahm task work 001 --complete
 ahm task work 001 --review --complete

@@ -24,8 +24,8 @@ func TestAgentSmoke(t *testing.T) {
 		t.Skip("live agent smoke test; set AHM_AGENT_SMOKE=1 or run `just smoke-agents`")
 	}
 	// Session-capable agents only: the assertions cover session capture and
-	// resume. Extend when Claude Code (task 082) gains session orchestration.
-	for _, name := range []string{"cake", "codex", "cursor"} {
+	// resume.
+	for _, name := range []string{"cake", "claude", "codex", "cursor"} {
 		t.Run(name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(name)
 			if err != nil {

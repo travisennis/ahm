@@ -86,7 +86,7 @@ single command while still printing warnings.
 
 The optional `default_work_agent` string selects the agent used by
 `ahm task work <id>` when no `--agent` flag is provided. Supported values are
-`cake`, `codex`, and `cursor`; the command defaults to `cake` when neither the
+`cake`, `claude`, `codex`, and `cursor`; the command defaults to `cake` when neither the
 flag nor metadata setting is present.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
