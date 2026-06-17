@@ -15,6 +15,8 @@ index.
   transcript workflow.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): template version and
   upgrade behavior notes.
+- [Release process](release.md): publishing binaries, installer scripts, and
+  changelog preparation.
 - [Guardrails](guardrails/): short agent-facing rules by risk surface.
 - [ADRs](adr/README.md): decision record lifecycle and decision history.
 
@@ -26,7 +28,7 @@ index.
 | Change workflow files, generated indexes, `.agents/ahm.json`, or upgrades | [workflow guardrail](guardrails/workflow-state-and-file-formats.md), [workflow specification](references/workflow-spec.md), [workflow upgrade guide](guides/workflow-upgrades.md) |
 | Change external agent delegation or transcript parsing | [external agent guardrail](guardrails/external-agent-orchestration.md), [testing guide](guides/testing.md) |
 | Change filesystem writes, root detection, locking, or validation safety | [safety guardrail](guardrails/safety-and-permissions.md), [workflow specification](references/workflow-spec.md), [ADR 001](adr/001-atomic-writes-and-concurrency.md) |
-| Change dependencies, build scripts, CI, or release packaging | [build and release guardrail](guardrails/dependencies-build-ci-release.md), [contributing guide](../CONTRIBUTING.md), [workflow upgrade guide](guides/workflow-upgrades.md) |
+| Change dependencies, build scripts, CI, or release packaging | [build and release guardrail](guardrails/dependencies-build-ci-release.md), [contributing guide](../CONTRIBUTING.md), [release process](release.md), [workflow upgrade guide](guides/workflow-upgrades.md) |
 | Refactor implementation boundaries or shared helpers | [implementation guardrail](guardrails/implementation-quality.md), [architecture](../ARCHITECTURE.md) |
 | Audit or update documentation | [documentation guardrail](guardrails/documentation.md), [documentation workflow](../.agents/DOCS.md) |
 

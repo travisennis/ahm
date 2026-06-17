@@ -16,6 +16,18 @@ supported external coding-agent CLI.
 
 ## Quickstart
 
+Install the latest release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/travisennis/ahm/main/scripts/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/travisennis/ahm/main/scripts/install.ps1 | iex
+```
+
 ```bash
 ahm init
 ahm status
@@ -56,6 +68,8 @@ For the full local setup, command catalog, verification expectations, and
 commit conventions, see [`CONTRIBUTING.md`](CONTRIBUTING.md). For the module
 map and architectural invariants, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 For the documentation map, see [`docs/README.md`](docs/README.md).
+For release publishing and installer details, see
+[`docs/release.md`](docs/release.md).
 
 Install Go 1.26.3 plus the local verification tools:
 

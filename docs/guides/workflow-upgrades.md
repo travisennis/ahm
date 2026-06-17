@@ -62,9 +62,8 @@ assumption there was no separate release pipeline — that assumption was wrong.
   `templates.Version`.
 - `ahm --version` and `ahm version` now return the injected binary version,
   which matches the release tag in goreleaser builds.
-- Dev builds (`go build`, `just build`) without ldflags will show the default
-  value from `internal/version.Binary` (currently `"0.2.0"`), which is
-  acceptable for local development.
+- Dev builds (`go build`, `just build`) without ldflags show `dev` so they are
+  not confused with tagged release builds.
 
 ## ADR Template Rewrite for MADR (2026-06-14)
 

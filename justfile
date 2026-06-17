@@ -44,6 +44,9 @@ release-check:
 	"$(go env GOPATH)/bin/goreleaser" check
 	"$(go env GOPATH)/bin/goreleaser" release --snapshot --clean --skip publish
 
+prepare-release version="":
+	./scripts/prepare-release.sh {{ version }}
+
 fix: tidy fmt
 
 ci: fmt-check tidy-check vet test-race lint vuln build release-check

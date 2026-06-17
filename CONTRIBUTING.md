@@ -36,6 +36,7 @@ just tidy-check     # fail if go mod tidy would change files
 just lint           # golangci-lint
 just vuln           # govulncheck ./...
 just release-check  # goreleaser check and snapshot build
+just prepare-release  # calculate version, update changelog, and run release checks
 just quick          # go test ./... plus go vet ./...
 just ci             # full read-only CI suite
 just fix            # mutating tidy plus fmt
@@ -125,3 +126,17 @@ Recommended scopes:
 
 After any commit, run `git status --short` and hand off with the commit hash,
 worktree cleanliness, and any remaining modified, deleted, or untracked files.
+
+## Release Workflow
+
+Releases are tag-driven GitHub Releases built by GoReleaser. To prepare a
+release, install `svu` and `git-cliff`, then run:
+
+```bash
+just prepare-release
+```
+
+The script uses `svu` to calculate the next SemVer tag. Review and commit the
+generated `CHANGELOG.md` update, then create and push the tag. See
+[`docs/release.md`](docs/release.md) for installer commands and the full
+release checklist.
