@@ -19,7 +19,7 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -35,14 +35,14 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 		"external_ref: gh-123",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+			t.Errorf("rewritten task missing %q:\n%s", want, content)
 		}
 	}
 	if !strings.Contains(content, "updated: ") {
-		t.Fatalf("rewritten task missing updated field:\n%s", content)
+		t.Errorf("rewritten task missing updated field:\n%s", content)
 	}
 	if strings.Contains(content, "2026-05-02") {
-		t.Fatalf("rewritten task still has old updated value:\n%s", content)
+		t.Errorf("rewritten task still has old updated value:\n%s", content)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -74,7 +74,7 @@ func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 		"depends_on: 002",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+			t.Errorf("rewritten task missing %q:\n%s", want, content)
 		}
 	}
 }
@@ -88,7 +88,7 @@ func TestTaskDependencyTreeOutput(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskDepTree([]string{"001"}); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, out.String(),
 		"001 [Pending] Root",
@@ -110,10 +110,10 @@ func TestTaskDependencyCycleDetection(t *testing.T) {
 	}
 	cycles := taskDependencyCycles(tasks)
 	if len(cycles) != 1 {
-		t.Fatalf("cycles = %#v", cycles)
+		t.Errorf("cycles = %#v", cycles)
 	}
 	if got := strings.Join(cycles[0], " -> "); got != "001 -> 002 -> 001" {
-		t.Fatalf("cycle = %q", got)
+		t.Errorf("cycle = %q", got)
 	}
 }
 
@@ -127,14 +127,14 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskDepCycles(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	if !strings.Contains(got, "001 -> 002 -> 001") {
-		t.Fatalf("cycle output = %q", got)
+		t.Errorf("cycle output = %q", got)
 	}
 	if strings.Contains(got, "003") || strings.Contains(got, "004") {
-		t.Fatalf("completed-task cycle should be ignored:\n%s", got)
+		t.Errorf("completed-task cycle should be ignored:\n%s", got)
 	}
 }
 
@@ -148,11 +148,11 @@ func TestTaskDepAddNoOp(t *testing.T) {
 
 	// First add the dependency.
 	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	firstOut := out.String()
 	if !strings.Contains(firstOut, "depends_on: 002") {
-		t.Fatalf("first add output = %q", firstOut)
+		t.Errorf("first add output = %q", firstOut)
 	}
 
 	// Read the file and save content.
@@ -165,7 +165,7 @@ func TestTaskDepAddNoOp(t *testing.T) {
 	// Reset output and try adding the same dependency again (no-op).
 	out.Reset()
 	if err := a.taskDepUpdate([]string{"001", "002"}, true); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	after, err := os.ReadFile(path)
@@ -173,11 +173,11 @@ func TestTaskDepAddNoOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(before) != string(after) {
-		t.Fatalf("file content changed on no-op dep add:\nbefore: %s\nafter:  %s", before, after)
+		t.Errorf("file content changed on no-op dep add:\nbefore: %s\nafter:  %s", before, after)
 	}
 
 	if !strings.Contains(out.String(), "already depends on 002") {
-		t.Fatalf("output missing no-op message: %q", out.String())
+		t.Errorf("output missing no-op message: %q", out.String())
 	}
 }
 
@@ -195,7 +195,7 @@ func TestTaskDepRemoveNoOp(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskDepUpdate([]string{"001", "002"}, false); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	after, err := os.ReadFile(path)
@@ -203,11 +203,11 @@ func TestTaskDepRemoveNoOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(before) != string(after) {
-		t.Fatalf("file content changed on no-op dep remove:\nbefore: %s\nafter:  %s", before, after)
+		t.Errorf("file content changed on no-op dep remove:\nbefore: %s\nafter:  %s", before, after)
 	}
 
 	if !strings.Contains(out.String(), "does not depend on 002") {
-		t.Fatalf("output missing no-op message: %q", out.String())
+		t.Errorf("output missing no-op message: %q", out.String())
 	}
 }
 
@@ -219,10 +219,10 @@ func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	err := a.taskDepUpdate([]string{"001", "001"}, true)
 	if err == nil {
-		t.Fatal("expected error for self-dependency, got nil")
+		t.Error("expected error for self-dependency, got nil")
 	}
 	if !strings.Contains(err.Error(), "001 cannot depend on itself") {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -235,10 +235,10 @@ func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	err := a.taskDepUpdate([]string{"001", "002"}, true)
 	if err == nil {
-		t.Fatal("expected error for cancelled dependency, got nil")
+		t.Error("expected error for cancelled dependency, got nil")
 	}
 	if !strings.Contains(err.Error(), "001 cannot depend on cancelled task 002") {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -251,10 +251,10 @@ func TestTaskDepAddRejectsCycle(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	err := a.taskDepUpdate([]string{"002", "001"}, true)
 	if err == nil {
-		t.Fatal("expected error for cycle, got nil")
+		t.Error("expected error for cycle, got nil")
 	}
 	if !strings.Contains(err.Error(), "would create a cycle") {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -262,16 +262,16 @@ func TestMainDependencyCyclesIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "cycles")
 	if code != 0 {
-		t.Fatalf("cycles exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("cycles exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "001 -> 002 -> 001") {
-		t.Fatalf("cycles stdout = %q", stdout)
+		t.Errorf("cycles stdout = %q", stdout)
 	}
 }

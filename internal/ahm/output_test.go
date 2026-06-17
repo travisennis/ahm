@@ -56,11 +56,11 @@ func TestEmitText_MapStringAny(t *testing.T) {
 			var out strings.Builder
 			a := app{out: &out}
 			if err := a.emit(tt.value); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			got := out.String()
 			if got != tt.want {
-				t.Fatalf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
+				t.Errorf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
 			}
 		})
 	}
@@ -97,11 +97,11 @@ func TestEmitText_MapStringSliceString(t *testing.T) {
 			var out strings.Builder
 			a := app{out: &out}
 			if err := a.emit(tt.value); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			got := out.String()
 			if got != tt.want {
-				t.Fatalf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
+				t.Errorf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
 			}
 		})
 	}
@@ -135,11 +135,11 @@ func TestEmitText_DryRunMap(t *testing.T) {
 			var out strings.Builder
 			a := app{out: &out}
 			if err := a.emit(tt.value); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			got := out.String()
 			if got != tt.want {
-				t.Fatalf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
+				t.Errorf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
 			}
 		})
 	}
@@ -176,11 +176,11 @@ func TestEmitText_NestedTypedMapInAny(t *testing.T) {
 			var out strings.Builder
 			a := app{out: &out}
 			if err := a.emit(tt.value); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			got := out.String()
 			if got != tt.want {
-				t.Fatalf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
+				t.Errorf("emitText output mismatch:\n got: %q\nwant: %q", got, tt.want)
 			}
 		})
 	}
@@ -195,17 +195,17 @@ func TestEmitJSON_StatusMap(t *testing.T) {
 		"enabled": true,
 	}
 	if err := a.emit(value); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	if !strings.HasPrefix(got, "{") || !strings.HasSuffix(strings.TrimSpace(got), "}") {
-		t.Fatalf("JSON output should be a JSON object, got: %q", got)
+		t.Errorf("JSON output should be a JSON object, got: %q", got)
 	}
 	if !strings.Contains(got, `"root": "/path"`) {
-		t.Fatalf("JSON output missing expected field: %q", got)
+		t.Errorf("JSON output missing expected field: %q", got)
 	}
 	if !strings.Contains(got, `"enabled": true`) {
-		t.Fatalf("JSON output missing expected field: %q", got)
+		t.Errorf("JSON output missing expected field: %q", got)
 	}
 }
 
@@ -216,16 +216,16 @@ func TestEmitPlain_ProducesCompactJSON(t *testing.T) {
 		"root": "/path",
 	}
 	if err := a.emit(value); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	// Compact JSON should be on one line (no newlines before the final one).
 	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
 	if len(lines) != 1 {
-		t.Fatalf("plain output should be a single line, got %d lines: %q", len(lines), got)
+		t.Errorf("plain output should be a single line, got %d lines: %q", len(lines), got)
 	}
 	if !strings.Contains(got, `{"root":"/path"}`) {
-		t.Fatalf("plain output missing expected content: %q", got)
+		t.Errorf("plain output missing expected content: %q", got)
 	}
 }
 
@@ -233,11 +233,11 @@ func TestEmitText_NilValue(t *testing.T) {
 	var out strings.Builder
 	a := app{out: &out}
 	if err := a.emit(nil); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	if got != "none\n" {
-		t.Fatalf("emit(nil) = %q, want %q", got, "none\n")
+		t.Errorf("emit(nil) = %q, want %q", got, "none\n")
 	}
 }
 
@@ -245,10 +245,10 @@ func TestEmitJSON_NilValue(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{json: true}, out: &out}
 	if err := a.emit(nil); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	if got != "{}\n" {
-		t.Fatalf("emitJSON(nil) = %q, want %q", got, "{}\n")
+		t.Errorf("emitJSON(nil) = %q, want %q", got, "{}\n")
 	}
 }

@@ -42,13 +42,13 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"098"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	// Verify the task was moved to completed and parsed correctly.
 	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "098.md")
 	if _, err := os.Stat(completedPath); err != nil {
-		t.Fatalf("completed task not found: %v", err)
+		t.Errorf("completed task not found: %v", err)
 	}
 }
 
@@ -56,12 +56,12 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Smoke", "task", "--description", "Verify task creation", "--priority", "P1")
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
 	assertContainsAll(t, content,
@@ -109,7 +109,7 @@ func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
 	close(ids)
 	close(errs)
 	for err := range errs {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	var got []string
@@ -119,11 +119,11 @@ func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
 	sort.Strings(got)
 	want := []string{"001", "002", "003", "004", "005"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("parallel task IDs = %v, want %v", got, want)
+		t.Errorf("parallel task IDs = %v, want %v", got, want)
 	}
 	for _, id := range want {
 		if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", id+".md")); err != nil {
-			t.Fatalf("task %s not written: %v", id, err)
+			t.Errorf("task %s not written: %v", id, err)
 		}
 	}
 	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
@@ -169,25 +169,25 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 
 	select {
 	case err := <-done:
-		t.Fatalf("task create finished while workflow lock was held: %v", err)
+		t.Errorf("task create finished while workflow lock was held: %v", err)
 	case <-time.After(25 * time.Millisecond):
 	}
 
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Existing Task", "Pending", "")
 	if err := release(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("task create did not finish after workflow lock was released")
+		t.Error("task create did not finish after workflow lock was released")
 	}
 	if strings.TrimSpace(out.String()) != "002" {
-		t.Fatalf("create stdout = %q, want 002", out.String())
+		t.Errorf("create stdout = %q, want 002", out.String())
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "title: Created After Lock")
 }
@@ -196,7 +196,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	bodyPath := filepath.Join(root, "body.md")
@@ -208,7 +208,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Body File Task",
 		"--priority", "P1", "--effort", "M", "--labels", "type:feature, area:cli", "--body-file", bodyPath)
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -256,10 +256,10 @@ func TestTaskCreateBodyFileFromStdin(t *testing.T) {
 		bodyFile: "-",
 	}
 	if err := a.taskCreateParsed(parsed); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if strings.TrimSpace(out.String()) != "001" {
-		t.Fatalf("create stdout = %q, want 001", out.String())
+		t.Errorf("create stdout = %q, want 001", out.String())
 	}
 
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -271,17 +271,17 @@ func TestTaskCreateBodyFileErrors(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	t.Run("unreadable file", func(t *testing.T) {
 		missing := filepath.Join(root, "does-not-exist.md")
 		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Missing Body", "--body-file", missing)
 		if code != 1 {
-			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			t.Errorf("exit code = %d, stderr = %s", code, stderr)
 		}
 		if !strings.Contains(stderr, "reading task body from") {
-			t.Fatalf("stderr = %q, want reading task body error", stderr)
+			t.Errorf("stderr = %q, want reading task body error", stderr)
 		}
 	})
 
@@ -293,10 +293,10 @@ func TestTaskCreateBodyFileErrors(t *testing.T) {
 		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Conflict",
 			"--description", "summary", "--body-file", bodyPath)
 		if code != 2 {
-			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			t.Errorf("exit code = %d, stderr = %s", code, stderr)
 		}
 		if !strings.Contains(stderr, "--body-file or --description") {
-			t.Fatalf("stderr = %q, want conflict error", stderr)
+			t.Errorf("stderr = %q, want conflict error", stderr)
 		}
 	})
 
@@ -307,10 +307,10 @@ func TestTaskCreateBodyFileErrors(t *testing.T) {
 		}
 		_, stderr, code := runCLI(t, "--root", root, "task", "create", "Empty Body", "--body-file", bodyPath)
 		if code != 2 {
-			t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			t.Errorf("exit code = %d, stderr = %s", code, stderr)
 		}
 		if !strings.Contains(stderr, "is empty") {
-			t.Fatalf("stderr = %q, want empty body error", stderr)
+			t.Errorf("stderr = %q, want empty body error", stderr)
 		}
 	})
 }
@@ -319,7 +319,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Body file includes an H1 that matches the task title.
@@ -333,7 +333,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dedup Test", "--body-file", bodyPath)
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -342,7 +342,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
 	// Count occurrences of "# Dedup Test" in the file.
 	h1Count := strings.Count(content, "# Dedup Test")
 	if h1Count != 1 {
-		t.Fatalf("expected exactly 1 H1 %q, got %d:\n%s", "# Dedup Test", h1Count, content)
+		t.Errorf("expected exactly 1 H1 %q, got %d:\n%s", "# Dedup Test", h1Count, content)
 	}
 
 	// Body content after the H1 should still be present.
@@ -353,7 +353,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Body file has leading blank lines before the matching H1.
@@ -365,13 +365,13 @@ func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Lead Blanks", "--body-file", bodyPath)
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
 	h1Count := strings.Count(content, "# Lead Blanks")
 	if h1Count != 1 {
-		t.Fatalf("expected exactly 1 H1 %q, got %d:\n%s", "# Lead Blanks", h1Count, content)
+		t.Errorf("expected exactly 1 H1 %q, got %d:\n%s", "# Lead Blanks", h1Count, content)
 	}
 	assertContainsAll(t, content, "## Problem", "Body.")
 }
@@ -380,7 +380,7 @@ func TestTaskCreateBodyFilePreservesDifferentH1(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Body file has a different H1 than the task title.
@@ -393,7 +393,7 @@ func TestTaskCreateBodyFilePreservesDifferentH1(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "My Title", "--body-file", bodyPath)
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
@@ -430,15 +430,15 @@ func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 			root := t.TempDir()
 			stdout, stderr, code := runCLI(t, "--root", root, "init")
 			if code != 0 {
-				t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+				t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 			}
 
 			_, stderr, code = runCLI(t, append([]string{"--root", root, "task", "create"}, tt.args...)...)
 			if code != 2 {
-				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, stderr = %s", code, stderr)
 			}
 			if !strings.Contains(stderr, tt.want) {
-				t.Fatalf("stderr = %q, want %q", stderr, tt.want)
+				t.Errorf("stderr = %q, want %q", stderr, tt.want)
 			}
 		})
 	}
@@ -456,7 +456,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
@@ -471,14 +471,14 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 		"external_ref: gh-123",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("rewritten task missing %q:\n%s", want, content)
+			t.Errorf("rewritten task missing %q:\n%s", want, content)
 		}
 	}
 	if !strings.Contains(content, "updated: ") {
-		t.Fatalf("rewritten task missing updated field:\n%s", content)
+		t.Errorf("rewritten task missing updated field:\n%s", content)
 	}
 	if strings.Contains(content, "2026-05-02") {
-		t.Fatalf("rewritten task still has old updated value:\n%s", content)
+		t.Errorf("rewritten task still has old updated value:\n%s", content)
 	}
 }
 
@@ -494,7 +494,7 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
@@ -509,7 +509,7 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 		"ticket: JIRA-456",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("rewritten task missing unknown field %q:\n%s", want, content)
+			t.Errorf("rewritten task missing unknown field %q:\n%s", want, content)
 		}
 	}
 }
@@ -527,7 +527,7 @@ func TestTaskStatusNoOp(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "In Progress"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	// File should still be in active, content unchanged.
@@ -536,11 +536,11 @@ func TestTaskStatusNoOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(before) != string(after) {
-		t.Fatalf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
+		t.Errorf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
 	}
 
 	if !strings.Contains(out.String(), "already In Progress") {
-		t.Fatalf("output missing no-op message: %q", out.String())
+		t.Errorf("output missing no-op message: %q", out.String())
 	}
 }
 
@@ -553,21 +553,21 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	// Task should be moved to completed bucket.
 	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
 	if _, err := os.Stat(completedPath); err != nil {
-		t.Fatalf("completed task not found: %v", err)
+		t.Errorf("completed task not found: %v", err)
 	}
 	// Old file should be removed.
 	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("old file should be removed, err = %v", err)
+		t.Errorf("old file should be removed, err = %v", err)
 	}
 	// Output should use the move message, not the no-op message.
 	if !strings.Contains(out.String(), "001 -> Completed") {
-		t.Fatalf("output missing move message: %q", out.String())
+		t.Errorf("output missing move message: %q", out.String())
 	}
 }
 
@@ -580,19 +580,19 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatusWithArgs(taskStatusArgs{ids: []string{"001"}, status: "Cancelled", reason: "No longer needed"}); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	// Task should be moved to cancelled bucket.
 	cancelledPath := filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")
 	if _, err := os.Stat(cancelledPath); err != nil {
-		t.Fatalf("cancelled task not found: %v", err)
+		t.Errorf("cancelled task not found: %v", err)
 	}
 	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("old file should be removed, err = %v", err)
+		t.Errorf("old file should be removed, err = %v", err)
 	}
 	if !strings.Contains(out.String(), "001 -> Cancelled") {
-		t.Fatalf("output missing move message: %q", out.String())
+		t.Errorf("output missing move message: %q", out.String())
 	}
 	assertFileContainsAll(t, cancelledPath, "## Cancellation Reason", "No longer needed")
 }
@@ -606,16 +606,16 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	// File should still be in active (dry run).
 	if _, err := os.Stat(oldPath); err != nil {
-		t.Fatalf("file should still exist after dry run: %v", err)
+		t.Errorf("file should still exist after dry run: %v", err)
 	}
 	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
 	if _, err := os.Stat(completedPath); !os.IsNotExist(err) {
-		t.Fatalf("completed file should not exist after dry run, err = %v", err)
+		t.Errorf("completed file should not exist after dry run, err = %v", err)
 	}
 }
 
@@ -633,7 +633,7 @@ func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	after, err := os.ReadFile(path)
@@ -641,10 +641,10 @@ func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(before) != string(after) {
-		t.Fatalf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
+		t.Errorf("file content changed on no-op status update:\nbefore: %s\nafter:  %s", before, after)
 	}
 	if !strings.Contains(out.String(), "already Completed") {
-		t.Fatalf("output missing no-op message: %q", out.String())
+		t.Errorf("output missing no-op message: %q", out.String())
 	}
 }
 
@@ -656,11 +656,11 @@ func TestFilterReadyAndBlockedTasks(t *testing.T) {
 	}
 	ready := filterTasks(tasks, "ready")
 	if len(ready) != 1 || ready[0].ID != "002" {
-		t.Fatalf("ready = %#v", ready)
+		t.Errorf("ready = %#v", ready)
 	}
 	blocked := filterTasks(tasks, "blocked")
 	if len(blocked) != 1 || blocked[0].ID != "003" {
-		t.Fatalf("blocked = %#v", blocked)
+		t.Errorf("blocked = %#v", blocked)
 	}
 }
 
@@ -674,7 +674,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", []string{"completed"}, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "002 [Completed] P2 S Completed Task")
@@ -685,7 +685,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", []string{"pending", "cancelled"}, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "001 [Pending] P2 S Pending Task", "003 [Cancelled] P2 S Cancelled Task")
@@ -696,7 +696,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", []string{"PENDING", "CANCELLED"}, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "001 [Pending] P2 S Pending Task", "003 [Cancelled] P2 S Cancelled Task")
@@ -707,7 +707,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", []string{"pending", "Pending"}, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "001 [Pending]")
@@ -719,10 +719,10 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		a := app{opts: options{root: root}, out: &out}
 		err := a.taskList("all", []string{"pending", "bogus"}, nil)
 		if err == nil {
-			t.Fatal("expected error for invalid status")
+			t.Error("expected error for invalid status")
 		}
 		if !strings.Contains(err.Error(), "unsupported task status") {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	})
 
@@ -732,10 +732,10 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		a := app{opts: options{root: root}, out: &out}
 		err := a.taskList("all", []string{"pending", ""}, nil)
 		if err == nil {
-			t.Fatal("expected error for empty status")
+			t.Error("expected error for empty status")
 		}
 		if !strings.Contains(err.Error(), "unsupported task status") {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	})
 }
@@ -750,7 +750,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", nil, []string{"type:feature", "area:cli"}); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "001 [Pending] P2 S CLI Feature")
@@ -761,7 +761,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
 		if err := a.taskList("all", nil, []string{"type:feature, area:docs"}); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		assertContainsAll(t, got, "002 [Pending] P2 S Docs Feature")
@@ -773,10 +773,10 @@ func TestTaskListFiltersLabels(t *testing.T) {
 		a := app{opts: options{root: root}, out: &out}
 		err := a.taskList("all", nil, []string{"type:feature,"})
 		if err == nil {
-			t.Fatal("expected error for empty label")
+			t.Error("expected error for empty label")
 		}
 		if !strings.Contains(err.Error(), "task label filter cannot be empty") {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	})
 }
@@ -790,7 +790,7 @@ func TestTaskReadyFiltersLabels(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "ready", "--label", "type:feature,area:cli")
 	if code != 0 {
-		t.Fatalf("ready --label exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("ready --label exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 [Pending] P2 S CLI Ready")
 	assertNotContains(t, stdout, "003 [Pending]", "004 [Pending]")
@@ -804,7 +804,7 @@ func TestTaskLabelsListsCounts(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "labels")
 	if code != 0 {
-		t.Fatalf("labels exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("labels exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"area:cli total=3 active=2 open=1 ready=1",
@@ -812,7 +812,7 @@ func TestTaskLabelsListsCounts(t *testing.T) {
 		"type:feature total=2 active=1 open=0 ready=1",
 	)
 	if strings.Index(stdout, "area:cli") > strings.Index(stdout, "type:bug") {
-		t.Fatalf("labels are not sorted:\n%s", stdout)
+		t.Errorf("labels are not sorted:\n%s", stdout)
 	}
 }
 
@@ -826,7 +826,7 @@ func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskNext(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	assertContainsAll(t, got, "003 [Pending] P1 S P1 Ready")
@@ -860,17 +860,17 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.taskList("all", nil, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		if !strings.Contains(got, "001 [Pending]") {
-			t.Fatalf("expected 001 in output:\n%s", got)
+			t.Errorf("expected 001 in output:\n%s", got)
 		}
 		if strings.Contains(got, "002 [Doing]") {
-			t.Fatalf("malformed task should not appear in list:\n%s", got)
+			t.Errorf("malformed task should not appear in list:\n%s", got)
 		}
 		if !strings.Contains(errBuf.String(), "warning:") {
-			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+			t.Errorf("expected stderr warning, got: %q", errBuf.String())
 		}
 	})
 
@@ -878,14 +878,14 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.taskList("ready", nil, nil); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		if !strings.Contains(got, "001 [Pending]") {
-			t.Fatalf("expected 001 in output:\n%s", got)
+			t.Errorf("expected 001 in output:\n%s", got)
 		}
 		if !strings.Contains(errBuf.String(), "warning:") {
-			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+			t.Errorf("expected stderr warning, got: %q", errBuf.String())
 		}
 	})
 
@@ -893,14 +893,14 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.taskNext(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		if !strings.Contains(got, "001 [Pending]") {
-			t.Fatalf("expected 001 in output:\n%s", got)
+			t.Errorf("expected 001 in output:\n%s", got)
 		}
 		if !strings.Contains(errBuf.String(), "warning:") {
-			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+			t.Errorf("expected stderr warning, got: %q", errBuf.String())
 		}
 	})
 
@@ -909,13 +909,13 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		a := app{opts: options{root: root}, err: &errBuf}
 		task, err := a.resolveTask("001")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 		if !strings.Contains(errBuf.String(), "warning:") {
-			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+			t.Errorf("expected stderr warning, got: %q", errBuf.String())
 		}
 	})
 
@@ -924,7 +924,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		a := app{opts: options{root: root}, err: &errBuf}
 		_, err := a.resolveTask("002")
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("expected not-found for malformed task, got: %v", err)
+			t.Errorf("expected not-found for malformed task, got: %v", err)
 		}
 	})
 
@@ -932,7 +932,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.writeIndexes(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
 		data, err := os.ReadFile(indexPath)
@@ -941,7 +941,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		}
 		got := string(data)
 		if !strings.Contains(got, "001.md) | Valid Task") {
-			t.Fatalf("expected 001 in index:\n%s", got)
+			t.Errorf("expected 001 in index:\n%s", got)
 		}
 	})
 
@@ -951,19 +951,19 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.taskDepTree([]string{"005"}); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		if !strings.Contains(got, "005 [Pending] Dep Parent") {
-			t.Fatalf("expected dep tree with 005:\n%s", got)
+			t.Errorf("expected dep tree with 005:\n%s", got)
 		}
 		if !strings.Contains(got, "001 [Pending] Valid Task") {
-			t.Fatalf("expected dep tree with 001:\n%s", got)
+			t.Errorf("expected dep tree with 001:\n%s", got)
 		}
 		// Should print exactly one warning, not two (no double collectTasks call)
 		warnCount := strings.Count(errBuf.String(), "warning:")
 		if warnCount != 1 {
-			t.Fatalf("expected exactly 1 warning, got %d: %q", warnCount, errBuf.String())
+			t.Errorf("expected exactly 1 warning, got %d: %q", warnCount, errBuf.String())
 		}
 	})
 
@@ -975,14 +975,14 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
 		if err := a.taskDepCycles(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		got := out.String()
 		if !strings.Contains(got, "003 -> 004 -> 003") {
-			t.Fatalf("cycle output = %q", got)
+			t.Errorf("cycle output = %q", got)
 		}
 		if !strings.Contains(errBuf.String(), "warning:") {
-			t.Fatalf("expected stderr warning, got: %q", errBuf.String())
+			t.Errorf("expected stderr warning, got: %q", errBuf.String())
 		}
 	})
 }
@@ -991,88 +991,88 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// First task: explicitly Pending so lifecycle integration works
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "First Task", "--priority", "P1", "--effort", "M", "--description", "First body", "--status", "Pending")
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 	// Second task: explicitly Pending so lifecycle integration works
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second Task", "--status", "Pending")
 	if code != 0 || strings.TrimSpace(stdout) != "002" {
-		t.Fatalf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "add", "002", "001")
 	if code != 0 {
-		t.Fatalf("dep add exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("dep add exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 depends_on: 001")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: 001")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "blocked")
 	if code != 0 {
-		t.Fatalf("blocked exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("blocked exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 [Pending]")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "start", "001")
 	if code != 0 {
-		t.Fatalf("start exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("start exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> In Progress")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("complete exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("complete exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "ready")
 	if code != 0 {
-		t.Fatalf("ready exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("ready exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 [Pending]")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "reopen", "001")
 	if code != 0 {
-		t.Fatalf("reopen exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("reopen exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Pending")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "tree", "002")
 	if code != 0 {
-		t.Fatalf("dep tree exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("dep tree exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 [Pending] Second Task", "  001 [Pending] First Task")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "remove", "002", "001")
 	if code != 0 {
-		t.Fatalf("dep remove exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("dep remove exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 depends_on: -")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: -")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "next")
 	if code != 0 {
-		t.Fatalf("next exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("next exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 [Pending] P1 M First Task")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "002", "--reason", "No longer needed")
 	if code != 0 {
-		t.Fatalf("cancel exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("cancel exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Cancelled")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled", "## Cancellation Reason", "No longer needed")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "list", "--status", "cancelled")
 	if code != 0 {
-		t.Fatalf("list --status exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("list --status exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 [Cancelled] P2 S Second Task")
 	assertNotContains(t, stdout, "001 [Pending]")
@@ -1087,14 +1087,14 @@ func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	err := a.taskStatus([]string{"002"}, "Completed")
 	if err == nil {
-		t.Fatal("expected error from completing task with incomplete dependency")
+		t.Error("expected error from completing task with incomplete dependency")
 	}
 	if !strings.Contains(err.Error(), "incomplete dependencies: 001") {
-		t.Fatalf("error message = %q, want incomplete dependencies: 001", err.Error())
+		t.Errorf("error message = %q, want incomplete dependencies: 001", err.Error())
 	}
 	// Task file should not have been moved.
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
-		t.Fatal("completed file should not exist after failed completion")
+		t.Error("completed file should not exist after failed completion")
 	}
 }
 
@@ -1106,11 +1106,11 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"002"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	// Task should have been moved to completed.
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); err != nil {
-		t.Fatalf("completed file should exist: %v", err)
+		t.Errorf("completed file should exist: %v", err)
 	}
 }
 
@@ -1121,11 +1121,11 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	// Task should have been moved to completed.
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
-		t.Fatalf("completed file should exist: %v", err)
+		t.Errorf("completed file should exist: %v", err)
 	}
 }
 
@@ -1137,7 +1137,7 @@ func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	assertContainsAll(t, out.String(), "001 -> Completed", "002 -> Pending")
@@ -1154,7 +1154,7 @@ func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	assertContainsAll(t, out.String(), "001 -> Completed")
@@ -1171,7 +1171,7 @@ func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	assertContainsAll(t, out.String(), "001 -> Completed")
@@ -1186,7 +1186,7 @@ func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	assertContainsAll(t, stdout,
@@ -1200,7 +1200,7 @@ func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "status: Blocked")
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
-		t.Fatal("completed file should not exist after dry-run completion")
+		t.Error("completed file should not exist after dry-run completion")
 	}
 }
 
@@ -1208,16 +1208,16 @@ func TestTaskCompleteWarnsForIncompleteAcceptanceByDefault(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
@@ -1227,21 +1227,21 @@ func TestTaskCancelRequiresReason(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "No Reason")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001")
 	if code == 0 {
-		t.Fatalf("expected cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
+		t.Errorf("expected cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "task cancel requires --reason")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
-		t.Fatal("cancelled file should not exist after missing reason failure")
+		t.Error("cancelled file should not exist after missing reason failure")
 	}
 }
 
@@ -1249,16 +1249,16 @@ func TestTaskCancelForceDoesNotBypassMissingReason(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "No Reason")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--force", "task", "cancel", "001")
 	if code == 0 {
-		t.Fatalf("expected force cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
+		t.Errorf("expected force cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "task cancel requires --reason")
 }
@@ -1267,16 +1267,16 @@ func TestTaskCancelPersistsReason(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Cancelled Task", "--status", "Pending")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001", "--reason", "Superseded by 002")
 	if code != 0 {
-		t.Fatalf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Cancelled")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md"),
@@ -1289,20 +1289,20 @@ func TestTaskCancelDryRunShowsReasonWithoutWriting(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dry Run Cancel")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "cancel", "001", "--reason", "Superseded")
 	if code != 0 {
-		t.Fatalf("dry-run cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/cancelled/001.md", "status: Cancelled", "reason: Superseded")
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
-		t.Fatal("cancelled file should not exist after dry-run cancellation")
+		t.Error("cancelled file should not exist after dry-run cancellation")
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
 }
@@ -1311,16 +1311,16 @@ func TestTaskCancelWarnsForSeededAcceptanceTODO(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "cancel", "001", "--reason", "Obsolete")
 	if code != 0 {
-		t.Fatalf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
 }
@@ -1340,7 +1340,7 @@ func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	meta, err := readMetadata(root)
 	if err != nil {
@@ -1352,19 +1352,19 @@ func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code == 0 {
-		t.Fatalf("expected strict completion failure, stdout = %s, stderr = %s", stdout, stderr)
+		t.Errorf("expected strict completion failure, stdout = %s, stderr = %s", stdout, stderr)
 	}
 	assertContainsAll(t, stderr,
 		"warning: task 001 acceptance notes still contain the TODO placeholder",
 		"cannot complete task 001: acceptance notes are incomplete; use --force to override",
 	)
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
-		t.Fatal("completed file should not exist after strict acceptance failure")
+		t.Error("completed file should not exist after strict acceptance failure")
 	}
 }
 
@@ -1372,7 +1372,7 @@ func TestTaskCompleteForceOverridesStrictAcceptance(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	meta, err := readMetadata(root)
 	if err != nil {
@@ -1384,12 +1384,12 @@ func TestTaskCompleteForceOverridesStrictAcceptance(t *testing.T) {
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--force", "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("force complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("force complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
@@ -1399,21 +1399,21 @@ func TestTaskCompleteDryRunPreservesPreviewWithAcceptanceWarning(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/completed/001.md", "status: Completed")
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
-		t.Fatal("completed file should not exist after dry-run completion")
+		t.Error("completed file should not exist after dry-run completion")
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
 }
@@ -1422,46 +1422,46 @@ func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dependency")
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create first stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Main")
 	if code != 0 || strings.TrimSpace(stdout) != "002" {
-		t.Fatalf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create second stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	// Make 002 depend on 001.
 	_, stderr, code = runCLI(t, "--root", root, "task", "dep", "add", "002", "001")
 	if code != 0 {
-		t.Fatalf("dep add exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("dep add exit code = %d, stderr = %s", code, stderr)
 	}
 
 	// Try completing 002 while 001 is still pending.
 	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "002")
 	if code == 0 {
-		t.Fatal("expected non-zero exit from completing task with pending dependency")
+		t.Error("expected non-zero exit from completing task with pending dependency")
 	}
 	if !strings.Contains(stderr, "incomplete dependencies: 001") {
-		t.Fatalf("stderr = %q, want incomplete dependencies: 001", stderr)
+		t.Errorf("stderr = %q, want incomplete dependencies: 001", stderr)
 	}
 	// Verify 002 was not moved to completed.
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
-		t.Fatal("completed file should not exist after failed completion")
+		t.Error("completed file should not exist after failed completion")
 	}
 
 	// Now complete 001 and verify 002 can be completed.
 	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("complete 001 exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("complete 001 exit code = %d, stderr = %s", code, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "002")
 	if code != 0 {
-		t.Fatalf("complete 002 exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("complete 002 exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Completed")
 }
@@ -1477,16 +1477,16 @@ func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if captured.root != root {
-		t.Fatalf("runner root = %q, want %q", captured.root, root)
+		t.Errorf("runner root = %q, want %q", captured.root, root)
 	}
 	if captured.executable != "/stub/cake" {
-		t.Fatalf("runner executable = %q, want /stub/cake", captured.executable)
+		t.Errorf("runner executable = %q, want /stub/cake", captured.executable)
 	}
 	if len(captured.args) != 3 || captured.args[0] != "--output-format" || captured.args[1] != "stream-json" {
-		t.Fatalf("cake args = %#v", captured.args)
+		t.Errorf("cake args = %#v", captured.args)
 	}
 	assertContainsAll(t, captured.args[2], "Work on task 001.", "ahm task show 001", "Do not commit or push")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
@@ -1509,23 +1509,23 @@ func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
 	stubTaskWorkRunner(t, configured.runner)
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if configured.executable != "/stub/codex" || len(configured.args) != 4 || configured.args[0] != "exec" || configured.args[1] != "--dangerously-bypass-approvals-and-sandbox" || configured.args[2] != "--json" {
-		t.Fatalf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
+		t.Errorf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
 	}
 
 	var flagged taskWorkCapture
 	stubTaskWorkRunner(t, flagged.runner)
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor")
 	if code != 0 {
-		t.Fatalf("flagged task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("flagged task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if flagged.executable != "/stub/cursor-agent" {
-		t.Fatalf("flagged executable = %q, want /stub/cursor-agent", flagged.executable)
+		t.Errorf("flagged executable = %q, want /stub/cursor-agent", flagged.executable)
 	}
 	if len(flagged.args) != 5 || flagged.args[0] != "-p" || flagged.args[1] != "--output-format" || flagged.args[2] != "stream-json" || flagged.args[3] != "--trust" {
-		t.Fatalf("cursor args = %#v", flagged.args)
+		t.Errorf("cursor args = %#v", flagged.args)
 	}
 }
 
@@ -1535,7 +1535,7 @@ func TestTaskWorkUnsupportedAgentIsUsageError(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "unknown")
 	if code != 2 {
-		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, want 2; stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, claude, codex, cursor")
 }
@@ -1552,7 +1552,7 @@ func TestTaskWorkUnsupportedConfiguredAgentIsUsageError(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 2 {
-		t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, want 2; stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, claude, codex, cursor")
 }
@@ -1564,13 +1564,13 @@ func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "codex")
 	if code != 0 {
-		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "agent: codex", "executable: /stub/codex", "status: In Progress", "task: 001", "exec", "Work on task 001.")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
@@ -1583,13 +1583,13 @@ func TestTaskWorkCursorDryRunPreviewsStreamJSONArgs(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "cursor", "--review", "--complete", "--commit")
 	if code != 0 {
-		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"agent: cursor",
@@ -1620,19 +1620,19 @@ func TestTaskWorkRepairsBucketForPendingTaskInWrongBucket(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Task should be in active bucket now.
 	activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
 	if _, err := os.Stat(activePath); err != nil {
-		t.Fatalf("active task not found after work: %v", err)
+		t.Errorf("active task not found after work: %v", err)
 	}
 	assertFileContainsAll(t, activePath, "status: In Progress")
 
 	// Old file should be removed.
 	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("old file should be removed, err = %v", err)
+		t.Errorf("old file should be removed, err = %v", err)
 	}
 }
 
@@ -1646,22 +1646,22 @@ func TestTaskWorkDryRunOnBucketMismatch(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "codex")
 	if code != 0 {
-		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// File should still be in completed (dry run).
 	if _, err := os.Stat(oldPath); err != nil {
-		t.Fatalf("file should still exist after dry run: %v", err)
+		t.Errorf("file should still exist after dry run: %v", err)
 	}
 	activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
 	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
-		t.Fatalf("active file should not exist after dry run, err = %v", err)
+		t.Errorf("active file should not exist after dry run, err = %v", err)
 	}
 }
 
@@ -1677,13 +1677,13 @@ func TestTaskWorkRefusesCompletedAndCancelledTasks(t *testing.T) {
 			root := t.TempDir()
 			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", tt.bucket, "001.md"), "001", "Closed Task", tt.status, "")
 			stubTaskWorkLookPath(t, func(executable string) (string, error) {
-				t.Fatalf("LookPath should not be called for %s task", tt.status)
+				t.Errorf("LookPath should not be called for %s task", tt.status)
 				return "", nil
 			})
 
 			_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 			if code == 0 {
-				t.Fatalf("expected failure for %s task", tt.status)
+				t.Errorf("expected failure for %s task", tt.status)
 			}
 			assertContainsAll(t, stderr, "cannot work task 001: status is "+tt.status)
 		})
@@ -1695,13 +1695,13 @@ func TestTaskWorkRefusesIncompleteDependencies(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency", "Pending", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main", "Pending", "001")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
-		t.Fatal("LookPath should not be called for incomplete dependencies")
+		t.Error("LookPath should not be called for incomplete dependencies")
 		return "", nil
 	})
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "002")
 	if code == 0 {
-		t.Fatal("expected dependency failure")
+		t.Error("expected dependency failure")
 	}
 	assertContainsAll(t, stderr, "cannot work task 002: incomplete dependencies: 001")
 }
@@ -1715,7 +1715,7 @@ func TestTaskWorkMissingExecutableLeavesPendingTaskUnchanged(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code == 0 {
-		t.Fatal("expected missing executable failure")
+		t.Error("expected missing executable failure")
 	}
 	assertContainsAll(t, stderr, `cannot work task 001 with cake: executable "cake" not found on PATH`)
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
@@ -1737,42 +1737,42 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(tt.name)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			if agent.executable != tt.executable {
-				t.Fatalf("executable = %q, want %q", agent.executable, tt.executable)
+				t.Errorf("executable = %q, want %q", agent.executable, tt.executable)
 			}
 			if agent.supportsSessions != tt.supportsSessions {
-				t.Fatalf("supportsSessions = %v, want %v", agent.supportsSessions, tt.supportsSessions)
+				t.Errorf("supportsSessions = %v, want %v", agent.supportsSessions, tt.supportsSessions)
 			}
 			if agent.supportsReview != tt.supportsReview {
-				t.Fatalf("supportsReview = %v, want %v", agent.supportsReview, tt.supportsReview)
+				t.Errorf("supportsReview = %v, want %v", agent.supportsReview, tt.supportsReview)
 			}
 			args := agent.args("prompt")
 			for i, want := range tt.prefix {
 				if args[i] != want {
-					t.Fatalf("args = %#v, want prefix %#v", args, tt.prefix)
+					t.Errorf("args = %#v, want prefix %#v", args, tt.prefix)
 				}
 			}
 			if args[len(args)-1] != "prompt" {
-				t.Fatalf("args = %#v, final arg should be prompt", args)
+				t.Errorf("args = %#v, final arg should be prompt", args)
 			}
 			// Verify session methods are set only for session-capable agents.
 			if agent.supportsSessions {
 				if agent.resumeArgs == nil {
-					t.Fatal("session-capable agent must have resumeArgs")
+					t.Error("session-capable agent must have resumeArgs")
 				}
 				if agent.parseSessionID == nil {
-					t.Fatal("session-capable agent must have parseSessionID")
+					t.Error("session-capable agent must have parseSessionID")
 				}
 			}
 			// Verify review methods are set only for review-capable agents.
 			if agent.supportsReview {
 				if agent.reviewArgs == nil {
-					t.Fatal("review-capable agent must have reviewArgs")
+					t.Error("review-capable agent must have reviewArgs")
 				}
 				if agent.parseReviewFeedback == nil {
-					t.Fatal("review-capable agent must have parseReviewFeedback")
+					t.Error("review-capable agent must have parseReviewFeedback")
 				}
 			}
 		})
@@ -1819,7 +1819,7 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 	// Stub the runner to produce valid cake stream-json output.
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 3 || args[0] != "--output-format" || args[1] != "stream-json" {
-			t.Fatalf("unexpected args = %#v", args)
+			t.Errorf("unexpected args = %#v", args)
 		}
 		fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_abc123","task_id":"tsk_xyz"}`)
 		fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"Working..."}`)
@@ -1829,7 +1829,7 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// The result text should be printed to stdout (through MultiWriter).
 	assertContainsAll(t, stdout, "session_id", "sess_abc123", "type", "task_start")
@@ -1856,7 +1856,7 @@ func TestTaskWorkCakeSessionParseInvalidJSON(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// Non-JSON lines are silently tolerated; no session ID means a warning.
 	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
@@ -1877,7 +1877,7 @@ func TestTaskWorkCakeSessionMissingID(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// Should warn about missing session ID but not fail.
 	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
@@ -1911,15 +1911,15 @@ func TestCakeSessionIDParsing(t *testing.T) {
 			id, err := parseCakeSessionID([]byte(tt.output))
 			if tt.wantError {
 				if err == nil {
-					t.Fatal("expected error, got nil")
+					t.Error("expected error, got nil")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if id != tt.wantID {
-				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+				t.Errorf("sessionID = %q, want %q", id, tt.wantID)
 			}
 		})
 	}
@@ -1929,11 +1929,11 @@ func TestCakeResumeArgs(t *testing.T) {
 	args := cakeResumeArgs("sess_abc", "Continue working")
 	want := []string{"--resume", "sess_abc", "--output-format", "stream-json", "Continue working"}
 	if len(args) != len(want) {
-		t.Fatalf("args = %#v, want %#v", args, want)
+		t.Errorf("args = %#v, want %#v", args, want)
 	}
 	for i := range want {
 		if args[i] != want[i] {
-			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+			t.Errorf("args[%d] = %q, want %q", i, args[i], want[i])
 		}
 	}
 }
@@ -1942,11 +1942,11 @@ func TestCodexResumeArgs(t *testing.T) {
 	args := codexResumeArgs("thread_abc", "Continue working")
 	want := []string{"exec", "resume", "--dangerously-bypass-approvals-and-sandbox", "--json", "thread_abc", "Continue working"}
 	if len(args) != len(want) {
-		t.Fatalf("args = %#v, want %#v", args, want)
+		t.Errorf("args = %#v, want %#v", args, want)
 	}
 	for i := range want {
 		if args[i] != want[i] {
-			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+			t.Errorf("args[%d] = %q, want %q", i, args[i], want[i])
 		}
 	}
 }
@@ -1955,11 +1955,11 @@ func TestCursorResumeArgs(t *testing.T) {
 	args := cursorResumeArgs("sess_abc", "Continue working")
 	want := []string{"-p", "--output-format", "stream-json", "--trust", "--resume", "sess_abc", "Continue working"}
 	if len(args) != len(want) {
-		t.Fatalf("args = %#v, want %#v", args, want)
+		t.Errorf("args = %#v, want %#v", args, want)
 	}
 	for i := range want {
 		if args[i] != want[i] {
-			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+			t.Errorf("args[%d] = %q, want %q", i, args[i], want[i])
 		}
 	}
 }
@@ -1968,11 +1968,11 @@ func TestClaudeResumeArgs(t *testing.T) {
 	args := claudeResumeArgs("sess_abc", "Continue working")
 	want := []string{"-p", "--verbose", "--resume", "sess_abc", "--output-format", "stream-json", "Continue working"}
 	if len(args) != len(want) {
-		t.Fatalf("args = %#v, want %#v", args, want)
+		t.Errorf("args = %#v, want %#v", args, want)
 	}
 	for i := range want {
 		if args[i] != want[i] {
-			t.Fatalf("args[%d] = %q, want %q", i, args[i], want[i])
+			t.Errorf("args[%d] = %q, want %q", i, args[i], want[i])
 		}
 	}
 }
@@ -1994,10 +1994,10 @@ func TestParseCodexSessionID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseCodexSessionID([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if id != tt.wantID {
-				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+				t.Errorf("sessionID = %q, want %q", id, tt.wantID)
 			}
 		})
 	}
@@ -2057,10 +2057,10 @@ func TestParseCodexReviewFeedback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseCodexReviewFeedback([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if result != tt.wantResult {
-				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+				t.Errorf("result = %q, want %q", result, tt.wantResult)
 			}
 		})
 	}
@@ -2069,10 +2069,10 @@ func TestParseCodexReviewFeedback(t *testing.T) {
 func TestParseCodexReviewFeedbackEmpty(t *testing.T) {
 	feedback, err := parseCodexReviewFeedback([]byte(""))
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if feedback != "" {
-		t.Fatalf("feedback = %q, want empty", feedback)
+		t.Errorf("feedback = %q, want empty", feedback)
 	}
 }
 
@@ -2094,10 +2094,10 @@ func TestParseCursorSessionID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseCursorSessionID([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if id != tt.wantID {
-				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+				t.Errorf("sessionID = %q, want %q", id, tt.wantID)
 			}
 		})
 	}
@@ -2120,10 +2120,10 @@ func TestParseCursorReviewFeedback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseCursorReviewFeedback([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if result != tt.wantResult {
-				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+				t.Errorf("result = %q, want %q", result, tt.wantResult)
 			}
 		})
 	}
@@ -2137,7 +2137,7 @@ func TestTaskWorkCursorSessionCapture(t *testing.T) {
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 5 || args[0] != "-p" || args[1] != "--output-format" || args[2] != "stream-json" || args[3] != "--trust" {
-			t.Fatalf("unexpected cursor args = %#v", args)
+			t.Errorf("unexpected cursor args = %#v", args)
 		}
 		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_sess_abc123"}`)
 		fmt.Fprintln(stdout, `{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}`)
@@ -2147,7 +2147,7 @@ func TestTaskWorkCursorSessionCapture(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "session_id", "cursor_sess_abc123", "system", "init")
 	assertContainsAll(t, stderr, "cursor session started: cursor_s")
@@ -2174,10 +2174,10 @@ func TestParseClaudeSessionID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseClaudeSessionID([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if id != tt.wantID {
-				t.Fatalf("sessionID = %q, want %q", id, tt.wantID)
+				t.Errorf("sessionID = %q, want %q", id, tt.wantID)
 			}
 		})
 	}
@@ -2200,10 +2200,10 @@ func TestParseClaudeReviewFeedback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseClaudeReviewFeedback([]byte(tt.output))
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if result != tt.wantResult {
-				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+				t.Errorf("result = %q, want %q", result, tt.wantResult)
 			}
 		})
 	}
@@ -2216,13 +2216,13 @@ func TestTaskWorkClaudeDryRunPreviewsStreamJSONArgs(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--agent", "claude", "--review", "--complete", "--commit")
 	if code != 0 {
-		t.Fatalf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"agent: claude",
@@ -2247,7 +2247,7 @@ func TestTaskWorkClaudeSessionCapture(t *testing.T) {
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 5 || args[0] != "-p" || args[1] != "--verbose" || args[2] != "--output-format" || args[3] != "stream-json" {
-			t.Fatalf("unexpected claude args = %#v", args)
+			t.Errorf("unexpected claude args = %#v", args)
 		}
 		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"claude_sess_abc123"}`)
 		fmt.Fprintln(stdout, `{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}`)
@@ -2257,7 +2257,7 @@ func TestTaskWorkClaudeSessionCapture(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "claude")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "session_id", "claude_sess_abc123", "system", "init")
 	assertContainsAll(t, stderr, "claude session started: claude_s")
@@ -2290,15 +2290,15 @@ func TestParseCakeReviewFeedback(t *testing.T) {
 			result, err := parseCakeReviewFeedback([]byte(tt.output))
 			if tt.wantError {
 				if err == nil {
-					t.Fatal("expected error, got nil")
+					t.Error("expected error, got nil")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if result != tt.wantResult {
-				t.Fatalf("result = %q, want %q", result, tt.wantResult)
+				t.Errorf("result = %q, want %q", result, tt.wantResult)
 			}
 		})
 	}
@@ -2329,18 +2329,18 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(tt.name)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			if !agent.supportsReview {
-				t.Fatalf("%s should support review", tt.name)
+				t.Errorf("%s should support review", tt.name)
 			}
 			args := agent.reviewArgs("Review the changes.")
 			if len(args) != len(tt.want) {
-				t.Fatalf("reviewArgs = %#v, want %#v", args, tt.want)
+				t.Errorf("reviewArgs = %#v, want %#v", args, tt.want)
 			}
 			for i := range tt.want {
 				if args[i] != tt.want[i] {
-					t.Fatalf("reviewArgs[%d] = %q, want %q", i, args[i], tt.want[i])
+					t.Errorf("reviewArgs[%d] = %q, want %q", i, args[i], tt.want[i])
 				}
 			}
 		})
@@ -2384,40 +2384,40 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
 	if code != 0 {
-		t.Fatalf("task work with review exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work with review exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have 3 invocations: session work, review, resume.
 	if len(invocations) != 3 {
-		t.Fatalf("expected 3 invocations (session, review, resume), got %d", len(invocations))
+		t.Errorf("expected 3 invocations (session, review, resume), got %d", len(invocations))
 	}
 
 	// First invocation: session work with --output-format stream-json.
 	if invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "stream-json" {
-		t.Fatalf("first invocation args = %#v, want session work prefix", invocations[0].args)
+		t.Errorf("first invocation args = %#v, want session work prefix", invocations[0].args)
 	}
 	// First invocation should have stdin (user input passed through).
 	if !invocations[0].hasStdin {
-		t.Fatal("first invocation should have stdin connected")
+		t.Error("first invocation should have stdin connected")
 	}
 
 	// Second invocation: review with --no-session --skills preflight.
 	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "preflight" {
-		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
+		t.Errorf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
 	// Review invocation should have no stdin (independent run).
 	if invocations[1].hasStdin {
-		t.Fatal("review invocation should have no stdin")
+		t.Error("review invocation should have no stdin")
 	}
 
 	// Third invocation: resume with the session ID.
 	if len(invocations[2].args) < 4 || invocations[2].args[0] != "--resume" || invocations[2].args[1] != "sess_review123" {
-		t.Fatalf("third invocation args = %#v, want resume prefix with session ID", invocations[2].args)
+		t.Errorf("third invocation args = %#v, want resume prefix with session ID", invocations[2].args)
 	}
 	// Resume should contain the feedback in the prompt.
 	lastArg := invocations[2].args[len(invocations[2].args)-1]
 	if !strings.Contains(lastArg, "Found 2 style issues and 1 missing test.") {
-		t.Fatalf("resume prompt should contain review feedback, got %q", lastArg)
+		t.Errorf("resume prompt should contain review feedback, got %q", lastArg)
 	}
 
 	// Review status messages should appear on stderr.
@@ -2451,12 +2451,12 @@ func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have exactly 2 invocations: session work and review (no resume).
 	if invocationCount != 2 {
-		t.Fatalf("expected 2 invocations (session, review), got %d", invocationCount)
+		t.Errorf("expected 2 invocations (session, review), got %d", invocationCount)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
@@ -2484,7 +2484,7 @@ func TestTaskWorkReviewFails(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
 	if code == 0 {
-		t.Fatal("expected task work to fail when review fails")
+		t.Error("expected task work to fail when review fails")
 	}
 
 	assertContainsAll(t, stderr, "review failed:")
@@ -2517,18 +2517,18 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--review")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	if len(invocations) != 3 {
-		t.Fatalf("expected 3 invocations (session, review, resume), got %d", len(invocations))
+		t.Errorf("expected 3 invocations (session, review, resume), got %d", len(invocations))
 	}
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--mode" || invocations[1][4] != "ask" || invocations[1][5] != "--trust" {
-		t.Fatalf("review args = %#v, want cursor ask-mode review args", invocations[1])
+		t.Errorf("review args = %#v, want cursor ask-mode review args", invocations[1])
 	}
 	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Run the preflight skill on the current uncommitted changes.")
 	if len(invocations[2]) < 7 || invocations[2][0] != "-p" || invocations[2][1] != "--output-format" || invocations[2][2] != "stream-json" || invocations[2][3] != "--trust" || invocations[2][4] != "--resume" || invocations[2][5] != "cursor_review123" {
-		t.Fatalf("resume args = %#v, want cursor resume args", invocations[2])
+		t.Errorf("resume args = %#v, want cursor resume args", invocations[2])
 	}
 	assertContainsAll(t, invocations[2][len(invocations[2])-1], "Please address the following review feedback", "Fix the Cursor review finding.")
 	assertContainsAll(t, stderr, "--- Running review ---", "Review produced feedback, applying to session")
@@ -2561,12 +2561,12 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have 2 invocations: session work and review (no resume after empty feedback).
 	if invocationCount != 2 {
-		t.Fatalf("expected 2 invocations (session, review), got %d", invocationCount)
+		t.Errorf("expected 2 invocations (session, review), got %d", invocationCount)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
@@ -2594,12 +2594,12 @@ func TestTaskWorkReviewWithoutFlag(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have exactly 1 invocation (no review step).
 	if invocationCount != 1 {
-		t.Fatalf("expected 1 invocation (session only), got %d", invocationCount)
+		t.Errorf("expected 1 invocation (session only), got %d", invocationCount)
 	}
 
 	assertNotContains(t, stderr, "--- Running review ---")
@@ -2637,30 +2637,30 @@ func TestTaskWorkCompletionHandoff(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
 	if code != 0 {
-		t.Fatalf("task work with --complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work with --complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have 2 invocations: session work, completion resume.
 	if len(invocations) != 2 {
-		t.Fatalf("expected 2 invocations (session, completion), got %d", len(invocations))
+		t.Errorf("expected 2 invocations (session, completion), got %d", len(invocations))
 	}
 
 	// First invocation: session work args.
 	if len(invocations[0].args) < 3 || invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "stream-json" {
-		t.Fatalf("first invocation args = %#v, want session work prefix", invocations[0].args)
+		t.Errorf("first invocation args = %#v, want session work prefix", invocations[0].args)
 	}
 
 	// Second invocation: resume with session ID and completion prompt.
 	args := invocations[1].args
 	if len(args) < 4 || args[0] != "--resume" || args[1] != "sess_complete123" {
-		t.Fatalf("second invocation args = %#v, want resume with session ID", args)
+		t.Errorf("second invocation args = %#v, want resume with session ID", args)
 	}
 	lastArg := args[len(args)-1]
 	if !strings.Contains(lastArg, "Complete task 001") {
-		t.Fatalf("completion prompt should mention task ID, got %q", lastArg)
+		t.Errorf("completion prompt should mention task ID, got %q", lastArg)
 	}
 	if !strings.Contains(lastArg, "ahm task complete 001") {
-		t.Fatalf("completion prompt should mention ahm task complete, got %q", lastArg)
+		t.Errorf("completion prompt should mention ahm task complete, got %q", lastArg)
 	}
 
 	// Status messages should appear on stderr.
@@ -2691,14 +2691,14 @@ func TestTaskWorkCursorCompletionHandoff(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--complete")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	if len(invocations) != 2 {
-		t.Fatalf("expected 2 invocations (session, completion), got %d", len(invocations))
+		t.Errorf("expected 2 invocations (session, completion), got %d", len(invocations))
 	}
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--trust" || invocations[1][4] != "--resume" || invocations[1][5] != "cursor_complete123" {
-		t.Fatalf("completion args = %#v, want cursor resume args", invocations[1])
+		t.Errorf("completion args = %#v, want cursor resume args", invocations[1])
 	}
 	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Complete task 001", "ahm task complete 001")
 	assertContainsAll(t, stderr, "--- Running completion handoff ---")
@@ -2726,14 +2726,14 @@ func TestTaskWorkCursorCommitHandoff(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--commit")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	if len(invocations) != 2 {
-		t.Fatalf("expected 2 invocations (session, commit), got %d", len(invocations))
+		t.Errorf("expected 2 invocations (session, commit), got %d", len(invocations))
 	}
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--trust" || invocations[1][4] != "--resume" || invocations[1][5] != "cursor_commit123" {
-		t.Fatalf("commit args = %#v, want cursor resume args", invocations[1])
+		t.Errorf("commit args = %#v, want cursor resume args", invocations[1])
 	}
 	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Commit the completed work for task 001", "Do not push or open a pull request")
 	assertContainsAll(t, stderr, "--- Running commit handoff ---")
@@ -2779,42 +2779,42 @@ func TestTaskWorkCompletionWithReview(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review", "--complete")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Should have 4 invocations: session, review, resume-feedback, completion.
 	if len(invocations) != 4 {
-		t.Fatalf("expected 4 invocations (session, review, resume, completion), got %d", len(invocations))
+		t.Errorf("expected 4 invocations (session, review, resume, completion), got %d", len(invocations))
 	}
 
 	// First: session work.
 	if len(invocations[0].args) < 3 || invocations[0].args[0] != "--output-format" || invocations[0].args[1] != "stream-json" {
-		t.Fatalf("first invocation args = %#v, want session work", invocations[0].args)
+		t.Errorf("first invocation args = %#v, want session work", invocations[0].args)
 	}
 	if !invocations[0].hasStdin {
-		t.Fatal("first invocation should have stdin")
+		t.Error("first invocation should have stdin")
 	}
 
 	// Second: review (no stdin).
 	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "preflight" {
-		t.Fatalf("second invocation args = %#v, want review prefix", invocations[1].args)
+		t.Errorf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
 	if invocations[1].hasStdin {
-		t.Fatal("review invocation should have no stdin")
+		t.Error("review invocation should have no stdin")
 	}
 
 	// Third: resume with feedback.
 	if len(invocations[2].args) < 4 || invocations[2].args[0] != "--resume" || invocations[2].args[1] != "sess_both456" {
-		t.Fatalf("third invocation args = %#v, want resume with session", invocations[2].args)
+		t.Errorf("third invocation args = %#v, want resume with session", invocations[2].args)
 	}
 
 	// Fourth: resume with completion prompt.
 	if len(invocations[3].args) < 4 || invocations[3].args[0] != "--resume" || invocations[3].args[1] != "sess_both456" {
-		t.Fatalf("fourth invocation args = %#v, want resume with session", invocations[3].args)
+		t.Errorf("fourth invocation args = %#v, want resume with session", invocations[3].args)
 	}
 	lastArg := invocations[3].args[len(invocations[3].args)-1]
 	if !strings.Contains(lastArg, "Complete task 001") {
-		t.Fatalf("completion prompt should mention task ID, got %q", lastArg)
+		t.Errorf("completion prompt should mention task ID, got %q", lastArg)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
@@ -2837,18 +2837,18 @@ func TestTaskWorkCompletionMissingSession(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"result":"Done."}`)
 			return err
 		}
-		t.Fatal("should not have additional invocations without a session ID")
+		t.Error("should not have additional invocations without a session ID")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Only the session work invocation should happen.
 	if invocationCount != 1 {
-		t.Fatalf("expected 1 invocation (session only), got %d", invocationCount)
+		t.Errorf("expected 1 invocation (session only), got %d", invocationCount)
 	}
 
 	// Should warn about missing session ID, not about completion.
@@ -2880,7 +2880,7 @@ func TestTaskWorkCompletionFails(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--complete")
 	if code == 0 {
-		t.Fatal("expected task work to fail when completion handoff fails")
+		t.Error("expected task work to fail when completion handoff fails")
 	}
 
 	assertContainsAll(t, stderr, "completion handoff failed:")
@@ -2912,14 +2912,14 @@ func TestTaskWorkCommitHandoff(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
 	if code != 0 {
-		t.Fatalf("task work with --commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work with --commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if len(invocations) != 2 {
-		t.Fatalf("expected 2 invocations (session, commit), got %d", len(invocations))
+		t.Errorf("expected 2 invocations (session, commit), got %d", len(invocations))
 	}
 	args := invocations[1].args
 	if len(args) < 4 || args[0] != "--resume" || args[1] != "sess_commit123" {
-		t.Fatalf("second invocation args = %#v, want resume with session ID", args)
+		t.Errorf("second invocation args = %#v, want resume with session ID", args)
 	}
 	prompt := args[len(args)-1]
 	assertContainsAll(t, prompt,
@@ -2960,10 +2960,10 @@ func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--review", "--commit")
 	if code != 0 {
-		t.Fatalf("task work with review+commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work with review+commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if len(prompts) != 4 {
-		t.Fatalf("expected 4 invocations (session, review, feedback, commit), got %d", len(prompts))
+		t.Errorf("expected 4 invocations (session, review, feedback, commit), got %d", len(prompts))
 	}
 	assertContainsAll(t, prompts[2], "Please address the following review feedback", "Fix the docs.")
 	assertContainsAll(t, prompts[3], "Commit the completed work for task 001")
@@ -2990,7 +2990,7 @@ func TestTaskWorkCommitFails(t *testing.T) {
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
 	if code == 0 {
-		t.Fatal("expected task work to fail when commit handoff fails")
+		t.Error("expected task work to fail when commit handoff fails")
 	}
 	assertContainsAll(t, stderr, "commit handoff failed:", "exit status 1")
 }
@@ -3009,13 +3009,13 @@ func TestTaskWorkCommitMissingSessionFails(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"result":"Work."}`)
 			return err
 		}
-		t.Fatal("commit handoff should not run without a session ID")
+		t.Error("commit handoff should not run without a session ID")
 		return nil
 	})
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--commit")
 	if code == 0 {
-		t.Fatal("expected task work to fail when commit handoff lacks a session ID")
+		t.Error("expected task work to fail when commit handoff lacks a session ID")
 	}
 	assertContainsAll(t, stderr, "cannot run commit handoff: no session ID returned by cake")
 }
@@ -3028,13 +3028,13 @@ func TestTaskWorkCompletionDryRun(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--complete")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "complete: true")
 	assertNotContains(t, stderr, "--- Running completion handoff ---")
@@ -3049,13 +3049,13 @@ func TestTaskWorkCommitDryRun(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--review", "--commit")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "commit: true", "review: true")
 	assertNotContains(t, stderr, "--- Running commit handoff ---")
@@ -3066,10 +3066,10 @@ func TestTaskWorkCompletionPromptContent(t *testing.T) {
 	// Verify the completion prompt structure and content.
 	agent, err := parseTaskWorkAgent("cake")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if !agent.supportsSessions {
-		t.Fatal("cake should support sessions")
+		t.Error("cake should support sessions")
 	}
 
 	// Build a minimal app to generate the prompt.
@@ -3106,13 +3106,13 @@ func TestTaskWorkCompletionDryRunWithReview(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		t.Fatal("runner should not be called during dry-run")
+		t.Error("runner should not be called during dry-run")
 		return nil
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--review", "--complete")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "complete: true", "review: true")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
@@ -3122,20 +3122,20 @@ func TestTaskAcceptMovesOpenToPending(t *testing.T) {
 	root := t.TempDir()
 	_, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
 	}
 
 	// Create an Open task (new default).
 	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Triage")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("create exit code = %d, stderr = %s", code, stderr)
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
 
 	// Accept it.
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "accept", "001")
 	if code != 0 {
-		t.Fatalf("accept exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("accept exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Pending")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
@@ -3145,17 +3145,17 @@ func TestTaskAcceptDryRunPreviews(t *testing.T) {
 	root := t.TempDir()
 	_, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
 	}
 
 	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Triage")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("create exit code = %d, stderr = %s", code, stderr)
 	}
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "accept", "001")
 	if code != 0 {
-		t.Fatalf("dry-run accept exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("dry-run accept exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/active/001.md", "status: Pending")
 	// File should remain Open after dry-run.
@@ -3170,7 +3170,7 @@ func TestTaskAcceptFromBlocked(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
 
 	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 -> Pending")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
@@ -3183,7 +3183,7 @@ func TestTaskAcceptNoOp(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
 
 	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 already Pending")
 }
@@ -3198,12 +3198,12 @@ func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// Create a task with acceptance notes.
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Test Task")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Corrupt the metadata file.
@@ -3216,7 +3216,7 @@ func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	// (strict acceptance can't be determined).
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code != 0 {
-		t.Fatalf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "strict acceptance disabled")
 	assertContainsAll(t, stdout, "001 -> Completed")
@@ -3226,7 +3226,7 @@ func TestTaskWorkWarnsOnCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// Set a default work agent.
 	meta, err := readMetadata(root)
@@ -3257,12 +3257,12 @@ func TestTaskWorkWarnsOnCorruptMetadata(t *testing.T) {
 	// Task work should warn about corrupt metadata but still use the default agent.
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "work", "001")
 	if code != 0 {
-		t.Fatalf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "using default agent")
 	// Falls back to cake.
 	if captured.executable != "/stub/cake" {
-		t.Fatalf("executable = %q, want /stub/cake", captured.executable)
+		t.Errorf("executable = %q, want /stub/cake", captured.executable)
 	}
 }
 
@@ -3270,7 +3270,7 @@ func TestTaskCompleteRespectsStrictAcceptanceWithValidMetadata(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// Enable strict acceptance.
 	meta, err := readMetadata(root)
@@ -3284,13 +3284,13 @@ func TestTaskCompleteRespectsStrictAcceptanceWithValidMetadata(t *testing.T) {
 	// Create a task.
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Strict")
 	if code != 0 {
-		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Task complete should block due to strict acceptance.
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
 	if code == 0 {
-		t.Fatalf("expected strict completion failure, code=%d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("expected strict completion failure, code=%d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "cannot complete task 001: acceptance notes are incomplete")
 }

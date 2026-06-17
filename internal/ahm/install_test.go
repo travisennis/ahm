@@ -22,18 +22,18 @@ func TestReadWorkflowFile_CRLF(t *testing.T) {
 
 	data, err := readWorkflowFile(path)
 	if err != nil {
-		t.Fatalf("readWorkflowFile: %v", err)
+		t.Errorf("readWorkflowFile: %v", err)
 	}
 
 	// Verify CRLF was normalized to LF.
 	if strings.Contains(string(data), "\r\n") {
-		t.Fatalf("readWorkflowFile did not normalize CRLF: %q", data)
+		t.Errorf("readWorkflowFile did not normalize CRLF: %q", data)
 	}
 	if !strings.HasPrefix(string(data), "---\n") {
-		t.Fatalf("expected LF front matter marker, got: %q", data)
+		t.Errorf("expected LF front matter marker, got: %q", data)
 	}
 	if !strings.Contains(string(data), "\n---\n") {
-		t.Fatalf("expected LF front matter end marker, got: %q", data)
+		t.Errorf("expected LF front matter end marker, got: %q", data)
 	}
 }
 
@@ -51,18 +51,18 @@ func TestReadWorkflowFile_BOM(t *testing.T) {
 
 	data, err := readWorkflowFile(path)
 	if err != nil {
-		t.Fatalf("readWorkflowFile: %v", err)
+		t.Errorf("readWorkflowFile: %v", err)
 	}
 
 	// Verify BOM was stripped and CRLF was normalized to LF.
 	if strings.Contains(string(data), "\r\n") {
-		t.Fatalf("readWorkflowFile did not normalize CRLF: %q", data)
+		t.Errorf("readWorkflowFile did not normalize CRLF: %q", data)
 	}
 	if !strings.HasPrefix(string(data), "---\n") {
-		t.Fatalf("expected LF front matter marker after BOM strip, got: %q", data)
+		t.Errorf("expected LF front matter marker after BOM strip, got: %q", data)
 	}
 	if strings.HasPrefix(string(data), "\xef\xbb\xbf") {
-		t.Fatalf("BOM was not stripped: %q", data)
+		t.Errorf("BOM was not stripped: %q", data)
 	}
 }
 
@@ -92,11 +92,11 @@ func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
 		"  .agents/exec-plans/completed/index.md",
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("dry-run output missing %q:\n%s", want, got)
+			t.Errorf("dry-run output missing %q:\n%s", want, got)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, ".agents")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("dry-run wrote .agents directory, err = %v", err)
+		t.Errorf("dry-run wrote .agents directory, err = %v", err)
 	}
 }
 
@@ -131,7 +131,7 @@ func TestInstallDryRunDoesNotMutateMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(after) != string(before) {
-		t.Fatalf("metadata was modified by dry-run:\nbefore: %s\nafter:  %s", before, after)
+		t.Errorf("metadata was modified by dry-run:\nbefore: %s\nafter:  %s", before, after)
 	}
 
 	// Dry-run output must still contain the expected sections.
@@ -141,7 +141,7 @@ func TestInstallDryRunDoesNotMutateMetadata(t *testing.T) {
 		"  .agents/ahm.json",
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("dry-run output missing %q:\n%s", want, got)
+			t.Errorf("dry-run output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -150,7 +150,7 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"created:",
@@ -190,7 +190,7 @@ func TestInstallNeverOverwritesExistingAgentsEntrypoint(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--force", "init")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "skipped:", "  AGENTS.md")
 	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "Keep this.")
@@ -200,7 +200,7 @@ func TestInstallNeverOverwritesExistingAgentsEntrypoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := meta.Files["AGENTS.md"]; ok {
-		t.Fatal("AGENTS.md should not be recorded as a managed file")
+		t.Error("AGENTS.md should not be recorded as a managed file")
 	}
 }
 
@@ -277,7 +277,7 @@ func TestUpgradeDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	if after.Version != templates.Version {
-		t.Fatalf("metadata version = %q, want %q (version advances despite conflicts)", after.Version, templates.Version)
+		t.Errorf("metadata version = %q, want %q (version advances despite conflicts)", after.Version, templates.Version)
 	}
 	for _, target := range []string{
 		".agents/.research/index.md",
@@ -285,7 +285,7 @@ func TestUpgradeDecisions(t *testing.T) {
 		".agents/exec-plans/completed/index.md",
 	} {
 		if _, ok := after.Files[target]; ok {
-			t.Fatalf("%s should not remain in metadata", target)
+			t.Errorf("%s should not remain in metadata", target)
 		}
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".research", "index.md"),
@@ -296,7 +296,7 @@ func TestUpgradeDecisions(t *testing.T) {
 	var forceOut strings.Builder
 	forced := app{opts: options{root: root, force: true}, out: &forceOut}
 	if err := forced.install(true); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, forceOut.String(), "updated:", "  .agents/RESEARCH.md")
 	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "old managed agents")
@@ -305,7 +305,7 @@ func TestUpgradeDecisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	if afterForce.Version != templates.Version {
-		t.Fatalf("forced metadata version = %q, want %q", afterForce.Version, templates.Version)
+		t.Errorf("forced metadata version = %q, want %q", afterForce.Version, templates.Version)
 	}
 }
 
@@ -337,10 +337,10 @@ func TestUpgradeRemovesObsoleteManagedSkill(t *testing.T) {
 		"  .agents/skills/preflight/SKILL.md",
 	)
 	if _, err := os.Stat(filepath.Join(root, oldTarget)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("obsolete skill file should be removed, err = %v", err)
+		t.Errorf("obsolete skill file should be removed, err = %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "deslop")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("obsolete skill directory should be removed when empty, err = %v", err)
+		t.Errorf("obsolete skill directory should be removed when empty, err = %v", err)
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", "skills", "preflight", "SKILL.md"), "name: preflight")
 
@@ -349,10 +349,10 @@ func TestUpgradeRemovesObsoleteManagedSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := after.Files[oldTarget]; ok {
-		t.Fatal("obsolete skill should not remain in metadata")
+		t.Error("obsolete skill should not remain in metadata")
 	}
 	if _, ok := after.Files[".agents/skills/preflight/SKILL.md"]; !ok {
-		t.Fatal("preflight skill should be tracked in metadata")
+		t.Error("preflight skill should be tracked in metadata")
 	}
 }
 
@@ -390,7 +390,7 @@ func TestUpgradePreservesModifiedObsoleteManagedSkillAsConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	if after.Files[oldTarget] != hashBytes(oldContent) {
-		t.Fatal("modified obsolete skill metadata should be preserved for conflict reporting")
+		t.Error("modified obsolete skill metadata should be preserved for conflict reporting")
 	}
 }
 
@@ -416,14 +416,14 @@ func TestInstallAdoptsUntrackedManagedFileWhenContentMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
-		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after adoption")
+		t.Error("expected .agents/TASKS.md to be recorded in metadata after adoption")
 	}
 	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(content) != tmpl {
-		t.Fatalf("file content was modified; expected original template content")
+		t.Errorf("file content was modified; expected original template content")
 	}
 }
 
@@ -449,7 +449,7 @@ func TestInstallAdoptsUntrackedManagedFileOnUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
-		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after adoption")
+		t.Error("expected .agents/TASKS.md to be recorded in metadata after adoption")
 	}
 }
 
@@ -476,7 +476,7 @@ func TestInstallReportsUntrackedManagedFileAsConflictWhenContentDiffers(t *testi
 		t.Fatal(err)
 	}
 	if _, ok := meta.Files[".agents/TASKS.md"]; ok {
-		t.Fatal("expected .agents/TASKS.md NOT to be recorded in metadata after conflict")
+		t.Error("expected .agents/TASKS.md NOT to be recorded in metadata after conflict")
 	}
 	// File content should be preserved.
 	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
@@ -484,7 +484,7 @@ func TestInstallReportsUntrackedManagedFileAsConflictWhenContentDiffers(t *testi
 		t.Fatal(err)
 	}
 	if string(content) != "# Locally modified\n" {
-		t.Fatalf("file content was overwritten; expected original content")
+		t.Errorf("file content was overwritten; expected original content")
 	}
 }
 
@@ -506,7 +506,7 @@ func TestInstallDryRunShowsAdoptedSection(t *testing.T) {
 	)
 	// Dry run should not write metadata.
 	if _, err := os.Stat(filepath.Join(root, ".agents", "ahm.json")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("dry-run should not write metadata")
+		t.Error("dry-run should not write metadata")
 	}
 }
 
@@ -534,7 +534,7 @@ func TestInstallForceOverwritesUntrackedManagedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, ok := meta.Files[".agents/TASKS.md"]; !ok {
-		t.Fatal("expected .agents/TASKS.md to be recorded in metadata after force")
+		t.Error("expected .agents/TASKS.md to be recorded in metadata after force")
 	}
 	// File content should now match the template.
 	content, err := os.ReadFile(filepath.Join(root, ".agents", "TASKS.md"))
@@ -543,7 +543,7 @@ func TestInstallForceOverwritesUntrackedManagedFile(t *testing.T) {
 	}
 	tmpl := string(templateBytes(t, "workflow/TASKS.md"))
 	if string(content) != tmpl {
-		t.Fatalf("file content was not overwritten by --force")
+		t.Errorf("file content was not overwritten by --force")
 	}
 }
 
@@ -551,11 +551,11 @@ func TestMainUpgradeIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
 	if code != 0 {
-		t.Fatalf("upgrade exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("upgrade exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"skipped:",
@@ -570,7 +570,7 @@ func TestInstallFailsOnCorruptMetadata(t *testing.T) {
 	// Init first to create valid metadata.
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Corrupt the metadata file.
@@ -582,7 +582,7 @@ func TestInstallFailsOnCorruptMetadata(t *testing.T) {
 	// init should fail with a clear error about corrupt metadata.
 	stdout, stderr, code = runCLI(t, "--root", root, "init")
 	if code == 0 {
-		t.Fatalf("expected init to fail on corrupt metadata, stdout = %s", stdout)
+		t.Errorf("expected init to fail on corrupt metadata, stdout = %s", stdout)
 	}
 	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json")
 }
@@ -592,7 +592,7 @@ func TestUpgradeFailsOnCorruptMetadata(t *testing.T) {
 	// Init first to create valid metadata.
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Corrupt the metadata file.
@@ -604,7 +604,7 @@ func TestUpgradeFailsOnCorruptMetadata(t *testing.T) {
 	// upgrade should fail with a clear error about corrupt metadata.
 	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
 	if code == 0 {
-		t.Fatalf("expected upgrade to fail on corrupt metadata, stdout = %s", stdout)
+		t.Errorf("expected upgrade to fail on corrupt metadata, stdout = %s", stdout)
 	}
 	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json")
 }
@@ -614,7 +614,7 @@ func TestInstallSucceedsWithMissingMetadata(t *testing.T) {
 	// No prior init, no metadata. Should succeed as a fresh install.
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "created:")
 }

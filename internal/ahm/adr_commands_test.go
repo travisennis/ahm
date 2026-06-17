@@ -11,7 +11,7 @@ func TestADRCreateWritesParseableRecord(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "create", "Choose Storage Layout",
@@ -19,7 +19,7 @@ func TestADRCreateWritesParseableRecord(t *testing.T) {
 		"--status", "accepted",
 		"--decision-makers", "Travis Ennis")
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	path := filepath.Join(root, "docs", "adr", "001-choose-storage-layout.md")
@@ -36,10 +36,10 @@ func TestADRCreateWritesParseableRecord(t *testing.T) {
 	)
 	adr, err := parseADR(path)
 	if err != nil {
-		t.Fatalf("parse created ADR: %v\n%s", err, content)
+		t.Errorf("parse created ADR: %v\n%s", err, content)
 	}
 	if adr.ID != "001" || adr.Slug != "choose-storage-layout" || adr.Title != "Choose Storage Layout" {
-		t.Fatalf("created ADR identity = %#v", adr)
+		t.Errorf("created ADR identity = %#v", adr)
 	}
 }
 
@@ -47,7 +47,7 @@ func TestADRCreateBodyFile(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	bodyPath := filepath.Join(root, "body.md")
@@ -58,12 +58,12 @@ func TestADRCreateBodyFile(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "create", "Body File ADR", "--body-file", bodyPath)
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
-		t.Fatalf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
 	content := mustRead(t, filepath.Join(root, "docs", "adr", "001-body-file-adr.md"))
 	if got := strings.Count(content, "# Body File ADR"); got != 1 {
-		t.Fatalf("expected one generated H1, got %d:\n%s", got, content)
+		t.Errorf("expected one generated H1, got %d:\n%s", got, content)
 	}
 	assertContainsAll(t, content, "status: proposed", "## Context and Problem Statement", "Custom body.")
 	assertNotContains(t, content, "Chosen option: TODO")
@@ -80,10 +80,10 @@ func TestADRCreateBodyFileFromStdin(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out, in: strings.NewReader("## Context and Problem Statement\n\nFrom stdin.\n")}
 	if err := a.adrCreateParsed(adrCreateArgs{title: "Stdin ADR", status: "proposed", bodyFile: "-"}); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if strings.TrimSpace(out.String()) != "001" {
-		t.Fatalf("create stdout = %q, want 001", out.String())
+		t.Errorf("create stdout = %q, want 001", out.String())
 	}
 	assertFileContainsAll(t, filepath.Join(root, "docs", "adr", "001-stdin-adr.md"), "From stdin.")
 }
@@ -92,16 +92,16 @@ func TestADRCreateDryRun(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "adr", "create", "Preview ADR")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "create: ", "docs/adr/001-preview-adr.md", "id: 001")
 	if _, err := os.Stat(filepath.Join(root, "docs", "adr", "001-preview-adr.md")); !os.IsNotExist(err) {
-		t.Fatalf("dry-run should not create ADR, err = %v", err)
+		t.Errorf("dry-run should not create ADR, err = %v", err)
 	}
 }
 
@@ -109,7 +109,7 @@ func TestADRCreateErrors(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	tests := []struct {
@@ -127,10 +127,10 @@ func TestADRCreateErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, stderr, code := runCLI(t, append([]string{"--root", root}, tt.args...)...)
 			if code != tt.code {
-				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, stderr = %s", code, stderr)
 			}
 			if !strings.Contains(stderr, tt.want) {
-				t.Fatalf("stderr = %q, want %q", stderr, tt.want)
+				t.Errorf("stderr = %q, want %q", stderr, tt.want)
 			}
 		})
 	}
@@ -141,10 +141,10 @@ func TestADRCreateErrors(t *testing.T) {
 	}
 	_, stderr, code = runCLI(t, "--root", root, "adr", "create", "Empty Body", "--body-file", bodyPath)
 	if code != 2 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	if !strings.Contains(stderr, "is empty") {
-		t.Fatalf("stderr = %q, want empty body error", stderr)
+		t.Errorf("stderr = %q, want empty body error", stderr)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestADRListOutputModesAndStatusFiltering(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "adr", "list")
 		if code != 0 {
-			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout,
 			"001 [Accepted] 2026-06-01 Legacy Decision",
@@ -169,7 +169,7 @@ func TestADRListOutputModesAndStatusFiltering(t *testing.T) {
 	t.Run("plain", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "--plain", "adr", "list", "--status", "proposed")
 		if code != 0 {
-			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		got := strings.TrimSpace(stdout)
 		assertContainsAll(t, got, `"id":"002"`, `"title":"Proposed Decision"`, `"status":"proposed"`, `"date":"2026-06-02"`)
@@ -179,7 +179,7 @@ func TestADRListOutputModesAndStatusFiltering(t *testing.T) {
 	t.Run("json superseded prefix", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "--json", "adr", "list", "--status", "superseded")
 		if code != 0 {
-			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout,
 			`"id": "003"`,
@@ -197,7 +197,7 @@ func TestADRShowOutputModes(t *testing.T) {
 	t.Run("text prints markdown", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "adr", "show", "9")
 		if code != 0 {
-			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout, "status: accepted", "# MADR ADR Management", "## Context")
 	})
@@ -205,7 +205,7 @@ func TestADRShowOutputModes(t *testing.T) {
 	t.Run("plain prints compact json", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "--plain", "adr", "show", "009-madr-adr-management")
 		if code != 0 {
-			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		got := strings.TrimSpace(stdout)
 		assertContainsAll(t, got, `"ID":"009"`, `"Title":"MADR ADR Management"`, `"Status":"accepted"`)
@@ -215,7 +215,7 @@ func TestADRShowOutputModes(t *testing.T) {
 	t.Run("json prints parsed record", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "--json", "adr", "show", "009")
 		if code != 0 {
-			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout, `"ID": "009"`, `"Title": "MADR ADR Management"`, `"Status": "accepted"`)
 	})
@@ -225,7 +225,7 @@ func TestADRStatusCommandsRewriteOnlyFrontMatter(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	path := filepath.Join(root, "docs", "adr", "001-status-decision.md")
 	body := "# Status Decision\n\n## Context\n\nBody with trailing spaces.  \n\n## More Information\n\n- Keep this.\n"
@@ -233,14 +233,14 @@ func TestADRStatusCommandsRewriteOnlyFrontMatter(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "accept", "001")
 	if code != 0 {
-		t.Fatalf("accept exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("accept exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> accepted")
 	content := mustRead(t, path)
 	assertContainsAll(t, content, "status: accepted", "date: ")
 	assertNotContains(t, content, "date: 2000-01-01")
 	if got := bodyAfterRawFrontMatter(t, content); got != body {
-		t.Fatalf("body changed\ngot:\n%q\nwant:\n%q", got, body)
+		t.Errorf("body changed\ngot:\n%q\nwant:\n%q", got, body)
 	}
 }
 
@@ -248,7 +248,7 @@ func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	oldPath := filepath.Join(root, "docs", "adr", "001-old-decision.md")
 	newPath := filepath.Join(root, "docs", "adr", "002-new-decision.md")
@@ -257,7 +257,7 @@ func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
 	if code != 0 {
-		t.Fatalf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> superseded by ADR-002")
 
@@ -269,15 +269,15 @@ func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
 	if code != 0 {
-		t.Fatalf("rerun supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("rerun supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	oldContent = mustRead(t, oldPath)
 	newContent = mustRead(t, newPath)
 	if got := strings.Count(oldContent, "Superseded by [ADR-002](002-new-decision.md)."); got != 1 {
-		t.Fatalf("old supersession note count = %d\n%s", got, oldContent)
+		t.Errorf("old supersession note count = %d\n%s", got, oldContent)
 	}
 	if got := strings.Count(newContent, "- Supersedes [ADR-001](001-old-decision.md)."); got != 1 {
-		t.Fatalf("new supersession reference count = %d\n%s", got, newContent)
+		t.Errorf("new supersession reference count = %d\n%s", got, newContent)
 	}
 }
 
@@ -285,7 +285,7 @@ func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	oldPath := filepath.Join(root, "docs", "adr", "001-old-decision.md")
 	newPath := filepath.Join(root, "docs", "adr", "002-new-decision.md")
@@ -294,7 +294,7 @@ func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
 	if code != 0 {
-		t.Fatalf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> superseded by ADR-002")
 
@@ -303,10 +303,10 @@ func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
 	assertContainsAll(t, oldContent, "status: superseded by ADR-002\r\n", "Superseded by [ADR-002](002-new-decision.md).")
 	assertContainsAll(t, newContent, "- Existing reference.\r\n", "\r\n- Supersedes [ADR-001](001-old-decision.md).")
 	if strings.Contains(strings.ReplaceAll(bodyAfterRawFrontMatter(t, oldContent), "\r\n", ""), "\n") {
-		t.Fatalf("old ADR body contains bare LF:\n%q", oldContent)
+		t.Errorf("old ADR body contains bare LF:\n%q", oldContent)
 	}
 	if strings.Contains(strings.ReplaceAll(bodyAfterRawFrontMatter(t, newContent), "\r\n", ""), "\n") {
-		t.Fatalf("new ADR body contains bare LF:\n%q", newContent)
+		t.Errorf("new ADR body contains bare LF:\n%q", newContent)
 	}
 }
 
@@ -314,7 +314,7 @@ func TestADRSupersedeErrors(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	writeADRFile(t, root, "001-old-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Old Decision\n\nBody.\n")
 	writeADRFile(t, root, "002-new-decision.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\nBody.\n")
@@ -339,7 +339,7 @@ func TestADRSupersedeErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, stderr, code := runCLI(t, append([]string{"--root", root}, tt.args...)...)
 			if code != tt.code {
-				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, stderr = %s", code, stderr)
 			}
 			assertContainsAll(t, stderr, tt.want)
 		})
@@ -354,7 +354,7 @@ func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 	t.Run("list skips malformed record with warning", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "adr", "list")
 		if code != 0 {
-			t.Fatalf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("list exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout, "001 [accepted] 2026-06-01 Good Decision")
 		assertNotContains(t, stdout, "002")
@@ -364,7 +364,7 @@ func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 	t.Run("show resolves valid record despite malformed record", func(t *testing.T) {
 		stdout, stderr, code := runCLI(t, "--root", root, "adr", "show", "001")
 		if code != 0 {
-			t.Fatalf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			t.Errorf("show exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
 		assertContainsAll(t, stdout, "# Good Decision")
 		assertContainsAll(t, stderr, "warning:")
@@ -373,7 +373,7 @@ func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 	t.Run("show does not resolve malformed record", func(t *testing.T) {
 		_, stderr, code := runCLI(t, "--root", root, "adr", "show", "002")
 		if code != 1 {
-			t.Fatalf("show exit code = %d, stderr = %s", code, stderr)
+			t.Errorf("show exit code = %d, stderr = %s", code, stderr)
 		}
 		assertContainsAll(t, stderr, `ADR "002" not found`)
 	})
@@ -386,7 +386,7 @@ func TestADRMigrateDryRunReportsChanges(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrations:", "docs/adr/001-legacy.md:", "docs/adr/002-old.md:")
 }
@@ -397,13 +397,13 @@ func TestADRMigrateIdempotent(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("first migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("first migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrated 1 ADR files")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("second dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("second dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "No ADR migrations found")
 }
@@ -412,7 +412,7 @@ func bodyAfterRawFrontMatter(t *testing.T, text string) string {
 	t.Helper()
 	_, body, _, ok := splitRawFrontMatter(text)
 	if !ok {
-		t.Fatalf("missing front matter:\n%s", text)
+		t.Errorf("missing front matter:\n%s", text)
 	}
 	return body
 }
@@ -423,7 +423,7 @@ func TestADRMigrateContentFormat(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrated 1 ADR files")
 
@@ -449,7 +449,7 @@ func TestADRMigratePartialSupersession(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrated 1 ADR files")
 
@@ -471,7 +471,7 @@ func TestADRMigrateSkipsAlreadyMigrated(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "No ADR migrations found")
 }
@@ -483,7 +483,7 @@ func TestADRMigratePreservesBodyContent(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrated 1 ADR files")
 
@@ -509,7 +509,7 @@ func TestADRMigrateFullSupersession(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrated 1 ADR files")
 
@@ -530,7 +530,7 @@ func TestADRMigrateUnrecognizedStatus(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, `unrecognized status "In Review"; fix manually`)
 }
@@ -541,7 +541,7 @@ func TestADRMigrateMissingBoldLines(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
 	if code != 0 {
-		t.Fatalf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "missing Status or Date bold lines; fix manually")
 }

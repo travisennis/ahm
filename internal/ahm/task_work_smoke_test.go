@@ -29,7 +29,7 @@ func TestAgentSmoke(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(name)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			executable, err := exec.LookPath(agent.executable)
 			if err != nil {
@@ -46,7 +46,7 @@ func TestAgentSmoke(t *testing.T) {
 			// prompt, exercising resumeArgs against a real session ID.
 			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name, "--complete")
 			if code != 0 {
-				t.Fatalf("task work exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+				t.Errorf("task work exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 			}
 			assertContainsAll(t, stderr, "session started:")
 			assertNotContains(t, stderr,
@@ -65,10 +65,10 @@ func setupSmokeRepo(t *testing.T) string {
 	gitInit := exec.Command("git", "init", "-q")
 	gitInit.Dir = root
 	if out, err := gitInit.CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, out)
+		t.Errorf("git init: %v: %s", err, out)
 	}
 	if stdout, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
-		t.Fatalf("ahm init exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Errorf("ahm init exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), `---
 id: 001

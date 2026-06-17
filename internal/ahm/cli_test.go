@@ -8,13 +8,13 @@ import (
 func TestNestedHelp(t *testing.T) {
 	stdout, stderr, code := runCLI(t, "task", "--help")
 	if code != 0 {
-		t.Fatalf("task help exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("task help exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "Manage tasks", "create", "dep", "labels")
 
 	stdout, stderr, code = runCLI(t, "task", "create", "--help")
 	if code != 0 {
-		t.Fatalf("task create help exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("task create help exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "create <title> [flags]", "--priority", "--description")
 }
@@ -22,13 +22,13 @@ func TestNestedHelp(t *testing.T) {
 func TestSubcommandsRequireSubcommands(t *testing.T) {
 	_, stderr, code := runCLI(t, "task")
 	if code != 2 {
-		t.Fatalf("task exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("task exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stderr, "task requires a subcommand")
 
 	_, stderr, code = runCLI(t, "task", "dep")
 	if code != 2 {
-		t.Fatalf("task dep exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("task dep exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stderr, "task dep requires a subcommand")
 }
@@ -84,10 +84,10 @@ func TestUsageErrorsExitCode2(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, stderr, code := runCLI(t, tt.args...)
 			if code != 2 {
-				t.Fatalf("exit code = %d, want 2; stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, want 2; stderr = %s", code, stderr)
 			}
 			if !strings.Contains(stderr, tt.message) {
-				t.Fatalf("stderr missing %q:\n%s", tt.message, stderr)
+				t.Errorf("stderr missing %q:\n%s", tt.message, stderr)
 			}
 		})
 	}

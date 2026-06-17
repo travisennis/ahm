@@ -23,28 +23,28 @@ func TestParseADR(t *testing.T) {
 
 	adr, err := parseADRFromData([]byte(input), path)
 	if err != nil {
-		t.Fatalf("parseADRFromData: %v", err)
+		t.Errorf("parseADRFromData: %v", err)
 	}
 	if adr.ID != "009" || adr.Slug != "madr-adr-management" {
-		t.Fatalf("ADR identity = %s/%s", adr.ID, adr.Slug)
+		t.Errorf("ADR identity = %s/%s", adr.ID, adr.Slug)
 	}
 	if adr.Title != "MADR ADR Management" {
-		t.Fatalf("Title = %q", adr.Title)
+		t.Errorf("Title = %q", adr.Title)
 	}
 	if adr.Status != "accepted" || adr.Date != "2026-06-14" {
-		t.Fatalf("status/date = %q/%q", adr.Status, adr.Date)
+		t.Errorf("status/date = %q/%q", adr.Status, adr.Date)
 	}
 	if adr.DecisionMakers != "Travis Ennis, Codex" || adr.Consulted != "research.md" || adr.Informed != "task 075" {
-		t.Fatalf("participants = %q/%q/%q", adr.DecisionMakers, adr.Consulted, adr.Informed)
+		t.Errorf("participants = %q/%q/%q", adr.DecisionMakers, adr.Consulted, adr.Informed)
 	}
 	if adr.Kind != adrKindMADR {
-		t.Fatalf("Kind = %q", adr.Kind)
+		t.Errorf("Kind = %q", adr.Kind)
 	}
 	if adr.Extra["source"] != "hand-authored" {
-		t.Fatalf("Extra = %v", adr.Extra)
+		t.Errorf("Extra = %v", adr.Extra)
 	}
 	if strings.Contains(adr.Body, "# MADR ADR Management") || !strings.Contains(adr.Body, "## Context") {
-		t.Fatalf("Body = %q", adr.Body)
+		t.Errorf("Body = %q", adr.Body)
 	}
 }
 
@@ -77,18 +77,18 @@ func TestRenderADRRoundTrip(t *testing.T) {
 
 	adr, err := parseADRFromData([]byte(input), path)
 	if err != nil {
-		t.Fatalf("parseADRFromData: %v", err)
+		t.Errorf("parseADRFromData: %v", err)
 	}
 	got := renderADR(adr)
 	if got != want {
-		t.Fatalf("renderADR mismatch\ngot:\n%s\nwant:\n%s", got, want)
+		t.Errorf("renderADR mismatch\ngot:\n%s\nwant:\n%s", got, want)
 	}
 	again, err := parseADRFromData([]byte(got), path)
 	if err != nil {
-		t.Fatalf("parse rendered ADR: %v", err)
+		t.Errorf("parse rendered ADR: %v", err)
 	}
 	if renderADR(again) != got {
-		t.Fatal("parse/render round trip is not stable")
+		t.Error("parse/render round trip is not stable")
 	}
 }
 
@@ -102,7 +102,7 @@ func TestParseADRDetectsIDMismatch(t *testing.T) {
 		"# Title\n"
 	_, err := parseADRFromData([]byte(input), path)
 	if err == nil || !strings.Contains(err.Error(), "does not match filename") {
-		t.Fatalf("expected ID mismatch error, got %v", err)
+		t.Errorf("expected ID mismatch error, got %v", err)
 	}
 }
 
@@ -125,7 +125,7 @@ func TestParseADRRejectsInvalidFilenameSlug(t *testing.T) {
 			path := filepath.Join(t.TempDir(), name)
 			_, err := parseADRFromData([]byte(input), path)
 			if err == nil || !strings.Contains(err.Error(), "NNN-kebab-slug.md") {
-				t.Fatalf("expected filename error, got %v", err)
+				t.Errorf("expected filename error, got %v", err)
 			}
 		})
 	}
@@ -141,19 +141,19 @@ func TestCollectADRsClassifiesLegacyAndMalformed(t *testing.T) {
 
 	adrs, err := collectADRs(root)
 	if err == nil || !strings.Contains(err.Error(), "003-bad-decision.md") {
-		t.Fatalf("expected malformed ADR collection error, got %v", err)
+		t.Errorf("expected malformed ADR collection error, got %v", err)
 	}
 	if len(adrs) != 3 {
-		t.Fatalf("len(adrs) = %d, want 3", len(adrs))
+		t.Errorf("len(adrs) = %d, want 3", len(adrs))
 	}
 	if adrs[0].ID != "001" || adrs[0].Kind != adrKindLegacy || adrs[0].Title != "Legacy Decision" {
-		t.Fatalf("legacy ADR = %#v", adrs[0])
+		t.Errorf("legacy ADR = %#v", adrs[0])
 	}
 	if adrs[1].ID != "002" || adrs[1].Kind != adrKindMADR {
-		t.Fatalf("MADR ADR = %#v", adrs[1])
+		t.Errorf("MADR ADR = %#v", adrs[1])
 	}
 	if adrs[2].ID != "003" || adrs[2].Kind != adrKindMalformed || adrs[2].ParseError == "" {
-		t.Fatalf("malformed ADR = %#v", adrs[2])
+		t.Errorf("malformed ADR = %#v", adrs[2])
 	}
 }
 
@@ -170,13 +170,13 @@ func TestAdrFilePathsExcludesCaseVariants(t *testing.T) {
 
 	files, err := adrFilePaths(root)
 	if err != nil {
-		t.Fatalf("adrFilePaths: %v", err)
+		t.Errorf("adrFilePaths: %v", err)
 	}
 	if len(files) != 1 {
-		t.Fatalf("len(files) = %d, want 1 (got %v)", len(files), files)
+		t.Errorf("len(files) = %d, want 1 (got %v)", len(files), files)
 	}
 	if !strings.HasSuffix(files[0], "001-real-decision.md") {
-		t.Fatalf("unexpected file: %s", files[0])
+		t.Errorf("unexpected file: %s", files[0])
 	}
 }
 
@@ -184,7 +184,7 @@ func TestCollectADRsCurrentRepoRecords(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	adrs, err := collectADRs(root)
 	if err != nil {
-		t.Fatalf("collectADRs current repo: %v", err)
+		t.Errorf("collectADRs current repo: %v", err)
 	}
 	byID := map[string]ADR{}
 	for _, adr := range adrs {
@@ -193,14 +193,14 @@ func TestCollectADRsCurrentRepoRecords(t *testing.T) {
 	for _, id := range []string{"001", "002", "003", "004", "005", "006", "007", "008"} {
 		adr, ok := byID[id]
 		if !ok {
-			t.Fatalf("current repo ADR %s was not collected", id)
+			t.Errorf("current repo ADR %s was not collected", id)
 		}
 		if adr.Kind == adrKindMalformed {
-			t.Fatalf("current repo ADR %s is malformed: %s", id, adr.ParseError)
+			t.Errorf("current repo ADR %s is malformed: %s", id, adr.ParseError)
 		}
 	}
 	if byID["009"].Kind != adrKindMADR {
-		t.Fatal("ADR 009 was not classified as MADR")
+		t.Error("ADR 009 was not classified as MADR")
 	}
 }
 
@@ -222,17 +222,17 @@ func TestResolveADR(t *testing.T) {
 		t.Run(tt.pattern, func(t *testing.T) {
 			adr, err := resolveADR(tt.pattern, adrs)
 			if err != nil {
-				t.Fatalf("resolveADR: %v", err)
+				t.Errorf("resolveADR: %v", err)
 			}
 			if adr.ID != tt.want {
-				t.Fatalf("ID = %q, want %q", adr.ID, tt.want)
+				t.Errorf("ID = %q, want %q", adr.ID, tt.want)
 			}
 		})
 	}
 	t.Run("no substring false positive", func(t *testing.T) {
 		_, err := resolveADR("009-madr", adrs)
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("expected not found, got %v", err)
+			t.Errorf("expected not found, got %v", err)
 		}
 	})
 }
@@ -243,7 +243,7 @@ func TestNextADRID(t *testing.T) {
 	writeADRFile(t, root, "015-skipped-malformed.md", "---\nstatus: accepted\n")
 	got := nextADRID([]ADR{{ID: "009"}, {ID: "010"}}, root)
 	if got != "016" {
-		t.Fatalf("nextADRID = %q, want 016", got)
+		t.Errorf("nextADRID = %q, want 016", got)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestValidADRStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.status, func(t *testing.T) {
 			if got := validADRStatus(tt.status); got != tt.want {
-				t.Fatalf("validADRStatus(%q) = %v, want %v", tt.status, got, tt.want)
+				t.Errorf("validADRStatus(%q) = %v, want %v", tt.status, got, tt.want)
 			}
 		})
 	}

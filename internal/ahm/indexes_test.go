@@ -147,17 +147,17 @@ func TestCollectMarkdownDocsUsesHeadingFallbackAndIgnoresIndex(t *testing.T) {
 
 	docs, err := collectMarkdownDocs(root, ".agents/.research", []string{"topics"})
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := docs["topics"]
 	if len(got) != 2 {
-		t.Fatalf("docs len = %d, want 2: %#v", len(got), got)
+		t.Errorf("docs len = %d, want 2: %#v", len(got), got)
 	}
 	if got[0] != (markdownDoc{Link: "topics/alpha.md", Title: "alpha"}) {
-		t.Fatalf("first doc = %#v", got[0])
+		t.Errorf("first doc = %#v", got[0])
 	}
 	if got[1] != (markdownDoc{Link: "topics/zeta.md", Title: "Zeta Topic"}) {
-		t.Fatalf("second doc = %#v", got[1])
+		t.Errorf("second doc = %#v", got[1])
 	}
 }
 
@@ -165,7 +165,7 @@ func TestMainIndexRegeneratesResearchAndExecPlanIndexes(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	writeFile(t, filepath.Join(root, ".agents", ".research", "investigations", "cli-indexes.md"), "# CLI Indexes\n\nFindings.\n")
 	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "generate-indexes.md"), "# Generate Indexes\n\nPlan.\n")
@@ -175,7 +175,7 @@ func TestMainIndexRegeneratesResearchAndExecPlanIndexes(t *testing.T) {
 
 	stdout, stderr, code = runCLI(t, "--root", root, "index")
 	if code != 0 {
-		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".research", "index.md"),
 		"# Research Index",
@@ -201,10 +201,10 @@ func TestIndexWritesForReturnsADRCollectionFailures(t *testing.T) {
 
 	_, err := indexWritesFor(root, nil)
 	if err == nil {
-		t.Fatal("expected ADR collection failure")
+		t.Error("expected ADR collection failure")
 	}
 	if !strings.Contains(err.Error(), "docs/adr") {
-		t.Fatalf("expected ADR path in error, got %v", err)
+		t.Errorf("expected ADR path in error, got %v", err)
 	}
 }
 
@@ -217,28 +217,28 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	// Install workflow scaffold.
 	stdout, stderr, code := cli("init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Create a task so indexes are non-trivial.
 	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
 	if code != 0 {
-		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Run index so all generated indexes are fresh.
 	stdout, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Case 1: Dry-run after fresh index should produce no output.
 	stdout, stderr, code = cli("--dry-run", "index")
 	if code != 0 {
-		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if stdout != "" {
-		t.Fatalf("dry-run index after fresh index should be empty, got:\n%s", stdout)
+		t.Errorf("dry-run index after fresh index should be empty, got:\n%s", stdout)
 	}
 
 	// Case 2: Stale a generated index and verify dry-run reports it.
@@ -248,10 +248,10 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	}
 	stdout, stderr, code = cli("--dry-run", "index")
 	if code != 0 {
-		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if !strings.Contains(stdout, ".agents/.research/index.md") {
-		t.Fatalf("dry-run index should report stale .research/index.md, got:\n%s", stdout)
+		t.Errorf("dry-run index should report stale .research/index.md, got:\n%s", stdout)
 	}
 
 	// Case 3: Remove a generated index and verify dry-run reports it.
@@ -260,16 +260,16 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	}
 	stdout, stderr, code = cli("--dry-run", "index")
 	if code != 0 {
-		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if !strings.Contains(stdout, ".agents/.research/index.md") {
-		t.Fatalf("dry-run index should report missing .research/index.md, got:\n%s", stdout)
+		t.Errorf("dry-run index should report missing .research/index.md, got:\n%s", stdout)
 	}
 
 	// Case 4: Stale the ADR index and verify dry-run reports only when stale.
 	stdout, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	adrIndex := filepath.Join(root, "docs", "adr", "index.md")
 	if err := os.WriteFile(adrIndex, []byte("stale adr index\n"), 0o644); err != nil {
@@ -277,23 +277,23 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	}
 	stdout, stderr, code = cli("--dry-run", "index")
 	if code != 0 {
-		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "docs/adr/index.md") {
-		t.Fatalf("dry-run index should report stale docs/adr/index.md, got:\n%s", stdout)
+		t.Errorf("dry-run index should report stale docs/adr/index.md, got:\n%s", stdout)
 	}
 
 	// Case 5: After re-running index, dry-run should be clean again.
 	stdout, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = cli("--dry-run", "index")
 	if code != 0 {
-		t.Fatalf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if stdout != "" {
-		t.Fatalf("dry-run index after re-index should be empty, got:\n%s", stdout)
+		t.Errorf("dry-run index after re-index should be empty, got:\n%s", stdout)
 	}
 }
 
@@ -306,17 +306,17 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 	// Install workflow scaffold and create a task.
 	stdout, stderr, code := cli("init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
 	if code != 0 {
-		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Run index first so files exist with baselines.
 	stdout, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("first index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("first index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Collect mtimes of all generated indexes.
@@ -338,7 +338,7 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 	for _, p := range targets {
 		fi, err := os.Stat(p)
 		if err != nil {
-			t.Fatalf("stat %s: %v", p, err)
+			t.Errorf("stat %s: %v", p, err)
 		}
 		before = append(before, fileInfo{path: p, mtime: fi.ModTime()})
 	}
@@ -346,14 +346,14 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 	// Run index again with no changes.
 	stdout, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("second index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("second index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Verify all mtimes are unchanged.
 	for _, b := range before {
 		fi, err := os.Stat(b.path)
 		if err != nil {
-			t.Fatalf("stat %s: %v", b.path, err)
+			t.Errorf("stat %s: %v", b.path, err)
 		}
 		if !fi.ModTime().Equal(b.mtime) {
 			t.Errorf("mtime changed for %s: before=%v after=%v", b.path, b.mtime, fi.ModTime())
@@ -370,13 +370,13 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 	// Install workflow scaffold.
 	stdout, stderr, code := cli("init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Create a valid task so there's at least one parsed task.
 	stdout, stderr, code = cli("task", "create", "Valid Task")
 	if code != 0 {
-		t.Fatalf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Write a malformed task file in active/. Use invalid front matter key
@@ -389,13 +389,13 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 	// Run index — should print warning on stderr and exit 0.
 	_, stderr, code = cli("index")
 	if code != 0 {
-		t.Fatalf("index with malformed task should exit 0, got code %d; stderr=%s", code, stderr)
+		t.Errorf("index with malformed task should exit 0, got code %d; stderr=%s", code, stderr)
 	}
 	if !strings.Contains(stderr, "warning: some task files could not be parsed and were skipped") {
-		t.Fatalf("expected warning on stderr, got:\n%s", stderr)
+		t.Errorf("expected warning on stderr, got:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "bad.md") {
-		t.Fatalf("expected malformed file reference in stderr, got:\n%s", stderr)
+		t.Errorf("expected malformed file reference in stderr, got:\n%s", stderr)
 	}
 
 	// The valid task should still appear in generated indexes.
@@ -412,14 +412,14 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 	// Install workflow scaffold.
 	stdout, stderr, code := cli("init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
 	// Replace one of the task directories with a regular file so
 	// os.ReadDir fails with a non-ErrNotExist error.
 	activeDir := filepath.Join(root, ".agents", ".tasks", "active")
 	if err := os.RemoveAll(activeDir); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if err := os.WriteFile(activeDir, []byte("not a directory\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -428,15 +428,15 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 	// Run index — should fail because tasks cannot be collected at all.
 	stdout, stderr, code = cli("index")
 	if code == 0 {
-		t.Fatalf("index with unreadable task dir should exit non-zero, got stdout=%s, stderr=%s", stdout, stderr)
+		t.Errorf("index with unreadable task dir should exit non-zero, got stdout=%s, stderr=%s", stdout, stderr)
 	}
 	if stderr == "" {
-		t.Fatal("expected error on stderr")
+		t.Error("expected error on stderr")
 	}
 
 	// Generated indexes from init should still exist — failure does not wipe them.
 	indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
 	if _, err := os.Stat(indexPath); err != nil {
-		t.Fatalf("generated index should be preserved after aborted index: %v", err)
+		t.Errorf("generated index should be preserved after aborted index: %v", err)
 	}
 }

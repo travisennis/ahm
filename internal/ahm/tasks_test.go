@@ -10,16 +10,16 @@ import (
 func TestParseFrontMatter(t *testing.T) {
 	meta, body, err := parseFrontMatter("---\nid: 001\ntitle: Test Task\n---\n# Test Task\n")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if meta["id"] != "001" {
-		t.Fatalf("id = %q", meta["id"])
+		t.Errorf("id = %q", meta["id"])
 	}
 	if meta["title"] != "Test Task" {
-		t.Fatalf("title = %q", meta["title"])
+		t.Errorf("title = %q", meta["title"])
 	}
 	if !strings.Contains(body, "# Test Task") {
-		t.Fatalf("body = %q", body)
+		t.Errorf("body = %q", body)
 	}
 }
 
@@ -124,22 +124,22 @@ func TestParseFrontMatter_EdgeCases(t *testing.T) {
 			got, _, err := parseFrontMatter(tt.input)
 			if tt.wantErr != "" {
 				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+					t.Errorf("expected error containing %q, got nil", tt.wantErr)
 				}
 				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("error = %q, want %q", err.Error(), tt.wantErr)
+					t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if len(got) != len(tt.want) {
-				t.Fatalf("len(meta) = %d, want %d; got %v", len(got), len(tt.want), got)
+				t.Errorf("len(meta) = %d, want %d; got %v", len(got), len(tt.want), got)
 			}
 			for k, v := range tt.want {
 				if got[k] != v {
-					t.Fatalf("meta[%q] = %q, want %q", k, got[k], v)
+					t.Errorf("meta[%q] = %q, want %q", k, got[k], v)
 				}
 			}
 		})
@@ -151,16 +151,16 @@ func TestParseFrontMatter_CRLF(t *testing.T) {
 	// handle CRLF input due to its own normalization.
 	meta, body, err := parseFrontMatter("---\r\nid: 001\r\ntitle: CRLF Task\r\n---\r\n# CRLF Task\r\n")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	if meta["id"] != "001" {
-		t.Fatalf("id = %q", meta["id"])
+		t.Errorf("id = %q", meta["id"])
 	}
 	if meta["title"] != "CRLF Task" {
-		t.Fatalf("title = %q", meta["title"])
+		t.Errorf("title = %q", meta["title"])
 	}
 	if !strings.Contains(body, "# CRLF Task") {
-		t.Fatalf("body = %q", body)
+		t.Errorf("body = %q", body)
 	}
 }
 
@@ -195,19 +195,19 @@ func TestParseTask_CRLF(t *testing.T) {
 
 	task, err := parseTask(path, "active")
 	if err != nil {
-		t.Fatalf("parseTask: %v", err)
+		t.Errorf("parseTask: %v", err)
 	}
 	if task.ID != "099" {
-		t.Fatalf("task.ID = %q", task.ID)
+		t.Errorf("task.ID = %q", task.ID)
 	}
 	if task.Title != "CRLF Task" {
-		t.Fatalf("task.Title = %q", task.Title)
+		t.Errorf("task.Title = %q", task.Title)
 	}
 	if task.Status != "Pending" {
-		t.Fatalf("task.Status = %q", task.Status)
+		t.Errorf("task.Status = %q", task.Status)
 	}
 	if !strings.Contains(task.Body, "Body with CRLF") {
-		t.Fatalf("task.Body = %q", task.Body)
+		t.Errorf("task.Body = %q", task.Body)
 	}
 }
 
@@ -216,7 +216,7 @@ func TestHeadingTitle_CRLF(t *testing.T) {
 	// strings.HasPrefix should still match "# " because \r comes after.
 	title := headingTitle("# CRLF Title\r\n\r\n## Section\r\n", "fallback")
 	if title != "CRLF Title" {
-		t.Fatalf("headingTitle = %q, want %q", title, "CRLF Title")
+		t.Errorf("headingTitle = %q, want %q", title, "CRLF Title")
 	}
 }
 
@@ -224,21 +224,21 @@ func TestStripHeading_CRLF(t *testing.T) {
 	// stripHeading uses strings.TrimSpace per line, which strips \r.
 	body := stripHeading("\r\n# CRLF Title\r\n\r\n## Section\r\n\r\nBody\r\n", "CRLF Title")
 	if !strings.HasPrefix(body, "## Section") {
-		t.Fatalf("body = %q", body)
+		t.Errorf("body = %q", body)
 	}
 }
 
 func TestStripHeading(t *testing.T) {
 	got := stripHeading("\n# Test Task\n\n## Summary\n\nBody\n", "Test Task")
 	if !strings.HasPrefix(got, "## Summary") {
-		t.Fatalf("body = %q", got)
+		t.Errorf("body = %q", got)
 	}
 }
 
 func TestNextTaskID(t *testing.T) {
 	got := nextTaskID([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}}, t.TempDir())
 	if got != "011" {
-		t.Fatalf("nextTaskID = %q", got)
+		t.Errorf("nextTaskID = %q", got)
 	}
 }
 
@@ -257,16 +257,16 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	// Only 001 is parsed; 005 is skipped due to parse error
 	tasks, err := collectTasks(root)
 	if err == nil {
-		t.Fatal("expected error from malformed task")
+		t.Error("expected error from malformed task")
 	}
 	if len(tasks) != 1 || tasks[0].ID != "001" {
-		t.Fatalf("expected only task 001, got %d tasks", len(tasks))
+		t.Errorf("expected only task 001, got %d tasks", len(tasks))
 	}
 
 	// nextTaskID should see 005 on disk and return 006
 	got := nextTaskID(tasks, root)
 	if got != "006" {
-		t.Fatalf("nextTaskID = %q, want %q", got, "006")
+		t.Errorf("nextTaskID = %q, want %q", got, "006")
 	}
 }
 
@@ -312,57 +312,57 @@ func TestResolveTask(t *testing.T) {
 	t.Run("exact match", func(t *testing.T) {
 		task, err := a.resolveTask("001")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 	})
 
 	t.Run("exact match second form", func(t *testing.T) {
 		task, err := a.resolveTask("010")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "010" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 	})
 
 	t.Run("numeric prefix matches zero-padded", func(t *testing.T) {
 		task, err := a.resolveTask("1")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 	})
 
 	t.Run("numeric prefix with leading zero", func(t *testing.T) {
 		task, err := a.resolveTask("01")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 	})
 
 	t.Run("numeric prefix matches 010", func(t *testing.T) {
 		task, err := a.resolveTask("10")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "010" {
-			t.Fatalf("id = %q", task.ID)
+			t.Errorf("id = %q", task.ID)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := a.resolveTask("999")
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	})
 
@@ -371,7 +371,7 @@ func TestResolveTask(t *testing.T) {
 		// numerically if a task has numeric part 0. None do, so expect not found.
 		_, err := a.resolveTask("0")
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("expected not found, got: %v", err)
+			t.Errorf("expected not found, got: %v", err)
 		}
 	})
 
@@ -381,10 +381,10 @@ func TestResolveTask(t *testing.T) {
 		a.invalidateTasks()
 		task, err := a.resolveTask("1")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("expected 001, got %s", task.ID)
+			t.Errorf("expected 001, got %s", task.ID)
 		}
 	})
 }
@@ -408,10 +408,10 @@ func TestParseTaskRejectsUnsupportedEnums(t *testing.T) {
 
 	_, err := parseTask(path, "active")
 	if err == nil {
-		t.Fatal("expected error")
+		t.Error("expected error")
 	}
 	if !strings.Contains(err.Error(), `unsupported task priority "Urgent"`) {
-		t.Fatalf("error = %q", err)
+		t.Errorf("error = %q", err)
 	}
 }
 
@@ -423,16 +423,16 @@ func TestResolveTaskFromTasks(t *testing.T) {
 	t.Run("exact match", func(t *testing.T) {
 		task, err := resolveTaskFromTasks("001", tasks)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if task.ID != "001" {
-			t.Fatalf("expected 001, got %s", task.ID)
+			t.Errorf("expected 001, got %s", task.ID)
 		}
 	})
 	t.Run("not found", func(t *testing.T) {
 		_, err := resolveTaskFromTasks("999", tasks)
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("expected not-found error, got: %v", err)
+			t.Errorf("expected not-found error, got: %v", err)
 		}
 	})
 }
@@ -523,11 +523,11 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			task, err := parseTaskFromData([]byte(tt.input), "unused.md", "active")
 			if err != nil {
-				t.Fatalf("parseTaskFromData: %v", err)
+				t.Errorf("parseTaskFromData: %v", err)
 			}
 			got := renderTask(task)
 			if got != tt.want {
-				t.Fatalf("renderTask output mismatch\ngot:\n%s\n\nwant:\n%s", got, tt.want)
+				t.Errorf("renderTask output mismatch\ngot:\n%s\n\nwant:\n%s", got, tt.want)
 			}
 		})
 	}
@@ -566,14 +566,14 @@ func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 
 	task, err := parseTaskFromData([]byte(input), "unused.md", "active")
 	if err != nil {
-		t.Fatalf("parseTaskFromData: %v", err)
+		t.Errorf("parseTaskFromData: %v", err)
 	}
 	if len(task.Extra) != 3 {
-		t.Fatalf("Expected 3 extra fields, got %d: %v", len(task.Extra), task.Extra)
+		t.Errorf("Expected 3 extra fields, got %d: %v", len(task.Extra), task.Extra)
 	}
 
 	got := renderTask(task)
 	if got != want {
-		t.Fatalf("renderTask with extra fields mismatch\ngot:\n%s\n\nwant:\n%s", got, want)
+		t.Errorf("renderTask with extra fields mismatch\ngot:\n%s\n\nwant:\n%s", got, want)
 	}
 }

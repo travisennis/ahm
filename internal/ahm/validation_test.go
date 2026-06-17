@@ -66,7 +66,7 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	for _, want := range []string{
@@ -78,7 +78,7 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 		`"code": "task_dependency_cycle"`,
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("status output missing %q:\n%s", want, got)
+			t.Errorf("status output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -96,7 +96,7 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.doctor(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -118,7 +118,7 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.doctor(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	for _, want := range []string{
@@ -128,7 +128,7 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 		`unsupported task status \"Doing\"`,
 	} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("doctor output missing %q:\n%s", want, got)
+			t.Errorf("doctor output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -147,7 +147,7 @@ func TestDoctorReportsCompletedTaskAcceptanceFindings(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.doctor(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -167,7 +167,7 @@ func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -193,7 +193,7 @@ func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
 	var jOut strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &jOut}
 	if err := a.status(); err != nil {
-		t.Fatalf("status error: %v", err)
+		t.Errorf("status error: %v", err)
 	}
 	jGot := jOut.String()
 	assertContainsAll(t, jGot, `"installed_version": "`+templates.Version+`"`)
@@ -202,7 +202,7 @@ func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
 	var tOut strings.Builder
 	a2 := app{opts: options{root: root}, out: &tOut}
 	if err := a2.status(); err != nil {
-		t.Fatalf("status error: %v", err)
+		t.Errorf("status error: %v", err)
 	}
 	tGot := tOut.String()
 	assertContainsAll(t, tGot, "installed_version: "+templates.Version)
@@ -218,7 +218,7 @@ func TestDoctorWithoutMetadataShowsInstalledVersionNone(t *testing.T) {
 	var jOut strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &jOut}
 	if err := a.doctor(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	jGot := jOut.String()
 	assertContainsAll(t, jGot, `"installed_version": null`)
@@ -228,7 +228,7 @@ func TestDoctorWithoutMetadataShowsInstalledVersionNone(t *testing.T) {
 	var tOut strings.Builder
 	a2 := app{opts: options{root: root}, out: &tOut}
 	if err := a2.doctor(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	tGot := tOut.String()
 	assertContainsAll(t, tGot, "installed_version: none")
@@ -250,7 +250,7 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -287,7 +287,7 @@ func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, out.String(),
 		`"code": "task_completed_exec_plan_active"`,
@@ -323,7 +323,7 @@ func TestStatusReportsCompletedTaskReferencingIncompleteCompletedExecPlan(t *tes
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	assertContainsAll(t, out.String(),
 		`"code": "task_completed_exec_plan_incomplete"`,
@@ -408,13 +408,13 @@ func TestValidateExecPlansReportsLifecycleFindings(t *testing.T) {
 			validateExecPlans(root, tt.tasks, &report)
 
 			if tt.wantWarn != "" && !hasFinding(report.Warnings, tt.wantWarn) {
-				t.Fatalf("missing warning %q: %#v", tt.wantWarn, report.Warnings)
+				t.Errorf("missing warning %q: %#v", tt.wantWarn, report.Warnings)
 			}
 			if tt.wantInfo != "" && !hasFinding(report.Info, tt.wantInfo) {
-				t.Fatalf("missing info %q: %#v", tt.wantInfo, report.Info)
+				t.Errorf("missing info %q: %#v", tt.wantInfo, report.Info)
 			}
 			if tt.wantNoWarn != "" && hasFinding(report.Warnings, tt.wantNoWarn) {
-				t.Fatalf("unexpected warning %q: %#v", tt.wantNoWarn, report.Warnings)
+				t.Errorf("unexpected warning %q: %#v", tt.wantNoWarn, report.Warnings)
 			}
 		})
 	}
@@ -436,7 +436,7 @@ func TestDoctorJSONReportsExecPlanInfoWithoutFailing(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.doctor(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -468,17 +468,17 @@ func TestValidateADRsReportsFindings(t *testing.T) {
 		"adr_duplicate_id",
 	} {
 		if !hasFinding(report.Errors, code) {
-			t.Fatalf("missing ADR error %q: %#v", code, report.Errors)
+			t.Errorf("missing ADR error %q: %#v", code, report.Errors)
 		}
 	}
 	// Verify duplicate ID error has an empty path (no single file blamed).
 	for _, f := range report.Errors {
 		if f.Code == "adr_duplicate_id" && f.Path != "" {
-			t.Fatalf("adr_duplicate_id should have empty path, got %q", f.Path)
+			t.Errorf("adr_duplicate_id should have empty path, got %q", f.Path)
 		}
 	}
 	if !hasFinding(report.Warnings, "adr_legacy_format") {
-		t.Fatalf("missing adr_legacy_format warning: %#v", report.Warnings)
+		t.Errorf("missing adr_legacy_format warning: %#v", report.Warnings)
 	}
 }
 
@@ -494,7 +494,7 @@ func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
 	var statusOut strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &statusOut}
 	if err := a.status(); err != nil {
-		t.Fatalf("status should not fail for legacy ADR warning: %v", err)
+		t.Errorf("status should not fail for legacy ADR warning: %v", err)
 	}
 	assertContainsAll(t, statusOut.String(),
 		`"ok": true`,
@@ -505,7 +505,7 @@ func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
 	var doctorOut strings.Builder
 	a2 := app{opts: options{root: root, json: true}, out: &doctorOut}
 	if err := a2.doctor(); err != nil {
-		t.Fatalf("doctor should not fail for legacy ADR warning: %v", err)
+		t.Errorf("doctor should not fail for legacy ADR warning: %v", err)
 	}
 	assertContainsAll(t, doctorOut.String(),
 		`"ok": true`,
@@ -525,7 +525,7 @@ func TestStatusReportsADRErrors(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.status(); !errors.Is(err, errValidationFailed) {
-		t.Fatalf("expected errValidationFailed, got: %v", err)
+		t.Errorf("expected errValidationFailed, got: %v", err)
 	}
 	assertContainsAll(t, out.String(),
 		`"ok": false`,
@@ -546,7 +546,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
 	if err := a.doctor(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	got := out.String()
 	assertContainsAll(t, got,
@@ -606,11 +606,11 @@ func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 		}
 	}
 	if !foundManagedMissing {
-		t.Fatal("expected managed_file_missing in workflow-only scope")
+		t.Error("expected managed_file_missing in workflow-only scope")
 	}
 	for _, e := range report.Errors {
 		if e.Code == "markdown_link_missing" {
-			t.Fatal("unexpected markdown_link_missing in workflow-only scope")
+			t.Error("unexpected markdown_link_missing in workflow-only scope")
 		}
 	}
 }
@@ -640,17 +640,17 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 		}
 	}
 	if !foundLinkMissing {
-		t.Fatal("expected markdown_link_missing in links-only scope")
+		t.Error("expected markdown_link_missing in links-only scope")
 	}
 	// Should NOT find managed_file_missing (workflow check).
 	for _, e := range report.Errors {
 		if e.Code == "managed_file_missing" {
-			t.Fatal("unexpected managed_file_missing in links-only scope")
+			t.Error("unexpected managed_file_missing in links-only scope")
 		}
 	}
 	// No workflow errors since we only ran link checks.
 	if !report.OK {
-		t.Fatal("expected OK for links-only scope, got errors")
+		t.Error("expected OK for links-only scope, got errors")
 	}
 }
 
@@ -666,13 +666,13 @@ func TestValidateWorkflowScopedProjectDocsNoDocs(t *testing.T) {
 	// other project docs; the project-docs scope should produce no findings.
 	report, tasks := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	if !report.OK {
-		t.Fatal("expected OK for project-docs scope, got errors")
+		t.Error("expected OK for project-docs scope, got errors")
 	}
 	if len(report.Errors)+len(report.Warnings)+len(report.Info) > 0 {
-		t.Fatalf("unexpected findings for project-docs scope: %#v", report)
+		t.Errorf("unexpected findings for project-docs scope: %#v", report)
 	}
 	if len(tasks) != 0 {
-		t.Fatalf("expected no tasks for project-docs scope, got %d", len(tasks))
+		t.Errorf("expected no tasks for project-docs scope, got %d", len(tasks))
 	}
 }
 
@@ -691,11 +691,11 @@ func TestValidateWorkflowScopedProjectDocsCommonDocsValid(t *testing.T) {
 
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	if !report.OK {
-		t.Fatal("expected OK for valid project docs, got errors")
+		t.Error("expected OK for valid project docs, got errors")
 	}
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" {
-			t.Fatalf("unexpected project_doc_link_missing for valid docs: %#v", w)
+			t.Errorf("unexpected project_doc_link_missing for valid docs: %#v", w)
 		}
 	}
 }
@@ -719,7 +719,7 @@ func TestValidateWorkflowScopedProjectDocsBrokenLinks(t *testing.T) {
 		}
 	}
 	if len(found) != 2 {
-		t.Fatalf("expected 2 project_doc_link_missing findings, got %d: %#v", len(found), report.Warnings)
+		t.Errorf("expected 2 project_doc_link_missing findings, got %d: %#v", len(found), report.Warnings)
 	}
 }
 
@@ -737,7 +737,7 @@ func TestValidateWorkflowScopedProjectDocsNotDefault(t *testing.T) {
 	report, _ := validateWorkflowScoped(root, nil)
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" {
-			t.Fatalf("project-docs check ran by default; found %#v", w)
+			t.Errorf("project-docs check ran by default; found %#v", w)
 		}
 	}
 }
@@ -754,7 +754,7 @@ func TestValidateWorkflowScopedDesignDocsAbsent(t *testing.T) {
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
-			t.Fatalf("unexpected design_doc_unindexed without design docs: %#v", w)
+			t.Errorf("unexpected design_doc_unindexed without design docs: %#v", w)
 		}
 	}
 }
@@ -773,7 +773,7 @@ func TestValidateWorkflowScopedDesignDocsDirWithoutIndex(t *testing.T) {
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
-			t.Fatalf("unexpected design_doc_unindexed without index.md: %#v", w)
+			t.Errorf("unexpected design_doc_unindexed without index.md: %#v", w)
 		}
 	}
 }
@@ -794,7 +794,7 @@ func TestValidateWorkflowScopedDesignDocsValid(t *testing.T) {
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" || w.Code == "project_doc_link_missing" {
-			t.Fatalf("unexpected finding for valid design docs: %#v", w)
+			t.Errorf("unexpected finding for valid design docs: %#v", w)
 		}
 	}
 }
@@ -820,7 +820,7 @@ func TestValidateWorkflowScopedDesignDocsUnindexed(t *testing.T) {
 		}
 	}
 	if len(found) != 1 || found[0] != "docs/design-docs/orphan.md" {
-		t.Fatalf("expected 1 design_doc_unindexed for orphan.md, got %#v", found)
+		t.Errorf("expected 1 design_doc_unindexed for orphan.md, got %#v", found)
 	}
 }
 
@@ -844,11 +844,11 @@ func TestValidateWorkflowScopedDesignDocsIndexEntryMissing(t *testing.T) {
 			foundLink = true
 		}
 		if w.Code == "design_doc_unindexed" {
-			t.Fatalf("design_doc_unindexed should not fire for missing index entry: %#v", w)
+			t.Errorf("design_doc_unindexed should not fire for missing index entry: %#v", w)
 		}
 	}
 	if !foundLink {
-		t.Fatal("expected project_doc_link_missing for missing design-doc index entry")
+		t.Error("expected project_doc_link_missing for missing design-doc index entry")
 	}
 }
 
@@ -866,7 +866,7 @@ func TestValidateWorkflowScopedDesignDocsNotDefault(t *testing.T) {
 	report, _ := validateWorkflowScoped(root, nil)
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
-			t.Fatalf("design-doc check ran by default; found %#v", w)
+			t.Errorf("design-doc check ran by default; found %#v", w)
 		}
 	}
 }
@@ -892,15 +892,15 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 		}
 	}
 	if !foundLinkMissing {
-		t.Fatal("expected markdown_link_missing when running all checks")
+		t.Error("expected markdown_link_missing when running all checks")
 	}
 	// validateWorkflow should produce the same result.
 	report2, _ := validateWorkflow(root)
 	if report.OK != report2.OK {
-		t.Fatal("validateWorkflowScoped(nil) should match validateWorkflow")
+		t.Error("validateWorkflowScoped(nil) should match validateWorkflow")
 	}
 	if len(report.Errors) != len(report2.Errors) {
-		t.Fatalf("error count mismatch: %d vs %d", len(report.Errors), len(report2.Errors))
+		t.Errorf("error count mismatch: %d vs %d", len(report.Errors), len(report2.Errors))
 	}
 }
 
@@ -914,10 +914,10 @@ func TestCLIStatusInvalidCheckScope(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "status", "--check", "bogus")
 	if code != 2 {
-		t.Fatalf("expected exit code 2 for invalid check scope, got %d; stderr=%s", code, stderr)
+		t.Errorf("expected exit code 2 for invalid check scope, got %d; stderr=%s", code, stderr)
 	}
 	if !strings.Contains(stderr, "unknown check scope") {
-		t.Fatalf("expected unknown check scope error, got: %s", stderr)
+		t.Errorf("expected unknown check scope error, got: %s", stderr)
 	}
 	_ = stdout
 }
@@ -933,7 +933,7 @@ func TestCLIDoctorWithCheckScope(t *testing.T) {
 	// Doctor with --check workflow should succeed (no issues in a fresh install).
 	stdout, stderr, code := runCLI(t, "--root", root, "doctor", "--check", "workflow")
 	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d; stderr=%s, stdout=%s", code, stderr, stdout)
+		t.Errorf("expected exit code 0, got %d; stderr=%s, stdout=%s", code, stderr, stdout)
 	}
 	assertContainsAll(t, stdout, `"ok": true`)
 }
@@ -966,7 +966,7 @@ func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 	report := &validationReport{}
 	validateTaskFrontMatter([]byte(content), relPath(root, path), report)
 	if len(report.Errors) == 0 {
-		t.Fatal("expected at least one error, got none")
+		t.Error("expected at least one error, got none")
 	}
 	found := false
 	for _, e := range report.Errors {
@@ -976,12 +976,12 @@ func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected task_malformed error with block scalar message, got: %v", report.Errors)
+		t.Errorf("expected task_malformed error with block scalar message, got: %v", report.Errors)
 	}
 	// Verify no missing-field errors (which would be misleading)
 	for _, e := range report.Errors {
 		if e.Code == "task_missing_field" {
-			t.Fatalf("unexpected missing_field error when front matter is malformed: %v", e)
+			t.Errorf("unexpected missing_field error when front matter is malformed: %v", e)
 		}
 	}
 }
@@ -1010,12 +1010,12 @@ func TestValidateReportsCorruptMetadata(t *testing.T) {
 		}
 	}
 	if !foundCorrupt {
-		t.Fatalf("expected metadata_corrupt error, got: %v", report.Errors)
+		t.Errorf("expected metadata_corrupt error, got: %v", report.Errors)
 	}
 	// Should not produce metadata_missing (which is only for absent file).
 	for _, err := range report.Errors {
 		if err.Code == "metadata_missing" {
-			t.Fatalf("unexpected metadata_missing error for corrupt file: %v", err)
+			t.Errorf("unexpected metadata_missing error for corrupt file: %v", err)
 		}
 	}
 }
@@ -1032,12 +1032,12 @@ func TestValidateReportsMissingMetadata(t *testing.T) {
 		}
 	}
 	if !foundMissing {
-		t.Fatalf("expected metadata_missing error, got: %v", report.Errors)
+		t.Errorf("expected metadata_missing error, got: %v", report.Errors)
 	}
 	// Should not produce metadata_corrupt.
 	for _, err := range report.Errors {
 		if err.Code == "metadata_corrupt" {
-			t.Fatalf("unexpected metadata_corrupt error for missing file: %v", err)
+			t.Errorf("unexpected metadata_corrupt error for missing file: %v", err)
 		}
 	}
 }

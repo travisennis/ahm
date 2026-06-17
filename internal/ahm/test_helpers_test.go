@@ -40,7 +40,7 @@ func assertContainsAll(t *testing.T, got string, wants ...string) {
 	t.Helper()
 	for _, want := range wants {
 		if !strings.Contains(got, want) {
-			t.Fatalf("output missing %q:\n%s", want, got)
+			t.Errorf("output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -49,7 +49,7 @@ func assertNotContains(t *testing.T, got string, unwanted ...string) {
 	t.Helper()
 	for _, item := range unwanted {
 		if strings.Contains(got, item) {
-			t.Fatalf("output unexpectedly contains %q:\n%s", item, got)
+			t.Errorf("output unexpectedly contains %q:\n%s", item, got)
 		}
 	}
 }

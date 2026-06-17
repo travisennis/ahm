@@ -15,7 +15,7 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "agents", "suggestions")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"# Suggested AGENTS.md Additions",
@@ -30,7 +30,7 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	assertNotContains(t, stdout, "## Operating Loop")
 	assertFileContainsAll(t, agentsPath, "Keep this.")
 	if got := mustRead(t, agentsPath); got != original {
-		t.Fatalf("AGENTS.md was modified:\n%s", got)
+		t.Errorf("AGENTS.md was modified:\n%s", got)
 	}
 }
 
@@ -40,14 +40,14 @@ func TestAgentsSuggestionsOmitsPresentBlocksUnlessAll(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "agents", "suggestions")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "No missing suggestions detected.")
 	assertNotContains(t, stdout, "## AHM Workflow Routing")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "agents", "suggestions", "--all")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"## AHM Workflow Routing",
@@ -61,7 +61,7 @@ func TestAgentsSuggestionsJSONIncludesPresence(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "agents", "suggestions")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		`"target": "AGENTS.md"`,

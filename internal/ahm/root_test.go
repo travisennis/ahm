@@ -14,10 +14,10 @@ func TestRuntimeErrorsExitCode1(t *testing.T) {
 	dir := t.TempDir()
 	_, stderr, code := runCLIFromDir(t, dir, "status")
 	if code != 1 {
-		t.Fatalf("exit code = %d, want 1; stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, want 1; stderr = %s", code, stderr)
 	}
 	if !strings.Contains(stderr, "error:") {
-		t.Fatalf("stderr missing 'error:' prefix:\n%s", stderr)
+		t.Errorf("stderr missing 'error:' prefix:\n%s", stderr)
 	}
 }
 
@@ -29,10 +29,10 @@ func TestRuntimeErrorsOnTaskCommandOutsideRepo(t *testing.T) {
 		t.Run(cmd, func(t *testing.T) {
 			_, stderr, code := runCLIFromDir(t, dir, "task", cmd)
 			if code != 1 {
-				t.Fatalf("exit code = %d, want 1; stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, want 1; stderr = %s", code, stderr)
 			}
 			if !strings.Contains(stderr, "error:") {
-				t.Fatalf("stderr missing 'error:' prefix:\n%s", stderr)
+				t.Errorf("stderr missing 'error:' prefix:\n%s", stderr)
 			}
 		})
 	}
@@ -55,16 +55,16 @@ func TestDetectManagedRootFailsWithoutGitOrMetadata(t *testing.T) {
 
 	_, err = detectManagedRoot()
 	if err == nil {
-		t.Fatal("expected error, got nil")
+		t.Error("expected error, got nil")
 	}
 	if !strings.Contains(err.Error(), "no .git or .agents/ahm.json found") {
-		t.Fatalf("error should mention missing markers: %v", err)
+		t.Errorf("error should mention missing markers: %v", err)
 	}
 	if !strings.Contains(err.Error(), "--root") {
-		t.Fatalf("error should mention --root: %v", err)
+		t.Errorf("error should mention --root: %v", err)
 	}
 	if !strings.Contains(err.Error(), "ahm init") {
-		t.Fatalf("error should mention ahm init: %v", err)
+		t.Errorf("error should mention ahm init: %v", err)
 	}
 }
 
@@ -89,14 +89,14 @@ func TestDetectManagedRootSucceedsWithDotGitFile(t *testing.T) {
 
 	got, err := detectManagedRoot()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	want, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Fatalf("root = %q, want %q", got, want)
+		t.Errorf("root = %q, want %q", got, want)
 	}
 }
 
@@ -121,14 +121,14 @@ func TestDetectManagedRootSucceedsWithDotGit(t *testing.T) {
 
 	got, err := detectManagedRoot()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	want, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Fatalf("root = %q, want %q", got, want)
+		t.Errorf("root = %q, want %q", got, want)
 	}
 }
 
@@ -157,14 +157,14 @@ func TestDetectManagedRootSucceedsWithMetadata(t *testing.T) {
 
 	got, err := detectManagedRoot()
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	want, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Fatalf("root = %q, want %q", got, want)
+		t.Errorf("root = %q, want %q", got, want)
 	}
 }
 
@@ -182,10 +182,10 @@ func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			_, stderr, code := runCLIFromDir(t, root, args...)
 			if code != 1 {
-				t.Fatalf("exit code = %d, want 1; stderr = %s", code, stderr)
+				t.Errorf("exit code = %d, want 1; stderr = %s", code, stderr)
 			}
 			if !strings.Contains(stderr, "no .git or .agents/ahm.json found") {
-				t.Fatalf("stderr should mention no .git or .agents/ahm.json: %s", stderr)
+				t.Errorf("stderr should mention no .git or .agents/ahm.json: %s", stderr)
 			}
 		})
 	}
@@ -195,7 +195,7 @@ func TestInitSucceedsOutsideManagedRepository(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLIFromDir(t, root, "init")
 	if code != 0 {
-		t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "created:", "  AGENTS.md")
 }
@@ -206,14 +206,14 @@ func TestUpgradeSucceedsOutsideManagedRepository(t *testing.T) {
 	// upgrade without prior install: lenient, acts like init
 	stdout, stderr, code := runCLIFromDir(t, root, "upgrade")
 	if code != 0 {
-		t.Fatalf("upgrade exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("upgrade exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "created:", "  AGENTS.md")
 
 	// upgrade again: should skip unchanged files
 	stdout, stderr, code = runCLIFromDir(t, root, "upgrade")
 	if code != 0 {
-		t.Fatalf("second upgrade exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("second upgrade exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "skipped:")
 }
@@ -224,14 +224,14 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	// init succeeds outside managed repo
 	stdout, stderr, code := runCLIFromDir(t, root, "init")
 	if code != 0 {
-		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "created:")
 
 	// status now succeeds because .agents/ahm.json exists
 	stdout, stderr, code = runCLIFromDir(t, root, "status")
 	if code != 0 {
-		t.Fatalf("status exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("status exit code = %d, stderr = %s", code, stderr)
 	}
 	// root in output is symlink-resolved; compare with evaluated path
 	evalRoot, err := filepath.EvalSymlinks(root)
@@ -239,7 +239,7 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stdout, evalRoot) {
-		t.Fatalf("status output missing root %q:\n%s", evalRoot, stdout)
+		t.Errorf("status output missing root %q:\n%s", evalRoot, stdout)
 	}
 	assertContainsAll(t, stdout, templates.Version)
 }

@@ -49,11 +49,11 @@ func TestParseAcceptanceNotes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := parseAcceptanceNotes([]byte(tt.body))
 			if len(got) != len(tt.want) {
-				t.Fatalf("findings = %#v, want %#v", got, tt.want)
+				t.Errorf("findings = %#v, want %#v", got, tt.want)
 			}
 			for i := range got {
 				if got[i] != tt.want[i] {
-					t.Fatalf("findings = %#v, want %#v", got, tt.want)
+					t.Errorf("findings = %#v, want %#v", got, tt.want)
 				}
 			}
 		})
