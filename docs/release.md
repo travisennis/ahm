@@ -77,7 +77,7 @@ git commit -m "chore(release): prepare v0.3.0"
 
 ```bash
 git tag -a v0.3.0 -m "v0.3.0"
-git push origin main
+git push origin <branch>
 git push origin v0.3.0
 ```
 

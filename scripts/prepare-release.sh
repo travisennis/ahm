@@ -35,6 +35,12 @@ if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
 fi
 
 previous_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+current_branch="$(git branch --show-current)"
+if [[ -z "$current_branch" ]]; then
+	echo "prepare-release: cannot determine current branch" >&2
+	exit 1
+fi
+
 if [[ -n "$previous_tag" ]]; then
 	git-cliff --tag "$version" --output CHANGELOG.md
 else
@@ -51,7 +57,7 @@ Review CHANGELOG.md, then run:
   git add CHANGELOG.md
   git commit -m "chore(release): prepare $version"
   git tag -a $version -m "$version"
-  git push origin main
+  git push origin $current_branch
   git push origin $version
 
 EOF
