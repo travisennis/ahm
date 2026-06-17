@@ -1488,7 +1488,7 @@ func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
 	if len(captured.args) != 3 || captured.args[0] != "--output-format" || captured.args[1] != "stream-json" {
 		t.Fatalf("cake args = %#v", captured.args)
 	}
-	assertContainsAll(t, captured.args[2], "Work on task 001.", ".agents/.tasks/active/001.md", "Do not commit or push")
+	assertContainsAll(t, captured.args[2], "Work on task 001.", "ahm task show 001", "Do not commit or push")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
 }
 
