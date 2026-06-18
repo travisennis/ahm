@@ -138,18 +138,13 @@ func cleanupStaleTemps(root string) error {
 
 		// Check if the corresponding non-.tmp path exists as a regular file.
 		origPath := strings.TrimSuffix(cleanPath, ".tmp")
-		origStat, origErr := os.Stat(origPath)
-		if origErr == nil && origStat.Mode().IsRegular() {
-			// The real file exists; the .tmp file is stale from a crash
-			// that succeeded past the rename, or from a write that was
-			// interrupted before the rename. Either way, it's safe to remove.
-			return os.Remove(cleanPath) //nolint:gosec // best-effort cleanup of .tmp files within .agents/
+		_, origErr := os.Stat(origPath)
+		if origErr != nil && !os.IsNotExist(origErr) {
+			// Stat failed for a reason other than "doesn't exist" — don't touch it.
+			return nil
 		}
-		if os.IsNotExist(origErr) {
-			// The real file doesn't exist; the .tmp is an orphan.
-			return os.Remove(cleanPath) //nolint:gosec // best-effort cleanup of .tmp files within .agents/
-		}
-		// If we can't stat the original, skip (don't remove anything risky).
-		return nil
+		// Target file exists (stale .tmp from crash/interrupted write) or doesn't
+		// exist (orphan .tmp). Either is safe to remove.
+		return os.Remove(cleanPath) //nolint:gosec // best-effort cleanup of .tmp files within .agents/
 	})
 }
