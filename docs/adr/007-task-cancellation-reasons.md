@@ -75,6 +75,6 @@ does not block cancellation.
 - Task 073: Require a reason when cancelling a task
 - `.agents/exec-plans/completed/073-task-cancellation-reasons.md`
 - `.agents/TASKS.md` - task cancellation workflow
-- `internal/ahm/task_commands.go` - task cancellation behavior
+- `internal/ahm/task_status.go` - task cancellation behavior
 - `internal/ahm/task_acceptance.go` - acceptance TODO parser
 

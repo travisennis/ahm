@@ -2,7 +2,7 @@
 
 These files are real output captured from the agent CLIs that `ahm task work`
 orchestrates. They exist so the output parsers in
-`internal/ahm/task_commands.go` are tested against actual tool output instead
+`internal/ahm/task_parsers.go` are tested against actual tool output instead
 of hand-written fixtures that can encode a parser's own invented schema (the
 failure mode behind the cake stream-json regression fixed in task 087).
 
@@ -38,6 +38,6 @@ The `command:` recorded in each sidecar is the capture command, not the exact
 invocation ahm builds: captures add cost-limiting flags (`--max-tokens`,
 `model_reasoning_effort`) that ahm never passes. The flags that shape the
 output schema — output format, session mode, skills, resume form — match the
-arg builders in `internal/ahm/task_commands.go`. The Codex capture recipe also
+arg builders in `internal/ahm/task_agents.go`. The Codex capture recipe also
 uses `--dangerously-bypass-approvals-and-sandbox` so future refreshes exercise
 the same non-interactive permission posture as `ahm task work`.

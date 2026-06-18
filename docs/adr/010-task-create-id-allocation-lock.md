@@ -78,6 +78,6 @@ identified.
 ## More Information
 
 - Partially supersedes [ADR-001](001-atomic-writes-and-concurrency.md).
-- Implemented by `internal/ahm/lock.go` and `internal/ahm/task_commands.go`.
+- Implemented by `internal/ahm/lock.go` and `internal/ahm/task_create.go`.
 - Covered by `TestTaskCreateParallelAllocatesUniqueIDs` and
   `TestTaskCreateWaitsForIDAllocationLock`.

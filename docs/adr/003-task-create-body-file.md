@@ -79,7 +79,7 @@ test.
 ## References
 
 - Task 044: Support task create body input from file or stdin
-- `internal/ahm/task_commands.go` — `task create` body resolution
+- `internal/ahm/task_create.go` — `task create` body resolution
 - `internal/ahm/cli.go` — app stdin wiring
 - `docs/cli.md` — `task create` command documentation
 

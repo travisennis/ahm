@@ -80,6 +80,6 @@ tasks with incomplete acceptance notes:
 - Task 048: Add acceptance-notes completeness check on task complete
 - `.agents/TASKS.md` - task completion workflow
 - `internal/ahm/task_acceptance.go` - acceptance parser
-- `internal/ahm/task_commands.go` - task completion behavior
+- `internal/ahm/task_status.go` - task completion behavior
 - `internal/ahm/validation.go` - workflow validation findings
 

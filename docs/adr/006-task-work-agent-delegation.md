@@ -137,5 +137,5 @@ the user's installed CLI configuration.
 - `.agents/exec-plans/completed/050-task-work-agent-handoff.md`
 - `scripts/task-workflow.sh`
 - `docs/references/workflow-spec.md`
-- `internal/ahm/task_commands.go`
+- `internal/ahm/task_work.go`, `internal/ahm/task_agents.go`, `internal/ahm/task_session.go`, and `internal/ahm/task_parsers.go`
 - `internal/ahm/install.go`

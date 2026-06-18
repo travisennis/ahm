@@ -39,8 +39,24 @@ delegate a resolved task to an external coding-agent CLI.
   validation.
 - `internal/ahm/output.go`: shared text, JSON, and plain emitters.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
-- `internal/ahm/task_commands.go`: task command handlers and external agent
-  orchestration.
+- `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
+  `taskListCommand`).
+- `internal/ahm/task_create.go`: `task create` parsing, body resolution, and ID
+  allocation.
+- `internal/ahm/task_list.go`: task list, next, labels, show, and
+  filter/sort helpers.
+- `internal/ahm/task_status.go`: status transitions, dependent unblocking, and
+  cancellation reasons.
+- `internal/ahm/task_find.go`: task ID resolution and prefix matching.
+- `internal/ahm/task_enum.go`: task status, priority, and effort enum
+  validation.
+- `internal/ahm/task_work.go`: `task work` delegation to external coding-agent
+  CLIs.
+- `internal/ahm/task_agents.go`: external agent registry and selection.
+- `internal/ahm/task_session.go`: agent session orchestration, review, and
+  completion/commit handoff.
+- `internal/ahm/task_parsers.go`: agent stream-JSON session/feedback parsers and
+  resume-arg builders.
 - `internal/ahm/task_deps.go`: task dependency commands and cycle handling.
 - `internal/ahm/task_migrate.go`: task metadata migration.
 - `internal/ahm/task_acceptance.go`: acceptance-note completion checks.

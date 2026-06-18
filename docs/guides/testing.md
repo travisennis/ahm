@@ -7,8 +7,8 @@ commands, see `CONTRIBUTING.md`.
 ## Agent Integration Smoke Checklist
 
 `ahm task work` orchestrates external coding-agent CLIs (cake, claude, codex,
-cursor). The argument builders and output parsers in
-`internal/ahm/task_commands.go` encode assumptions about those CLIs —
+cursor). The argument builders in `internal/ahm/task_agents.go` and output
+parsers in `internal/ahm/task_parsers.go` encode assumptions about those CLIs —
 flag shapes, JSONL event schemas, session resume semantics — that unit tests
 alone cannot validate: hand-written fixtures can round-trip a parser's own
 invented schema. That failure mode shipped a broken cake integration in

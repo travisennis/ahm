@@ -16,9 +16,10 @@ import (
 //
 // The test is gated on AHM_AGENT_SMOKE=1 and skipped otherwise, so `just ci`
 // never runs it. Run it with `just smoke-agents` after changing taskWorkAgent
-// arg builders, output parsers, or the orchestration flow in
-// task_commands.go. Each installed agent costs a few real LLM calls (one work
-// session plus one resume); agents not on PATH are skipped individually.
+// arg builders, output parsers, or the orchestration flow in task_agents.go,
+// task_parsers.go, or task_session.go. Each installed agent costs a few real
+// LLM calls (one work session plus one resume); agents not on PATH are skipped
+// individually.
 func TestAgentSmoke(t *testing.T) {
 	if os.Getenv("AHM_AGENT_SMOKE") != "1" {
 		t.Skip("live agent smoke test; set AHM_AGENT_SMOKE=1 or run `just smoke-agents`")

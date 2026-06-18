@@ -106,6 +106,6 @@ Pushes and pull-request creation remain out of scope for this feature.
 - Task 056: Capture and reuse task work agent sessions
 - Task 058: Add opt-in task work completion handoff
 - `scripts/task-workflow.sh`
-- `internal/ahm/task_commands.go`
+- `internal/ahm/task_session.go`
 - `docs/cli.md`
 
