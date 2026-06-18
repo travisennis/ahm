@@ -18,6 +18,12 @@ type validationReport struct {
 	Errors   []validationFinding `json:"errors"`
 	Warnings []validationFinding `json:"warnings"`
 	Info     []validationFinding `json:"info"`
+
+	// execPlanSectionsCache memoizes parsed exec-plan sections per path
+	// within a single validation run so that each plan file is parsed at
+	// most once. It is scoped to the report so concurrent validation runs
+	// and tests do not share state.
+	execPlanSectionsCache map[string]map[string]execPlanSection
 }
 
 type validationFinding struct {
@@ -46,8 +52,6 @@ func validateWorkflow(root string) (validationReport, []Task) {
 // When scopes is nil or empty, all validators run (same as validateWorkflow).
 func validateWorkflowScoped(root string, scopes []string) (validationReport, []Task) {
 	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
-
-	clearExecPlanSectionsCache()
 
 	all := len(scopes) == 0
 	want := func(s string) bool { return all || containsScope(scopes, s) }
@@ -234,7 +238,7 @@ func validateTaskExecPlans(root string, tasks []Task, report *validationReport) 
 			report.addWarning("task_completed_exec_plan_active", relPath(root, task.Path), fmt.Sprintf("completed task %s references active ExecPlan %s", task.ID, relPath(root, plan)))
 			continue
 		}
-		if task.Status == "Completed" && bucket == "completed" && !execPlanHasRetrospective(plan) {
+		if task.Status == "Completed" && bucket == "completed" && !execPlanHasRetrospective(plan, report) {
 			report.addWarning("task_completed_exec_plan_incomplete", relPath(root, task.Path), fmt.Sprintf("completed task %s references ExecPlan without a completed Outcomes & Retrospective section", task.ID))
 		}
 	}
@@ -259,7 +263,7 @@ func validateExecPlans(root string, tasks []Task, report *validationReport) {
 			continue
 		}
 		for _, path := range plans {
-			sections, err := getCachedExecPlanSections(path)
+			sections, err := report.getCachedExecPlanSections(path)
 			if err != nil {
 				continue
 			}
@@ -417,31 +421,23 @@ func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 	return "", "", false
 }
 
-// execPlanSectionsCache memoizes parsed exec-plan sections per path within a
-// single validation run so that each plan file is parsed at most once.
-var execPlanSectionsCache map[string]map[string]execPlanSection
-
-func getCachedExecPlanSections(path string) (map[string]execPlanSection, error) {
-	if execPlanSectionsCache == nil {
-		execPlanSectionsCache = map[string]map[string]execPlanSection{}
+func (r *validationReport) getCachedExecPlanSections(path string) (map[string]execPlanSection, error) {
+	if r.execPlanSectionsCache == nil {
+		r.execPlanSectionsCache = map[string]map[string]execPlanSection{}
 	}
-	if sections, ok := execPlanSectionsCache[path]; ok {
+	if sections, ok := r.execPlanSectionsCache[path]; ok {
 		return sections, nil
 	}
 	sections, err := parseExecPlanSections(path)
 	if err != nil {
 		return nil, err
 	}
-	execPlanSectionsCache[path] = sections
+	r.execPlanSectionsCache[path] = sections
 	return sections, nil
 }
 
-func clearExecPlanSectionsCache() {
-	execPlanSectionsCache = nil
-}
-
-func execPlanHasRetrospective(path string) bool {
-	sections, err := getCachedExecPlanSections(path)
+func execPlanHasRetrospective(path string, report *validationReport) bool {
+	sections, err := report.getCachedExecPlanSections(path)
 	if err != nil {
 		return false
 	}
