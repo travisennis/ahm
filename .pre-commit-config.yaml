@@ -6,24 +6,28 @@ repos:
         entry: just fmt-check
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: go-mod-tidy-check
         name: go mod tidy check
         entry: just tidy-check
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: go-test
         name: go test
         entry: just test
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: golangci-lint
         name: golangci-lint
         entry: just lint
         language: system
         pass_filenames: false
+        stages: [pre-commit]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
