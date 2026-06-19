@@ -51,6 +51,25 @@ just capture-agent-fixtures
 
 See `docs/guides/testing.md` before running either command.
 
+## Project-Specific Guidance
+
+**Repo root is not the Go package.** Do not use `go build .` or `go run .`.
+Always build with `go build ./cmd/ahm` or the `just build` recipe.
+
+**Final verification.** Prefer `just ci` (or its alias `just verify`) for the
+full read-only CI suite before handoff.
+
+**Task inspection.** Use `ahm task show <id>` to inspect a single task. For
+queue views, use `ahm task list --status <status>` with one or more of:
+`Open`, `Pending`, `In Progress`, `Blocked`, `Tracking`, `Completed`,
+`Cancelled`. Do not pass `--status All` — it is not a valid status; the
+`--status` flag accepts only the status names listed above.
+
+**Multiline commit messages.** When writing a commit message that spans
+multiple lines, use `git commit -F - <<'EOF'` with a heredoc. Do not use
+command substitution inside `git commit -m` — it behaves inconsistently
+across shells and is difficult to read.
+
 ## Verification Expectations
 
 Run the narrowest useful check first. For Go edits, start with a focused

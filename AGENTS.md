@@ -63,6 +63,11 @@ parsers, and performance-sensitive code. Consult
 `docs/guardrails/implementation-quality.md`, `ARCHITECTURE.md`, and relevant
 ADRs. Prefer small concrete functions and deterministic output.
 
+### Build, Test, And Verification Commands
+When deciding what build, test, lint, verification, or commit-prep commands to
+run, consult `CONTRIBUTING.md`. It is the canonical source for the command
+catalog, verification expectations, and project-specific command pitfalls.
+
 ### Workflow Overlays
 These overlays do not replace the specific workflow routes above. Use them first
 to identify or manage the work item, then re-classify the concrete task and load
