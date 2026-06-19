@@ -158,6 +158,7 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		"  .agents/DOCS.md",
 		"  .agents/TASKS.md",
 		"  .agents/skills/preflight/SKILL.md",
+		"  .agents/skills/finding-improvements/SKILL.md",
 		"  docs/adr/README.md",
 	)
 

@@ -35,6 +35,10 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 			path: "workflow/grooming-backlog-SKILL.md",
 			want: "Every Open task is either Pending (ready to work), Blocked (blocker",
 		},
+		{
+			path: "workflow/finding-improvements-SKILL.md",
+			want: "Survey a codebase as a senior advisor",
+		},
 	}
 	for _, tc := range cases {
 		data, err := fs.ReadFile(FS, tc.path)
@@ -117,6 +121,29 @@ func TestGroomingBacklogTemplateIsProjectGeneric(t *testing.T) {
 	} {
 		if strings.Contains(body, term) {
 			t.Fatalf("grooming-backlog template should be project-generic, but contains %q", term)
+		}
+	}
+}
+
+func TestFindingImprovementsTemplateIsProjectGeneric(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/finding-improvements-SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := string(data)
+	// These are ahm-project-specific terms. Ecosystem tool references like
+	// "cargo audit", "npm audit", "pip-audit", and "go vulncheck" are
+	// legitimate cross-project examples and intentionally allowed.
+	for _, term := range []string{
+		"Cobra",
+		"preflight",
+		"052",
+		"053",
+		"051",
+	} {
+		if strings.Contains(body, term) {
+			t.Fatalf("finding-improvements template should be project-generic, but contains %q", term)
 		}
 	}
 }
