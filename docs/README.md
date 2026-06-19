@@ -11,6 +11,8 @@ index.
   contracts.
 - [Workflow specification](references/workflow-spec.md): workflow state, file
   ownership, file formats, and atomic write behavior.
+- [Glossary](references/glossary.md): concept definitions mapped to implementing
+  types and authoritative docs.
 - [Testing guide](guides/testing.md): agent integration smoke checks and golden
   transcript workflow.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): template version and
@@ -30,6 +32,7 @@ index.
 | Change filesystem writes, root detection, locking, or validation safety | [safety guardrail](guardrails/safety-and-permissions.md), [workflow specification](references/workflow-spec.md), [ADR 001](adr/001-atomic-writes-and-concurrency.md) |
 | Change dependencies, build scripts, CI, or release packaging | [build and release guardrail](guardrails/dependencies-build-ci-release.md), [contributing guide](../CONTRIBUTING.md), [release process](release.md), [workflow upgrade guide](guides/workflow-upgrades.md) |
 | Refactor implementation boundaries or shared helpers | [implementation guardrail](guardrails/implementation-quality.md), [architecture](../ARCHITECTURE.md) |
+| Look up a concept, type, or term | [glossary](references/glossary.md) |
 | Audit or update documentation | [documentation guardrail](guardrails/documentation.md), [documentation workflow](../.agents/DOCS.md) |
 
 ## Structure

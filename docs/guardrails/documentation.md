@@ -42,5 +42,6 @@ and generated documentation indexes.
 - `docs/cli.md`
 - `docs/README.md`
 - `docs/references/workflow-spec.md`
+- `docs/references/glossary.md`
 - `docs/guides/workflow-upgrades.md`
 - `docs/adr/README.md`
