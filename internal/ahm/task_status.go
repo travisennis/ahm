@@ -3,7 +3,6 @@ package ahm
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +33,7 @@ func (a *app) taskStatus(argv []string, status string) error {
 }
 
 func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
+	defer a.emitWarnings()
 	task, err := a.resolveTask(parsed.ids[0])
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		allTasksLoaded = true
 		tasks, collErr := a.getTasks()
 		if collErr != nil {
-			fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+			a.addWarning("some task files could not be parsed and were skipped")
 		}
 		allTasks = tasks
 		return allTasks
@@ -92,9 +92,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 	if task.Status != status && status == "Completed" {
 		findings := parseAcceptanceNotes([]byte(task.Body))
 		for _, finding := range findings {
-			if a.err != nil {
-				fmt.Fprintln(a.err, "warning:", finding.message(task.ID))
-			}
+			a.addWarning("%s", finding.message(task.ID))
 		}
 		if len(findings) > 0 && !a.opts.force {
 			meta, err := readMetadata(a.opts.root)
@@ -102,14 +100,14 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 			case errors.Is(err, os.ErrNotExist):
 				// No metadata, strict acceptance not configured.
 			case err != nil:
-				fmt.Fprintln(a.err, "warning: corrupt workflow metadata .agents/ahm.json, strict acceptance disabled")
+				a.addWarning("corrupt workflow metadata .agents/ahm.json, strict acceptance disabled")
 			case meta.StrictAcceptance:
 				return fmt.Errorf("cannot complete task %s: acceptance notes are incomplete; use --force to override", task.ID)
 			}
 		}
 	}
 	if status == "Cancelled" {
-		warnCancellationAcceptancePlaceholder(a.err, task)
+		a.warnCancellationAcceptancePlaceholder(task)
 		task.Body = upsertCancellationReason(task.Body, cancelReason)
 	}
 
@@ -198,13 +196,10 @@ func taskUnblockPreview(tasks []Task) []map[string]any {
 	return preview
 }
 
-func warnCancellationAcceptancePlaceholder(stderr io.Writer, task Task) {
-	if stderr == nil {
-		return
-	}
+func (a *app) warnCancellationAcceptancePlaceholder(task Task) {
 	for _, finding := range parseAcceptanceNotes([]byte(task.Body)) {
 		if finding == taskAcceptancePlaceholder {
-			fmt.Fprintln(stderr, "warning:", finding.message(task.ID))
+			a.addWarning("%s", finding.message(task.ID))
 		}
 	}
 }

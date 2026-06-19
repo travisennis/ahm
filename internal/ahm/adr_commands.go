@@ -162,8 +162,9 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 	body = stripHeading(body, parsed.title)
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
+	defer a.emitWarnings()
 	id := nextADRID(adrs, a.opts.root)
 	slug := adrSlug(parsed.title)
 	if slug == "" {
@@ -196,9 +197,10 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 }
 
 func (a *app) adrList(statuses []string) error {
+	defer a.emitWarnings()
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
 	filtered := filterReadableADRs(adrs)
 	if len(statuses) > 0 {
@@ -215,9 +217,10 @@ func (a *app) adrList(statuses []string) error {
 }
 
 func (a *app) adrShow(id string) error {
+	defer a.emitWarnings()
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
 	adr, err := resolveADR(id, filterReadableADRs(adrs))
 	if err != nil {
@@ -235,6 +238,7 @@ func (a *app) adrShow(id string) error {
 }
 
 func (a *app) adrSetStatus(id string, status string) error {
+	defer a.emitWarnings()
 	adr, err := a.resolveMutableADR(id)
 	if err != nil {
 		return err
@@ -257,13 +261,14 @@ func (a *app) adrSetStatus(id string, status string) error {
 }
 
 func (a *app) adrSupersede(oldID string, newID string) error {
+	defer a.emitWarnings()
 	newID = strings.TrimSpace(newID)
 	if newID == "" {
 		return usageError("adr supersede requires --by")
 	}
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
 	readable := filterReadableADRs(adrs)
 	oldADR, err := resolveADR(oldID, readable)
@@ -314,7 +319,7 @@ func (a *app) adrSupersede(oldID string, newID string) error {
 func (a *app) resolveMutableADR(id string) (ADR, error) {
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some ADR files could not be parsed and were skipped")
+		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
 	adr, err := resolveADR(id, filterReadableADRs(adrs))
 	if err != nil {

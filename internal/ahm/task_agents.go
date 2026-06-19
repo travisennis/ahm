@@ -29,7 +29,7 @@ func (a *app) selectTaskWorkAgent(flagValue string) (taskWorkAgent, error) {
 		case errors.Is(err, os.ErrNotExist):
 			// No metadata yet, no default agent configured.
 		case err != nil:
-			fmt.Fprintln(a.err, "warning: corrupt workflow metadata .agents/ahm.json, using default agent")
+			a.addWarning("corrupt workflow metadata .agents/ahm.json, using default agent")
 		default:
 			value = meta.DefaultWorkAgent
 		}

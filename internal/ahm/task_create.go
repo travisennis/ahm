@@ -50,9 +50,10 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 }
 
 func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	id := nextTaskID(tasks, a.opts.root)
 	path := filepath.Join(a.opts.root, ".agents", ".tasks", "active", id+".md")

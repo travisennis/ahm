@@ -25,6 +25,7 @@ type taskWorkArgs struct {
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
+	defer a.emitWarnings()
 	task, err := a.resolveTask(parsed.id)
 	if err != nil {
 		return err
@@ -70,13 +71,13 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		}
 	}
 	if parsed.review && !agent.supportsReview {
-		fmt.Fprintf(a.err, "warning: --review is not supported by agent %s; review will not run\n", agent.name)
+		a.addWarning("--review is not supported by agent %s; review will not run", agent.name)
 	}
 	if parsed.complete && !agent.supportsSessions {
-		fmt.Fprintf(a.err, "warning: --complete is not supported by agent %s; completion handoff will not run\n", agent.name)
+		a.addWarning("--complete is not supported by agent %s; completion handoff will not run", agent.name)
 	}
 	if parsed.commit && !agent.supportsSessions {
-		fmt.Fprintf(a.err, "warning: --commit is not supported by agent %s; commit handoff will not run\n", agent.name)
+		a.addWarning("--commit is not supported by agent %s; commit handoff will not run", agent.name)
 	}
 	if agent.supportsSessions {
 		return a.taskWorkWithSession(agent, executable, args, parsed.review, parsed.complete, parsed.commit, task.ID)
@@ -97,7 +98,7 @@ func (a *app) ensureTaskDependenciesComplete(task Task) error {
 	}
 	allTasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	completed := map[string]bool{}
 	for _, t := range allTasks {

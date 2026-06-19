@@ -10,6 +10,7 @@ import (
 )
 
 func (a *app) writeIndexes() error {
+	defer a.emitWarnings()
 	a.invalidateTasks()
 	writes, err := a.indexWrites()
 	if err != nil {
@@ -64,7 +65,7 @@ func (a *app) indexWrites() (map[string]string, error) {
 		if tasks == nil {
 			return nil, err
 		}
-		fmt.Fprintf(a.err, "warning: some task files could not be parsed and were skipped\n%s\n", err)
+		a.addWarning("some task files could not be parsed and were skipped: %s", err)
 	}
 	return indexWritesFor(a.opts.root, tasks)
 }

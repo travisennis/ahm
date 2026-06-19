@@ -159,9 +159,10 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 }
 
 func (a *app) taskDepTree(argv []string) error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	root, err := resolveTaskFromTasks(argv[0], tasks)
 	if err != nil {
@@ -194,9 +195,10 @@ func (a *app) taskDepTree(argv []string) error {
 }
 
 func (a *app) taskDepCycles() error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	cycles := taskDependencyCycles(tasks)
 	if len(cycles) == 0 {

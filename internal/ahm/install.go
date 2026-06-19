@@ -35,6 +35,7 @@ var obsoleteManagedFiles = []obsoleteManagedFile{
 }
 
 func (a *app) install(upgrade bool) error {
+	defer a.emitWarnings()
 	root := a.opts.root
 	meta, err := readMetadata(root)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

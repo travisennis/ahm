@@ -24,14 +24,14 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 		if commit {
 			return fmt.Errorf("cannot run commit handoff: could not capture session ID from %s output: %w", agent.name, parseErr)
 		}
-		fmt.Fprintf(a.err, "warning: could not capture session ID from %s output: %v\n", agent.name, parseErr)
+		a.addWarning("could not capture session ID from %s output: %v", agent.name, parseErr)
 		return nil
 	}
 	if sessionID == "" {
 		if commit {
 			return fmt.Errorf("cannot run commit handoff: no session ID returned by %s", agent.name)
 		}
-		fmt.Fprintln(a.err, "warning: no session ID returned by", agent.name)
+		a.addWarning("no session ID returned by %s", agent.name)
 		return nil
 	}
 
@@ -80,7 +80,7 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 
 	feedback, parseErr := agent.parseReviewFeedback(reviewBuf.Bytes())
 	if parseErr != nil {
-		fmt.Fprintf(a.err, "warning: could not parse review feedback from %s output: %v\n", agent.name, parseErr)
+		a.addWarning("could not parse review feedback from %s output: %v", agent.name, parseErr)
 		return nil
 	}
 

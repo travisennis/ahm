@@ -47,9 +47,10 @@ func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
 }
 
 func (a *app) resolveTask(pattern string) (Task, error) {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	return resolveTaskFromTasks(pattern, tasks)
 }

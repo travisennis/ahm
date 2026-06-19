@@ -26,7 +26,21 @@ type app struct {
 	out        io.Writer
 	err        io.Writer
 	in         io.Reader
-	tasksCache []Task // cached result of collectTasks, nil when stale
+	tasksCache []Task   // cached result of collectTasks, nil when stale
+	warnings   []string // non-fatal errors accumulated during a command
+}
+
+func (a *app) addWarning(format string, args ...any) {
+	a.warnings = append(a.warnings, fmt.Sprintf(format, args...))
+}
+
+func (a *app) emitWarnings() {
+	if a.err == nil {
+		return
+	}
+	for _, w := range a.warnings {
+		fmt.Fprintln(a.err, "warning:", w)
+	}
 }
 
 // getTasks returns the cached task list or reads it from disk.

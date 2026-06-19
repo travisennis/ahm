@@ -8,9 +8,10 @@ import (
 )
 
 func (a *app) taskList(mode string, statuses []string, labels []string) error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	filtered := filterTasks(tasks, mode)
 	if len(statuses) > 0 {
@@ -49,9 +50,10 @@ type taskLabelSummary struct {
 }
 
 func (a *app) taskLabels() error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	summaries := summarizeTaskLabels(tasks)
 	if a.opts.json {
@@ -64,9 +66,10 @@ func (a *app) taskLabels() error {
 }
 
 func (a *app) taskNext() error {
+	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
-		fmt.Fprintln(a.err, "warning: some task files could not be parsed and were skipped")
+		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	ready := filterTasks(tasks, "ready")
 	if len(ready) == 0 {
