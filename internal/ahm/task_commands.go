@@ -174,7 +174,7 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 		},
 	}
 	if mode == "all" {
-		cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter tasks by status (comma-separated or repeatable)")
+		cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
 	}
 	cmd.Flags().StringSliceVar(&labels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
 	return cmd
