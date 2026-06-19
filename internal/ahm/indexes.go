@@ -17,6 +17,13 @@ func (a *app) writeIndexes() error {
 		return err
 	}
 	paths := sortedKeys(writes)
+	// Index writes are sequential and best-effort. If a mid-batch write
+	// fails (e.g., disk full, permissions), earlier files have already
+	// been updated, the failed file remains stale, and later files are
+	// skipped. This leaves a temporarily inconsistent index state that
+	// self-heals on the next successful ahm index run. There is no
+	// rollback — the alternative (cross-file atomic commit or transaction
+	// semantics) is overengineered for regenerated output.
 	for _, path := range paths {
 		if a.opts.dryRun {
 			if isStaleIndex(path, writes[path]) {

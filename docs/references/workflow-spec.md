@@ -316,6 +316,16 @@ serialize ID allocation and index regeneration across concurrent invocations.
 Other managed write paths rely on atomic rename semantics unless their
 read-compute-write behavior needs a narrower lock.
 
+### Generated Index Write Semantics
+
+`ahm index` writes its 8 generated index files sequentially in sorted path
+order. There is no cross-file atomicity: if a mid-batch write fails, earlier
+files in the batch have already been updated, the failed file remains stale,
+and later files are not written. This leaves a temporarily inconsistent index
+state that self-heals on the next successful `ahm index` run. The individual
+write of each file is still atomic (see Atomic Write Guarantee above); only
+the batch as a whole has no rollback or transaction semantics.
+
 The embedded templates are full workflow documents derived from
 `agent-workflow-scaffold`, not short summaries. Important managed docs include
 `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
