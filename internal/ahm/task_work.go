@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,9 +12,18 @@ import (
 	"time"
 )
 
+// taskWorkTimeout is the maximum time an external agent subprocess is
+// allowed to run before being killed. This prevents hung agent CLIs from
+// blocking ahm indefinitely.
+const taskWorkTimeout = 30 * time.Minute
+
+// taskWorkRunnerFunc is the signature for running an external agent command.
+// The context carries the deadline or cancellation signal.
+type taskWorkRunnerFunc func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error
+
 var (
-	taskWorkLookPath   = exec.LookPath
-	taskWorkRunCommand = runTaskWorkCommand
+	taskWorkLookPath                      = exec.LookPath
+	taskWorkRunCommand taskWorkRunnerFunc = runTaskWorkCommand
 )
 
 type taskWorkArgs struct {
@@ -82,7 +92,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if agent.supportsSessions {
 		return a.taskWorkWithSession(agent, executable, args, parsed.review, parsed.complete, parsed.commit, task.ID)
 	}
-	return taskWorkRunCommand(a.opts.root, executable, args, a.in, a.out, a.err)
+	return taskWorkRunCommand(context.Background(), a.opts.root, executable, args, a.in, a.out, a.err)
 }
 
 func taskWorkDryRunStatus(status string) string {
@@ -142,8 +152,10 @@ func (a *app) markTaskInProgress(task Task) error {
 	return a.writeIndexes()
 }
 
-func runTaskWorkCommand(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	cmd := exec.Command(executable, args...) //nolint:gosec // executable is selected from the supported task work agent allowlist before LookPath.
+func runTaskWorkCommand(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	ctx, cancel := context.WithTimeout(ctx, taskWorkTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, args...) //nolint:gosec // executable is selected from the supported task work agent allowlist before LookPath.
 	cmd.Dir = root
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout

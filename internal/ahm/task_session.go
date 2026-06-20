@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -16,7 +17,7 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
-	if err := taskWorkRunCommand(a.opts.root, executable, args, a.in, out, a.err); err != nil {
+	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, args, a.in, out, a.err); err != nil {
 		return err
 	}
 	sessionID, parseErr := agent.parseSessionID(stdoutBuf.Bytes())
@@ -74,7 +75,7 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
 
-	if err := taskWorkRunCommand(a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
+	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
 		return fmt.Errorf("review failed: %w", err)
 	}
 
@@ -93,7 +94,7 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	fmt.Fprintf(a.err, "Review produced feedback, applying to session %s...\n", truncatedID(sessionID, 8))
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
 	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
-	return taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
+	return taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
 }
 
 // runCompletion resumes the agent session with a completion handoff prompt,
@@ -103,7 +104,7 @@ func (a *app) runCompletion(agent taskWorkAgent, executable, sessionID, taskID s
 	fmt.Fprintln(a.err, "--- Running completion handoff ---")
 	prompt := a.buildTaskWorkCompletionPrompt(taskID)
 	resumeArgs := agent.resumeArgs(sessionID, prompt)
-	if err := taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
+	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
 		return fmt.Errorf("completion handoff failed: %w", err)
 	}
 	return nil
@@ -128,7 +129,7 @@ func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID strin
 	fmt.Fprintln(a.err, "--- Running commit handoff ---")
 	prompt := a.buildTaskWorkCommitPrompt(taskID)
 	resumeArgs := agent.resumeArgs(sessionID, prompt)
-	if err := taskWorkRunCommand(a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
+	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
 		return fmt.Errorf("commit handoff failed: %w", err)
 	}
 	return nil

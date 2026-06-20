@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -1563,7 +1564,7 @@ func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -1582,7 +1583,7 @@ func TestTaskWorkCursorDryRunPreviewsStreamJSONArgs(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -1645,7 +1646,7 @@ func TestTaskWorkDryRunOnBucketMismatch(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -1785,7 +1786,7 @@ type taskWorkCapture struct {
 	args       []string
 }
 
-func (c *taskWorkCapture) runner(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+func (c *taskWorkCapture) runner(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	c.root = root
 	c.executable = executable
 	c.args = append([]string(nil), args...)
@@ -1801,7 +1802,7 @@ func stubTaskWorkLookPath(t *testing.T, fn func(string) (string, error)) {
 	})
 }
 
-func stubTaskWorkRunner(t *testing.T, fn func(string, string, []string, io.Reader, io.Writer, io.Writer) error) {
+func stubTaskWorkRunner(t *testing.T, fn taskWorkRunnerFunc) {
 	t.Helper()
 	orig := taskWorkRunCommand
 	taskWorkRunCommand = fn
@@ -1817,7 +1818,7 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	// Stub the runner to produce valid cake stream-json output.
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 3 || args[0] != "--output-format" || args[1] != "stream-json" {
 			t.Errorf("unexpected args = %#v", args)
 		}
@@ -1849,7 +1850,7 @@ func TestTaskWorkCakeSessionParseInvalidJSON(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	// Stub the runner to produce invalid JSON (non-JSON line).
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		_, err := fmt.Fprint(stdout, `not json`)
 		return err
 	})
@@ -1869,7 +1870,7 @@ func TestTaskWorkCakeSessionMissingID(t *testing.T) {
 		return "/stub/cake", nil
 	})
 	// Stub the runner to produce stream-json without a task_start event.
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"Done."}`)
 		fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done.","session_id":""}`)
 		return nil
@@ -2135,7 +2136,7 @@ func TestTaskWorkCursorSessionCapture(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/cursor-agent", nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 5 || args[0] != "-p" || args[1] != "--output-format" || args[2] != "stream-json" || args[3] != "--trust" {
 			t.Errorf("unexpected cursor args = %#v", args)
 		}
@@ -2215,7 +2216,7 @@ func TestTaskWorkClaudeDryRunPreviewsStreamJSONArgs(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -2245,7 +2246,7 @@ func TestTaskWorkClaudeSessionCapture(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/claude", nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		if len(args) < 5 || args[0] != "-p" || args[1] != "--verbose" || args[2] != "--output-format" || args[3] != "stream-json" {
 			t.Errorf("unexpected claude args = %#v", args)
 		}
@@ -2362,7 +2363,7 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		hasStdin   bool
 	}
 	var invocations []invocation
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		// On the first call (session work), produce valid session JSON.
 		if len(invocations) == 0 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_review123","task_id":"tsk_xyz"}`)
@@ -2436,7 +2437,7 @@ func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work.
@@ -2471,7 +2472,7 @@ func TestTaskWorkReviewFails(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_fail","task_id":"tsk_xyz"}`)
@@ -2499,7 +2500,7 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	})
 
 	var invocations [][]string
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations = append(invocations, append([]string(nil), args...))
 		switch len(invocations) {
 		case 1:
@@ -2546,7 +2547,7 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work succeeds.
@@ -2582,7 +2583,7 @@ func TestTaskWorkReviewWithoutFlag(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_noreview","task_id":"tsk_xyz"}`)
@@ -2618,7 +2619,7 @@ func TestTaskWorkCompletionHandoff(t *testing.T) {
 		executable string
 		args       []string
 	}
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations = append(invocations, struct {
 			root       string
 			executable string
@@ -2678,7 +2679,7 @@ func TestTaskWorkCursorCompletionHandoff(t *testing.T) {
 	})
 
 	var invocations [][]string
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations = append(invocations, append([]string(nil), args...))
 		if len(invocations) == 1 {
 			fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_complete123"}`)
@@ -2713,7 +2714,7 @@ func TestTaskWorkCursorCommitHandoff(t *testing.T) {
 	})
 
 	var invocations [][]string
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations = append(invocations, append([]string(nil), args...))
 		if len(invocations) == 1 {
 			fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_commit123"}`)
@@ -2753,7 +2754,7 @@ func TestTaskWorkCompletionWithReview(t *testing.T) {
 		hasStdin bool
 	}
 	var invocations []invocation
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		inv := invocation{args: append([]string(nil), args...), hasStdin: stdin != nil}
 		invocations = append(invocations, inv)
 		switch len(invocations) {
@@ -2830,7 +2831,7 @@ func TestTaskWorkCompletionMissingSession(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work returns no session_id.
@@ -2866,7 +2867,7 @@ func TestTaskWorkCompletionFails(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			// Session work succeeds.
@@ -2897,7 +2898,7 @@ func TestTaskWorkCommitHandoff(t *testing.T) {
 	var invocations []struct {
 		args []string
 	}
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations = append(invocations, struct {
 			args []string
 		}{append([]string(nil), args...)})
@@ -2939,7 +2940,7 @@ func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
 	})
 
 	var prompts []string
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		prompts = append(prompts, args[len(args)-1])
 		switch len(prompts) {
 		case 1:
@@ -2978,7 +2979,7 @@ func TestTaskWorkCommitFails(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_failcommit","task_id":"tsk_xyz"}`)
@@ -3003,7 +3004,7 @@ func TestTaskWorkCommitMissingSessionFails(t *testing.T) {
 	})
 
 	var invocationCount int
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
 		if invocationCount == 1 {
 			_, err := fmt.Fprint(stdout, `{"result":"Work."}`)
@@ -3027,7 +3028,7 @@ func TestTaskWorkCompletionDryRun(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/cake", nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -3048,7 +3049,7 @@ func TestTaskWorkCommitDryRun(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/cake", nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
@@ -3105,7 +3106,7 @@ func TestTaskWorkCompletionDryRunWithReview(t *testing.T) {
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/cake", nil
 	})
-	stubTaskWorkRunner(t, func(root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		t.Error("runner should not be called during dry-run")
 		return nil
 	})
