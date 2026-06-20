@@ -269,21 +269,21 @@ ahm --json agents suggestions
 
 ### `context`
 
-Prints read-only context for humans and coding agents.
+Prints a read-only repository briefing or a managed-work reference.
 
-With no scope, `context` combines canonical agent workflow instructions with
-live repository state:
+With no scope, `context` prints a live briefing with repository state:
 
 - Repository root, installed workflow version, and embedded template version.
 - Validation status and the first few validation findings, without failing the
   command when findings exist.
 - Git branch and dirty worktree count when `git` is available.
 - Task counts, in-progress tasks, and the next ready task.
-- Useful follow-up commands for the selected scope.
+- Useful read-only follow-up commands.
 
-With a scope, `context` prints the full embedded instruction document for that
-workflow. For example, `ahm context task` prints the task workflow rules to use
-before creating, choosing, updating, or working on tasks.
+With a scope, `context` prints the full embedded reference document for that
+artifact type. For example, `ahm context task` prints the task workflow
+reference for creating, choosing, updating, or working on tasks. Scoped output
+is pure reference text with no live briefing wrapper.
 
 Supported optional scopes:
 
@@ -298,7 +298,9 @@ workflow files, invoke external agents, or run mutating git commands.
 
 Useful flags:
 
-- `--json`: prints structured context sections.
+- `--json`: prints structured output. Unscoped output includes `root`,
+  `workflow`, `git`, `tasks`, and `commands`. Scoped output includes `scope`,
+  `instructions`, and `commands` without live briefing fields.
 - `--plain`: prints compact JSON.
 
 Examples:

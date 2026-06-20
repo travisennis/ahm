@@ -50,9 +50,11 @@ Useful global flags:
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
-Agent workflow guidance is available through `ahm context`. `AGENTS.md` is
-project-owned: `ahm init`, `ahm upgrade`, and `--force` never create,
-overwrite, or remove it.
+`ahm context` gives a live repository briefing; scoped
+`ahm context task|plan|adr|research|docs` prints managed-work references for
+ahm-managed artifacts, while project `AGENTS.md` owns workflow routing.
+`AGENTS.md` is project-owned: `ahm init`, `ahm upgrade`, and `--force` never
+create, overwrite, or remove it.
 
 ## Safety
 

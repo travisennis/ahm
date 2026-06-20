@@ -11,12 +11,17 @@ import (
 )
 
 type contextReport struct {
-	Root         string               `json:"root"`
-	Workflow     contextWorkflow      `json:"workflow"`
-	Git          contextGit           `json:"git"`
-	Tasks        contextTasks         `json:"tasks"`
+	Root     string          `json:"root"`
+	Workflow contextWorkflow `json:"workflow"`
+	Git      contextGit      `json:"git"`
+	Tasks    contextTasks    `json:"tasks"`
+	Commands []string        `json:"commands"`
+}
+
+type contextScopedReport struct {
+	Scope        string               `json:"scope"`
 	Instructions []contextInstruction `json:"instructions"`
-	Commands     []string             `json:"commands"`
+	Commands     []string             `json:"commands,omitempty"`
 }
 
 type contextWorkflow struct {
@@ -71,22 +76,35 @@ type contextInstruction struct {
 
 func (a *app) context(scope string) error {
 	defer a.emitWarnings()
-	report, err := a.contextReport(scope)
-	if err != nil {
-		return err
-	}
 	if a.opts.json || a.opts.plain {
+		if scope != "" {
+			instruction, err := scopedContextInstruction(scope)
+			if err != nil {
+				return err
+			}
+			scoped := contextScopedReport{
+				Scope:        scope,
+				Instructions: []contextInstruction{instruction},
+				Commands:     contextCommands(scope),
+			}
+			return a.emit(scoped)
+		}
+		report := a.contextReport()
 		return a.emit(report)
 	}
 	if scope != "" {
-		a.emitScopedInstructionText(report)
+		instruction, err := scopedContextInstruction(scope)
+		if err != nil {
+			return err
+		}
+		a.emitScopedInstructionText(instruction)
 		return nil
 	}
-	a.emitContextText(report, scope)
+	a.emitContextText(a.contextReport())
 	return nil
 }
 
-func (a *app) contextReport(scope string) (contextReport, error) {
+func (a *app) contextReport() contextReport {
 	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
@@ -98,26 +116,21 @@ func (a *app) contextReport(scope string) (contextReport, error) {
 	}
 	taskInfo := a.contextTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
-	instructions, err := contextInstructions(scope)
-	if err != nil {
-		return contextReport{}, err
-	}
 	return contextReport{
 		Root: a.opts.root,
 		Workflow: contextWorkflow{
 			Installed:        metaErr == nil,
 			InstalledVersion: installedVersion,
 			TemplateVersion:  templates.Version,
-			ValidationOK:     validation.OK,
+			ValidationOK:     validation.OK && len(validation.Warnings) == 0,
 			Errors:           len(validation.Errors),
 			Warnings:         len(validation.Warnings),
 			Findings:         contextFindings(validation, 5),
 		},
-		Git:          gitInfo,
-		Tasks:        taskInfo,
-		Instructions: instructions,
-		Commands:     contextCommands(scope),
-	}, nil
+		Git:      gitInfo,
+		Tasks:    taskInfo,
+		Commands: contextCommands(""),
+	}
 }
 
 func (a *app) contextTaskSummary(tasks []Task) contextTasks {
@@ -188,28 +201,6 @@ func taskSummaryFor(task Task, root string) taskSummary {
 	}
 }
 
-func contextInstructions(scope string) ([]contextInstruction, error) {
-	if scope != "" {
-		instruction, err := scopedContextInstruction(scope)
-		if err != nil {
-			return nil, err
-		}
-		return []contextInstruction{instruction}, nil
-	}
-	return []contextInstruction{
-		{
-			ID:    "workflow-routing",
-			Title: "Workflow Routing",
-			Body:  "This briefing already includes repository state. Use scoped context before work that needs workflow rules: `ahm context task` before creating, choosing, updating, or working on tasks; `ahm context research` before creating, updating, organizing, or using research; `ahm context plan` before authoring or following an ExecPlan; `ahm context adr` before creating or changing ADRs; and `ahm context docs` before auditing or updating documentation.",
-		},
-		{
-			ID:    "owned-files",
-			Title: "Owned Files",
-			Body:  "Do not edit generated task, research, ExecPlan, or ADR indexes by hand. Update the source records and run the appropriate `ahm` command. Treat scoped `ahm context` output as the canonical workflow guidance.",
-		},
-	}, nil
-}
-
 func scopedContextInstruction(scope string) (contextInstruction, error) {
 	files := map[string]struct {
 		id     string
@@ -238,7 +229,7 @@ func scopedContextInstruction(scope string) (contextInstruction, error) {
 }
 
 func contextCommands(scope string) []string {
-	common := []string{"ahm status", "ahm doctor", "ahm index --dry-run"}
+	common := []string{"ahm status", "ahm doctor"}
 	switch scope {
 	case "task":
 		return append([]string{"ahm task next", "ahm task ready", "ahm task show <id>"}, common...)
@@ -287,7 +278,7 @@ func readGitContext(root string) contextGit {
 	return info
 }
 
-func (a *app) emitContextText(report contextReport, scope string) {
+func (a *app) emitContextText(report contextReport) {
 	fmt.Fprintln(a.out, "# ahm context")
 	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "root: %s\n", report.Root)
@@ -296,16 +287,19 @@ func (a *app) emitContextText(report contextReport, scope string) {
 	} else {
 		fmt.Fprintf(a.out, "workflow: not installed (templates %s)\n", report.Workflow.TemplateVersion)
 	}
-	if report.Workflow.ValidationOK {
+	switch {
+	case report.Workflow.Errors == 0 && report.Workflow.Warnings == 0:
 		fmt.Fprintln(a.out, "validation: ok")
-	} else {
+	case report.Workflow.Errors > 0:
 		fmt.Fprintf(a.out, "validation: %d errors, %d warnings; run `ahm doctor`\n", report.Workflow.Errors, report.Workflow.Warnings)
-		for _, finding := range report.Workflow.Findings {
-			if finding.Path != "" {
-				fmt.Fprintf(a.out, "- %s %s %s: %s\n", finding.Severity, finding.Code, finding.Path, finding.Message)
-			} else {
-				fmt.Fprintf(a.out, "- %s %s: %s\n", finding.Severity, finding.Code, finding.Message)
-			}
+	default:
+		fmt.Fprintf(a.out, "validation: %d warnings; run `ahm doctor`\n", report.Workflow.Warnings)
+	}
+	for _, finding := range report.Workflow.Findings {
+		if finding.Path != "" {
+			fmt.Fprintf(a.out, "- %s %s %s: %s\n", finding.Severity, finding.Code, finding.Path, finding.Message)
+		} else {
+			fmt.Fprintf(a.out, "- %s %s: %s\n", finding.Severity, finding.Code, finding.Message)
 		}
 	}
 	switch {
@@ -331,14 +325,6 @@ func (a *app) emitContextText(report contextReport, scope string) {
 	for _, task := range report.Tasks.InProgress {
 		fmt.Fprintf(a.out, "in_progress: %s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
 	}
-	if scope != "" {
-		fmt.Fprintf(a.out, "scope: %s\n", scope)
-	}
-	fmt.Fprintln(a.out)
-	fmt.Fprintln(a.out, "## Instructions")
-	for _, instruction := range report.Instructions {
-		fmt.Fprintf(a.out, "\n### %s\n\n%s\n", instruction.Title, instruction.Body)
-	}
 	fmt.Fprintln(a.out)
 	fmt.Fprintln(a.out, "## Useful Commands")
 	for _, command := range report.Commands {
@@ -346,11 +332,9 @@ func (a *app) emitContextText(report contextReport, scope string) {
 	}
 }
 
-func (a *app) emitScopedInstructionText(report contextReport) {
-	for _, instruction := range report.Instructions {
-		fmt.Fprint(a.out, instruction.Body)
-		if !strings.HasSuffix(instruction.Body, "\n") {
-			fmt.Fprintln(a.out)
-		}
+func (a *app) emitScopedInstructionText(instruction contextInstruction) {
+	fmt.Fprint(a.out, instruction.Body)
+	if !strings.HasSuffix(instruction.Body, "\n") {
+		fmt.Fprintln(a.out)
 	}
 }

@@ -36,8 +36,9 @@ change.
 
 Use these entry points:
 
-- Tasks: run `ahm context task`, inspect the relevant task with `ahm task ...`,
-  and open the task file before editing.
+- Tasks: run `ahm context task`, inspect the relevant task with `ahm task show <id>`
+  (which prints the task file contents), and open the task file directly only when
+  `ahm` is unavailable or when manually editing the task record.
 - ExecPlans: run `ahm context plan` when the request or task calls for an
   ExecPlan.
 - ADRs: run `ahm context adr` when the request or task calls for an ADR.

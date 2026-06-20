@@ -3,11 +3,13 @@
 This output explains how tasks are handled in this repository. For the first
 task you work in a session, run `ahm context task`, then use `ahm task next`,
 `ahm task ready`, `ahm task list`, `ahm task blocked`, or
-`ahm task show <id>` to inspect task state. Open the specific task file before
-making changes. For later tasks in the same session, rerun the relevant
-`ahm task ...` command and reread the specific task file unless this guidance
-changed or the task changes task workflow semantics. If you need to refresh
-this workflow guidance, rerun `ahm context task`.
+`ahm task show <id>` to inspect task state. For later tasks in the same
+session, rerun the relevant `ahm task ...` command and reread the specific
+task source unless this guidance changed or the task changes task workflow
+semantics. `ahm task show <id>` is the normal task inspection primitive
+because it prints the task file contents; open the task file directly only
+when `ahm` is unavailable or when manually editing the task record. If you
+need to refresh this workflow guidance, rerun `ahm context task`.
 
 ## Task Storage
 

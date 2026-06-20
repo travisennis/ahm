@@ -1,15 +1,15 @@
 # Architecture
 
 `ahm` is a single-binary Go CLI. It manages repository-local `.agents`
-workflow state, exposes canonical agent context, validates that workflow,
-regenerates deterministic indexes, and can delegate a resolved task to an
-external coding-agent CLI.
+workflow state, exposes managed-work references and live repository briefings,
+validates that workflow, regenerates deterministic indexes, and can delegate a
+resolved task to an external coding-agent CLI.
 
 ## System Boundaries
 
-- `ahm` owns workflow installation, upgrades, agent context, validation,
-  task/ADR lifecycle commands, generated indexes, and external agent
-  orchestration.
+- `ahm` owns workflow installation, upgrades, managed-work references,
+  validation, task/ADR lifecycle commands, generated indexes, and external
+  agent orchestration.
 - Target repositories own their source code and project-specific `AGENTS.md`.
   `ahm` does not patch source files, commit, push, create PRs, or run implicit
   git operations.
@@ -35,7 +35,8 @@ external coding-agent CLI.
 - `cmd/ahm/main.go`: CLI entrypoint.
 - `internal/ahm/cli.go`: Cobra root command, global flags, command wiring.
 - `internal/ahm/root.go`: repository root discovery.
-- `internal/ahm/context.go`: `context` command briefing and agent guidance.
+- `internal/ahm/context.go`: `context` command briefing and managed-work
+  references.
 - `internal/ahm/install.go`: `init`, `upgrade`, metadata, legacy instruction
   removal, and generated index writes.
 - `internal/ahm/status.go`: `status` and `doctor`.
@@ -85,9 +86,8 @@ external coding-agent CLI.
   use repository-local locks under `.agents/.lock/`.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
-- Canonical agent instructions are exposed through `ahm context`, not copied
-  into target repositories by `init`; managed agent skills remain installed
-  templates under `.agents/skills/`.
+- Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`;
+  managed agent skills remain installed templates under `.agents/skills/`.
 - Legacy managed instruction templates are removed by `upgrade` only when
   metadata proves ownership, unless `--force` is used.
 - `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed

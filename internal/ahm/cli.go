@@ -201,7 +201,7 @@ func (a *app) contextCommand() *cobra.Command {
 	}
 	return &cobra.Command{
 		Use:   "context [task|adr|research|plan|docs]",
-		Short: "Show agent session context",
+		Short: "Repository briefing or managed-work reference",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
 				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))

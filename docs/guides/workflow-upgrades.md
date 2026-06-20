@@ -1,6 +1,6 @@
 # Workflow Upgrades
 
-`ahm` owns workflow state and canonical agent instructions. To update the
+`ahm` owns workflow state and managed-work references. To update the
 workflow, edit the relevant implementation or instruction source in this
 repository, rebuild `ahm`, and run:
 
@@ -13,7 +13,7 @@ the target repository files.
 
 - Missing workflow directories, metadata, and generated indexes are created.
 - Legacy instruction files that still match the previous managed hash are
-  removed because canonical guidance now comes from `ahm context`.
+  removed because managed-work references now come from scoped `ahm context`.
 - Managed skill templates under `.agents/skills/` are still installed and
   upgraded from embedded templates.
 - Files with local modifications are preserved and reported as conflicts.
@@ -39,6 +39,39 @@ Use `--dry-run` to preview changes. Use `--force` only when old local
 instruction files should be removed even though they no longer match their
 recorded managed hash, or when local edits to managed skill templates should
 be replaced.
+
+## Context Role Split (2026-06-20)
+
+`internal/templates.Version` advanced from `0.4.2` to `0.4.3`.
+
+This release splits the `ahm context` command into two distinct modes:
+
+- **Unscoped `ahm context`** is a live repository briefing. It prints root,
+  workflow version, validation, git state, task summary, and useful commands.
+  It no longer prints an `## Instructions` section or claims workflow
+  authority.
+- **Scoped `ahm context task|plan|adr|research|docs`** prints a pure managed-work
+  reference document without live briefing wrapper fields.
+- **Scoped JSON** (`ahm --json context task`) now returns `scope`,
+  `instructions`, and `commands`. It no longer includes `root`, `workflow`,
+  `git`, or `tasks` fields.
+- **Unscoped JSON** (`ahm --json context`) no longer includes `instructions`.
+- **Validation display** now distinguishes warnings-only state: `validation: ok`
+  means zero errors and zero warnings; warnings alone show the warning count
+  and sample findings.
+- `ahm agents suggestions`, managed skills, and embedded workflow references
+  now describe `ahm task show <id>` as the normal task inspection primitive
+  and `AGENTS.md` as the owner of workflow routing.
+
+### Impact
+
+- `ahm agents suggestions` output changes for the `ahm-owned-files` advisory
+  block to describe the primitives model.
+- `ahm context` text and JSON output shapes change as described above.
+  Consumers relying on the old scoped JSON shape (with `root`, `workflow`,
+  `git`, `tasks`) need to adapt.
+- `ahm upgrade` records template version `0.4.3` in `.agents/ahm.json`.
+- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
 
 ## AGENTS.md Integration Suggestions (2026-06-20)
 

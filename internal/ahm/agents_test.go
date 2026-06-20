@@ -33,6 +33,7 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 		"## ahm-Owned Files",
 		"Never hand-edit generated task, research, ExecPlan, or ADR indexes",
 		"Use `ahm task` commands",
+		"owns workflow routing",
 	)
 	assertNotContains(t, stdout, "Do not commit or push unless explicitly asked.")
 	assertNotContains(t, stdout, "### Tasks")

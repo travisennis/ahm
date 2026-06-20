@@ -38,7 +38,7 @@ Global flags:
 
 Commands:
 
-- `context`: print canonical agent instructions plus live repository context.
+- `context`: print live repository briefing or managed-work reference.
 - `init`: install the managed `.agents` workflow state.
 - `upgrade`: update managed workflow state for the embedded template version.
 - `status`: report workflow health.
@@ -128,11 +128,12 @@ The ownership categories are:
    `.agents/exec-plans/completed/index.md`, `docs/adr/index.md`) — owned by
    `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
-2. **Canonical workflow instructions** — owned by the `ahm` binary and exposed
-   through `ahm context`. Fresh `ahm init` does not copy instruction templates
-   such as `.agents/TASKS.md`, `.agents/DOCS.md`, or `docs/adr/README.md` into
-   consumer repositories. Scoped commands such as `ahm context task` expose the
-   full embedded instruction document for that workflow. `ahm upgrade` removes
+2. **Managed-work references** — owned by the `ahm` binary and exposed
+   through scoped `ahm context task|plan|adr|research|docs`. Fresh `ahm init`
+   does not copy reference documents such as `.agents/TASKS.md`,
+   `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
+   Scoped commands such as `ahm context task` expose the
+   full embedded reference document for that workflow. `ahm upgrade` removes
    previously managed copies when metadata proves ownership; locally modified
    copies are preserved as conflicts unless `--force` is used.
 
@@ -335,6 +336,7 @@ state that self-heals on the next successful `ahm index` run. The individual
 write of each file is still atomic (see Atomic Write Guarantee above); only
 the batch as a whole has no rollback or transaction semantics.
 
-Canonical workflow instructions are exposed by `ahm context` instead of copied
-into target repositories. `ahm context` text output is agent-readable Markdown;
-`--json` and `--plain` expose structured sections for integrations.
+Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`
+instead of being copied into target repositories. Unscoped `ahm context` text output is
+a live briefing with repository state; `--json` and `--plain` expose structured
+sections for integrations.

@@ -79,3 +79,23 @@ overwritten or removed by `init`, `upgrade`, or `--force`.
 - Supersedes the `ahm init` starter-file portion of ADR 002. The advisory
   `ahm agents suggestions` command remains valid for project-owned `AGENTS.md`.
 - Task 115: Add session context command.
+
+## Refinement (2026-06-20): Context Role Split
+
+Task 117 narrowed the role of `ahm context` to align with the primitives model:
+
+- Unscoped `ahm context` is a live repository briefing. It no longer prints
+  an `## Instructions` section or claims workflow authority. Project
+  `AGENTS.md` owns workflow routing and implementation decisions.
+- Scoped `ahm context task|plan|adr|research|docs` provides managed-work
+  references for ahm-managed artifacts. Scoped JSON (`ahm --json context task`)
+  now returns only `scope`, `instructions`, and `commands`, without the live
+  briefing fields (`root`, `workflow`, `git`, `tasks`).
+- The `ahm owned-files` suggestion block now describes scoped `ahm context` as
+  the managed-work reference and `AGENTS.md` as the owner of routing.
+- `ahm task show <id>` is the normal task inspection primitive; opening the
+  task file directly is only for fallback or manual edits.
+
+This refinement does not reverse ADR 011's core decision to stop installing
+workflow guide templates into consumer repositories. Scoped context commands
+continue to expose the full embedded reference documents on demand.

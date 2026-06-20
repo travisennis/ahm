@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.4.2"
+const Version = "0.4.3"
 
 // FS contains the embedded workflow template files.
 //
@@ -114,9 +114,12 @@ var agentSuggestions = []AgentSuggestion{
 			"Use `ahm task` commands for task state moves and `ahm adr` commands for ADR\n" +
 			"lifecycle changes.\n" +
 			"\n" +
-			"Treat `ahm context` output as the canonical workflow guidance. Do not recreate\n" +
-			"removed workflow guide files such as `.agents/TASKS.md`, `.agents/PLANS.md`,\n" +
-			"`.agents/RESEARCH.md`, `.agents/DOCS.md`, or `docs/adr/README.md`.",
+			"Treat scoped `ahm context task|plan|adr|research|docs` as the managed-work\n" +
+			"reference for ahm-managed artifacts. Project `AGENTS.md` owns workflow routing\n" +
+			"and implementation decisions. Unscoped `ahm context` provides a live repository\n" +
+			"briefing. Do not recreate removed workflow guide files such as\n" +
+			"`.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,\n" +
+			"`.agents/DOCS.md`, or `docs/adr/README.md`.",
 	},
 }
 

@@ -11,11 +11,11 @@ After this change, users and agents can treat `ahm` as a set of workflow primiti
 ## Progress
 
 - [x] (2026-06-20 18:38 -04:00) Interviewed Travis Ennis and resolved the product/design decisions captured in task 117.
-- [ ] Update implementation and focused tests for the new text and JSON contracts.
-- [ ] Update embedded suggestions, workflow references, managed skills, and this repository's `AGENTS.md`.
-- [ ] Update durable docs and ADR 011.
-- [ ] Run focused tests, then full project verification as required by `CONTRIBUTING.md`.
-- [ ] Fill task 117 Acceptance Notes and complete the task when the implementation and docs are verified.
+- [x] Update implementation and focused tests for the new text and JSON contracts.
+- [x] Update embedded suggestions, workflow references, managed skills, and this repository's `AGENTS.md`.
+- [x] Update durable docs and ADR 011.
+- [x] Run focused tests, then full project verification as required by `CONTRIBUTING.md`.
+- [x] Fill task 117 Acceptance Notes and complete the task when the implementation and docs are verified.
 
 ## Surprises & Discoveries
 
@@ -61,7 +61,43 @@ After this change, users and agents can treat `ahm` as a set of workflow primiti
 
 ## Outcomes & Retrospective
 
-Not completed yet. At completion, summarize the final command behavior, compatibility impact, verification results, and any remaining migration risk for repositories that already adapted earlier `ahm context` wording.
+Implementation complete. Summary of changes:
+
+### Command behavior
+
+- **Unscoped `ahm context` text**: Prints live briefing (root, workflow, validation, git, tasks, useful commands). No `## Instructions` section. Validation text distinguishes warnings-only from clean state.
+- **Unscoped `ahm context` JSON**: Contains `root`, `workflow`, `git`, `tasks`, `commands`. No `instructions` field.
+- **Scoped `ahm context task|...` text**: Pure managed-work reference document. No briefing wrapper.
+- **Scoped `ahm context task|...` JSON**: Contains `scope`, `instructions`, `commands`. No `root`, `workflow`, `git`, `tasks`.
+- **Warnings-only display**: Shows warning count with `run ahm doctor` instead of `validation: ok`. Findings still capped at 5.
+
+### Files changed
+
+- `internal/ahm/context.go` — Core logic: separate unscoped/scoped report shapes, removed instructions from unscoped, fixed validation display.
+- `internal/ahm/context_test.go` — Updated tests for new contracts, added scoped JSON test.
+- `internal/ahm/cli.go` — Updated context command short description.
+- `internal/ahm/task_work.go` — Updated delegation prompt.
+- `internal/templates/templates.go` — Bumped Version to 0.4.3, updated suggestions.
+- `internal/templates/workflow/TASKS.md` — Made `ahm task show <id>` the normal inspection primitive.
+- `internal/templates/workflow/preflight-SKILL.md` — Updated task context item.
+- `.agents/skills/preflight/SKILL.md` — Same update as embedded template.
+- `AGENTS.md` — Updated managed-work intake entry. `docs/guides/workflow-upgrades.md` — Added 0.4.3 section.
+- `docs/references/cli/commands.md` — Updated context command docs.
+- `docs/references/workflow-spec.md` — Updated terminology.
+- `docs/adr/011-*.md` — Added refinement note.
+- `ARCHITECTURE.md` — Updated terminology.
+
+### Verification
+
+- `go test -race -cover ./internal/...` — All pass.
+- `just ci` — Full CI (fmt, tidy, vet, test -race -cover, lint, vuln, build, goreleaser check) — All pass.
+- Manual smoke check: `ahm context`, `ahm --json context`, `ahm context task`, `ahm --json context task` produce expected shapes.
+
+### Compatibility impact
+
+- Scoped JSON output shape changed; consumers relying on `root`, `workflow`, `git`, `tasks` in `ahm --json context task` need to adapt to the new `scope`/`instructions`/`commands` shape.
+- Unscoped JSON lost `instructions` field.
+- These are deliberate breaking changes documented in the upgrade guide.
 
 ## Context and Orientation
 

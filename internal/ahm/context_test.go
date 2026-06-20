@@ -34,15 +34,10 @@ func TestContextPrintsSessionBriefing(t *testing.T) {
 		"tasks: open=0 ready=1 blocked=0 in_progress=1",
 		"next: 002 [Pending] P2 S Ready Work",
 		"in_progress: 001 [In Progress] P2 S Current Work",
-		"## Instructions",
-		"This briefing already includes repository state.",
-		"Use scoped context before work that needs workflow rules",
-		"`ahm context task`",
-		"`ahm context docs`",
 		"## Useful Commands",
 		"`ahm task show <id>`",
 	)
-	assertNotContains(t, stdout, "Start by running `ahm context`")
+	assertNotContains(t, stdout, "## Instructions", "Start by running `ahm context`")
 }
 
 func TestContextScopePrintsEmbeddedInstructionDocument(t *testing.T) {
@@ -65,7 +60,28 @@ func TestContextScopePrintsEmbeddedInstructionDocument(t *testing.T) {
 	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands")
 }
 
-func TestContextJSONOutput(t *testing.T) {
+func TestContextJSONOutputUnscoped(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--json", "context")
+	if code != 0 {
+		t.Fatalf("context --json exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		`"root": "`+root+`"`,
+		`"template_version": "`+templates.Version+`"`,
+		`"validation_ok": true`,
+		`"commands":`,
+	)
+	assertNotContains(t, stdout, `"instructions"`)
+}
+
+func TestContextJSONOutputScoped(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -75,12 +91,10 @@ func TestContextJSONOutput(t *testing.T) {
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "context", "task")
 	if code != 0 {
-		t.Fatalf("context --json exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("context task --json exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		`"root": "`+root+`"`,
-		`"template_version": "`+templates.Version+`"`,
-		`"validation_ok": true`,
+		`"scope": "task"`,
 		`"instructions":`,
 		`"id": "task-workflow"`,
 		`# Task Workflow`,
@@ -88,6 +102,7 @@ func TestContextJSONOutput(t *testing.T) {
 		`"commands":`,
 		`"ahm task show \u003cid\u003e"`,
 	)
+	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, `"tasks"`)
 }
 
 func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
@@ -109,6 +124,33 @@ func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
 		"task 001 depends on missing task 999",
 		"`ahm doctor`",
 	)
+}
+
+func TestContextWarningsOnlyValidationDisplay(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	// A Completed task in the active bucket yields a warning with no errors.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bucket Mismatch", "Completed", "")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context")
+	if code != 0 {
+		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"warnings; run `ahm doctor`",
+		"task_bucket_mismatch",
+	)
+	assertNotContains(t, stdout, "validation: ok")
+
+	jsonOut, stderr, code := runCLI(t, "--root", root, "--json", "context")
+	if code != 0 {
+		t.Fatalf("context --json exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, jsonOut, `"validation_ok": false`)
 }
 
 func TestReadGitContextReportsDirtyWorktree(t *testing.T) {
