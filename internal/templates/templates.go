@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.4.1"
+const Version = "0.4.2"
 
 // FS contains the embedded workflow template files.
 //
@@ -41,32 +41,82 @@ type AgentSuggestion struct {
 
 var agentSuggestions = []AgentSuggestion{
 	{
+		ID:    "ahm-apply-guidance",
+		Title: "How To Apply",
+		Body: "Preserve the target repository's project description, compatibility surfaces,\n" +
+			"workflow routes, repository rules, code style, and handoff expectations. Add or\n" +
+			"adapt only the parts needed to connect that repository's existing workflow to\n" +
+			"`ahm`.\n" +
+			"\n" +
+			"If `AGENTS.md` already has an Operating Loop, update it so managed-work intake\n" +
+			"happens before normal workflow routing. If `AGENTS.md` has workflow routing but\n" +
+			"no Operating Loop, add a short `## Operating Loop` before `## Workflow Routing`.\n" +
+			"If the file has neither an Operating Loop nor workflow routing, do not invent a\n" +
+			"full project workflow; add only sections for Managed Work Intake With `ahm`\n" +
+			"and `ahm-Owned Files`.\n" +
+			"\n" +
+			"Do not copy these suggestions blindly if they conflict with stronger\n" +
+			"project-specific instructions. Adapt section names to the target file.",
+	},
+	{
+		ID:    "operating-loop-integration",
+		Title: "Operating Loop Integration",
+		Body: "When an Operating Loop exists or should be added, it should include this\n" +
+			"ordering:\n" +
+			"\n" +
+			"1. Do managed-work intake first:\n" +
+			"   - If the request is about a task, ExecPlan, ADR, or research note, use `ahm`\n" +
+			"     to understand that managed work item before choosing implementation docs.\n" +
+			"   - If the request is directly about code, CLI behavior, tests, docs, build,\n" +
+			"     release, or repo mechanics, skip `ahm` intake and classify the request\n" +
+			"     directly.\n" +
+			"2. Classify the concrete work by the repository's normal workflow routing.\n" +
+			"3. Load only the routed docs required for that concrete work.\n" +
+			"4. State the selected route and loaded docs before editing or in handoff,\n" +
+			"   following the target repository's existing convention.\n" +
+			"5. Preserve project compatibility surfaces unless the task explicitly changes\n" +
+			"   them.\n" +
+			"6. Keep edits surgical and verify according to risk.\n" +
+			"7. Hand off with changes, exact checks, and remaining risk.",
+	},
+	{
 		ID:    "ahm-workflow-routing",
-		Title: "ahm Workflow Routing",
+		Title: "Managed Work Intake With `ahm`",
 		Body: "`ahm` is for understanding and managing higher-order workflow records. It is\n" +
-			"not the implementation route. Use it first when the request is about a managed\n" +
-			"task, ExecPlan, ADR, or research note, then return to this AGENTS.md and choose\n" +
-			"the route for the actual code, docs, CLI, safety, or release change.\n" +
+			"not the implementation route. Use it first when the user asks about a managed\n" +
+			"work item, then return to the repository's normal workflow routing and choose\n" +
+			"the route for the actual change.\n" +
 			"\n" +
-			"When asked to create, choose, update, or work on a task, run `ahm context task`,\n" +
-			"inspect the relevant task with `ahm task ...`, and open the task file before\n" +
-			"editing. When work calls for an ExecPlan, run `ahm context plan`. When it calls\n" +
-			"for an ADR, run `ahm context adr` and use `ahm adr` commands for lifecycle\n" +
-			"management. When asked to create, update, organize, or use research, run\n" +
-			"`ahm context research` and use `.agents/.research/index.md` as the map.\n" +
+			"Use these entry points:\n" +
 			"\n" +
-			"After `ahm` intake, re-classify the discovered work under the project's normal\n" +
-			"workflow routing and load those routed docs before editing. State the selected\n" +
-			"route and loaded docs in handoff so skipped routing is visible.",
+			"- Tasks: run `ahm context task`, inspect the relevant task with `ahm task ...`,\n" +
+			"  and open the task file before editing.\n" +
+			"- ExecPlans: run `ahm context plan` when the request or task calls for an\n" +
+			"  ExecPlan.\n" +
+			"- ADRs: run `ahm context adr` when the request or task calls for an ADR, and\n" +
+			"  use `ahm adr` commands for lifecycle changes.\n" +
+			"- Research: run `ahm context research` and use `.agents/.research/index.md` as\n" +
+			"  the map when asked to create, update, organize, or use research.\n" +
+			"- General session briefing: run `ahm context` only when asked for broad project\n" +
+			"  context or when no narrower managed-work context applies.\n" +
+			"\n" +
+			"After `ahm` intake, re-classify the discovered work under the repository's\n" +
+			"normal Workflow Routing. For example, a task about CLI flags still uses the\n" +
+			"CLI route; a task about atomic writes still uses the safety route; a task about\n" +
+			"templates or workflow formats still uses the workflow-state route.",
 	},
 	{
 		ID:    "ahm-owned-files",
 		Title: "ahm-Owned Files",
 		Body: "Never hand-edit generated task, research, ExecPlan, or ADR indexes. Update the\n" +
-			"source records and run the appropriate `ahm` command. Use `ahm task` commands\n" +
-			"for task state moves and `ahm adr` commands for ADR lifecycle changes. Treat\n" +
-			"`ahm context` output as the canonical workflow guidance — do not recreate\n" +
-			"removed workflow guide files; those instructions now come from the `ahm` binary.",
+			"source records and run the appropriate `ahm` command.\n" +
+			"\n" +
+			"Use `ahm task` commands for task state moves and `ahm adr` commands for ADR\n" +
+			"lifecycle changes.\n" +
+			"\n" +
+			"Treat `ahm context` output as the canonical workflow guidance. Do not recreate\n" +
+			"removed workflow guide files such as `.agents/TASKS.md`, `.agents/PLANS.md`,\n" +
+			"`.agents/RESEARCH.md`, `.agents/DOCS.md`, or `docs/adr/README.md`.",
 	},
 }
 

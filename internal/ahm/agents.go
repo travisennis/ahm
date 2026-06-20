@@ -43,10 +43,10 @@ func (a *app) agentsSuggestions(showAll bool) error {
 		}
 	}
 
-	fmt.Fprintln(a.out, "# Suggested AGENTS.md Additions")
+	fmt.Fprintln(a.out, "# Suggested AGENTS.md Integration")
 	fmt.Fprintln(a.out)
-	fmt.Fprintln(a.out, "Advisory agent instructions from `ahm`. Review and adapt before adding to an")
-	fmt.Fprintln(a.out, "existing project-owned AGENTS.md.")
+	fmt.Fprintln(a.out, "Advisory instructions from `ahm`. Use these to update the project-owned")
+	fmt.Fprintln(a.out, "AGENTS.md without replacing project-specific guidance.")
 	if len(selected) == 0 {
 		fmt.Fprintln(a.out)
 		fmt.Fprintln(a.out, "No missing suggestions detected.")

@@ -228,18 +228,26 @@ ahm --json adr migrate --dry-run
 
 ### `agents suggestions`
 
-Prints advisory agent instructions that a project may consider adding to an
+Prints advisory integration instructions that a project may use to update an
 existing project-owned `AGENTS.md`. The suggestions are intentionally limited
-to ahm-owned workflow intake and ownership boundaries: when to use scoped
-`ahm context` commands for managed tasks, ExecPlans, ADRs, or research before
-returning to the project's normal workflow routing; how to treat generated
-indexes; and which task or ADR state moves should use `ahm` commands.
+to ahm-owned workflow intake and ownership boundaries: how to adapt an existing
+Operating Loop, when to use scoped `ahm context` commands for managed tasks,
+ExecPlans, ADRs, or research before returning to the project's normal workflow
+routing, how to treat generated indexes, and which task or ADR state moves
+should use `ahm` commands.
 
 This command never writes `AGENTS.md`. It exists for repositories where
 `AGENTS.md` already exists or where a maintainer wants a small bridge to
 `ahm context`. The intended workflow is for an agent or maintainer to run the
 command, review the suggestions, and adapt any useful instructions into the
-existing instructions.
+existing instructions without replacing project-specific guidance.
+
+When a target `AGENTS.md` already has an Operating Loop, the output recommends
+patching that loop so managed-work intake happens before normal workflow
+routing. When a target has workflow routing but no Operating Loop, it
+recommends adding a short loop before the routing section. When a target has
+neither, it recommends adding only the ahm-specific intake and ownership
+sections rather than inventing a full project workflow.
 
 By default, the command reads `AGENTS.md` under the target root when present and
 omits exact suggestion blocks that already appear in the file. The matching is

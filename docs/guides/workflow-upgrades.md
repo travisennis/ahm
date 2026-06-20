@@ -40,6 +40,32 @@ instruction files should be removed even though they no longer match their
 recorded managed hash, or when local edits to managed skill templates should
 be replaced.
 
+## AGENTS.md Integration Suggestions (2026-06-20)
+
+`internal/templates.Version` advanced from `0.4.1` to `0.4.2`.
+
+The `ahm agents suggestions` output now frames its Markdown as AGENTS.md
+integration guidance rather than simple additions. It tells maintainers or
+agents how to preserve project-specific instructions while connecting an
+existing Operating Loop and Workflow Routing section to `ahm` managed-work
+intake.
+
+The guidance now distinguishes three target shapes:
+
+- Existing Operating Loop: patch it so managed-work intake happens before
+  normal workflow routing.
+- Workflow Routing but no Operating Loop: add a short Operating Loop before
+  the routing section.
+- Neither Operating Loop nor Workflow Routing: add only the ahm-specific
+  managed-work intake and ownership sections, without inventing a full project
+  workflow.
+
+### Impact
+
+- `ahm agents suggestions` output changes for the advisory suggestion blocks.
+- `ahm upgrade` records template version `0.4.2` in `.agents/ahm.json`.
+- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
+
 ## Managed Work Intake Suggestions (2026-06-20)
 
 `internal/templates.Version` advanced from `0.4.0` to `0.4.1`.

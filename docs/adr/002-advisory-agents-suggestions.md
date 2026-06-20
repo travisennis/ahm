@@ -82,3 +82,11 @@ do not drift.
   command wiring and implementation
 - `internal/templates/templates.go` — suggestion source of truth
 - `docs/references/workflow-spec.md` — `AGENTS.md` ownership semantics
+
+## More Information
+
+- 2026-06-20 update: the suggestions now include Operating Loop integration
+  guidance. This does not make `ahm` responsible for generic project workflow
+  policy; it tells maintainers or agents how to place ahm-managed work intake
+  within an existing project-owned loop, when to add a minimal loop for a
+  routed AGENTS.md, and when not to invent one.

@@ -18,18 +18,23 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"# Suggested AGENTS.md Additions",
-		"## ahm Workflow Routing",
+		"# Suggested AGENTS.md Integration",
+		"## How To Apply",
+		"If `AGENTS.md` already has an Operating Loop",
+		"If the file has neither an Operating Loop nor workflow routing",
+		"## Operating Loop Integration",
+		"Do managed-work intake first",
+		"skip `ahm` intake and classify the request",
+		"## Managed Work Intake With `ahm`",
 		"`ahm` is for understanding and managing higher-order workflow records",
-		"When asked to create, choose, update, or work on a task",
 		"inspect the relevant task with `ahm task ...`",
-		"re-classify the discovered work under the project's normal",
+		"General session briefing: run `ahm context`",
+		"re-classify the discovered work under the repository's",
 		"## ahm-Owned Files",
 		"Never hand-edit generated task, research, ExecPlan, or ADR indexes",
 		"Use `ahm task` commands",
 	)
 	assertNotContains(t, stdout, "Do not commit or push unless explicitly asked.")
-	assertNotContains(t, stdout, "## Operating Loop")
 	assertNotContains(t, stdout, "### Tasks")
 	assertFileContainsAll(t, agentsPath, "Keep this.")
 	if got := mustRead(t, agentsPath); got != original {
@@ -46,14 +51,16 @@ func TestAgentsSuggestionsOmitsPresentBlocksUnlessAll(t *testing.T) {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "No missing suggestions detected.")
-	assertNotContains(t, stdout, "## ahm Workflow Routing")
+	assertNotContains(t, stdout, "## Managed Work Intake With `ahm`")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "agents", "suggestions", "--all")
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"## ahm Workflow Routing",
+		"## How To Apply",
+		"## Operating Loop Integration",
+		"## Managed Work Intake With `ahm`",
 		"_Already appears present in AGENTS.md._",
 	)
 }
@@ -69,6 +76,8 @@ func TestAgentsSuggestionsJSONIncludesPresence(t *testing.T) {
 	assertContainsAll(t, stdout,
 		`"target": "AGENTS.md"`,
 		`"exists": true`,
+		`"id": "ahm-apply-guidance"`,
+		`"id": "operating-loop-integration"`,
 		`"id": "ahm-workflow-routing"`,
 		`"present": true`,
 		`"id": "ahm-owned-files"`,
