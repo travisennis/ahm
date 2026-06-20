@@ -19,7 +19,7 @@ ADRs are usually optional for localized bug fixes, tests, docs, small refactors,
 
 ## Relationship to Tasks and ExecPlans
 
-- `.agents/TASKS.md` defines when task work requires an ADR.
+- `ahm context task` defines when task work requires an ADR.
 - Create or update the ADR before code changes begin.
 - Reference the ADR from the task body or implementation notes.
 - If the same task requires an ExecPlan, the ExecPlan should cite the ADR and describe how it will implement the accepted decision.

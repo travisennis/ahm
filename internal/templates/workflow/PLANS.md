@@ -2,9 +2,9 @@
 
 This document describes the requirements for an execution plan ("ExecPlan"), a design document that a coding agent can follow to deliver a working feature or system change. Treat the reader as a complete beginner to this repository: they have only the current working tree and the single ExecPlan file you provide. There is no memory of prior plans and no external context.
 
-## How to use ExecPlans and PLANS.md
+## How to use ExecPlans
 
-When authoring an executable specification (ExecPlan), follow PLANS.md _to the letter_. If it is not in your context, refresh your memory by reading the entire PLANS.md file. Be thorough in reading (and re-reading) source material to produce an accurate specification. When creating a spec, start from the skeleton and flesh it out as you do your research.
+When authoring an executable specification (ExecPlan), follow this `ahm context plan` guidance _to the letter_. If it is not in your context, refresh your memory by rerunning `ahm context plan`. Be thorough in reading (and re-reading) source material to produce an accurate specification. When creating a spec, start from the skeleton and flesh it out as you do your research.
 
 In this repository, store in-progress checked-in ExecPlans under .agents/exec-plans/active/. When an ExecPlan is complete and its Outcomes & Retrospective section has been fully updated, move it to .agents/exec-plans/completed/ and run `ahm index` so the generated active and completed plan lists stay accurate.
 
@@ -80,7 +80,7 @@ Prefer additive code changes followed by subtractions that keep tests passing. P
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-If PLANS.md is checked into the repo, reference its repository-root path here and note that this document must be maintained in accordance with it.
+If `ahm context plan` guidance is used for the work, note that this document must be maintained in accordance with that command output.
 
 ## Purpose / Big Picture
 

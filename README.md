@@ -44,13 +44,15 @@ Useful global flags:
 - `--json`: print structured JSON.
 - `--plain`: print stable line-oriented output.
 - `--dry-run`: preview write operations for commands that support it.
-- `--force`: overwrite managed workflow files when supported.
+- `--force`: remove conflicting legacy instruction files or override strict
+  acceptance when supported.
 
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
-`AGENTS.md` is create-only: `ahm init` can add the starter entrypoint when it
-is missing, but `ahm` never overwrites an existing project `AGENTS.md`.
+Agent workflow guidance is available through `ahm context`. `AGENTS.md` is
+project-owned: `ahm init`, `ahm upgrade`, and `--force` never create,
+overwrite, or remove it.
 
 ## Safety
 

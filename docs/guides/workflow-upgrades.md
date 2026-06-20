@@ -1,7 +1,8 @@
 # Workflow Upgrades
 
-`ahm` owns the workflow templates. To update the workflow, edit files under
-`internal/templates/workflow/`, rebuild `ahm`, and run:
+`ahm` owns workflow state and canonical agent instructions. To update the
+workflow, edit the relevant implementation or instruction source in this
+repository, rebuild `ahm`, and run:
 
 ```bash
 ahm upgrade
@@ -10,18 +11,19 @@ ahm upgrade
 The upgrade process compares the installed metadata in `.agents/ahm.json` with
 the target repository files.
 
-- Missing managed files are created.
-- Files that still match the previous managed hash are updated.
+- Missing workflow directories, metadata, and generated indexes are created.
+- Legacy instruction files that still match the previous managed hash are
+  removed because canonical guidance now comes from `ahm context`.
+- Managed skill templates under `.agents/skills/` are still installed and
+  upgraded from embedded templates.
 - Files with local modifications are preserved and reported as conflicts.
-- `AGENTS.md` is create-only. `ahm` may add the starter entrypoint when it is
-  missing, but it never overwrites an existing `AGENTS.md`, even with
-  `--force`.
+- `AGENTS.md` is project-owned. `ahm` never creates, overwrites, or removes it,
+  even with `--force`.
 - Generated indexes are regenerated.
 - User-owned task files, research notes, and ExecPlans are not overwritten.
-- Managed template files (`.agents/TASKS.md`, `docs/adr/README.md`, etc.) are
-  overwritten only when their content matches the previous managed hash or
-  `--force` is used; locally customized managed templates are preserved and
-  reported as conflicts.
+- Locally customized legacy instruction files (`.agents/TASKS.md`,
+  `docs/adr/README.md`, etc.) are preserved and reported as conflicts unless
+  `--force` is used.
 
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
@@ -30,11 +32,40 @@ complete file ownership boundary.
 embedded template version, even when conflicts exist. This ensures that
 subsequent upgrades correctly identify files that have already been updated.
 Conflicted files retain their old expected hashes in metadata and remain in
-conflict until resolved (either by the user reverting the local edit or by
-running with `--force`).
+conflict until resolved by deleting the local copy, restoring the recorded
+content, or running with `--force`.
 
-Use `--dry-run` to preview changes. Use `--force` only when the embedded
-template should replace local edits to managed workflow files.
+Use `--dry-run` to preview changes. Use `--force` only when old local
+instruction files should be removed even though they no longer match their
+recorded managed hash, or when local edits to managed skill templates should
+be replaced.
+
+## Context-Based Agent Instructions (2026-06-19)
+
+`internal/templates.Version` advanced from `0.3.1` to `0.4.0`.
+
+Canonical agent workflow guidance moved from installed repository workflow
+guide files to the new `ahm context` command. Fresh installs no longer create
+starter `AGENTS.md` or instruction templates such as `.agents/TASKS.md`,
+`.agents/PLANS.md`, `.agents/RESEARCH.md`, `.agents/DOCS.md`, and
+`docs/adr/README.md`. Agent skills under `.agents/skills/` remain managed
+template files.
+
+### Impact
+
+- `ahm init` now creates workflow directories, managed skill templates,
+  `.agents/ahm.json`, and generated indexes.
+- The next `ahm upgrade` run with this version or newer removes previously
+  managed instruction files when their content still matches metadata,
+  including `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
+  `.agents/DOCS.md`, `.agents/.tasks/README.md`,
+  `.agents/.research/README.md`, and `docs/adr/README.md`.
+- `ahm upgrade` still updates managed skill templates.
+- Locally modified instruction files are preserved as conflicts unless
+  `--force` is used.
+- Existing `AGENTS.md` files are never modified or removed.
+- Agents should run `ahm context` for a session briefing or a scoped form such
+  as `ahm context task` for the full scoped instruction document.
 
 ## Version Separation (2026-06-10)
 
@@ -85,10 +116,10 @@ index.
 
 ### Impact
 
-- `ahm upgrade` will update `docs/adr/README.md` in consumer repositories
-  that have not locally modified it. Locally customized ADR guides will be
-  preserved and reported as conflicts.
-- `ahm init` in new repositories will install the MADR-only guidance.
+- In `0.3.0`, `ahm upgrade` updated `docs/adr/README.md` in consumer
+  repositories that had not locally modified it. Locally customized ADR guides
+  were preserved and reported as conflicts.
+- In `0.3.0`, `ahm init` in new repositories installed the MADR-only guidance.
 - The `ahm-workflow-routing` and `ahm-owned-files` agent suggestions now
   cover ADR commands and the generated ADR index.
 
@@ -110,7 +141,7 @@ progressive-disclosure split where `AGENTS.md` routes work and
 
 ### Impact
 
-- `ahm upgrade` will update `.agents/TASKS.md` in consumer repositories that
-  have not locally modified it.
+- In `0.3.1`, `ahm upgrade` updated `.agents/TASKS.md` in consumer
+  repositories that had not locally modified it.
 - The generated task workflow semantics are unchanged; only the documentation
   target for verification policy changed.

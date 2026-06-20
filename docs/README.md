@@ -33,7 +33,7 @@ index.
 | Change dependencies, build scripts, CI, or release packaging | [build and release guardrail](guardrails/dependencies-build-ci-release.md), [contributing guide](../CONTRIBUTING.md), [release process](release.md), [workflow upgrade guide](guides/workflow-upgrades.md) |
 | Refactor implementation boundaries or shared helpers | [implementation guardrail](guardrails/implementation-quality.md), [architecture](../ARCHITECTURE.md) |
 | Look up a concept, type, or term | [glossary](references/glossary.md) |
-| Audit or update documentation | [documentation guardrail](guardrails/documentation.md), [documentation workflow](../.agents/DOCS.md) |
+| Audit or update documentation | [documentation guardrail](guardrails/documentation.md), `ahm context docs` |
 
 ## Structure
 

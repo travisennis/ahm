@@ -1,6 +1,6 @@
 # Task Artifacts
 
-This directory stores task artifacts for this repository. For the full workflow, read `.agents/TASKS.md`.
+This directory stores task artifacts for this repository. For the full workflow, run `ahm context task`.
 
 Use `ahm task next`, `ahm task ready`, `ahm task list`,
 `ahm task blocked`, and `ahm task show <id>` for normal queue inspection.

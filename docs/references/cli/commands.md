@@ -230,15 +230,15 @@ ahm --json adr migrate --dry-run
 
 Prints advisory snippets that a project may consider adding to an existing
 project-owned `AGENTS.md`. The suggestions are intentionally limited to
-AHM-owned workflow routing and ownership boundaries: when to read task,
-research, ExecPlan, and documentation workflow files; how to treat generated
-indexes; and which task state moves should use `ahm` commands.
+ahm-owned workflow routing and ownership boundaries: when to run `ahm context`,
+how to treat generated indexes, and which task or ADR state moves should use
+`ahm` commands.
 
 This command never writes `AGENTS.md`. It exists for repositories where
-`AGENTS.md` already exists and `ahm init` or `ahm upgrade` correctly skip that
-file. The intended workflow is for an agent or maintainer to run the command,
-review the suggestions, and adapt any useful snippets into the existing
-instructions.
+`AGENTS.md` already exists or where a maintainer wants a small bridge to
+`ahm context`. The intended workflow is for an agent or maintainer to run the
+command, review the suggestions, and adapt any useful snippets into the
+existing instructions.
 
 By default, the command reads `AGENTS.md` under the target root when present and
 omits exact suggestion blocks that already appear in the file. The matching is
@@ -258,22 +258,59 @@ ahm agents suggestions --all
 ahm --json agents suggestions
 ```
 
+### `context`
+
+Prints read-only context for humans and coding agents.
+
+With no scope, `context` combines canonical agent workflow instructions with
+live repository state:
+
+- Repository root, installed workflow version, and embedded template version.
+- Validation status and the first few validation findings, without failing the
+  command when findings exist.
+- Git branch and dirty worktree count when `git` is available.
+- Task counts, in-progress tasks, and the next ready task.
+- Useful follow-up commands for the selected scope.
+
+With a scope, `context` prints the full embedded instruction document for that
+workflow. For example, `ahm context task` prints the task workflow rules to use
+before creating, choosing, updating, or working on tasks.
+
+Supported optional scopes:
+
+- `task`
+- `adr`
+- `research`
+- `plan`
+- `docs`
+
+The command is read-only. It does not run `ahm index`, start tasks, mutate
+workflow files, invoke external agents, or run mutating git commands.
+
+Useful flags:
+
+- `--json`: prints structured context sections.
+- `--plain`: prints compact JSON.
+
+Examples:
+
+```bash
+ahm context
+ahm context task
+ahm --json context adr
+```
+
 ### `init`
 
 Installs the managed `.agents` workflow into the target root.
 
-`init` creates missing managed workflow files, workflow directories, metadata,
-and generated indexes. Existing managed files are skipped unless `--force` is
-used. Files that exist on disk but are not yet tracked in metadata are
-auto-adopted when their content matches the template. `AGENTS.md` is create-only:
-it is created when missing, but an existing `AGENTS.md` is always skipped, even
-with `--force`.
+`init` creates missing workflow directories, metadata, and generated indexes.
+Canonical agent instructions are exposed through `ahm context`, not copied into
+consumer repositories. `init` does not create or overwrite `AGENTS.md`.
 
 Writes:
 
-- Managed templates listed by `internal/templates/templates.go`.
-- Workflow guides under `.agents/`, including task, research, ExecPlan, and
-  documentation guidance.
+- Managed skill templates under `.agents/skills/`.
 - `.agents/ahm.json` metadata.
 - Generated index files under `.agents/.tasks/`, `.agents/.research/`,
   `.agents/exec-plans/`, and `docs/adr/index.md`.
@@ -283,7 +320,7 @@ Useful flags:
 
 - `--dry-run`: prints files, directories, metadata, and indexes that would be
   written.
-- `--force`: overwrites existing managed files, except create-only files.
+- `--force`: overwrites existing managed skill templates.
 - `--json` or `--plain`: changes the emitted install summary format.
 
 Example:
@@ -295,27 +332,28 @@ ahm --dry-run init
 
 ### `upgrade`
 
-Updates managed workflow files from the embedded templates.
+Updates managed workflow state for the embedded template version.
 
-`upgrade` compares `.agents/ahm.json` hashes with files in the target root.
-Files that still match their recorded managed hash are updated. Locally modified
-managed files are preserved and reported as conflicts. Files that exist on disk
-but are not yet tracked in metadata are auto-adopted when their content matches
-the template. Missing managed files are created. Generated indexes are
-regenerated.
+`upgrade` compares `.agents/ahm.json` hashes with managed files in the target
+root. Previously managed workflow instruction files that still match their
+recorded managed hash are removed because canonical guidance now comes from
+`ahm context`. Managed skill templates are still updated from embedded
+templates. Locally modified files are preserved and reported as conflicts
+unless `--force` is used. Generated indexes are regenerated.
 
 The metadata `version` field always advances to the embedded template version,
 even when conflicts exist. This means a partial upgrade (some files conflicted,
 others updated) records the new template version so subsequent upgrades can
 correctly identify already-updated files.
 
-`AGENTS.md` remains create-only and is never overwritten.
+`AGENTS.md` remains project-owned and is never overwritten or removed.
 
 Useful flags:
 
 - `--dry-run`: previews all supported writes.
-- `--force`: replaces locally modified managed workflow files with embedded
-  templates. This does not apply to `AGENTS.md`.
+- `--force`: removes locally modified former instruction templates and
+  overwrites locally modified managed skill templates. This does not apply to
+  `AGENTS.md`.
 - `--json` or `--plain`: changes the emitted upgrade summary format.
 
 Example:

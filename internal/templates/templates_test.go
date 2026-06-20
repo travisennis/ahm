@@ -51,22 +51,25 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 	}
 }
 
-func TestManagedFilesIncludeDocsWorkflow(t *testing.T) {
-	for _, file := range Files() {
-		if file.Target == ".agents/DOCS.md" {
-			return
-		}
+func TestManagedFilesOnlyInstallSkills(t *testing.T) {
+	want := map[string]bool{
+		".agents/skills/preflight/SKILL.md":            true,
+		".agents/skills/grooming-backlog/SKILL.md":     true,
+		".agents/skills/finding-improvements/SKILL.md": true,
 	}
-	t.Fatal(".agents/DOCS.md is not managed")
-}
-
-func TestManagedFilesIncludeADRTemplate(t *testing.T) {
-	for _, file := range Files() {
-		if file.Target == "docs/adr/README.md" {
-			return
-		}
+	files := Files()
+	if len(files) != len(want) {
+		t.Fatalf("managed files = %#v, want only skills", files)
 	}
-	t.Fatal("docs/adr/README.md is not managed")
+	for _, file := range files {
+		if !want[file.Target] {
+			t.Fatalf("unexpected managed file %q", file.Target)
+		}
+		delete(want, file.Target)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing managed skill files: %#v", want)
+	}
 }
 
 func TestAgentsTemplateMatchesSuggestionBlocks(t *testing.T) {

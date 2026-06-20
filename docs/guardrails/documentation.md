@@ -3,8 +3,8 @@
 ## Scope
 
 Read this guardrail for README, architecture, contributing, CLI docs,
-workflow specs, upgrade docs, ADR docs, task/research/ExecPlan workflow docs,
-and generated documentation indexes.
+workflow specs, upgrade docs, ADR docs, context guidance, local
+task/research/ExecPlan workflow docs, and generated documentation indexes.
 
 ## Compatibility Surfaces
 
@@ -13,12 +13,13 @@ and generated documentation indexes.
 - `CONTRIBUTING.md` command catalog, verification, and commit workflow.
 - `docs/cli.md` command contract.
 - `docs/references/workflow-spec.md` workflow semantics and file formats.
-- `.agents/*` workflow guides and generated indexes.
-- `docs/adr/README.md` and generated `docs/adr/index.md`.
+- `ahm context` guidance.
+- Local `.agents/*` workflow guides and generated indexes.
+- ADR workflow docs and generated `docs/adr/index.md`.
 
 ## Required Checks
 
-- Read `.agents/DOCS.md` before auditing or updating documentation.
+- Run `ahm context docs` before auditing or updating documentation.
 - Prefer existing documentation locations and style.
 - Do not edit generated indexes by hand.
 - Run available link or documentation checks. For this repo, use
@@ -35,7 +36,7 @@ and generated documentation indexes.
 
 ## Related Docs
 
-- `.agents/DOCS.md`
+- `ahm context docs`
 - `README.md`
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`

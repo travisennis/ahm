@@ -3,8 +3,8 @@
 ## Scope
 
 Read this guardrail for `.agents/ahm.json`, task files, research notes,
-ExecPlans, ADRs, generated indexes, install/upgrade/status/doctor behavior,
-embedded templates, and file-format parsing or rendering.
+ExecPlans, ADRs, generated indexes, install/upgrade/context/status/doctor
+behavior, embedded instructions, and file-format parsing or rendering.
 
 ## Compatibility Surfaces
 
@@ -13,15 +13,15 @@ embedded templates, and file-format parsing or rendering.
   preservation.
 - ADR constrained-MADR front matter and lifecycle metadata.
 - Generated task, research, ExecPlan, and ADR index contents.
-- Managed template ownership and upgrade conflict behavior.
+- Legacy instruction-template removal and upgrade conflict behavior.
 - CRLF normalization and LF output.
 
 ## Required Checks
 
 - Update `docs/references/workflow-spec.md` when durable workflow semantics or
   file formats change.
-- Update `docs/guides/workflow-upgrades.md` when install, upgrade, template
-  version, or managed template behavior changes.
+- Update `docs/guides/workflow-upgrades.md` when install, upgrade, context,
+  template version, or legacy instruction behavior changes.
 - For template changes, run `go test ./internal/templates ./internal/ahm`
   before the final verification pass.
 - Regenerate indexes only through source changes plus `ahm` commands; never
@@ -29,7 +29,7 @@ embedded templates, and file-format parsing or rendering.
 
 ## Common Failure Modes
 
-- Treating project-owned `AGENTS.md` as an upgradable managed file.
+- Treating project-owned `AGENTS.md` as an ahm-created or upgradable file.
 - Forgetting that `ahm task ...` and `ahm adr ...` commands regenerate indexes.
 - Breaking round-trip behavior for unknown front matter fields.
 - Letting dry-run mutate metadata or task state.
@@ -39,7 +39,5 @@ embedded templates, and file-format parsing or rendering.
 
 - `docs/references/workflow-spec.md`
 - `docs/guides/workflow-upgrades.md`
-- `.agents/TASKS.md`
-- `.agents/PLANS.md`
-- `.agents/RESEARCH.md`
+- `ahm context`
 - `docs/adr/README.md`

@@ -1,13 +1,15 @@
 # Architecture
 
-`ahm` is a single-binary Go CLI. It manages a repository-local `.agents`
-workflow, validates that workflow, regenerates deterministic indexes, and can
-delegate a resolved task to an external coding-agent CLI.
+`ahm` is a single-binary Go CLI. It manages repository-local `.agents`
+workflow state, exposes canonical agent context, validates that workflow,
+regenerates deterministic indexes, and can delegate a resolved task to an
+external coding-agent CLI.
 
 ## System Boundaries
 
-- `ahm` owns workflow installation, upgrades, validation, task/ADR lifecycle
-  commands, generated indexes, and external agent orchestration.
+- `ahm` owns workflow installation, upgrades, agent context, validation,
+  task/ADR lifecycle commands, generated indexes, and external agent
+  orchestration.
 - Target repositories own their source code and project-specific `AGENTS.md`.
   `ahm` does not patch source files, commit, push, create PRs, or run implicit
   git operations.
@@ -22,8 +24,8 @@ delegate a resolved task to an external coding-agent CLI.
 - `.agents/ahm.json` metadata fields and version semantics.
 - Task, research, ExecPlan, ADR, and generated index formats.
 - Embedded templates under `internal/templates/workflow/`.
-- Install and upgrade conflict behavior, including `AGENTS.md` create-only
-  behavior.
+- Install and upgrade conflict behavior, including project-owned `AGENTS.md`
+  behavior and legacy instruction-template removal.
 - Atomic write guarantees and stale temp-file cleanup.
 - External agent argument shapes, JSONL/session parsing, and resume behavior.
 - Go module version, local tool versions, CI, and release packaging.
@@ -33,7 +35,9 @@ delegate a resolved task to an external coding-agent CLI.
 - `cmd/ahm/main.go`: CLI entrypoint.
 - `internal/ahm/cli.go`: Cobra root command, global flags, command wiring.
 - `internal/ahm/root.go`: repository root discovery.
-- `internal/ahm/install.go`: `init`, `upgrade`, metadata, and template writes.
+- `internal/ahm/context.go`: `context` command briefing and agent guidance.
+- `internal/ahm/install.go`: `init`, `upgrade`, metadata, legacy instruction
+  removal, and generated index writes.
 - `internal/ahm/status.go`: `status` and `doctor`.
 - `internal/ahm/validation.go`: workflow, link, ADR, task, and project-doc
   validation.
@@ -81,11 +85,13 @@ delegate a resolved task to an external coding-agent CLI.
   use repository-local locks under `.agents/.lock/`.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
-- Managed templates are updated through `init` and `upgrade`; project-owned
-  records are changed through their lifecycle commands or documented manual
-  source edits.
-- `AGENTS.md` is create-only. Never treat an existing project `AGENTS.md` as
-  a managed file that `upgrade` or `--force` can replace.
+- Canonical agent instructions are exposed through `ahm context`, not copied
+  into target repositories by `init`; managed agent skills remain installed
+  templates under `.agents/skills/`.
+- Legacy managed instruction templates are removed by `upgrade` only when
+  metadata proves ownership, unless `--force` is used.
+- `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed
+  file that `init`, `upgrade`, or `--force` can create, replace, or remove.
 - Validation is read-only. It reports workflow and documentation drift without
   mutating files.
 - Command handlers should stay thin: parse args, validate boundaries, delegate

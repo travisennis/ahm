@@ -121,7 +121,7 @@ func (a *app) ensureTaskDependenciesComplete(task Task) error {
 func (a *app) buildTaskWorkPrompt(task Task) string {
 	return fmt.Sprintf(`Work on task %s.
 
-Before making changes, read AGENTS.md and .agents/TASKS.md, then run ahm task show %s to inspect the task.
+Before making changes, run ahm context task, then run ahm task show %s to inspect the task.
 
 Use the repository task workflow. Keep changes scoped to the task. Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied. Do not commit or push unless the user explicitly asked for that.
 `, task.ID, task.ID)

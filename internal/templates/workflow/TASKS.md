@@ -1,12 +1,13 @@
 # Task Workflow
 
-This document explains how tasks are handled in this repository. For the first
-task you work in a session, read this file, then use `ahm task next`,
+This output explains how tasks are handled in this repository. For the first
+task you work in a session, run `ahm context task`, then use `ahm task next`,
 `ahm task ready`, `ahm task list`, `ahm task blocked`, or
 `ahm task show <id>` to inspect task state. Open the specific task file before
 making changes. For later tasks in the same session, rerun the relevant
-`ahm task ...` command and reread the specific task file unless this file
-changed or the task changes task workflow semantics.
+`ahm task ...` command and reread the specific task file unless this guidance
+changed or the task changes task workflow semantics. If you need to refresh
+this workflow guidance, rerun `ahm context task`.
 
 ## Task Storage
 
@@ -271,7 +272,7 @@ When implementing a task, keep the change scoped to the task's problem statement
 Before implementing any task, check its labels, effort, and risk.
 
 - `Effort: L` and `Effort: XL` tasks must have an ExecPlan before code changes begin.
-- If no ExecPlan exists for an `L` or `XL` task, create one under `.agents/exec-plans/active/` using `.agents/PLANS.md` before implementation.
+- If no ExecPlan exists for an `L` or `XL` task, create one under `.agents/exec-plans/active/` using `ahm context plan` before implementation.
 - Update the task file to point to the ExecPlan and record whether the task is blocked on, tracked by, or completed by that plan.
 - Update `.agents/exec-plans/active/index.md` when creating, completing, or moving an ExecPlan.
 - For `Effort: S` or `Effort: M`, an ExecPlan is optional unless the task is a significant refactor, cross-cutting behavior change, or has substantial unknowns.
@@ -284,7 +285,7 @@ When completing a task with an ExecPlan, use this order:
 4. Update the task `exec_plan` field to the completed path.
 5. Run `ahm task complete <id>` so the task moves to `.agents/.tasks/completed/` and indexes regenerate.
 
-Tasks that introduce or change an architectural decision must have an Architecture Decision Record before implementation. ADRs live under `docs/adr/`; use `docs/adr/README.md` for the numbering, naming, and template rules.
+Tasks that introduce or change an architectural decision must have an Architecture Decision Record before implementation. ADRs live under `docs/adr/`; use `ahm context adr` for the numbering, naming, and template rules.
 
 - `type:feature` tasks require an ADR when they introduce or change user-visible behavior, persisted state, tool behavior, model-provider behavior, sandbox behavior, configuration shape, or another durable architectural contract.
 - ADRs are also required for security-sensitive changes, breaking changes, migrations, major runtime dependencies, cross-platform behavior changes, and substantial changes in `area:sandbox`, `area:session`, `area:model`, `area:responses`, `area:chat`, `area:tools`, `area:prompts`, or `area:config`.

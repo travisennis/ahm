@@ -197,7 +197,8 @@ func TestInitSucceedsOutsideManagedRepository(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "created:", "  AGENTS.md")
+	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
+	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
 }
 
 func TestUpgradeSucceedsOutsideManagedRepository(t *testing.T) {
@@ -208,14 +209,15 @@ func TestUpgradeSucceedsOutsideManagedRepository(t *testing.T) {
 	if code != 0 {
 		t.Errorf("upgrade exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "created:", "  AGENTS.md")
+	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
+	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
 
 	// upgrade again: should skip unchanged files
 	stdout, stderr, code = runCLIFromDir(t, root, "upgrade")
 	if code != 0 {
 		t.Errorf("second upgrade exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "skipped:")
+	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
 }
 
 func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
@@ -226,7 +228,7 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	if code != 0 {
 		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "created:")
+	assertContainsAll(t, stdout, "metadata:", "indexes:")
 
 	// status now succeeds because .agents/ahm.json exists
 	stdout, stderr, code = runCLIFromDir(t, root, "status")

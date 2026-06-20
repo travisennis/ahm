@@ -34,8 +34,9 @@ directory.
 
 `init`, `upgrade`, and `agents suggestions` are lenient: they can run in any
 directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
-refreshes it, and `agents suggestions` only prints advisory text. All other
-commands require a managed repository (`.git` or `.agents/ahm.json`).
+refreshes it, and `agents suggestions` only prints advisory text. `context` and
+all other state-aware commands require a managed repository (`.git` or
+`.agents/ahm.json`).
 
 ## Global Flags
 
@@ -48,7 +49,7 @@ Global flags must appear before the command.
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
-| `--force` | Forces supported overwrites during `init` and `upgrade`, and overrides strict acceptance checks during `task complete`. It never forces overwriting an existing `AGENTS.md`. |
+| `--force` | Forces supported removals during `upgrade`, and overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
 
@@ -132,4 +133,3 @@ mode:
 - Task status transitions print `<id> -> <status>`; if the task already has the target status, prints `<id> already <status>` instead and skips writing.
 - Dependency updates print `<id> depends_on: <dependencies>`; if the dependency is already present (add) or absent (remove), prints `<id> already depends on <dep>` or `<id> does not depend on <dep>` instead and skips writing.
 - Dependency tree and cycle commands print tree/path text.
-

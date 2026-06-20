@@ -19,10 +19,10 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"# Suggested AGENTS.md Additions",
-		"## AHM Workflow Routing",
+		"## ahm Workflow Routing",
 		"### Tasks",
 		"When asked to create, choose, update, or work on a task",
-		"## AHM-Owned Files",
+		"## ahm-Owned Files",
 		"Do not edit generated task, research, ExecPlan, or ADR indexes by hand",
 		"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for",
 	)
@@ -43,14 +43,14 @@ func TestAgentsSuggestionsOmitsPresentBlocksUnlessAll(t *testing.T) {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "No missing suggestions detected.")
-	assertNotContains(t, stdout, "## AHM Workflow Routing")
+	assertNotContains(t, stdout, "## ahm Workflow Routing")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "agents", "suggestions", "--all")
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"## AHM Workflow Routing",
+		"## ahm Workflow Routing",
 		"_Already appears present in AGENTS.md._",
 	)
 }
@@ -69,6 +69,6 @@ func TestAgentsSuggestionsJSONIncludesPresence(t *testing.T) {
 		`"id": "ahm-workflow-routing"`,
 		`"present": true`,
 		`"id": "ahm-owned-files"`,
-		`"title": "AHM-Owned Files"`,
+		`"title": "ahm-Owned Files"`,
 	)
 }

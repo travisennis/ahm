@@ -2,9 +2,9 @@
 
 ## Goals
 
-`ahm` manages repo-local agent workflow files. A user can initialize a
-repository, create and advance tasks, regenerate indexes, and upgrade workflow
-docs when `ahm` ships newer templates.
+`ahm` manages repo-local agent workflow state. A user can initialize a
+repository, create and advance tasks, regenerate indexes, inspect session
+context, and upgrade workflow state when `ahm` ships newer templates.
 
 ## Non-goals For v1
 
@@ -38,11 +38,14 @@ Global flags:
 
 Commands:
 
-- `init`: install the managed `.agents` workflow.
-- `upgrade`: update managed workflow files from embedded templates.
+- `context`: print canonical agent instructions plus live repository context.
+- `init`: install the managed `.agents` workflow state.
+- `upgrade`: update managed workflow state for the embedded template version.
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
+- `agents`: print advisory `AGENTS.md` snippets.
+- `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
 
 The complete command and flag reference is maintained in
@@ -61,9 +64,9 @@ Exit codes:
 Workflow state is repo-local under `.agents/`.
 
 `ahm` writes `.agents/ahm.json` with the installed template version, managed
-file hashes, and repository-scoped workflow settings. This metadata lets future
-versions update files that have not been locally changed while preserving user
-edits.
+file hashes for any legacy managed templates, and repository-scoped workflow
+settings. This metadata lets future versions remove or migrate files that have
+not been locally changed while preserving user edits.
 
 Example:
 
@@ -73,7 +76,7 @@ Example:
   "strict_acceptance": true,
   "default_work_agent": "codex",
   "files": {
-    ".agents/TASKS.md": "..."
+    ".agents/skills/preflight/SKILL.md": "..."
   }
 }
 ```
@@ -115,8 +118,8 @@ workflow state.
 ## File Ownership Boundary
 
 `ahm` owns the workflow files it installs, maintains, generates, and upgrades.
-Consumer projects must not hand-edit ahm-owned files as a substitute for using
-`ahm` commands or updating upstream templates.
+Consumer projects must not hand-edit ahm-owned generated files as a substitute
+for using `ahm` commands.
 
 The ownership categories are:
 
@@ -125,24 +128,30 @@ The ownership categories are:
    `.agents/exec-plans/completed/index.md`, `docs/adr/index.md`) — owned by
    `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
-2. **Managed template files** (`.agents/TASKS.md`, `.agents/RESEARCH.md`,
-   `.agents/PLANS.md`, `.agents/DOCS.md`, `.agents/skills/*/SKILL.md`,
-   `docs/adr/README.md`) — owned by `ahm`. Install and upgrade via `ahm init`
-   and `ahm upgrade`. Do not customize locally to change ahm-provided process
-   guidance; update the canonical templates in the `ahm` repository instead.
+2. **Canonical workflow instructions** — owned by the `ahm` binary and exposed
+   through `ahm context`. Fresh `ahm init` does not copy instruction templates
+   such as `.agents/TASKS.md`, `.agents/DOCS.md`, or `docs/adr/README.md` into
+   consumer repositories. Scoped commands such as `ahm context task` expose the
+   full embedded instruction document for that workflow. `ahm upgrade` removes
+   previously managed copies when metadata proves ownership; locally modified
+   copies are preserved as conflicts unless `--force` is used.
 
-3. **Workflow source records** (task files in `.agents/.tasks/`, research
+3. **Managed skill templates** (`.agents/skills/*/SKILL.md`) — owned by `ahm`.
+   Fresh `ahm init` installs them and `ahm upgrade` updates them from embedded
+   templates when their recorded hashes still match, or when `--force` is used.
+   Locally modified skills are preserved as conflicts unless `--force` is used.
+
+4. **Workflow source records** (task files in `.agents/.tasks/`, research
    notes in `.agents/.research/`, ExecPlans in `.agents/exec-plans/`, ADRs
    under `docs/adr/`) — project-owned. Update through their documented
    workflows (e.g., `ahm task create`, `ahm task complete <id>`,
    `ahm adr create`, ADR lifecycle commands, or manual edits to source
    markdown files).
 
-4. **`AGENTS.md`** — project-owned after creation. `ahm init` may create a
-   starter `AGENTS.md` when it is missing, but `ahm` never overwrites an
-   existing `AGENTS.md` or treats it as a locally modified managed file.
-   `ahm agents suggestions` prints advisory snippets for project-owned
-   `AGENTS.md` but does not modify the file.
+5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
+   never create, overwrite, or remove `AGENTS.md`. `ahm agents suggestions`
+   prints advisory snippets for project-owned `AGENTS.md` but does not modify
+   the file.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,
@@ -326,9 +335,6 @@ state that self-heals on the next successful `ahm index` run. The individual
 write of each file is still atomic (see Atomic Write Guarantee above); only
 the batch as a whole has no rollback or transaction semantics.
 
-The embedded templates are full workflow documents derived from
-`agent-workflow-scaffold`, not short summaries. Important managed docs include
-`.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
-`.agents/DOCS.md`,
-`.agents/skills/preflight/SKILL.md`,
-`.agents/skills/grooming-backlog/SKILL.md`, and `docs/adr/README.md`.
+Canonical workflow instructions are exposed by `ahm context` instead of copied
+into target repositories. `ahm context` text output is agent-readable Markdown;
+`--json` and `--plain` expose structured sections for integrations.

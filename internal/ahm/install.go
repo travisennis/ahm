@@ -29,6 +29,27 @@ type obsoleteManagedFile struct {
 
 var obsoleteManagedFiles = []obsoleteManagedFile{
 	{
+		Target: ".agents/TASKS.md",
+	},
+	{
+		Target: ".agents/PLANS.md",
+	},
+	{
+		Target: ".agents/RESEARCH.md",
+	},
+	{
+		Target: ".agents/DOCS.md",
+	},
+	{
+		Target: ".agents/.tasks/README.md",
+	},
+	{
+		Target: ".agents/.research/README.md",
+	},
+	{
+		Target: "docs/adr/README.md",
+	},
+	{
 		Target:    ".agents/skills/deslop/SKILL.md",
 		EmptyDirs: []string{".agents/skills/deslop"},
 	},
@@ -133,14 +154,13 @@ func (a *app) install(upgrade bool) error {
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
-	if a.opts.dryRun {
-		result["metadata"] = []string{".agents/ahm.json"}
-		indexes, err := a.indexWriteTargets()
-		if err != nil {
-			return err
-		}
-		result["indexes"] = indexes
-	} else {
+	result["metadata"] = []string{".agents/ahm.json"}
+	indexes, err := a.indexWriteTargets()
+	if err != nil {
+		return err
+	}
+	result["indexes"] = indexes
+	if !a.opts.dryRun {
 		meta.Version = templates.Version
 		if err := writeMetadata(root, meta); err != nil {
 			return err
@@ -169,7 +189,7 @@ func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result ma
 			return err
 		}
 
-		if meta.Files[item.Target] == "" || meta.Files[item.Target] != hashBytes(existing) {
+		if !a.opts.force && (meta.Files[item.Target] == "" || meta.Files[item.Target] != hashBytes(existing)) {
 			result["conflicts"] = append(result["conflicts"], item.Target)
 			continue
 		}

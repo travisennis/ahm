@@ -1,6 +1,6 @@
 # Research Workflow
 
-This document explains how research artifacts are handled in this repository. When you are asked to create, update, organize, or use research, read this file first, then use `.agents/.research/index.md` as the map and open the relevant files under `.agents/.research/`.
+This output explains how research artifacts are handled in this repository. When you are asked to create, update, organize, or use research, run `ahm context research` first, then use `.agents/.research/index.md` as the map and open the relevant files under `.agents/.research/`.
 
 ## Research Storage
 

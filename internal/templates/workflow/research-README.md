@@ -1,6 +1,6 @@
 # Research Artifacts
 
-This directory stores research artifacts for this project. For the full workflow, read `.agents/RESEARCH.md`.
+This directory stores research artifacts for this project. For the full workflow, run `ahm context research`.
 
 ## Directory Layout
 

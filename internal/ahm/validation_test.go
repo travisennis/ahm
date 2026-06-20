@@ -52,12 +52,6 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(filepath.Join(root, "AGENTS.md")); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, ".agents", "TASKS.md"), []byte("locally changed\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Pending", "depends_on: 999\n")
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle A", "Pending", "depends_on: 003\n")
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle B", "Pending", "depends_on: 002\n")
@@ -71,8 +65,6 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		`"ok": false`,
-		`"code": "managed_file_modified"`,
-		`"path": ".agents/TASKS.md"`,
 		`"code": "task_dependency_missing"`,
 		`task 001 depends on missing task 999`,
 		`"code": "task_dependency_cycle"`,
@@ -591,22 +583,20 @@ func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 	}
 	// Add a broken link that would trigger markdown_link_missing.
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
-	// Add a workflow issue: remove a non-create-only managed file.
-	if err := os.Remove(filepath.Join(root, ".agents", "TASKS.md")); err != nil {
-		t.Fatal(err)
-	}
+	// Add a workflow issue.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only workflow checks.
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeWorkflow})
-	// Should find managed_file_missing (workflow check) but NOT markdown_link_missing.
-	foundManagedMissing := false
+	// Should find task_malformed (workflow check) but NOT markdown_link_missing.
+	foundTaskMalformed := false
 	for _, e := range report.Errors {
-		if e.Code == "managed_file_missing" {
-			foundManagedMissing = true
+		if e.Code == "task_malformed" {
+			foundTaskMalformed = true
 		}
 	}
-	if !foundManagedMissing {
-		t.Error("expected managed_file_missing in workflow-only scope")
+	if !foundTaskMalformed {
+		t.Error("expected task_malformed in workflow-only scope")
 	}
 	for _, e := range report.Errors {
 		if e.Code == "markdown_link_missing" {
@@ -624,10 +614,8 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	}
 	// Add a broken link.
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
-	// Create a workflow issue: remove a non-create-only managed file.
-	if err := os.Remove(filepath.Join(root, ".agents", "TASKS.md")); err != nil {
-		t.Fatal(err)
-	}
+	// Create a workflow issue.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only link checks.
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeLinks})
@@ -642,10 +630,10 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	if !foundLinkMissing {
 		t.Error("expected markdown_link_missing in links-only scope")
 	}
-	// Should NOT find managed_file_missing (workflow check).
+	// Should NOT find task_malformed (workflow check).
 	for _, e := range report.Errors {
-		if e.Code == "managed_file_missing" {
-			t.Error("unexpected managed_file_missing in links-only scope")
+		if e.Code == "task_malformed" {
+			t.Error("unexpected task_malformed in links-only scope")
 		}
 	}
 	// No workflow errors since we only ran link checks.
@@ -662,8 +650,8 @@ func TestValidateWorkflowScopedProjectDocsNoDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A fresh install has only docs/adr/README.md (no broken links) and no
-	// other project docs; the project-docs scope should produce no findings.
+	// A fresh install has no project docs; the project-docs scope should
+	// produce no findings.
 	report, tasks := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 	if !report.OK {
 		t.Error("expected OK for project-docs scope, got errors")

@@ -146,6 +146,7 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", func() error {
 		return a.install(true)
 	}))
+	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show workflow health",
@@ -187,6 +188,40 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.taskCommand())
 	return root
+}
+
+func (a *app) contextCommand() *cobra.Command {
+	validScopes := map[string]bool{
+		"":         true,
+		"task":     true,
+		"adr":      true,
+		"research": true,
+		"plan":     true,
+		"docs":     true,
+	}
+	return &cobra.Command{
+		Use:   "context [task|adr|research|plan|docs]",
+		Short: "Show agent session context",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))
+			}
+			if len(args) == 1 && !validScopes[args[0]] {
+				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)", args[0]))
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			scope := ""
+			if len(args) == 1 {
+				scope = args[0]
+			}
+			return a.context(scope)
+		},
+	}
 }
 
 func (a *app) agentsCommand() *cobra.Command {

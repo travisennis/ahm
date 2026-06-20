@@ -32,10 +32,15 @@ explicitly a breaking CLI change.
 
 ### Workflow State, File Formats, And Upgrades
 Use this workflow for `.agents/ahm.json`, workflow formats, generated indexes,
-install/upgrade/status/doctor behavior, and embedded templates. Consult
+install/upgrade/context/status/doctor behavior, and embedded templates. Consult
 `docs/guardrails/workflow-state-and-file-formats.md`,
 `docs/references/workflow-spec.md`, `docs/guides/workflow-upgrades.md`, and
 `ARCHITECTURE.md`. Do not edit generated indexes by hand.
+For `ahm context`, the default command is a session briefing; scoped commands
+such as `ahm context task`, `ahm context adr`, `ahm context research`,
+`ahm context plan`, and `ahm context docs` should expose the full scoped
+instruction content, not the same briefing with a different label. Do not
+remove or stop installing agent skills unless that is explicitly in scope.
 
 ### External Agent Orchestration
 Use this workflow for `ahm task work`, agent definitions, arg builders,
@@ -73,12 +78,12 @@ These overlays do not replace the specific workflow routes above. Use them first
 to identify or manage the work item, then re-classify the concrete task and load
 the relevant routed workflow docs before editing.
 
-When asked to create, choose, update, or work on a task, read `.agents/TASKS.md`,
+When asked to create, choose, update, or work on a task, run `ahm context task`,
 inspect the task with `ahm task ...`, open the task file, then return to
 Workflow Routing and choose the specific route or routes required by the task
 content. When a task, workflow doc, or user request calls for an ExecPlan, read
-`.agents/PLANS.md`. When one calls for an ADR, read [docs/adr/README.md](docs/adr/README.md).
-When asked to create, update, organize, or use research, read `.agents/RESEARCH.md`,
+`ahm context plan`. When one calls for an ADR, run `ahm context adr`.
+When asked to create, update, organize, or use research, run `ahm context research`,
 then use `.agents/.research/index.md` as the map.
 
 ## Repository Rules
