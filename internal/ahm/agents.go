@@ -88,14 +88,3 @@ func (a *app) collectAgentSuggestions() (agentsSuggestionsReport, error) {
 	}
 	return report, nil
 }
-
-func relPath(root string, path string) string {
-	if root == "" || !filepath.IsAbs(path) {
-		return filepath.ToSlash(path)
-	}
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return filepath.ToSlash(path)
-	}
-	return filepath.ToSlash(rel)
-}
