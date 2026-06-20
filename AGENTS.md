@@ -12,14 +12,44 @@ orchestration, release/version semantics, and the guarantee that `ahm` does
 not implicitly patch source code or run git operations.
 
 ## Operating Loop
-1. Classify the request by the risk surface below before editing.
-2. Load only the routed docs needed for that request.
-3. Preserve compatibility surfaces unless the task explicitly changes them.
-4. Keep edits surgical and verify according to risk.
-5. Handoff with changes, exact checks, and remaining risk.
+1. Do work intake first:
+   - If the request is about a task, ExecPlan, ADR, or research note, use `ahm`
+     to understand that managed work item before choosing implementation docs.
+   - If the request is directly about code, CLI behavior, tests, docs, or repo
+     mechanics, skip `ahm` intake and classify the request directly.
+2. Classify the concrete work by the Workflow Routing section below.
+3. Load only the routed docs required for that concrete work.
+4. State the selected route and loaded docs before editing.
+5. Preserve compatibility surfaces unless the task explicitly changes them.
+6. Keep edits surgical and verify according to risk.
+7. Handoff with changes, exact checks, and remaining risk.
 
 When this file conflicts with a specialized workflow doc for that workflow,
 the specialized doc wins.
+
+## Managed Work Intake With `ahm`
+
+`ahm` is for understanding and managing higher-order workflow records. It is
+not the implementation route. Use it first when the user asks about a managed
+work item, then return to Workflow Routing and choose the route for the actual
+change.
+
+Use these entry points:
+
+- Tasks: run `ahm context task`, inspect the relevant task with `ahm task ...`,
+  and open the task file before editing.
+- ExecPlans: run `ahm context plan` when the request or task calls for an
+  ExecPlan.
+- ADRs: run `ahm context adr` when the request or task calls for an ADR.
+- Research: run `ahm context research` and use `.agents/.research/index.md` as
+  the map when asked to create, update, organize, or use research.
+- General session briefing: run `ahm context` only when asked for broad project
+  context or when no narrower managed-work context applies.
+
+After `ahm` intake, re-classify the discovered work under Workflow Routing.
+For example, a task about CLI flags still uses the CLI routing docs; a task
+about atomic writes still uses the Safety routing docs; a task about templates
+or workflow formats still uses the Workflow State routing docs.
 
 ## Workflow Routing
 
@@ -73,19 +103,6 @@ When deciding what build, test, lint, verification, or commit-prep commands to
 run, consult `CONTRIBUTING.md`. It is the canonical source for the command
 catalog, verification expectations, and project-specific command pitfalls.
 
-### Workflow Overlays
-These overlays do not replace the specific workflow routes above. Use them first
-to identify or manage the work item, then re-classify the concrete task and load
-the relevant routed workflow docs before editing.
-
-When asked to create, choose, update, or work on a task, run `ahm context task`,
-inspect the task with `ahm task ...`, open the task file, then return to
-Workflow Routing and choose the specific route or routes required by the task
-content. When a task, workflow doc, or user request calls for an ExecPlan, read
-`ahm context plan`. When one calls for an ADR, run `ahm context adr`.
-When asked to create, update, organize, or use research, run `ahm context research`,
-then use `.agents/.research/index.md` as the map.
-
 ## Repository Rules
 - Do not commit or push unless explicitly asked.
 - Assume uncommitted changes may belong to the user.
@@ -97,6 +114,7 @@ then use `.agents/.research/index.md` as the map.
   `--force` must not overwrite an existing project `AGENTS.md`.
 
 ## Handoff
-End with what changed, exact checks run, remaining risks or skipped checks, and
-actionable next steps. For commits, include the commit hash, whether the
-worktree is clean, and any leftover modified, deleted, or untracked files.
+End with the selected workflow route, routed docs loaded, what changed, exact
+checks run, remaining risks or skipped checks, and actionable next steps. For
+commits, include the commit hash, whether the worktree is clean, and any
+leftover modified, deleted, or untracked files.

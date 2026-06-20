@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.4.0"
+const Version = "0.4.1"
 
 // FS contains the embedded workflow template files.
 //
@@ -43,17 +43,21 @@ var agentSuggestions = []AgentSuggestion{
 	{
 		ID:    "ahm-workflow-routing",
 		Title: "ahm Workflow Routing",
-		Body: "Run `ahm context` for the current repository briefing before starting work.\n" +
-			"Use `ahm --json context` when a structured response is more useful than\n" +
-			"agent-readable Markdown.\n" +
+		Body: "`ahm` is for understanding and managing higher-order workflow records. It is\n" +
+			"not the implementation route. Use it first when the request is about a managed\n" +
+			"task, ExecPlan, ADR, or research note, then return to this AGENTS.md and choose\n" +
+			"the route for the actual code, docs, CLI, safety, or release change.\n" +
 			"\n" +
 			"When asked to create, choose, update, or work on a task, run `ahm context task`,\n" +
-			"then inspect task state with `ahm task` commands before acting. When work\n" +
-			"calls for an ExecPlan, run `ahm context plan`. When it calls for an ADR, run\n" +
-			"`ahm context adr` and use `ahm adr` commands for lifecycle management. When\n" +
-			"asked to create, update, organize, or use research, run `ahm context research`,\n" +
-			"then use `.agents/.research/index.md` as the map. Before auditing or updating\n" +
-			"documentation, run `ahm context docs`.",
+			"inspect the relevant task with `ahm task ...`, and open the task file before\n" +
+			"editing. When work calls for an ExecPlan, run `ahm context plan`. When it calls\n" +
+			"for an ADR, run `ahm context adr` and use `ahm adr` commands for lifecycle\n" +
+			"management. When asked to create, update, organize, or use research, run\n" +
+			"`ahm context research` and use `.agents/.research/index.md` as the map.\n" +
+			"\n" +
+			"After `ahm` intake, re-classify the discovered work under the project's normal\n" +
+			"workflow routing and load those routed docs before editing. State the selected\n" +
+			"route and loaded docs in handoff so skipped routing is visible.",
 	},
 	{
 		ID:    "ahm-owned-files",

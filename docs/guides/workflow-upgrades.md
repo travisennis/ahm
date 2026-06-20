@@ -40,6 +40,25 @@ instruction files should be removed even though they no longer match their
 recorded managed hash, or when local edits to managed skill templates should
 be replaced.
 
+## Managed Work Intake Suggestions (2026-06-20)
+
+`internal/templates.Version` advanced from `0.4.0` to `0.4.1`.
+
+The `ahm-workflow-routing` advisory block printed by
+`ahm agents suggestions` now frames `ahm` as managed-work intake for tasks,
+ExecPlans, ADRs, and research rather than as a broad default first step for
+every session. The suggestion tells agents to use scoped `ahm context`
+commands for higher-order workflow records, then return to the project
+`AGENTS.md` workflow routing and load the routed docs for the actual code,
+docs, CLI, safety, or release change.
+
+### Impact
+
+- `ahm agents suggestions` output changes for the `ahm-workflow-routing`
+  advisory block.
+- `ahm upgrade` records template version `0.4.1` in `.agents/ahm.json`.
+- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
+
 ## Context-Based Agent Instructions (2026-06-19)
 
 `internal/templates.Version` advanced from `0.3.1` to `0.4.0`.

@@ -230,9 +230,10 @@ ahm --json adr migrate --dry-run
 
 Prints advisory agent instructions that a project may consider adding to an
 existing project-owned `AGENTS.md`. The suggestions are intentionally limited
-to ahm-owned workflow routing and ownership boundaries: when to run `ahm
-context`, how to treat generated indexes, and which task or ADR state moves
-should use `ahm` commands.
+to ahm-owned workflow intake and ownership boundaries: when to use scoped
+`ahm context` commands for managed tasks, ExecPlans, ADRs, or research before
+returning to the project's normal workflow routing; how to treat generated
+indexes; and which task or ADR state moves should use `ahm` commands.
 
 This command never writes `AGENTS.md`. It exists for repositories where
 `AGENTS.md` already exists or where a maintainer wants a small bridge to
