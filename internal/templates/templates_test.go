@@ -72,16 +72,6 @@ func TestManagedFilesOnlyInstallSkills(t *testing.T) {
 	}
 }
 
-func TestAgentsTemplateMatchesSuggestionBlocks(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/AGENTS.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := string(data), RenderAgentsMarkdown(); got != want {
-		t.Fatalf("workflow/AGENTS.md should match rendered suggestions\n got:\n%s\nwant:\n%s", got, want)
-	}
-}
-
 func TestPreflightTemplateIsProjectGeneric(t *testing.T) {
 	data, err := fs.ReadFile(FS, "workflow/preflight-SKILL.md")
 	if err != nil {

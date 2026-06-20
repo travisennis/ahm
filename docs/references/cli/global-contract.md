@@ -122,8 +122,8 @@ Install and upgrade operations always print grouped text sections such as
 Some task commands use command-specific text output regardless of the output
 mode:
 
-- `agents suggestions` prints advisory Markdown snippets unless `--json` is
-  used.
+- `agents suggestions` prints advisory agent instructions as Markdown unless
+  `--json` is used.
 - `adr create` prints the created ADR ID.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.

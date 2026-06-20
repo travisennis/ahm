@@ -228,16 +228,16 @@ ahm --json adr migrate --dry-run
 
 ### `agents suggestions`
 
-Prints advisory snippets that a project may consider adding to an existing
-project-owned `AGENTS.md`. The suggestions are intentionally limited to
-ahm-owned workflow routing and ownership boundaries: when to run `ahm context`,
-how to treat generated indexes, and which task or ADR state moves should use
-`ahm` commands.
+Prints advisory agent instructions that a project may consider adding to an
+existing project-owned `AGENTS.md`. The suggestions are intentionally limited
+to ahm-owned workflow routing and ownership boundaries: when to run `ahm
+context`, how to treat generated indexes, and which task or ADR state moves
+should use `ahm` commands.
 
 This command never writes `AGENTS.md`. It exists for repositories where
 `AGENTS.md` already exists or where a maintainer wants a small bridge to
 `ahm context`. The intended workflow is for an agent or maintainer to run the
-command, review the suggestions, and adapt any useful snippets into the
+command, review the suggestions, and adapt any useful instructions into the
 existing instructions.
 
 By default, the command reads `AGENTS.md` under the target root when present and

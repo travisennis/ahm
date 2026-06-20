@@ -43,51 +43,26 @@ var agentSuggestions = []AgentSuggestion{
 	{
 		ID:    "ahm-workflow-routing",
 		Title: "ahm Workflow Routing",
-		Body: "Start by running `ahm context` for the current repository briefing.\n" +
+		Body: "Run `ahm context` for the current repository briefing before starting work.\n" +
 			"Use `ahm --json context` when a structured response is more useful than\n" +
 			"agent-readable Markdown.\n" +
 			"\n" +
-			"### Tasks\n" +
-			"\n" +
-			"When asked to create, choose, update, or work on a task, run\n" +
-			"`ahm context task`, then use `ahm task next`, `ahm task ready`,\n" +
-			"`ahm task list`, `ahm task blocked`, or `ahm task show <id>` to inspect\n" +
-			"task state before acting. Do not edit generated task indexes by hand; use\n" +
-			"`ahm` commands or regenerate with `ahm index` when source metadata changes.\n" +
-			"\n" +
-			"### Research\n" +
-			"\n" +
-			"When asked to create, update, organize, or use research, run\n" +
-			"`ahm context research`, then use `.agents/.research/index.md` as the map.\n" +
-			"\n" +
-			"### ExecPlans\n" +
-			"\n" +
-			"Run `ahm context plan` before L/XL work and significant refactors or workflow\n" +
-			"semantics changes that need an ExecPlan.\n" +
-			"\n" +
-			"### Architecture Decision Records\n" +
-			"\n" +
-			"When creating, updating, or managing ADRs, use `ahm context adr` for\n" +
-			"the format and workflow rules, then use `ahm adr create`, `ahm adr accept`,\n" +
-			"`ahm adr reject`, `ahm adr deprecate`, and `ahm adr supersede` for\n" +
-			"ADR lifecycle management.\n" +
-			"\n" +
-			"### Documentation\n" +
-			"\n" +
-			"Before auditing or updating documentation, run `ahm context docs`.",
+			"When asked to create, choose, update, or work on a task, run `ahm context task`,\n" +
+			"then inspect task state with `ahm task` commands before acting. When work\n" +
+			"calls for an ExecPlan, run `ahm context plan`. When it calls for an ADR, run\n" +
+			"`ahm context adr` and use `ahm adr` commands for lifecycle management. When\n" +
+			"asked to create, update, organize, or use research, run `ahm context research`,\n" +
+			"then use `.agents/.research/index.md` as the map. Before auditing or updating\n" +
+			"documentation, run `ahm context docs`.",
 	},
 	{
 		ID:    "ahm-owned-files",
 		Title: "ahm-Owned Files",
-		Body: "Do not edit generated task, research, ExecPlan, or ADR indexes by hand. Update\n" +
-			"the source records and run the appropriate `ahm` command.\n" +
-			"\n" +
-			"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for\n" +
-			"task state moves. Use `ahm adr` commands for ADR lifecycle changes.\n" +
-			"\n" +
-			"Treat `ahm context` output as the canonical workflow guidance. Do not\n" +
-			"recreate removed workflow guide files; those instructions now come from the\n" +
-			"`ahm` binary.",
+		Body: "Never hand-edit generated task, research, ExecPlan, or ADR indexes. Update the\n" +
+			"source records and run the appropriate `ahm` command. Use `ahm task` commands\n" +
+			"for task state moves and `ahm adr` commands for ADR lifecycle changes. Treat\n" +
+			"`ahm context` output as the canonical workflow guidance — do not recreate\n" +
+			"removed workflow guide files; those instructions now come from the `ahm` binary.",
 	},
 }
 
@@ -96,7 +71,8 @@ func AgentSuggestions() []AgentSuggestion {
 	return agentSuggestions
 }
 
-// RenderAgentsMarkdown renders advisory AGENTS.md content from suggestions.
+// RenderAgentsMarkdown renders all suggestion blocks as a single AGENTS.md
+// string. Used by tests to build fixtures where every block is present.
 func RenderAgentsMarkdown() string {
 	blocks := []string{"# Agent Instructions"}
 	for _, suggestion := range AgentSuggestions() {

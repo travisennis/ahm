@@ -81,15 +81,9 @@ func (a *app) install(upgrade bool) error {
 		return err
 	}
 	for _, item := range templates.Files() {
-		var content []byte
-		if item.Target == "AGENTS.md" {
-			content = []byte(templates.RenderAgentsMarkdown())
-		} else {
-			var err error
-			content, err = fs.ReadFile(templates.FS, item.Source)
-			if err != nil {
-				return err
-			}
+		content, err := fs.ReadFile(templates.FS, item.Source)
+		if err != nil {
+			return err
 		}
 		target := filepath.Join(root, item.Target)
 		hash := hashBytes(content)

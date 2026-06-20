@@ -150,7 +150,7 @@ The ownership categories are:
 
 5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
    never create, overwrite, or remove `AGENTS.md`. `ahm agents suggestions`
-   prints advisory snippets for project-owned `AGENTS.md` but does not modify
+   prints advisory agent instructions for project-owned `AGENTS.md` but does not modify
    the file.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale

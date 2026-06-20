@@ -20,14 +20,15 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	assertContainsAll(t, stdout,
 		"# Suggested AGENTS.md Additions",
 		"## ahm Workflow Routing",
-		"### Tasks",
 		"When asked to create, choose, update, or work on a task",
+		"inspect task state with `ahm task` commands",
 		"## ahm-Owned Files",
-		"Do not edit generated task, research, ExecPlan, or ADR indexes by hand",
-		"Use `ahm task complete <id>` and `ahm task cancel <id> --reason <text>` for",
+		"Never hand-edit generated task, research, ExecPlan, or ADR indexes",
+		"Use `ahm task` commands",
 	)
 	assertNotContains(t, stdout, "Do not commit or push unless explicitly asked.")
 	assertNotContains(t, stdout, "## Operating Loop")
+	assertNotContains(t, stdout, "### Tasks")
 	assertFileContainsAll(t, agentsPath, "Keep this.")
 	if got := mustRead(t, agentsPath); got != original {
 		t.Errorf("AGENTS.md was modified:\n%s", got)
