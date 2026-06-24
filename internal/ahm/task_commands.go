@@ -112,9 +112,8 @@ func (a *app) taskCommand() *cobra.Command {
 		},
 	}
 	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, claude, codex, or cursor")
-	work.Flags().BoolVar(&workArgs.review, "review", false, "Run review orchestration after work session")
-	work.Flags().BoolVar(&workArgs.complete, "complete", false, "Run completion handoff after work session")
-	work.Flags().BoolVar(&workArgs.commit, "commit", false, "Run commit handoff after work session")
+	work.Flags().BoolVar(&workArgs.noReview, "no-review", false, "Skip review orchestration (review runs by default)")
+	work.Flags().BoolVar(&workArgs.noCommit, "no-commit", false, "Skip commit handoff (commit runs by default)")
 	task.AddCommand(work)
 
 	for _, spec := range []struct {

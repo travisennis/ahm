@@ -404,7 +404,7 @@ current invocation. This enables follow-up review, revision, and commit steps
 within the same workflow run.
 
 Agents marked **Full orchestration** for Review support independent review
-invocation. When `--review` is passed, `ahm` runs the repository-owned preflight
+invocation. Review runs by default after the work session. `ahm` runs the repository-owned preflight
 review workflow (`.agents/skills/preflight/SKILL.md`) against the current
 uncommitted changes, using each agent's normal execution path:
 
@@ -416,18 +416,14 @@ uncommitted changes, using each agent's normal execution path:
 - `claude`: `claude -p --verbose --output-format stream-json`
   with the preflight prompt
 
-This means `--review` has consistent semantics across all agents: it runs the
+This means review has consistent semantics across all agents: it runs the
 preflight review workflow. If the review produces actionable feedback, `ahm`
 resumes the original work session with the feedback and asks the agent to
 address each issue. If the review produces no feedback, the feedback-resume
 step is skipped. If the review command itself fails, the failure is surfaced
 and the command exits with a non-zero code.
 
-When `--review` is not set, no review orchestration runs even for
-review-capable agents. Non-session-capable agents do not support review,
-because they lack the session capture needed for the feedback-resume step.
-Passing `--review` with a non-review-capable agent prints a warning and
-proceeds without the review step.
+When `--no-review` is passed, no review orchestration runs.
 
 Codex is run with `--dangerously-bypass-approvals-and-sandbox` for
 non-interactive task work. This is intentionally broad: it avoids sandbox and
@@ -436,35 +432,16 @@ writes outside the repository cache, complete tasks, and perform the optional
 commit handoff. Only use Codex task work in repositories and working trees where
 that trust tradeoff is acceptable.
 
-Agents marked **Full orchestration** for Completion support session-based
-completion handoff. When `--complete` is passed, `ahm` resumes the original
-work session after the work (and after review, if `--review` is also set) and
-asks the delegated agent to fill the task Acceptance Notes, run the required
-verification, and mark the task completed with `ahm task complete <id>` when
-acceptance is satisfied.
-
-`ahm` does not silently complete tasks. The completion action is owned by the
-delegated agent. Strict acceptance failures remain surfaced by `ahm task complete`.
-`--complete` is an opt-in flag; without it, no completion handoff runs.
-Passing `--complete` with a non-session-capable agent prints a warning and
-proceeds without the completion step.
-
-When `--complete` is combined with `--review`, the review and feedback-resume
-step runs first, then the completion handoff runs.
-
 Agents marked **Full orchestration** for Commit support session-based commit
-handoff. When `--commit` is passed, `ahm` resumes the original work session
-after the work, after review feedback is addressed when `--review` is also set,
-and after completion handoff when `--complete` is also set. The commit prompt
+handoff. Commit runs by default after the work session (and after review
+feedback is addressed when review also runs). The commit prompt
 asks the delegated agent to commit the completed task work, make sure the task
 is marked completed before committing, and include both task files and project
 source files in a single commit.
 
 `ahm` does not run `git commit`, choose commit messages, push branches, or open
 pull requests. Commit-message convention is owned by the target project and its
-hooks. `--commit` is an opt-in flag; without it, no commit handoff runs.
-Passing `--commit` with a non-session-capable agent prints a warning and
-proceeds without the commit step.
+hooks. Pass `--no-commit` to skip the commit handoff.
 
 Agent selection precedence is:
 
@@ -476,22 +453,16 @@ The generated prompt includes the resolved task ID and instructs
 the delegated agent to run `ahm context task`, then run `ahm task show <id>`
 to inspect the task before making changes. `ahm` does
 not pass provider credentials, choose models, complete tasks, run git commands,
-push branches, or open pull requests. With `--review`, `--complete`, and `--commit`, `ahm`
-orchestrates follow-up prompts, but the review, completion, and commit actions
+push branches, or open pull requests. With review and commit enabled by default,
+`ahm` orchestrates follow-up prompts unless opted out with `--no-review` / `--no-commit`,
+but the review, completion, and commit actions
 are performed by the delegated agent.
 
 Useful flags:
 
 - `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
-- `--review`: runs the preflight review workflow (`.agents/skills/preflight/SKILL.md`)
-  against current uncommitted changes and feeds actionable feedback back into
-  the work session. Behaves consistently across all agents.
-- `--complete`: runs a completion handoff after the work session (and after
-  review, if `--review` is also set) that asks the delegated agent to fill
-  acceptance notes, run verification, and run `ahm task complete <id>`.
-- `--commit`: runs a commit handoff after the work session (and after review or
-  completion follow-ups when those flags are also set) that asks the delegated
-  agent to commit the completed task work. `ahm` does not run git itself.
+- `--no-review`: skip the preflight review workflow (review runs by default).
+- `--no-commit`: skip the commit handoff (commit runs by default).
 - `--dry-run`: previews the selected executable, arguments, task ID, agent, and
   requested orchestration flags without rewriting the task or invoking the
   external CLI.
@@ -509,12 +480,10 @@ Examples:
 ```bash
 ahm task work 001
 ahm task work 001 --agent codex
-ahm task work 001 --agent cursor --review --complete
-ahm task work 001 --agent claude --review --complete
-ahm task work 001 --review
-ahm task work 001 --complete
-ahm task work 001 --review --complete
-ahm task work 001 --review --commit
+ahm task work 001 --agent cursor --no-review
+ahm task work 001 --agent claude --no-commit
+ahm task work 001 --no-review
+ahm task work 001 --no-commit
 ahm --dry-run task work 001 --agent cursor
 ```
 

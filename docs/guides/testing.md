@@ -16,7 +16,7 @@ bf6c1ae (fixed in task 087) because no real agent run happened between
 implementation and use.
 
 All agents now use the repository-owned preflight review workflow for
-`--review`, so each affected agent must be smoke-tested after changes.
+review, so each affected agent must be smoke-tested after changes.
 
 Any change that touches the following must be smoke-tested against the real
 binaries before handoff:
@@ -24,13 +24,12 @@ binaries before handoff:
 - `taskWorkAgent` argument builders (`args`, `resumeArgs`, `reviewArgs`)
 - agent output parsers (`parseCakeSessionID`, `parseCakeReviewFeedback`,
   `parseCodexSessionID`, `parseCodexReviewFeedback`, and successors)
-- the orchestration flow (`taskWorkWithSession`, `runReview`,
-  `runCompletion`, `runCommit`)
+- the orchestration flow (`taskWorkWithSession`, `runReview`, `runCommit`)
 
 For each affected agent that is installed:
 
 1. Run the real agent end-to-end via `just smoke-agents` (preferred), or
-   manually via `ahm task work <id> --agent <name> --complete` in a scratch
+   manually via `ahm task work <id> --agent <name>` in a scratch
    ahm-managed repository.
 2. Verify stderr contains `session started:` and does not contain
    `no session ID returned by` or `could not capture session ID`.
@@ -51,7 +50,7 @@ just smoke-agents
 
 Runs `TestAgentSmoke` (`internal/ahm/task_work_smoke_test.go`) with
 `AHM_AGENT_SMOKE=1`. The test drives each installed session-capable agent
-through the real `ahm task work --complete` path in a throwaway repository
+through the real `ahm task work` path in a throwaway repository
 with a do-nothing task: one work session plus one resume per agent, which
 exercises session capture and `resumeArgs` against a real session ID. Agents
 not on PATH are skipped per-subtest, and without the environment variable the

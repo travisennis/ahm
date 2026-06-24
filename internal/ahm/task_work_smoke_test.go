@@ -43,9 +43,8 @@ func TestAgentSmoke(t *testing.T) {
 			t.Logf("%s version: %s", agent.executable, strings.TrimSpace(string(version)))
 
 			root := setupSmokeRepo(t)
-			// --complete resumes the captured session with the completion
-			// prompt, exercising resumeArgs against a real session ID.
-			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name, "--complete")
+			// Verifies session capture and agent args against a real session ID.
+			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name)
 			if code != 0 {
 				t.Errorf("task work exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 			}

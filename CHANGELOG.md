@@ -2,6 +2,22 @@
 
 All notable user-facing changes to `ahm` are recorded here.
 
+## v0.3.0 - 2026-06-24
+
+### Changed
+
+- *(cli)* Invert `ahm task work` defaults: review and commit now run by default.
+  Remove `--review` and `--commit` flags; add `--no-review` and `--no-commit`
+  opt-out flags. Remove unused agent capability warnings (`supportsSessions`,
+  `supportsReview`) and the unreachable non-session fallback path.
+
+## v0.2.0 - 2026-06-24
+
+### Changed
+
+- *(cli)* Remove `--complete` flag from `ahm task work`. Completion is already
+  part of the base work prompt; the separate `--complete` handoff is redundant.
+
 ## v0.1.0 - 2026-06-17
 
 ### Added

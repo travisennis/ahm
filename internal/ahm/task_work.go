@@ -29,9 +29,8 @@ var (
 type taskWorkArgs struct {
 	id       string
 	agent    string
-	review   bool
-	complete bool
-	commit   bool
+	noReview bool
+	noCommit bool
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
@@ -56,6 +55,8 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, agent.name, agent.executable)
 	}
 	args := agent.args(prompt)
+	review := !parsed.noReview
+	commit := !parsed.noCommit
 	if a.opts.dryRun {
 		preview := map[string]any{
 			"task":       task.ID,
@@ -64,13 +65,10 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			"args":       args,
 			"status":     taskWorkDryRunStatus(task.Status),
 		}
-		if parsed.complete {
-			preview["complete"] = true
-		}
-		if parsed.commit {
+		if commit {
 			preview["commit"] = true
 		}
-		if parsed.review {
+		if review {
 			preview["review"] = true
 		}
 		return a.emit(preview)
@@ -80,19 +78,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
-	if parsed.review && !agent.supportsReview {
-		a.addWarning("--review is not supported by agent %s; review will not run", agent.name)
-	}
-	if parsed.complete && !agent.supportsSessions {
-		a.addWarning("--complete is not supported by agent %s; completion handoff will not run", agent.name)
-	}
-	if parsed.commit && !agent.supportsSessions {
-		a.addWarning("--commit is not supported by agent %s; commit handoff will not run", agent.name)
-	}
-	if agent.supportsSessions {
-		return a.taskWorkWithSession(agent, executable, args, parsed.review, parsed.complete, parsed.commit, task.ID)
-	}
-	return taskWorkRunCommand(context.Background(), a.opts.root, executable, args, a.in, a.out, a.err)
+	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID)
 }
 
 func taskWorkDryRunStatus(status string) string {

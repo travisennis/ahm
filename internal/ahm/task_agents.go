@@ -13,10 +13,8 @@ type taskWorkAgent struct {
 	name                string
 	executable          string
 	args                func(string) []string
-	supportsSessions    bool
 	resumeArgs          func(string, string) []string // sessionID, prompt
 	parseSessionID      func([]byte) (string, error)
-	supportsReview      bool
 	reviewArgs          func(string) []string // prompt
 	parseReviewFeedback func([]byte) (string, error)
 }
@@ -49,10 +47,8 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			args: func(prompt string) []string {
 				return []string{"--output-format", "stream-json", prompt}
 			},
-			supportsSessions: true,
-			resumeArgs:       cakeResumeArgs,
-			parseSessionID:   parseCakeSessionID,
-			supportsReview:   true,
+			resumeArgs:     cakeResumeArgs,
+			parseSessionID: parseCakeSessionID,
 			reviewArgs: func(prompt string) []string {
 				return []string{"--no-session", "--skills", "preflight", "--output-format", "stream-json", prompt}
 			},
@@ -65,10 +61,8 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			args: func(prompt string) []string {
 				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
 			},
-			supportsSessions: true,
-			resumeArgs:       codexResumeArgs,
-			parseSessionID:   parseCodexSessionID,
-			supportsReview:   true,
+			resumeArgs:     codexResumeArgs,
+			parseSessionID: parseCodexSessionID,
 			reviewArgs: func(prompt string) []string {
 				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
 			},
@@ -81,10 +75,8 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			args: func(prompt string) []string {
 				return []string{"-p", "--output-format", "stream-json", "--trust", prompt}
 			},
-			supportsSessions: true,
-			resumeArgs:       cursorResumeArgs,
-			parseSessionID:   parseCursorSessionID,
-			supportsReview:   true,
+			resumeArgs:     cursorResumeArgs,
+			parseSessionID: parseCursorSessionID,
 			reviewArgs: func(prompt string) []string {
 				return []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust", prompt}
 			},
@@ -97,10 +89,8 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			args: func(prompt string) []string {
 				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
 			},
-			supportsSessions: true,
-			resumeArgs:       claudeResumeArgs,
-			parseSessionID:   parseClaudeSessionID,
-			supportsReview:   true,
+			resumeArgs:     claudeResumeArgs,
+			parseSessionID: parseClaudeSessionID,
 			reviewArgs: func(prompt string) []string {
 				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
 			},

@@ -1,8 +1,16 @@
 ---
-status: accepted
+status: superseded
+superseded_by: task 118
 date: 2026-06-12
 ---
 # Delegated Task Work Commit Handoff
+
+## Supersession Note
+
+Task 118 flipped commit to run by default, removing the `--commit` flag and
+adding `--no-commit` as an opt-out. The record below remains accurate about
+why an explicit delegated commit handoff exists and how it preserves the
+no-implicit-git boundary.
 
 ## Context
 
@@ -43,7 +51,7 @@ source files in a single commit. The prompt must not prescribe Conventional
 Commits or any other commit-message convention. Commit-message policy is owned
 by the target project.
 
-`--commit` does not require the user to also pass `--complete`. The base task
+`--commit` does not require the user to also pass `--review` or any other flag. The base task
 work prompt already instructs the agent to work the task through completion. The
 commit handoff reinforces that the task must be marked completed before the
 commit is made.
@@ -58,7 +66,7 @@ Pushes and pull-request creation remain out of scope for this feature.
 - Keeping the commit action delegated preserves the no-implicit-git boundary
   from ADR 006. The user must request `--commit`, and the external agent still
   performs any git command under its own configuration.
-- Not tying `--commit` to `--complete` avoids creating a confusing second
+- Not tying `--commit` to `--review` or another handoff avoids creating a confusing second
   completion model. Completion remains part of the task-work instructions and
   the commit prompt's precondition.
 - Leaving commit-message convention to the target project avoids encoding this
@@ -89,7 +97,7 @@ Pushes and pull-request creation remain out of scope for this feature.
 - **Have `ahm` run `git commit` directly**: Rejected because it would violate
   the established no-implicit-git boundary and force `ahm` to own staging,
   commit-message policy, hooks, and failure recovery.
-- **Require `--complete` with `--commit`**: Rejected because the normal work
+- **Require `--review` with `--commit`**: Rejected because the normal work
   prompt already tells the agent to complete the task, and the script's commit
   step handles completion as a precondition.
 - **Prescribe Conventional Commit messages**: Rejected because commit-message

@@ -11,9 +11,9 @@ import (
 // taskWorkWithSession runs a session-capable agent, captures its stdout,
 // parses the session ID from the response, and tees the full output to the
 // user's terminal. The session ID is kept in memory for the current
-// orchestration run and is available for later review, completion, and commit
+// orchestration run and is available for later review and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, complete bool, commit bool, taskID string) error {
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
@@ -38,14 +38,8 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 
 	fmt.Fprintf(a.err, "%s session started: %s\n", agent.name, truncatedID(sessionID, 8))
 
-	if review && agent.supportsReview {
+	if review {
 		if err := a.runReview(agent, executable, sessionID); err != nil {
-			return err
-		}
-	}
-
-	if complete {
-		if err := a.runCompletion(agent, executable, sessionID, taskID); err != nil {
 			return err
 		}
 	}
@@ -95,32 +89,6 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
 	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
 	return taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
-}
-
-// runCompletion resumes the agent session with a completion handoff prompt,
-// asking the delegated agent to fill acceptance notes, run verification, and
-// mark the task completed through ahm.
-func (a *app) runCompletion(agent taskWorkAgent, executable, sessionID, taskID string) error {
-	fmt.Fprintln(a.err, "--- Running completion handoff ---")
-	prompt := a.buildTaskWorkCompletionPrompt(taskID)
-	resumeArgs := agent.resumeArgs(sessionID, prompt)
-	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
-		return fmt.Errorf("completion handoff failed: %w", err)
-	}
-	return nil
-}
-
-// buildTaskWorkCompletionPrompt returns the prompt used to ask the delegated
-// agent to complete a task. The agent is expected to fill acceptance notes,
-// run verification, and run "ahm task complete <id>" when satisfied.
-func (a *app) buildTaskWorkCompletionPrompt(taskID string) string {
-	return fmt.Sprintf(`Complete task %s.
-
-Fill the task Acceptance Notes, run the required verification (such as "just ci"), and mark the task completed with ahm when acceptance is satisfied:
-
-  ahm task complete %s
-
-If verification fails, address the findings and retry. Do not commit or push unless the user explicitly asked for that.`, taskID, taskID)
 }
 
 // runCommit resumes the agent session with a commit handoff prompt. The

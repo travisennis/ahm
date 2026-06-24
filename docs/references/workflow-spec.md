@@ -12,8 +12,8 @@ context, and upgrade workflow state when `ahm` ships newer templates.
   delegation to a user-selected external coding-agent CLI.
 - No source-code patching.
 - No implicit git commits, pushes, PRs, or branch operations. `ahm task work
-  <id> --commit` may explicitly ask the delegated external agent to commit
-  completed work, but `ahm` does not run git operations itself.
+  <id>` may ask the delegated external agent to commit
+  completed work (commit runs by default), but `ahm` does not run git operations itself.
 - No database.
 
 ## CLI Contract

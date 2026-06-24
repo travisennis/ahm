@@ -6,10 +6,10 @@ date: 2026-06-06
 
 ## Supersession Note
 
-ADR 008 supersedes the commit-handoff portion of this decision. `ahm` still
-does not run git operations directly, but it may perform an explicit delegated
-commit handoff to a supported session-capable agent when the user passes
-`--commit`.
+ADR 008 supersedes the commit-handoff portion of this decision. Task 118
+subsequently flipped both review and commit to run by default, replacing
+`--review`/`--commit` opt-in flags with `--no-review`/`--no-commit` opt-out
+flags. `ahm` still does not run git operations directly.
 
 ## Context
 
@@ -65,7 +65,7 @@ non-interactive automation posture: it avoids sandbox and approval deadlocks
 while allowing Codex to edit files, run verification that writes outside the
 repository cache, complete tasks, and perform the optional commit handoff.
 
-With `--review`, `ahm` runs an independent review pass using the
+With `--review` (removed in task 118; review now runs by default), `ahm` runs an independent review pass using the
 repository-owned preflight review workflow through the selected delegated agent
 and feeds actionable feedback back into the original work session. Review
 orchestration is opt-in and requires a session-capable agent. `ahm` does not
