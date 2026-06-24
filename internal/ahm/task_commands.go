@@ -153,6 +153,7 @@ func (a *app) taskCommand() *cobra.Command {
 		task.AddCommand(cmd)
 	}
 
+	task.AddCommand(a.taskCommentCommand())
 	task.AddCommand(a.taskDepCommand())
 	return task
 }

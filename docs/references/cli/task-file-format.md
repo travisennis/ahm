@@ -35,6 +35,26 @@ an empty dependency list and comma-separated IDs for non-empty lists.
 Task rewrites preserve the parsed body after the top-level task heading. They
 rewrite front matter in `ahm`'s canonical order.
 
+## Task Body Sections
+
+### `## Comments`
+
+Comments may be appended to any task (active, completed, or cancelled) using
+`ahm task comment <id> <text>`. Each comment is a timestamped Markdown line
+under a `## Comments` heading in the task body:
+
+```markdown
+## Comments
+
+**2026-06-24T18:30:00Z** — Discovered the root cause.
+
+**2026-06-24T18:31:00Z** — _Author Name_: Follow-up observation.
+```
+
+The section is created if it does not exist. New comments are appended after
+existing ones. The comment command preserves all front matter, body sections,
+and unknown fields.
+
 ## Validation Findings
 
 `status` and `doctor` can emit validation findings in three tiers:

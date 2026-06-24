@@ -60,8 +60,8 @@ still assigns the next available ID, scanning both parsed tasks and task
 files on disk to avoid ID collisions.
 
 Task resolution commands (`task show`, `task work`, `task start`,
-`task complete`, `task cancel`, `task accept`, `task reopen`, `task dep add`,
-`task dep remove`) also
+`task complete`, `task cancel`, `task accept`, `task reopen`, `task comment`,
+`task dep add`, `task dep remove`) also
 skip malformed files during ID resolution. A malformed task cannot be
 resolved by ID and produces a `task not found` error.
 
@@ -529,6 +529,54 @@ Example:
 
 ```bash
 ahm task complete 001
+```
+
+### `task comment <id> <text>`
+
+Appends a lightweight timestamped comment to a task's `## Comments` section
+and regenerates indexes.
+
+Comments are stored in the task Markdown body and appear on all task outputs
+including `task show`. Each comment is timestamped with the current time in
+RFC 3339 format. Author metadata is omitted by default and included only when
+`--author` is provided.
+
+The command works on active, completed, and cancelled tasks. The task's
+`updated` timestamp is set to the comment time and generated indexes are
+regenerated to reflect the change.
+
+```markdown
+## Comments
+
+**2026-06-24T18:30:00Z** — Found the root cause.
+
+**2026-06-24T18:31:00Z** — _Author Name_: Follow-up observation.
+```
+
+All existing front matter, body sections, unknown fields, and other comments
+are preserved. The new comment is appended after existing comments in the
+section.
+
+If the task has no `## Comments` section yet, one is created at the end of
+ the body.
+
+Useful flags:
+
+- `--author <name>`: include an author name in the comment.
+- `--body-file <path>`: read comment text from a file, or `-` for stdin.
+  Mutually exclusive with positional text.
+- `--dry-run`: previews the comment metadata without writing.
+- `--json`: emits a structured comment record with `id`, `path`, `text`,
+  and optional `author`.
+
+Examples:
+
+```bash
+ahm task comment 116 "Found the root cause"
+ahm task comment 116 --author "Travis" "Need to revisit this"
+ahm task comment 116 --body-file -
+ahm --json task comment 001 "Observation"
+ahm --dry-run task comment 001 "Preview"
 ```
 
 ### `task cancel <id> --reason <text>`

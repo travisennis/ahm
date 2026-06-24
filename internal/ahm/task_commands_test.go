@@ -2950,3 +2950,163 @@ func TestTaskCompleteRespectsStrictAcceptanceWithValidMetadata(t *testing.T) {
 	}
 	assertContainsAll(t, stderr, "cannot complete task 001: acceptance notes are incomplete")
 }
+
+func TestFormatComment(t *testing.T) {
+	ts := "2026-06-24T12:00:00Z"
+
+	got := formatComment(ts, "", "Found the root cause")
+	want := "**2026-06-24T12:00:00Z** — Found the root cause"
+	if got != want {
+		t.Errorf("formatComment = %q, want %q", got, want)
+	}
+
+	got = formatComment(ts, "Travis", "Need to revisit")
+	want = "**2026-06-24T12:00:00Z** — _Travis_: Need to revisit"
+	if got != want {
+		t.Errorf("formatComment with author = %q, want %q", got, want)
+	}
+}
+
+func TestAppendComment(t *testing.T) {
+	ts := "**2026-06-24T12:00:00Z** — Test comment"
+
+	t.Run("creates section when missing", func(t *testing.T) {
+		body := "# My Task\n\n## Summary\n\nBody content.\n"
+		got := appendComment(body, ts)
+		assertContainsAll(t, got, "## Comments", ts, "## Summary", "Body content.")
+	})
+
+	t.Run("appends to existing section", func(t *testing.T) {
+		body := "# My Task\n\n## Comments\n\n**old** — first comment\n\n## Other\n"
+		got := appendComment(body, ts)
+		assertContainsAll(t, got, "## Comments", ts, "first comment", "## Other")
+		assertContainsAll(t, got, "first comment\n\n"+ts)
+	})
+
+	t.Run("handles empty section", func(t *testing.T) {
+		body := "# My Task\n\n## Comments\n\n## Other"
+		got := appendComment(body, ts)
+		assertContainsAll(t, got, "## Comments", ts, "## Other")
+	})
+
+	t.Run("appends to body-only task", func(t *testing.T) {
+		body := "# My Task\n\nJust some text.\n"
+		got := appendComment(body, ts)
+		assertContainsAll(t, got, "## Comments", ts, "Just some text.")
+	})
+
+	t.Run("section heading is case-insensitive", func(t *testing.T) {
+		body := "# My Task\n\n## comments\n\n**old** — existing\n"
+		got := appendComment(body, ts)
+		assertContainsAll(t, got, "## comments", ts)
+	})
+}
+
+func TestTaskCommentCLI(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Test Task")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	t.Run("appends comment to active task", func(t *testing.T) {
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "comment", "001", "Found the root cause")
+		if code != 0 {
+			t.Fatalf("comment exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		if strings.TrimSpace(stdout) != "001" {
+			t.Errorf("stdout = %q, want %q", stdout, "001")
+		}
+		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		assertContainsAll(t, content, "## Comments", "Found the root cause")
+	})
+
+	t.Run("appends multiple comments", func(t *testing.T) {
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "comment", "001", "--author", "Travis", "Second observation")
+		if code != 0 {
+			t.Fatalf("second comment exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		assertContainsAll(t, content, "_Travis_: Second observation")
+		// Both comments should be present.
+		assertContainsAll(t, content, "Found the root cause")
+	})
+
+	t.Run("dry-run does not mutate", func(t *testing.T) {
+		contentBefore := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+
+		stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "comment", "001", "Dry run comment")
+		if code != 0 {
+			t.Fatalf("dry-run comment exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		assertContainsAll(t, stdout, "001")
+
+		contentAfter := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		if contentBefore != contentAfter {
+			t.Errorf("dry-run modified task file")
+		}
+	})
+
+	t.Run("usage error on missing text", func(t *testing.T) {
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "comment", "001")
+		if code != 2 {
+			t.Errorf("expected exit code 2, got %d; stderr = %s", code, stderr)
+		}
+	})
+
+	t.Run("works on completed task", func(t *testing.T) {
+		// Complete the task first, bypassing strict acceptance because it has TODO placeholder.
+		// The task has default acceptance notes with TODO, but --force skips strict check.
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "complete", "001")
+		if code != 0 {
+			t.Fatalf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "comment", "001", "Post-completion note")
+		if code != 0 {
+			t.Fatalf("comment on completed task exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		}
+		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+		assertContainsAll(t, content, "Post-completion note")
+	})
+
+	t.Run("fails on missing task", func(t *testing.T) {
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "comment", "999", "Nope")
+		if code == 0 {
+			t.Errorf("expected failure for missing task, code=%d, stdout=%s", code, stdout)
+		}
+	})
+}
+
+func TestTrimTrailingBlankLines(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{"no trailing blanks", []string{"a", "b", "c"}, []string{"a", "b", "c"}},
+		{"trailing blanks", []string{"a", "b", "", "", ""}, []string{"a", "b"}},
+		{"all blanks", []string{"", "", ""}, []string{}},
+		{"empty input", []string{}, []string{}},
+		{"blanks in middle preserved", []string{"a", "", "b", ""}, []string{"a", "", "b"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := trimTrailingBlankLines(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len = %d, want %d; got %v", len(got), len(tt.want), got)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
