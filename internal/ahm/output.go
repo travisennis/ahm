@@ -21,7 +21,7 @@ func (a *app) emit(value any) error {
 
 func (a *app) emitJSON(value any) error {
 	if value == nil {
-		_, err := fmt.Fprintln(a.out, "{}")
+		_, err := fmt.Fprintln(a.out, "null")
 		return err
 	}
 	data, err := json.MarshalIndent(value, "", "  ")

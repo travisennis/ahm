@@ -32,6 +32,20 @@ func (a *app) taskList(mode string, statuses []string, labels []string) error {
 		}
 		filtered = filterTasksByLabels(filtered, required)
 	}
+	if len(filtered) == 0 {
+		if a.opts.json {
+			return a.emit([]Task{})
+		}
+		switch mode {
+		case "ready":
+			fmt.Fprintln(a.out, "No ready tasks.")
+		case "blocked":
+			fmt.Fprintln(a.out, "No blocked tasks.")
+		default:
+			fmt.Fprintln(a.out, "No tasks found.")
+		}
+		return nil
+	}
 	if a.opts.json {
 		return a.emit(filtered)
 	}

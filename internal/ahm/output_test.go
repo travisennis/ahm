@@ -248,7 +248,7 @@ func TestEmitJSON_NilValue(t *testing.T) {
 		t.Error(err)
 	}
 	got := out.String()
-	if got != "{}\n" {
-		t.Errorf("emitJSON(nil) = %q, want %q", got, "{}\n")
+	if got != "null\n" {
+		t.Errorf("emitJSON(nil) = %q, want %q", got, "null\n")
 	}
 }
