@@ -11,6 +11,13 @@ func (a *app) taskCommand() *cobra.Command {
 	task := &cobra.Command{
 		Use:   "task",
 		Short: "Manage tasks",
+		Long: `Manage tasks.
+
+Examples:
+  ahm task list
+  ahm task create "My task" --priority P1
+  ahm task show 001
+  ahm task work 001 --agent codex`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -28,6 +35,12 @@ func (a *app) taskCommand() *cobra.Command {
 	create := &cobra.Command{
 		Use:   "create <title> [flags]",
 		Short: "Create a task",
+		Long: `Create a new task and regenerate indexes.
+
+Examples:
+  ahm task create "Add release workflow"
+  ahm task create "Fix bug" --priority P1 --effort S --labels "type:bug,area:cli"
+  ahm task create "Complex work" --priority P2 --effort M --body-file body.md`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return usageError("task create requires a title")
@@ -50,13 +63,33 @@ func (a *app) taskCommand() *cobra.Command {
 	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
 	task.AddCommand(create)
 
-	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all"))
-	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready"))
-	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked"))
+	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status or labels.
+
+Examples:
+  ahm task list
+  ahm task list --status pending
+  ahm task list --status pending,completed
+  ahm task list --label type:feature --label area:cli`))
+	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready", `List pending tasks whose dependencies are all completed.
+
+Examples:
+  ahm task ready
+  ahm task ready --label area:cli
+  ahm --json task ready`))
+	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked", `List blocked tasks.
+
+Examples:
+  ahm task blocked
+  ahm task blocked --label risk:external-service`))
 	task.AddCommand(&cobra.Command{
 		Use:   "labels",
 		Short: "List task labels",
-		Args:  noArgs,
+		Long: `List labels used by parsed task files with counts.
+
+Examples:
+  ahm task labels
+  ahm --json task labels`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -67,7 +100,12 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(&cobra.Command{
 		Use:   "next",
 		Short: "Show the next ready task",
-		Args:  noArgs,
+		Long: `Show the next ready task by priority and ID.
+
+Examples:
+  ahm task next
+  ahm --json task next`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -78,7 +116,13 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(&cobra.Command{
 		Use:   "migrate",
 		Short: "Normalize legacy task front matter",
-		Args:  noArgs,
+		Long: `Normalize legacy task front matter to the current schema.
+
+Examples:
+  ahm --dry-run task migrate
+  ahm task migrate
+  ahm --json task migrate --dry-run`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -89,7 +133,12 @@ func (a *app) taskCommand() *cobra.Command {
 	task.AddCommand(&cobra.Command{
 		Use:   "show <id>",
 		Short: "Show a task",
-		Args:  exactArgs(1, "task show requires an id"),
+		Long: `Show a task by ID.
+
+Examples:
+  ahm task show 001
+  ahm --json task show 001`,
+		Args: exactArgs(1, "task show requires an id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -102,7 +151,14 @@ func (a *app) taskCommand() *cobra.Command {
 	work := &cobra.Command{
 		Use:   "work <id>",
 		Short: "Hand a task to a coding-agent CLI",
-		Args:  exactArgs(1, "task work requires an id"),
+		Long: `Hand a task to a coding-agent CLI for implementation.
+
+Examples:
+  ahm task work 001
+  ahm task work 001 --agent codex
+  ahm task work 001 --agent cursor --no-review
+  ahm --dry-run task work 001 --agent cake`,
+		Args: exactArgs(1, "task work requires an id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -120,14 +176,36 @@ func (a *app) taskCommand() *cobra.Command {
 		use        string
 		aliases    []string
 		short      string
+		long       string
 		status     string
 		withReason bool
 	}{
-		{use: "accept <id>", short: "Accept a task into the ready queue", status: "Pending"},
-		{use: "start <id>", short: "Mark a task in progress", status: "In Progress"},
-		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", status: "Completed"},
-		{use: "cancel <id>", short: "Mark a task cancelled", status: "Cancelled", withReason: true},
-		{use: "reopen <id>", short: "Reopen a task", status: "Pending"},
+		{use: "accept <id>", short: "Accept a task into the ready queue", long: `Accept an Open task into the ready backlog as Pending.
+
+Examples:
+  ahm task accept 001
+  ahm --dry-run task accept 001`, status: "Pending"},
+		{use: "start <id>", short: "Mark a task in progress", long: `Mark a task as In Progress.
+
+Examples:
+  ahm task start 001
+  ahm --dry-run task start 001`, status: "In Progress"},
+		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", long: `Mark a task as Completed and regenerate indexes.
+
+Examples:
+  ahm task complete 001
+  ahm task close 001
+  ahm --dry-run task complete 001`, status: "Completed"},
+		{use: "cancel <id>", short: "Mark a task cancelled", long: `Mark a task as Cancelled with a required reason.
+
+Examples:
+  ahm task cancel 001 --reason "Superseded by 002"
+  ahm --dry-run task cancel 001 --reason "Duplicate"`, status: "Cancelled", withReason: true},
+		{use: "reopen <id>", short: "Reopen a task", long: `Reopen a completed or cancelled task back to Pending.
+
+Examples:
+  ahm task reopen 001
+  ahm --dry-run task reopen 001`, status: "Pending"},
 	} {
 		status := spec.status
 		reason := ""
@@ -135,6 +213,7 @@ func (a *app) taskCommand() *cobra.Command {
 			Use:     spec.use,
 			Aliases: spec.aliases,
 			Short:   spec.short,
+			Long:    spec.long,
 			Args:    exactArgs(1, "task status command requires an id"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
@@ -158,13 +237,14 @@ func (a *app) taskCommand() *cobra.Command {
 	return task
 }
 
-func (a *app) taskListCommand(use string, aliases []string, short string, mode string) *cobra.Command {
+func (a *app) taskListCommand(use string, aliases []string, short string, mode string, long string) *cobra.Command {
 	var statuses []string
 	var labels []string
 	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
 		Short:   short,
+		Long:    long,
 		Args:    noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {

@@ -13,6 +13,13 @@ func (a *app) taskDepCommand() *cobra.Command {
 	dep := &cobra.Command{
 		Use:   "dep",
 		Short: "Manage task dependencies",
+		Long: `Manage task dependency relationships.
+
+Examples:
+  ahm task dep add 002 001
+  ahm task dep remove 002 001
+  ahm task dep tree 002
+  ahm task dep cycles`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -20,12 +27,25 @@ func (a *app) taskDepCommand() *cobra.Command {
 			return usageError("task dep requires a subcommand")
 		},
 	}
-	dep.AddCommand(a.taskDepUpdateCommand("add", nil, "Add a task dependency", true))
-	dep.AddCommand(a.taskDepUpdateCommand("remove", []string{"rm"}, "Remove a task dependency", false))
+	dep.AddCommand(a.taskDepUpdateCommand("add", nil, "Add a task dependency", true, `Add a dependency to a task.
+
+Examples:
+  ahm task dep add 002 001
+  ahm --dry-run task dep add 002 001`))
+	dep.AddCommand(a.taskDepUpdateCommand("remove", []string{"rm"}, "Remove a task dependency", false, `Remove a dependency from a task.
+
+Examples:
+  ahm task dep remove 002 001
+  ahm task dep rm 002 001
+  ahm --dry-run task dep remove 002 001`))
 	dep.AddCommand(&cobra.Command{
 		Use:   "tree <id>",
 		Short: "Print a task dependency tree",
-		Args:  exactArgs(1, "task dep tree requires an id"),
+		Long: `Print a dependency tree rooted at a task.
+
+Examples:
+  ahm task dep tree 002`,
+		Args: exactArgs(1, "task dep tree requires an id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -36,7 +56,11 @@ func (a *app) taskDepCommand() *cobra.Command {
 	dep.AddCommand(&cobra.Command{
 		Use:   "cycles",
 		Short: "Print dependency cycles",
-		Args:  noArgs,
+		Long: `Print active dependency cycles.
+
+Examples:
+  ahm task dep cycles`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -47,11 +71,12 @@ func (a *app) taskDepCommand() *cobra.Command {
 	return dep
 }
 
-func (a *app) taskDepUpdateCommand(use string, aliases []string, short string, add bool) *cobra.Command {
+func (a *app) taskDepUpdateCommand(use string, aliases []string, short string, add bool, long string) *cobra.Command {
 	return &cobra.Command{
 		Use:     use + " <id> <dependency-id>",
 		Aliases: aliases,
 		Short:   short,
+		Long:    long,
 		Args:    exactArgs(2, "task dep add/remove requires task id and dependency id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {

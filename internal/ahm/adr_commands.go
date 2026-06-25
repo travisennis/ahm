@@ -15,6 +15,12 @@ func (a *app) adrCommand() *cobra.Command {
 	adr := &cobra.Command{
 		Use:   "adr",
 		Short: "Manage Architecture Decision Records",
+		Long: `Manage Architecture Decision Records under docs/adr/.
+
+Examples:
+  ahm adr create "Choose storage layout"
+  ahm adr list
+  ahm adr show 009`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -27,6 +33,13 @@ func (a *app) adrCommand() *cobra.Command {
 	create := &cobra.Command{
 		Use:   "create <title> [flags]",
 		Short: "Create an ADR",
+		Long: `Create a new Architecture Decision Record under docs/adr/ and regenerate indexes.
+
+Examples:
+  ahm adr create "Choose storage layout"
+  ahm adr create "Use Postgres" --status accepted --description "We need a database"
+  ahm adr create "Migration plan" --body-file body.md
+  ahm --dry-run adr create "Test ADR"`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return usageError("adr create requires a title")
@@ -51,7 +64,13 @@ func (a *app) adrCommand() *cobra.Command {
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List ADRs",
-		Args:  noArgs,
+		Long: `List ADRs parsed from docs/adr/.
+
+Examples:
+  ahm adr list
+  ahm adr list --status accepted
+  ahm --json adr list`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -65,7 +84,13 @@ func (a *app) adrCommand() *cobra.Command {
 	adr.AddCommand(&cobra.Command{
 		Use:   "show <id>",
 		Short: "Show an ADR",
-		Args:  exactArgs(1, "adr show requires an id"),
+		Long: `Show an ADR by ID.
+
+Examples:
+  ahm adr show 009
+  ahm adr show 9
+  ahm --json adr show 009-madr-adr-management`,
+		Args: exactArgs(1, "adr show requires an id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -77,16 +102,27 @@ func (a *app) adrCommand() *cobra.Command {
 	for _, spec := range []struct {
 		use    string
 		short  string
+		long   string
 		status string
 	}{
-		{use: "accept <id>", short: "Accept an ADR", status: "accepted"},
-		{use: "reject <id>", short: "Reject an ADR", status: "rejected"},
-		{use: "deprecate <id>", short: "Deprecate an ADR", status: "deprecated"},
+		{use: "accept <id>", short: "Accept an ADR", long: `Accept an ADR.
+
+Examples:
+  ahm adr accept 009`, status: "accepted"},
+		{use: "reject <id>", short: "Reject an ADR", long: `Reject an ADR.
+
+Examples:
+  ahm adr reject 009`, status: "rejected"},
+		{use: "deprecate <id>", short: "Deprecate an ADR", long: `Deprecate an ADR.
+
+Examples:
+  ahm adr deprecate 009`, status: "deprecated"},
 	} {
 		status := spec.status
 		adr.AddCommand(&cobra.Command{
 			Use:   spec.use,
 			Short: spec.short,
+			Long:  spec.long,
 			Args:  exactArgs(1, "adr status command requires an id"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
@@ -101,7 +137,14 @@ func (a *app) adrCommand() *cobra.Command {
 	supersede := &cobra.Command{
 		Use:   "supersede <old-id> --by <new-id>",
 		Short: "Supersede an ADR with another ADR",
-		Args:  exactArgs(1, "adr supersede requires an old id"),
+		Long: `Supersede an ADR with another ADR.
+
+The old ADR gets status "superseded by ADR-NNN" and a Supersession note.
+The replacement ADR gets a cross-reference back.
+
+Examples:
+  ahm adr supersede 009 --by 010`,
+		Args: exactArgs(1, "adr supersede requires an old id"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -119,7 +162,12 @@ func (a *app) adrCommand() *cobra.Command {
 
 CRLF line endings are normalized to LF during migration. This is a side effect of
 internal file handling and may appear as line-ending changes in version control
-diffs.`,
+diffs.
+
+Examples:
+  ahm adr migrate --dry-run
+  ahm adr migrate
+  ahm --json adr migrate --dry-run`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {

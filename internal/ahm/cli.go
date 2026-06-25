@@ -105,8 +105,15 @@ func (a *app) run(argv []string) error {
 
 func (a *app) command() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "ahm",
-		Short:         "Manage repo-local .agents workflows",
+		Use:   "ahm",
+		Short: "Manage repo-local .agents workflows",
+		Long: `Manage repo-local .agents workflow files for tasks, research notes,
+ADRs, generated indexes, and coding-agent delegation.
+
+Examples:
+  ahm
+  ahm status
+  ahm --json doctor`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.Binary,
@@ -134,23 +141,44 @@ func (a *app) command() *cobra.Command {
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print version",
-		Args:  noArgs,
+		Long: `Print the ahm binary version (release tag injected at build time).
+
+Examples:
+  ahm version`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(a.out, version.Binary)
 			return nil
 		},
 	})
-	root.AddCommand(a.lenientCommand("init", "Install workflow files", func() error {
+	root.AddCommand(a.lenientCommand("init", "Install workflow files", `Install the managed .agents workflow into the target repository root.
+
+Examples:
+  ahm init
+  ahm --dry-run init
+  ahm --force init`, func() error {
 		return a.install(false)
 	}))
-	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", func() error {
+	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", `Update managed workflow files to the embedded template version.
+
+Examples:
+  ahm upgrade
+  ahm --force upgrade
+  ahm --dry-run upgrade`, func() error {
 		return a.install(true)
 	}))
 	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show workflow health",
-		Args:  noArgs,
+		Long: `Show workflow health with validation findings.
+
+Examples:
+  ahm status
+  ahm --check workflow status
+  ahm --check links --json status
+  ahm --check project-docs status`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -167,7 +195,12 @@ func (a *app) command() *cobra.Command {
 	doctorCmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Show environment checks",
-		Args:  noArgs,
+		Long: `Show environment and workflow checks.
+
+Examples:
+  ahm doctor
+  ahm --check workflow doctor`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -180,7 +213,11 @@ func (a *app) command() *cobra.Command {
 	}
 	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs")
 	root.AddCommand(doctorCmd)
-	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", func() error {
+	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", `Regenerate generated task, research, ExecPlan, and ADR indexes.
+
+Examples:
+  ahm index
+  ahm --dry-run index`, func() error {
 		_ = cleanupStaleTemps(a.opts.root) // best-effort cleanup of crash leftovers
 		return a.writeIndexes()
 	}))
@@ -202,6 +239,16 @@ func (a *app) contextCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "context [task|adr|research|plan|docs]",
 		Short: "Repository briefing or managed-work reference",
+		Long: `Print a repository briefing or managed-work reference.
+
+With no scope, prints a live briefing with repository state, git info,
+and task counts. With a scope (task, adr, research, plan, docs), prints
+the full reference document for that artifact type.
+
+Examples:
+  ahm context
+  ahm context task
+  ahm --json context`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
 				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))
@@ -229,6 +276,12 @@ func (a *app) agentsCommand() *cobra.Command {
 	agents := &cobra.Command{
 		Use:   "agents",
 		Short: "Show AGENTS.md guidance",
+		Long: `Show AGENTS.md guidance and suggestions.
+
+Examples:
+  ahm agents suggestions
+  ahm agents suggestions --all
+  ahm --json agents suggestions`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -239,7 +292,16 @@ func (a *app) agentsCommand() *cobra.Command {
 	suggestions := &cobra.Command{
 		Use:   "suggestions",
 		Short: "Print suggested AGENTS.md additions",
-		Args:  noArgs,
+		Long: `Print advisory AGENTS.md integration instructions.
+
+The suggestions help adapt an existing AGENTS.md to use ahm's managed-work
+intake and ownership boundaries. This command never writes AGENTS.md.
+
+Examples:
+  ahm agents suggestions
+  ahm agents suggestions --all
+  ahm --json agents suggestions`,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRootOrCWD(); err != nil {
 				return err
@@ -252,10 +314,11 @@ func (a *app) agentsCommand() *cobra.Command {
 	return agents
 }
 
-func (a *app) simpleCommand(use string, short string, run func() error) *cobra.Command {
+func (a *app) simpleCommand(use string, short string, long string, run func() error) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
+		Long:  long,
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
@@ -266,10 +329,11 @@ func (a *app) simpleCommand(use string, short string, run func() error) *cobra.C
 	}
 }
 
-func (a *app) lenientCommand(use string, short string, run func() error) *cobra.Command {
+func (a *app) lenientCommand(use string, short string, long string, run func() error) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
+		Long:  long,
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRootOrCWD(); err != nil {
