@@ -269,7 +269,7 @@ Supported value forms:
 Unsupported forms that produce a parse error:
 
 - Block scalars (`|` and `>`): `description: |\n  multi\n  line`
-- Block lists (`- ` prefix): `depends_on:\n  - 001\n  - 002`
+- Block lists (`-` prefix): `depends_on:\n  - 001\n  - 002`
 - Keys with spaces: `bad key: value`
 
 Comments (`#` at line start) and blank lines within front matter are ignored.

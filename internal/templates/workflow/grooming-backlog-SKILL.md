@@ -46,9 +46,10 @@ ahm task labels
 If `ahm` is unavailable, read `.agents/.tasks/index.md` as the fallback queue
 artifact and inspect the relevant files under `.agents/.tasks/active/`.
 
-### 2. For each task that is not Completed or Cancelled, audit:
+### 2. For each task that is not Completed or Cancelled, audit
 
 **Front matter invariants:**
+
 - `status` is one of: `Open`, `Pending`, `In Progress`, `Blocked`, `Tracking`.
 - `priority` is set and uses the project's priority scale.
 - `effort` is set and uses the project's effort scale.
@@ -59,6 +60,7 @@ artifact and inspect the relevant files under `.agents/.tasks/active/`.
   `XL`, or documents that no plan is needed (`-`).
 
 **Decision completeness:**
+
 - If the Summary or Fix Direction presents alternatives (e.g., "use X or Y"),
   record which alternative was chosen and why. If none is chosen yet, flag
   the task as Blocked and document what decision is needed.
@@ -67,6 +69,7 @@ artifact and inspect the relevant files under `.agents/.tasks/active/`.
 - If the task is an `L` or `XL` without an ExecPlan, flag it.
 
 **Body quality:**
+
 - Acceptance Notes checklist should not contain `TODO` placeholders or
   unchecked items that should have been decided before work begins.
 - Relevant files, modules, and commands listed in the task are still valid
@@ -75,6 +78,7 @@ artifact and inspect the relevant files under `.agents/.tasks/active/`.
   without a corresponding Blocked status and blocker note.
 
 **Dependency graph:**
+
 - For each `depends_on` entry, check that the dependency exists and is not
   itself Blocked or Open. If a dependency is blocked, the depending task
   should also be Blocked with a note referencing the dependency.
@@ -103,10 +107,12 @@ cannot make alone:
 
 1. Set `status: Blocked` in the task front matter.
 2. Add or update the blocker note at the top of the task body:
+
    ```
    ## Blocker
    Awaiting decision on [describe what]. See [reference].
    ```
+
 3. Do not leave the task Pending with undocumented open questions.
 
 ### 5. Regenerate indexes after manual edits

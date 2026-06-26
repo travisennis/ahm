@@ -66,7 +66,7 @@ svu current --tag.output tag.prefix
 svu next --tag.output tag.prefix
 ```
 
-3. Run the release prep script:
+1. Run the release prep script:
 
 ```bash
 just prepare-release
@@ -82,15 +82,15 @@ To override the calculated version, pass a tag explicitly:
 scripts/prepare-release.sh v0.3.0
 ```
 
-4. Review the changelog diff.
-5. Commit the changelog:
+1. Review the changelog diff.
+2. Commit the changelog:
 
 ```bash
 git add CHANGELOG.md
 git commit -m "chore(release): prepare v0.3.0"
 ```
 
-6. Create and push the tag:
+1. Create and push the tag:
 
 ```bash
 git tag -a v0.3.0 -m "v0.3.0"
@@ -102,14 +102,14 @@ The release workflow runs GoReleaser for tags matching `v*`. GoReleaser builds
 Linux, macOS, and Windows archives for amd64 and arm64, publishes them to the
 GitHub Release, and uploads `checksums.txt`.
 
-7. Watch the release workflow:
+1. Watch the release workflow:
 
 ```bash
 gh run list --workflow Release --limit 5
 gh run watch <run-id> --exit-status
 ```
 
-8. Verify the published release:
+1. Verify the published release:
 
 ```bash
 gh release view v0.3.0 --json tagName,name,url,assets
@@ -125,7 +125,7 @@ Check that the release contains:
 - `ahm_<version>_windows_arm64.zip`
 - `checksums.txt`
 
-9. Smoke-test the installer:
+1. Smoke-test the installer:
 
 ```bash
 tmp="$(mktemp -d)"
@@ -135,7 +135,7 @@ BIN_DIR="$tmp/bin" sh scripts/install.sh v0.3.0
 
 The version command must print the bare SemVer version, for example `0.3.0`.
 
-10. Check the final local state:
+1. Check the final local state:
 
 ```bash
 git status --short

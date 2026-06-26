@@ -351,6 +351,7 @@ suggestion: the top 3–5 by leverage. Surface dependency ordering — e.g.
 (finding #5)."
 
 The user responds with which findings to accept. Accept responses like:
+
 - Numbers: `1, 3, 5`
 - Ranges: `1-4`
 - Keywords: `all`, `top 5`, `security`, `perf`

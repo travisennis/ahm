@@ -77,4 +77,3 @@ does not block cancellation.
 - `.agents/TASKS.md` - task cancellation workflow
 - `internal/ahm/task_status.go` - task cancellation behavior
 - `internal/ahm/task_acceptance.go` - acceptance TODO parser
-

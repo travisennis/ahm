@@ -21,6 +21,7 @@ All notable user-facing changes to `ahm` are recorded here.
 ## v0.1.0 - 2026-06-17
 
 ### Added
+
 - Scaffold initial ahm cli
 - Add workflow validation to status and doctor
 - Generate research and exec plan indexes
@@ -66,8 +67,8 @@ All notable user-facing changes to `ahm` are recorded here.
 - *(adr)* Add ahm adr migrate for legacy ADR metadata
 - *(agent)* Add Claude Code support to ahm task work (task 082)
 
-
 ### Fixed
+
 - Enforce task enum values
 - Preserve optional task metadata
 - Only bump version on upgrade when no conflicts remain
@@ -114,8 +115,8 @@ All notable user-facing changes to `ahm` are recorded here.
 - *(tasks)* Serialize task id allocation
 - *(task)* Remove redundant file-open instruction in task work prompt
 
-
 ### Changed
+
 - Migrate CLI parsing to Cobra
 - *(cli)* Standardize app methods on pointer receivers
 - *(tasks)* Consolidate duplicate task DFS and collection logic
@@ -135,14 +136,14 @@ All notable user-facing changes to `ahm` are recorded here.
 - *(tasks)* Reuse parsed tasks during generated index validation
 - *(tasks)* Share front matter parsing helpers
 
-
 ### Build
+
 - Add strict verification and release config
 - Align Go toolchain with local version
 - *(release)* Add binary release workflow
 
-
 ### Documentation
+
 - Document cli commands and flags
 - Add agent instructions
 - *(workflow)* Sharpen agent handoff guidance
@@ -180,14 +181,14 @@ All notable user-facing changes to `ahm` are recorded here.
 - *(adr)* Clarify supersession guidance
 - Restructure documentation for progressive disclosure
 
-
 ### Tests
+
 - Expand ahm cli coverage
 - *(cli)* Add golden agent transcript fixtures and capture recipe
 - *(cli)* Add env-gated live agent smoke test
 
-
 ### Maintenance
+
 - Add ahm task management workflow
 - *(tasks)* Add tasks from project review
 - Add script for working on tasks
@@ -228,4 +229,3 @@ All notable user-facing changes to `ahm` are recorded here.
 - Groom backlog — accept four open tasks and record decisions
 - *(tasks)* Add 6 maintenance tasks from codebase audit
 - *(tasks)* Groom backlog — move 6 Open tasks to Pending
-

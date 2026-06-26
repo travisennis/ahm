@@ -82,4 +82,3 @@ tasks with incomplete acceptance notes:
 - `internal/ahm/task_acceptance.go` - acceptance parser
 - `internal/ahm/task_status.go` - task completion behavior
 - `internal/ahm/validation.go` - workflow validation findings
-
