@@ -1717,7 +1717,7 @@ func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "agent: codex", "executable: /stub/codex", "status: In Progress", "task: 001", "exec", "Work on task 001.")
+	assertContainsAll(t, stdout, "agent: codex", "executable: /stub/codex", "status: In Progress", "task: 001", "exec", "prompt: Work on task 001.")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 }
 
@@ -1744,6 +1744,7 @@ func TestTaskWorkCursorDryRunPreviewsStreamJSONArgs(t *testing.T) {
 		"-p",
 		"stream-json",
 		"--trust",
+		"prompt: Work on task 001.",
 		"review: true",
 		"commit: true",
 	)
@@ -2353,6 +2354,7 @@ func TestTaskWorkClaudeDryRunPreviewsStreamJSONArgs(t *testing.T) {
 		"-p",
 		"--verbose",
 		"stream-json",
+		"prompt: Work on task 001.",
 		"review: true",
 		"commit: true",
 	)
@@ -2900,7 +2902,7 @@ func TestTaskWorkCommitDryRun(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "commit: true", "review: true")
+	assertContainsAll(t, stdout, "prompt: Work on task 001.", "commit: true", "review: true")
 	assertNotContains(t, stderr, "--- Running commit handoff ---")
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 }

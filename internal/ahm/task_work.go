@@ -63,6 +63,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			"agent":      agent.name,
 			"executable": executable,
 			"args":       args,
+			"prompt":     prompt,
 			"status":     taskWorkDryRunStatus(task.Status),
 		}
 		if commit {

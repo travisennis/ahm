@@ -475,7 +475,7 @@ Useful flags:
 - `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
 - `--no-review`: skip the preflight review workflow (review runs by default).
 - `--no-commit`: skip the commit handoff (commit runs by default).
-- `--dry-run`: previews the selected executable, arguments, task ID, agent, and
+- `--dry-run`: previews the selected executable, arguments, prompt, task ID, agent, and
   requested orchestration flags without rewriting the task or invoking the
   external CLI.
 
