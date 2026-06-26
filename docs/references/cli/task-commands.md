@@ -167,7 +167,18 @@ Useful flags:
   comma-separated list (`--label type:feature,area:cli`) or repeated flags
   (`--label type:feature --label area:cli`). Matching uses AND semantics:
   every supplied label must be present on the task.
+- `--priority <priority>`: filters tasks by one or more priorities. Accepts a
+  comma-separated list (`--priority P0,P1`) or repeated flags
+  (`--priority P0 --priority P1`). Matching is case-insensitive.
+  Duplicate priorities are ignored.
+- `--effort <effort>`: filters tasks by one or more efforts. Accepts a
+  comma-separated list (`--effort S,M`) or repeated flags
+  (`--effort S --effort M`). Matching is case-insensitive. Duplicate efforts
+  are ignored.
 - `--json`: emits parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, `effort`, `labels`, `exec_plan`, `depends_on`, `created`, `updated`, `parent`, `external_ref`, `extra`, `path`, `bucket`, `body`).
+
+When multiple filters are supplied, `task list` applies AND semantics across
+filter types.
 
 Example:
 
@@ -177,6 +188,7 @@ ahm task list --status pending
 ahm task list --status pending,completed
 ahm task list --status open --status "in progress"
 ahm task list --label type:feature --label area:cli
+ahm task list --priority P0,P1 --effort S,M
 ```
 
 ### `task ready`
