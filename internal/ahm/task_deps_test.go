@@ -275,3 +275,107 @@ func TestMainDependencyCyclesIntegration(t *testing.T) {
 		t.Errorf("cycles stdout = %q", stdout)
 	}
 }
+
+func TestTaskDepCyclesCommand_JSON_NoCycles(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.taskDepCycles(); err != nil {
+		t.Error(err)
+	}
+	want := "[]"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("cycles --json no cycles = %q, want %q", got, want)
+	}
+}
+
+func TestTaskDepCyclesCommand_JSON_WithCycles(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.taskDepCycles(); err != nil {
+		t.Error(err)
+	}
+	got := strings.TrimSpace(out.String())
+	// Should be a JSON array containing the cycle path.
+	if !strings.HasPrefix(got, "[") {
+		t.Errorf("cycles --json should be a JSON array, got %q", got)
+	}
+	if !strings.Contains(got, "001") || !strings.Contains(got, "002") {
+		t.Errorf("cycles --json with cycles = %q, expected array of cycle paths", got)
+	}
+}
+
+func TestTaskDepCyclesCommand_Plain_NoCycles(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, plain: true}, out: &out}
+	if err := a.taskDepCycles(); err != nil {
+		t.Error(err)
+	}
+	want := "[]"
+	if got := strings.TrimSpace(out.String()); got != want {
+		t.Errorf("cycles --plain no cycles = %q, want %q", got, want)
+	}
+}
+
+func TestTaskDepTree_JSON(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.taskDepTree([]string{"001"}); err != nil {
+		t.Error(err)
+	}
+	got := strings.TrimSpace(out.String())
+	// Should be a JSON object with id, title, status, and dependencies.
+	if !strings.Contains(got, `"id": "001"`) {
+		t.Errorf("tree --json missing root id: %q", got)
+	}
+	if !strings.Contains(got, `"title": "Root"`) {
+		t.Errorf("tree --json missing root title: %q", got)
+	}
+	if !strings.Contains(got, `"dependencies"`) {
+		t.Errorf("tree --json missing dependencies field: %q", got)
+	}
+	if !strings.Contains(got, `"id": "999"`) {
+		t.Errorf("tree --json missing missing task id: %q", got)
+	}
+	// Catch the most visible cycle indicator — 002 appears as a dependency of 003.
+	if !strings.Contains(got, `"id": "003"`) {
+		t.Errorf("tree --json missing leaf id: %q", got)
+	}
+}
+
+func TestTaskDepTree_Plain(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Child", "Pending", "depends_on: -\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, plain: true}, out: &out}
+	if err := a.taskDepTree([]string{"001"}); err != nil {
+		t.Error(err)
+	}
+	got := strings.TrimSpace(out.String())
+	// Plain mode produces compact JSON: should have no leading whitespace.
+	if !strings.HasPrefix(got, "{\"id\"") && !strings.HasPrefix(got, "{\"id\":") {
+		t.Errorf("tree --plain should start with compact JSON object, got %q", got)
+	}
+	if !strings.Contains(got, `"id":"001"`) && !strings.Contains(got, `"id": "001"`) {
+		t.Errorf("tree --plain missing root id: %q", got)
+	}
+	if !strings.Contains(got, `"id":"002"`) && !strings.Contains(got, `"id": "002"`) {
+		t.Errorf("tree --plain missing child id: %q", got)
+	}
+}

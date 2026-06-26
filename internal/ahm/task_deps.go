@@ -183,6 +183,13 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 	return nil
 }
 
+type depTreeNode struct {
+	ID           string        `json:"id"`
+	Title        string        `json:"title,omitempty"`
+	Status       string        `json:"status,omitempty"`
+	Dependencies []depTreeNode `json:"dependencies,omitempty"`
+}
+
 func (a *app) taskDepTree(argv []string) error {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
@@ -197,6 +204,12 @@ func (a *app) taskDepTree(argv []string) error {
 	for _, task := range tasks {
 		byID[task.ID] = task
 	}
+
+	if a.opts.json || a.opts.plain {
+		tree := buildDepTree(root.ID, byID, map[string]bool{})
+		return a.emit(tree)
+	}
+
 	var walk func(id string, prefix string, seen map[string]bool)
 	walk = func(id string, prefix string, seen map[string]bool) {
 		task, ok := byID[id]
@@ -219,6 +232,27 @@ func (a *app) taskDepTree(argv []string) error {
 	return nil
 }
 
+func buildDepTree(id string, byID map[string]Task, seen map[string]bool) depTreeNode {
+	task, ok := byID[id]
+	if !ok {
+		return depTreeNode{ID: id}
+	}
+	node := depTreeNode{
+		ID:     task.ID,
+		Title:  task.Title,
+		Status: task.Status,
+	}
+	if seen[id] {
+		return node
+	}
+	seen[id] = true
+	for _, dep := range task.DependsOn {
+		node.Dependencies = append(node.Dependencies, buildDepTree(dep, byID, seen))
+	}
+	delete(seen, id)
+	return node
+}
+
 func (a *app) taskDepCycles() error {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
@@ -226,6 +260,12 @@ func (a *app) taskDepCycles() error {
 		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	cycles := taskDependencyCycles(tasks)
+	if a.opts.json || a.opts.plain {
+		if cycles == nil {
+			cycles = [][]string{}
+		}
+		return a.emit(cycles)
+	}
 	if len(cycles) == 0 {
 		fmt.Fprintln(a.out, "No dependency cycles found")
 		return nil
