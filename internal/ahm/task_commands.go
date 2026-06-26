@@ -149,6 +149,38 @@ Examples:
 		},
 	})
 
+	var searchStatuses []string
+	var searchLabels []string
+	search := &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search tasks by title",
+		Long: `Search tasks by case-insensitive substring match on the title.
+
+Output matches task list: ID [Status] Priority Effort Title. Supports the
+--status and --label filters to scope results.
+
+Examples:
+  ahm task search timeout
+  ahm task search "release workflow"
+  ahm task search timeout --status Open
+  ahm --json task search cli --label area:cli`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return usageError("task search requires a query\n  ahm task search <query>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.taskSearch(strings.Join(args, " "), searchStatuses, searchLabels)
+		},
+	}
+	search.Flags().StringSliceVar(&searchStatuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
+	search.Flags().StringSliceVar(&searchLabels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
+	task.AddCommand(search)
+
 	workArgs := taskWorkArgs{}
 	work := &cobra.Command{
 		Use:   "work <id>",

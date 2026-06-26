@@ -782,6 +782,92 @@ func TestTaskListFiltersLabels(t *testing.T) {
 	})
 }
 
+func TestTaskSearch(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Add timeout handling", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Document Timeout defaults", "Open", "labels: type:docs, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Unrelated work", "Pending", "labels: type:task, area:cli\n")
+
+	t.Run("matches case-insensitive substring on title", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("timeout", nil, nil); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S Add timeout handling", "002 [Open] P2 S Document Timeout defaults")
+		assertNotContains(t, got, "003 [Pending]")
+	})
+
+	t.Run("composes status filter", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("timeout", []string{"Open"}, nil); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "002 [Open] P2 S Document Timeout defaults")
+		assertNotContains(t, got, "001 [Pending]")
+	})
+
+	t.Run("composes status and label filters", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("timeout", []string{"Pending"}, []string{"area:cli"}); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S Add timeout handling")
+		assertNotContains(t, got, "002 [Open]")
+	})
+
+	t.Run("empty results print no tasks found", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("nomatch", nil, nil); err != nil {
+			t.Error(err)
+		}
+		if strings.TrimSpace(out.String()) != "No tasks found." {
+			t.Errorf("unexpected output: %q", out.String())
+		}
+	})
+
+	t.Run("empty results in json mode print empty array", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root, json: true}, out: &out}
+		if err := a.taskSearch("nomatch", nil, nil); err != nil {
+			t.Error(err)
+		}
+		if strings.TrimSpace(out.String()) != "[]" {
+			t.Errorf("unexpected output: %q", out.String())
+		}
+	})
+
+	t.Run("blank query returns usage error", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		err := a.taskSearch("   ", nil, nil)
+		if err == nil {
+			t.Fatal("expected error for blank query")
+		}
+		if !strings.Contains(err.Error(), "task search requires a query") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestTaskSearchCLINoQuery(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Some task", "Pending", "")
+	_, stderr, code := runCLI(t, "--root", root, "task", "search")
+	if code != 2 {
+		t.Errorf("no-query exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "task search requires a query") {
+		t.Errorf("unexpected stderr: %s", stderr)
+	}
+}
+
 func TestTaskListFiltersPriority(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "P0 Task", "Pending", "P0", "")

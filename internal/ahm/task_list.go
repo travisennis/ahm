@@ -77,6 +77,58 @@ func (a *app) taskList(mode string, statuses []string, labels []string, prioriti
 	return nil
 }
 
+func (a *app) taskSearch(query string, statuses []string, labels []string) error {
+	if strings.TrimSpace(query) == "" {
+		return usageError("task search requires a query\n  ahm task search <query>")
+	}
+	defer a.emitWarnings()
+	tasks, err := a.getTasks()
+	if err != nil {
+		a.addWarning("some task files could not be parsed and were skipped")
+	}
+	filtered := filterTasks(tasks, "all")
+	needle := strings.ToLower(query)
+	var matched []Task
+	for _, task := range filtered {
+		if strings.Contains(strings.ToLower(task.Title), needle) {
+			matched = append(matched, task)
+		}
+	}
+	filtered = matched
+	if len(statuses) > 0 {
+		allowed := make(map[string]bool, len(statuses))
+		for _, raw := range statuses {
+			normalized, err := normalizeTaskStatus(raw)
+			if err != nil {
+				return err
+			}
+			allowed[normalized] = true
+		}
+		filtered = filterTasksByStatus(filtered, allowed)
+	}
+	if len(labels) > 0 {
+		required, err := normalizeTaskLabels(labels)
+		if err != nil {
+			return err
+		}
+		filtered = filterTasksByLabels(filtered, required)
+	}
+	if len(filtered) == 0 {
+		if a.opts.json {
+			return a.emit([]Task{})
+		}
+		fmt.Fprintln(a.out, "No tasks found.")
+		return nil
+	}
+	if a.opts.json {
+		return a.emit(filtered)
+	}
+	for _, task := range filtered {
+		a.printTaskLine(task)
+	}
+	return nil
+}
+
 type taskLabelSummary struct {
 	Label  string `json:"label"`
 	Total  int    `json:"total"`

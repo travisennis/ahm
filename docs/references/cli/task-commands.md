@@ -50,7 +50,8 @@ Task efforts must be one of:
 ### Malformed Task Resilience
 
 List-like commands (`task list`, `task ls`, `task ready`, `task blocked`,
-`task labels`, `task next`, `task dep cycles`, `task dep tree`) and `ahm index`
+`task search`, `task labels`, `task next`, `task dep cycles`, `task dep tree`)
+and `ahm index`
 tolerate malformed task files. When one or more task files cannot be parsed,
 these commands skip the malformed files, produce output from the remaining
 valid tasks, and print a warning to stderr.
@@ -231,6 +232,39 @@ Example:
 ```bash
 ahm task blocked
 ahm task blocked --label risk:external-service
+```
+
+### `task search <query>`
+
+Searches tasks by case-insensitive substring match on the task title. Body
+text is not searched.
+
+Text output matches `task list`, sorted by priority rank and then task ID:
+
+```text
+001 [Pending] P2 S Add release workflow
+```
+
+Useful flags:
+
+- `--status <status>`: filters matches by one or more statuses, using the same
+  semantics as `task list --status`.
+- `--label <label>`: filters matches by one or more labels, using the same AND
+  semantics as `task list --label`.
+- `--json`: emits parsed task structs with lowercase snake_case keys.
+
+When filters are supplied, they compose with the title search using AND
+semantics. Empty results print `No tasks found.` in text mode and `[]` in JSON
+mode. Calling `task search` with no query is a usage error.
+
+Example:
+
+```bash
+ahm task search timeout
+ahm task search "release workflow"
+ahm task search timeout --status Open
+ahm task search cli --status Open --label area:cli
+ahm --json task search cli --label area:cli
 ```
 
 ### `task labels`
