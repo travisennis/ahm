@@ -110,8 +110,13 @@ func (a *app) command() *cobra.Command {
 		Long: `Manage repo-local .agents workflow files for tasks, research notes,
 ADRs, generated indexes, and coding-agent delegation.
 
+When run with no command, ahm runs 'status', which exits with code 1
+when validation errors are found. For a briefing that always succeeds,
+run 'ahm context'.
+
 Examples:
   ahm
+  ahm context
   ahm status
   ahm --json doctor`,
 		SilenceUsage:  true,
