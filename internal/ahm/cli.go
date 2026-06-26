@@ -241,14 +241,20 @@ func (a *app) contextCommand() *cobra.Command {
 		Short: "Repository briefing or managed-work reference",
 		Long: `Print a repository briefing or managed-work reference.
 
-With no scope, prints a live briefing with repository state, git info,
-and task counts. With a scope (task, adr, research, plan, docs), prints
-the full reference document for that artifact type.
+With no scope, prints a live repository briefing with repository state,
+validation status, git branch, task counts, and useful follow-up commands.
+
+Scopes:
+  task     Task workflow reference for creating, choosing, and working on tasks
+  adr      ADR workflow reference for numbering, naming, and template rules
+  research Research workflow reference for organizing and using research notes
+  plan     ExecPlan workflow reference for planning larger tasks
+  docs     Documentation workflow reference for auditing and updating docs
 
 Examples:
   ahm context
   ahm context task
-  ahm --json context`,
+  ahm --json context adr`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
 				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))
