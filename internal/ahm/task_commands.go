@@ -63,13 +63,15 @@ Examples:
 	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
 	task.AddCommand(create)
 
-	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status or labels.
+	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.
 
 Examples:
   ahm task list
   ahm task list --status pending
   ahm task list --status pending,completed
-  ahm task list --label type:feature --label area:cli`))
+  ahm task list --label type:feature --label area:cli
+  ahm task list --priority P0
+  ahm task list --priority P0,P1 --effort S,M`))
 	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready", `List pending tasks whose dependencies are all completed.
 
 Examples:
@@ -240,6 +242,8 @@ Examples:
 func (a *app) taskListCommand(use string, aliases []string, short string, mode string, long string) *cobra.Command {
 	var statuses []string
 	var labels []string
+	var priorities []string
+	var efforts []string
 	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
@@ -250,11 +254,13 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskList(mode, statuses, labels)
+			return a.taskList(mode, statuses, labels, priorities, efforts)
 		},
 	}
 	if mode == "all" {
 		cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
+		cmd.Flags().StringSliceVar(&priorities, "priority", nil, "Filter tasks by priority; valid: P0, P1, P2, P3, P4 (comma-separated or repeatable)")
+		cmd.Flags().StringSliceVar(&efforts, "effort", nil, "Filter tasks by effort; valid: XS, S, M, L, XL (comma-separated or repeatable)")
 	}
 	cmd.Flags().StringSliceVar(&labels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
 	return cmd

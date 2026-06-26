@@ -55,6 +55,26 @@ func validTaskStatus(status string) bool {
 	return containsString(statusOrder(), status)
 }
 
+func normalizeTaskPriority(priority string) (string, error) {
+	key := enumKey(priority)
+	for _, item := range priorityOrder() {
+		if enumKey(item) == key {
+			return item, nil
+		}
+	}
+	return "", usageError(enumError("priority", priority, priorityOrder()))
+}
+
+func normalizeTaskEffort(effort string) (string, error) {
+	key := enumKey(effort)
+	for _, item := range effortOrder() {
+		if enumKey(item) == key {
+			return item, nil
+		}
+	}
+	return "", usageError(enumError("effort", effort, effortOrder()))
+}
+
 func validTaskPriority(priority string) bool {
 	return containsString(priorityOrder(), priority)
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (a *app) taskList(mode string, statuses []string, labels []string) error {
+func (a *app) taskList(mode string, statuses []string, labels []string, priorities []string, efforts []string) error {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
@@ -31,6 +31,28 @@ func (a *app) taskList(mode string, statuses []string, labels []string) error {
 			return err
 		}
 		filtered = filterTasksByLabels(filtered, required)
+	}
+	if len(priorities) > 0 {
+		allowed := make(map[string]bool, len(priorities))
+		for _, raw := range priorities {
+			normalized, err := normalizeTaskPriority(raw)
+			if err != nil {
+				return err
+			}
+			allowed[normalized] = true
+		}
+		filtered = filterTasksByPriority(filtered, allowed)
+	}
+	if len(efforts) > 0 {
+		allowed := make(map[string]bool, len(efforts))
+		for _, raw := range efforts {
+			normalized, err := normalizeTaskEffort(raw)
+			if err != nil {
+				return err
+			}
+			allowed[normalized] = true
+		}
+		filtered = filterTasksByEffort(filtered, allowed)
 	}
 	if len(filtered) == 0 {
 		if a.opts.json {
@@ -271,4 +293,24 @@ func priorityRank(priority string) int {
 	default:
 		return 99
 	}
+}
+
+func filterTasksByPriority(tasks []Task, allowed map[string]bool) []Task {
+	var out []Task
+	for _, task := range tasks {
+		if allowed[task.Priority] {
+			out = append(out, task)
+		}
+	}
+	return out
+}
+
+func filterTasksByEffort(tasks []Task, allowed map[string]bool) []Task {
+	var out []Task
+	for _, task := range tasks {
+		if allowed[task.Effort] {
+			out = append(out, task)
+		}
+	}
+	return out
 }
