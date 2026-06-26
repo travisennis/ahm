@@ -20,9 +20,9 @@ The feature matters because ADRs already gate durable design work in this reposi
 - [x] (2026-06-14 10:42-04:00) Implement task 077: `ahm adr list` and `ahm adr show`.
 - [x] (2026-06-14 13:00-04:00) Implement task 078: ADR lifecycle commands and bidirectional supersession.
 - [x] (2026-06-14 10:35-04:00) Implement task 079: generated ADR index and ADR validation findings under the `workflow` check scope.
-- [ ] Implement task 080: rewrite the managed ADR workflow template for MADR and update agent suggestions.
-- [ ] Implement task 081: `ahm adr migrate` and migrate this repository's legacy ADR metadata.
-- [ ] Complete the feature by running focused checks, template checks, and `just ci`; update this plan's Outcomes & Retrospective; then move this plan to `.agents/exec-plans/completed/`.
+- [x] Implement task 080: rewrite the managed ADR workflow template for MADR and update agent suggestions.
+- [x] Implement task 081: `ahm adr migrate` and migrate this repository's legacy ADR metadata.
+- [x] Complete the feature by running focused checks, template checks, and `just ci`; update this plan's Outcomes & Retrospective; then move this plan to `.agents/exec-plans/completed/`.
 
 ## Surprises & Discoveries
 
@@ -51,7 +51,17 @@ The feature matters because ADRs already gate durable design work in this reposi
 
 ## Outcomes & Retrospective
 
-Not completed yet. Task 074 established ADR 009 and this implementation plan. The feature remains open until tasks 075-081 are implemented, this repository's legacy ADR metadata is migrated, and validation passes through `just ci`.
+All seven implementation tasks (075–081) completed successfully. The MADR ADR management feature shipped with create, list, show, lifecycle commands (accept/reject/deprecate/supersede), generated ADR index, workflow-scoped validation, managed template updates, and metadata migration for this repository's legacy ADRs 001–008.
+
+### What went well
+- ADR model parsing and rendering was straightforward by mirroring task patterns.
+- The constrained MADR profile fit ahm's scalar front-matter grammar without extension.
+- Migration (`ahm adr migrate`) converted all eight legacy ADRs without prose changes.
+
+### What to watch
+- Status validation is strict about the `superseded by ADR-NNN` pattern. ADRs superseded by non-ADR work (e.g., task 118 superseding ADR 008) need `deprecated` instead — the distinction tripped validation and required a manual fix.
+- The bidirectional supersession logic needs care to avoid duplicating reference lines on re-run.
+- Legacy `Superseded in part` status has no MADR equivalent; partial supersession lives in body notes with `status: accepted`.
 
 ## Context and Orientation
 

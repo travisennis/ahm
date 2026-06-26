@@ -98,13 +98,13 @@ None.
 | [072](completed/072.md) | Address minor CLI and rendering polish items | Completed | P4 | S | type:maintenance, area:cli, area:tasks, area:templates | - | - |
 | [073](completed/073.md) | Require a reason when cancelling a task | Completed | P2 | M | type:feature, area:tasks, area:cli, area:workflow | .agents/exec-plans/completed/073-task-cancellation-reasons.md | - |
 | [074](completed/074.md) | Write ADR and ExecPlan for MADR ADR management | Completed | P2 | M | type:docs, area:adr, area:docs, area:workflow | - | - |
-| [075](completed/075.md) | Add MADR ADR model parsing and rendering | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/active/074-madr-adr-management.md | 074 |
-| [076](completed/076.md) | Add ahm adr create command | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/active/074-madr-adr-management.md | 075 |
-| [077](completed/077.md) | Add ahm adr list and show commands | Completed | P2 | S | type:feature, area:adr, area:cli | .agents/exec-plans/active/074-madr-adr-management.md | 075 |
-| [078](completed/078.md) | Add ADR lifecycle and supersede commands | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/active/074-madr-adr-management.md | 075 |
-| [079](completed/079.md) | Generate ADR index and validate ADR records | Completed | P2 | M | type:feature, area:adr, area:workflow, area:cli | .agents/exec-plans/active/074-madr-adr-management.md | 075 |
-| [080](completed/080.md) | Rewrite ADR template for MADR and update agent suggestions | Completed | P2 | M | type:feature, area:adr, area:templates, area:workflow, area:docs | .agents/exec-plans/active/074-madr-adr-management.md | 076, 078, 079 |
-| [081](completed/081.md) | Add ahm adr migrate for legacy ADR metadata | Completed | P2 | M | type:feature, area:adr, area:cli, risk:migration | .agents/exec-plans/active/074-madr-adr-management.md | 075, 079 |
+| [075](completed/075.md) | Add MADR ADR model parsing and rendering | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/completed/074-madr-adr-management.md | 074 |
+| [076](completed/076.md) | Add ahm adr create command | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/completed/074-madr-adr-management.md | 075 |
+| [077](completed/077.md) | Add ahm adr list and show commands | Completed | P2 | S | type:feature, area:adr, area:cli | .agents/exec-plans/completed/074-madr-adr-management.md | 075 |
+| [078](completed/078.md) | Add ADR lifecycle and supersede commands | Completed | P2 | M | type:feature, area:adr, area:cli | .agents/exec-plans/completed/074-madr-adr-management.md | 075 |
+| [079](completed/079.md) | Generate ADR index and validate ADR records | Completed | P2 | M | type:feature, area:adr, area:workflow, area:cli | .agents/exec-plans/completed/074-madr-adr-management.md | 075 |
+| [080](completed/080.md) | Rewrite ADR template for MADR and update agent suggestions | Completed | P2 | M | type:feature, area:adr, area:templates, area:workflow, area:docs | .agents/exec-plans/completed/074-madr-adr-management.md | 076, 078, 079 |
+| [081](completed/081.md) | Add ahm adr migrate for legacy ADR metadata | Completed | P2 | M | type:feature, area:adr, area:cli, risk:migration | .agents/exec-plans/completed/074-madr-adr-management.md | 075, 079 |
 | [082](completed/082.md) | Add Claude Code agent support to ahm task work | Completed | P2 | M | type:feature, area:cli, area:agent, risk:external-service | - | - |
 | [083](completed/083.md) | Upgrade codex agent to full task work orchestration | Completed | P2 | M | type:feature, area:cli, area:agent, risk:external-service | - | - |
 | [084](completed/084.md) | Upgrade cursor agent to full task work orchestration | Completed | P2 | M | type:feature, area:cli, area:agent, risk:external-service | - | - |

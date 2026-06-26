@@ -1,7 +1,7 @@
 ---
-status: superseded
+status: superseded by ADR-012
 superseded_by: task 118
-date: 2026-06-12
+date: 2026-06-26
 ---
 # Delegated Task Work Commit Handoff
 
@@ -117,3 +117,6 @@ Pushes and pull-request creation remain out of scope for this feature.
 - `internal/ahm/task_session.go`
 - `docs/cli.md`
 
+## Supersession
+
+Superseded by [ADR-012](012-default-task-work-review-and-commit-on.md).
