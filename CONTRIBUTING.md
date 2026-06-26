@@ -43,6 +43,7 @@ just prepare-release  # calculate version, update changelog, and run release che
 just quick          # go test ./... plus go vet ./...
 just ci             # full read-only CI suite
 just fix            # mutating tidy plus fmt
+just docs-md-lint   # lint markdown structure (npx markdownlint-cli2); not yet in ci
 ```
 
 Agent integration commands make real LLM calls and are not part of CI:

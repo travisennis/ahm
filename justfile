@@ -40,6 +40,10 @@ lint:
 vuln:
 	"$(go env GOPATH)/bin/govulncheck" ./...
 
+# Lint markdown files for structural issues. Requires Node.js (npx).
+docs-md-lint:
+	npx --yes markdownlint-cli2 "**/*.md"
+
 release-check:
 	"$(go env GOPATH)/bin/goreleaser" check
 	"$(go env GOPATH)/bin/goreleaser" release --snapshot --clean --skip publish
