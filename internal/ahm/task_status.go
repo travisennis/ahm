@@ -41,7 +41,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 	status := parsed.status
 	cancelReason := strings.TrimSpace(parsed.reason)
 	if status == "Cancelled" && cancelReason == "" {
-		return usageError("task cancel requires --reason")
+		return usageError("task cancel requires --reason\n  ahm task cancel <id> --reason <text>")
 	}
 
 	var allTasks []Task

@@ -25,7 +25,7 @@ Examples:
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
 			}
-			return usageError("adr requires a subcommand")
+			return usageError("adr requires a subcommand\n  ahm adr <subcommand>")
 		},
 	}
 
@@ -42,7 +42,7 @@ Examples:
   ahm --dry-run adr create "Test ADR"`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return usageError("adr create requires a title")
+				return usageError("adr create requires a title\n  ahm adr create <title>")
 			}
 			return nil
 		},
@@ -90,7 +90,7 @@ Examples:
   ahm adr show 009
   ahm adr show 9
   ahm --json adr show 009-madr-adr-management`,
-		Args: exactArgs(1, "adr show requires an id"),
+		Args: exactArgs(1, "adr show requires an id\n  ahm adr show <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -123,7 +123,7 @@ Examples:
 			Use:   spec.use,
 			Short: spec.short,
 			Long:  spec.long,
-			Args:  exactArgs(1, "adr status command requires an id"),
+			Args:  exactArgs(1, "adr status command requires an id\n  ahm adr accept|reject|deprecate <id>"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
 					return err
@@ -144,7 +144,7 @@ The replacement ADR gets a cross-reference back.
 
 Examples:
   ahm adr supersede 009 --by 010`,
-		Args: exactArgs(1, "adr supersede requires an old id"),
+		Args: exactArgs(1, "adr supersede requires an old id\n  ahm adr supersede <old-id> --by <new-id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -198,7 +198,7 @@ type adrListEntry struct {
 func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 	parsed.title = strings.TrimSpace(parsed.title)
 	if parsed.title == "" {
-		return usageError("adr create requires a title")
+		return usageError("adr create requires a title\n  ahm adr create <title>")
 	}
 	if !validADRCreateStatus(parsed.status) {
 		return usageError(fmt.Sprintf("unsupported ADR status %q (supported: %s)", parsed.status, strings.Join(adrCreateStatuses(), ", ")))
@@ -312,7 +312,7 @@ func (a *app) adrSupersede(oldID string, newID string) error {
 	defer a.emitWarnings()
 	newID = strings.TrimSpace(newID)
 	if newID == "" {
-		return usageError("adr supersede requires --by")
+		return usageError("adr supersede requires --by\n  ahm adr supersede <old-id> --by <new-id>")
 	}
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {

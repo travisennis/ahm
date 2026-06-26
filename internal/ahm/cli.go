@@ -254,7 +254,7 @@ Examples:
 				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))
 			}
 			if len(args) == 1 && !validScopes[args[0]] {
-				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)", args[0]))
+				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)\n  ahm context <scope>", args[0]))
 			}
 			return nil
 		},
@@ -286,7 +286,7 @@ Examples:
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
 			}
-			return usageError("agents requires a subcommand")
+			return usageError("agents requires a subcommand\n  ahm agents suggestions")
 		},
 	}
 	suggestions := &cobra.Command{

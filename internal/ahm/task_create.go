@@ -22,7 +22,7 @@ type taskCreateArgs struct {
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.title == "" {
-		return usageError("task create requires a title")
+		return usageError("task create requires a title\n  ahm task create <title>")
 	}
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err

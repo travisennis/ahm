@@ -24,7 +24,7 @@ Examples:
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
 			}
-			return usageError("task dep requires a subcommand")
+			return usageError("task dep requires a subcommand\n  ahm task dep <subcommand>")
 		},
 	}
 	dep.AddCommand(a.taskDepUpdateCommand("add", nil, "Add a task dependency", true, `Add a dependency to a task.
@@ -45,7 +45,7 @@ Examples:
 
 Examples:
   ahm task dep tree 002`,
-		Args: exactArgs(1, "task dep tree requires an id"),
+		Args: exactArgs(1, "task dep tree requires an id\n  ahm task dep tree <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -77,7 +77,7 @@ func (a *app) taskDepUpdateCommand(use string, aliases []string, short string, a
 		Aliases: aliases,
 		Short:   short,
 		Long:    long,
-		Args:    exactArgs(2, "task dep add/remove requires task id and dependency id"),
+		Args:    exactArgs(2, "task dep add/remove requires task id and dependency id\n  ahm task dep add <id> <dependency-id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err

@@ -22,7 +22,7 @@ Examples:
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
 			}
-			return usageError("task requires a subcommand")
+			return usageError("task requires a subcommand\n  ahm task <subcommand>")
 		},
 	}
 
@@ -43,7 +43,7 @@ Examples:
   ahm task create "Complex work" --priority P2 --effort M --body-file body.md`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return usageError("task create requires a title")
+				return usageError("task create requires a title\n  ahm task create <title>")
 			}
 			return nil
 		},
@@ -138,7 +138,7 @@ Examples:
 Examples:
   ahm task show 001
   ahm --json task show 001`,
-		Args: exactArgs(1, "task show requires an id"),
+		Args: exactArgs(1, "task show requires an id\n  ahm task show <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -158,7 +158,7 @@ Examples:
   ahm task work 001 --agent codex
   ahm task work 001 --agent cursor --no-review
   ahm --dry-run task work 001 --agent cake`,
-		Args: exactArgs(1, "task work requires an id"),
+		Args: exactArgs(1, "task work requires an id\n  ahm task work <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err
@@ -214,7 +214,7 @@ Examples:
 			Aliases: spec.aliases,
 			Short:   spec.short,
 			Long:    spec.long,
-			Args:    exactArgs(1, "task status command requires an id"),
+			Args:    exactArgs(1, "task status command requires an id\n  ahm task accept|start|complete|cancel|reopen <id>"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
 					return err

@@ -35,10 +35,10 @@ Examples:
   ahm task comment 116 --body-file -`,
 		Args: func(cmd *cobra.Command, positional []string) error {
 			if len(positional) == 0 {
-				return usageError("task comment requires an id and text")
+				return usageError("task comment requires an id and text\n  ahm task comment <id> <text>")
 			}
 			if len(positional) == 1 && flagArgs.bodyFile == "" {
-				return usageError("task comment requires text or --body-file")
+				return usageError("task comment requires text or --body-file\n  ahm task comment <id> --body-file <file>")
 			}
 			return nil
 		},

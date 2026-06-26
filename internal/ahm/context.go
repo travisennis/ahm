@@ -215,7 +215,7 @@ func scopedContextInstruction(scope string) (contextInstruction, error) {
 	}
 	file, ok := files[scope]
 	if !ok {
-		return contextInstruction{}, usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)", scope))
+		return contextInstruction{}, usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)\n  ahm context <scope>", scope))
 	}
 	data, err := fs.ReadFile(templates.FS, file.source)
 	if err != nil {
