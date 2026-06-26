@@ -122,7 +122,7 @@ behavior, setup, security, or compatibility.
   boundary descriptions change.
 - ADR lifecycle and format changes must stay aligned with `docs/adr/README.md`.
 
-Before auditing or changing docs, read `.agents/DOCS.md`.
+Before auditing or changing docs, run `ahm context docs`.
 
 ## Commit And PR Workflow
 
