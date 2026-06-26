@@ -48,22 +48,22 @@ func taskFilePaths(root string) ([]taskFileInfo, error) {
 
 // Task is the parsed representation of a workflow task file.
 type Task struct {
-	ID          string
-	Title       string
-	Status      string
-	Priority    string
-	Effort      string
-	Labels      string
-	ExecPlan    string
-	DependsOn   []string
-	Created     string
-	Updated     string
-	Parent      string
-	ExternalRef string
-	Extra       map[string]string // unknown front matter fields preserved from the original file
-	Path        string
-	Bucket      string
-	Body        string
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Status      string            `json:"status"`
+	Priority    string            `json:"priority"`
+	Effort      string            `json:"effort"`
+	Labels      string            `json:"labels"`
+	ExecPlan    string            `json:"exec_plan"`
+	DependsOn   []string          `json:"depends_on"`
+	Created     string            `json:"created"`
+	Updated     string            `json:"updated"`
+	Parent      string            `json:"parent"`
+	ExternalRef string            `json:"external_ref"`
+	Extra       map[string]string `json:"extra"` // unknown front matter fields preserved from the original file
+	Path        string            `json:"path"`
+	Bucket      string            `json:"bucket"`
+	Body        string            `json:"body"`
 }
 
 func collectTasks(root string) ([]Task, error) {

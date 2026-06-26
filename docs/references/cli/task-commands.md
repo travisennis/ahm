@@ -167,7 +167,7 @@ Useful flags:
   comma-separated list (`--label type:feature,area:cli`) or repeated flags
   (`--label type:feature --label area:cli`). Matching uses AND semantics:
   every supplied label must be present on the task.
-- `--json`: emits parsed task structs.
+- `--json`: emits parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, `effort`, `labels`, `exec_plan`, `depends_on`, `created`, `updated`, `parent`, `external_ref`, `extra`, `path`, `bucket`, `body`).
 
 Example:
 
@@ -190,7 +190,7 @@ Useful flags:
 
 - `--label <label>`: filters ready tasks by one or more labels. Matching uses
   the same AND semantics as `task list --label`.
-- `--json`: emits parsed task structs.
+- `--json`: emits parsed task structs with lowercase snake_case keys.
 
 Example:
 
@@ -212,7 +212,7 @@ Useful flags:
 
 - `--label <label>`: filters blocked tasks by one or more labels. Matching uses
   the same AND semantics as `task list --label`.
-- `--json`: emits parsed task structs.
+- `--json`: emits parsed task structs with lowercase snake_case keys.
 
 Example:
 
@@ -251,7 +251,7 @@ dependencies are completed.
 
 Useful flags:
 
-- `--json`: emits the parsed task struct, or `null` when no task is ready.
+- `--json`: emits the parsed task struct with lowercase snake_case keys, or `null` when no task is ready.
 
 Example:
 
@@ -295,7 +295,7 @@ ahm task migrate
 Shows a task.
 
 By default, this prints the raw task Markdown file. With `--json`, it prints the
-parsed task struct.
+parsed task struct with lowercase snake_case keys.
 
 Example:
 

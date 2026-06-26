@@ -45,7 +45,7 @@ Global flags must appear before the command.
 | Flag | Description |
 | ---- | ----------- |
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
-| `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs. Takes precedence over `--plain` and `--text`. |
+| `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
 | `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
