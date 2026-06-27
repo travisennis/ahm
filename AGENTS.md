@@ -117,6 +117,7 @@ catalog, verification expectations, and project-specific command pitfalls.
 
 - Do not commit or push unless explicitly asked.
 - Assume uncommitted changes may belong to the user.
+- Use Conventional Commit standard when writing commit messages.
 - Do not revert, overwrite, or clean files you did not intentionally change.
 - Inspect `git status --short` before broad edits.
 - Never hand-edit ahm-generated indexes; update source records and run the
