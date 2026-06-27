@@ -51,5 +51,5 @@ func removeStaleWorkflowLock(lockPath string) {
 	if time.Since(info.ModTime()) <= workflowLockStaleAfter {
 		return
 	}
-	_ = os.Remove(lockPath)
+	_ = os.RemoveAll(lockPath)
 }
