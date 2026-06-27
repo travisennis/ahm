@@ -59,18 +59,21 @@ or workflow formats still uses the Workflow State routing docs.
 ### CLI, User Output, And Exit Behavior
 
 Use this workflow for command wiring, flags, help text, exit codes, output, and
-dry-run behavior. Consult `docs/guardrails/cli-and-user-output.md`,
-`docs/cli.md`, the relevant `docs/references/cli/` page, and
-`ARCHITECTURE.md`. Keep documented behavior stable unless the task is
+dry-run behavior. Consult
+[`docs/guardrails/cli-and-user-output.md`](docs/guardrails/cli-and-user-output.md),
+[`docs/cli.md`](docs/cli.md), the relevant
+[`docs/references/cli/`](docs/references/cli/) page, and
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Keep documented behavior stable unless the task is
 explicitly a breaking CLI change.
 
 ### Workflow State, File Formats, And Upgrades
 
 Use this workflow for `.agents/ahm.json`, workflow formats, generated indexes,
 install/upgrade/context/status/doctor behavior, and embedded templates. Consult
-`docs/guardrails/workflow-state-and-file-formats.md`,
-`docs/references/workflow-spec.md`, `docs/guides/workflow-upgrades.md`, and
-`ARCHITECTURE.md`. Do not edit generated indexes by hand.
+[`docs/guardrails/workflow-state-and-file-formats.md`](docs/guardrails/workflow-state-and-file-formats.md),
+[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md),
+[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Do not edit generated indexes by hand.
 For `ahm context`, the default command is a session briefing; scoped commands
 such as `ahm context task`, `ahm context adr`, `ahm context research`,
 `ahm context plan`, and `ahm context docs` should expose the full scoped
@@ -81,37 +84,43 @@ remove or stop installing agent skills unless that is explicitly in scope.
 
 Use this workflow for `ahm task work`, agent definitions, arg builders,
 parsers, session capture, handoff, and golden transcripts. Consult
-`docs/guardrails/external-agent-orchestration.md` and `docs/guides/testing.md`. Parser
-fixtures are not enough when a real agent CLI contract changes.
+[`docs/guardrails/external-agent-orchestration.md`](docs/guardrails/external-agent-orchestration.md)
+and [`docs/guides/testing.md`](docs/guides/testing.md). Parser fixtures are not
+enough when a real agent CLI contract changes.
 
 ### Safety, Permissions, And Atomic Writes
 
 Use this workflow for filesystem writes, path handling, root detection, command
 execution, and safety boundaries. Consult
-`docs/guardrails/safety-and-permissions.md`,
-`docs/references/workflow-spec.md`, and ADR 001.
+[`docs/guardrails/safety-and-permissions.md`](docs/guardrails/safety-and-permissions.md),
+[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), and
+[ADR 001](docs/adr/001-atomic-writes-and-concurrency.md).
 Keep writes explicit, dry-run aware, and crash-safe.
 
 ### Dependencies, Build, CI, And Release
 
 Use this workflow for dependencies, build scripts, CI, GoReleaser, version
 injection, and release behavior. Consult
-`docs/guardrails/dependencies-build-ci-release.md`, `CONTRIBUTING.md`,
-`docs/guides/workflow-upgrades.md`, and `.github/workflows/`. Preserve
-binary/template version separation.
+[`docs/guardrails/dependencies-build-ci-release.md`](docs/guardrails/dependencies-build-ci-release.md),
+[`CONTRIBUTING.md`](CONTRIBUTING.md),
+[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and
+[`.github/workflows/`](.github/workflows/). Preserve binary/template version
+separation.
 
 ### Architecture And Implementation Quality
 
 Use this workflow for refactors, module boundaries, shared helpers, validation,
 parsers, and performance-sensitive code. Consult
-`docs/guardrails/implementation-quality.md`, `ARCHITECTURE.md`, and relevant
-ADRs. Prefer small concrete functions and deterministic output.
+[`docs/guardrails/implementation-quality.md`](docs/guardrails/implementation-quality.md),
+[`ARCHITECTURE.md`](ARCHITECTURE.md), and relevant
+[ADRs](docs/adr/). Prefer small concrete functions and deterministic output.
 
 ### Build, Test, And Verification Commands
 
 When deciding what build, test, lint, verification, or commit-prep commands to
-run, consult `CONTRIBUTING.md`. It is the canonical source for the command
-catalog, verification expectations, and project-specific command pitfalls.
+run, consult [`CONTRIBUTING.md`](CONTRIBUTING.md). It is the canonical source
+for the command catalog, verification expectations, and project-specific
+command pitfalls.
 
 ## Repository Rules
 
