@@ -223,7 +223,11 @@ Examples:
 Examples:
   ahm index
   ahm --dry-run index`, func() error {
-		_ = cleanupStaleTemps(a.opts.root) // best-effort cleanup of crash leftovers
+		if err := cleanupStaleTemps(a.opts.root); err != nil {
+			// Best-effort cleanup of crash leftovers; surface partial failures
+			// (e.g. permission denied) without aborting index regeneration.
+			a.addWarning("%v", err)
+		}
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.agentsCommand())

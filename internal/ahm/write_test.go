@@ -209,6 +209,60 @@ func TestCleanupStaleTemps(t *testing.T) {
 	}
 }
 
+func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("test relies on filesystem permissions; root bypasses them")
+	}
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".agents")
+
+	// A read-only subdirectory holds a .tmp file that cannot be removed:
+	// on Unix, removing a file requires write permission on its parent dir.
+	// WalkDir visits directories in lexical order, so "locked" is walked
+	// before "writable" — proving the walk continues past the failure.
+	lockedDir := filepath.Join(agentsDir, "locked")
+	if err := os.MkdirAll(lockedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stuckTmp := filepath.Join(lockedDir, "stuck.md.tmp")
+	if err := os.WriteFile(stuckTmp, []byte("stuck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A removable orphan .tmp in a separate writable directory.
+	writableDir := filepath.Join(agentsDir, "writable")
+	if err := os.MkdirAll(writableDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	removableTmp := filepath.Join(writableDir, "orphan.md.tmp")
+	if err := os.WriteFile(removableTmp, []byte("orphan"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make the locked directory read-only so its .tmp cannot be removed.
+	if err := os.Chmod(lockedDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	// Restore write permission so t.TempDir cleanup can remove the file.
+	t.Cleanup(func() { _ = os.Chmod(lockedDir, 0o755) })
+
+	err := cleanupStaleTemps(dir)
+	if err == nil {
+		t.Fatal("expected a non-fatal cleanup error for the unremovable .tmp")
+	}
+
+	// The removable .tmp in the other directory must still be cleaned up,
+	// proving the walk continued past the failed os.Remove.
+	if _, statErr := os.Stat(removableTmp); !os.IsNotExist(statErr) {
+		t.Errorf("removable .tmp was not cleaned up after an earlier remove failure")
+	}
+
+	// The unremovable .tmp must still be present.
+	if _, statErr := os.Stat(stuckTmp); statErr != nil {
+		t.Errorf("unremovable .tmp unexpectedly gone: %v", statErr)
+	}
+}
+
 func TestCleanupStaleTemps_NoAgentsDir(t *testing.T) {
 	dir := t.TempDir()
 

@@ -118,7 +118,11 @@ func cleanupStaleTemps(root string) error {
 		return nil
 	}
 
-	return filepath.WalkDir(agentsDir, func(path string, d fs.DirEntry, err error) error {
+	// removeFailures collects .tmp files that could not be removed for a reason
+	// other than "already gone". A single unremovable file (permission denied,
+	// for example) must not abort cleanup of the remaining stale .tmp files.
+	var removeFailures []string
+	walkErr := filepath.WalkDir(agentsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -144,7 +148,20 @@ func cleanupStaleTemps(root string) error {
 			return nil
 		}
 		// Target file exists (stale .tmp from crash/interrupted write) or doesn't
-		// exist (orphan .tmp). Either is safe to remove.
-		return os.Remove(cleanPath) //nolint:gosec // best-effort cleanup of .tmp files within .agents/
+		// exist (orphan .tmp). Either is safe to remove. Removal errors are
+		// non-fatal so the walk continues to the remaining .tmp files: a missing
+		// file (concurrent removal by another process) is ignored silently, and
+		// any other failure is recorded and summarized after the walk completes.
+		if rmErr := os.Remove(cleanPath); rmErr != nil && !os.IsNotExist(rmErr) { //nolint:gosec // best-effort cleanup of .tmp files within .agents/
+			removeFailures = append(removeFailures, fmt.Sprintf("%s: %v", cleanPath, rmErr))
+		}
+		return nil
 	})
+	if walkErr != nil {
+		return walkErr
+	}
+	if len(removeFailures) > 0 {
+		return fmt.Errorf("could not remove %d stale .tmp file(s): %s", len(removeFailures), strings.Join(removeFailures, "; "))
+	}
+	return nil
 }
