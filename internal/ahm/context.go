@@ -108,7 +108,14 @@ func (a *app) contextReport() contextReport {
 	validation, tasks := validateWorkflow(a.opts.root)
 	meta, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
-		tasks, _ = a.getTasks()
+		var err error
+		tasks, err = a.getTasks()
+		if err != nil {
+			a.addWarning("some task files could not be parsed and were skipped")
+			if tasks == nil {
+				tasks = []Task{}
+			}
+		}
 	}
 	var installedVersion string
 	if metaErr == nil {

@@ -126,6 +126,24 @@ func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
 	)
 }
 
+func TestContextWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context")
+	if code != 0 {
+		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"metadata_missing",
+		"task_malformed",
+	)
+	assertContainsAll(t, stderr, "warning: some task files could not be parsed and were skipped")
+	if count := strings.Count(stderr, "warning: some task files could not be parsed and were skipped"); count != 1 {
+		t.Fatalf("warning count = %d, stderr = %s", count, stderr)
+	}
+}
+
 func TestContextWarningsOnlyValidationDisplay(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder

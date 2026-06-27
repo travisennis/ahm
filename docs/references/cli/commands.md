@@ -278,6 +278,7 @@ With no scope, `context` prints a live briefing with repository state:
   command when findings exist.
 - Git branch and dirty worktree count when `git` is available.
 - Task counts, in-progress tasks, and the next ready task.
+- A warning on stderr when task files cannot be parsed while gathering counts.
 - Useful read-only follow-up commands.
 
 With a scope, `context` prints the full embedded reference document for that
