@@ -120,10 +120,10 @@ it is automatically stripped to avoid a duplicate top-level heading. A
 different H1 is preserved as intentional body content.
 
 ```bash
-ahm task create "Cache Immutable Tool Definitions For Agent Turns" \
+ahm task create "Add JSON Output To task list" \
   --priority P2 \
   --effort M \
-  --labels "type:task, area:agent, area:tools" \
+  --labels "type:feature, area:cli" \
   --body-file -
 ```
 

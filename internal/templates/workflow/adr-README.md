@@ -13,7 +13,7 @@ ADR-required triggers:
 - Breaking changes, deprecations, migrations, compatibility changes, or changed default behavior.
 - New major runtime dependencies that affect behavior, security posture, binary size, licensing, or platform support.
 - Cross-platform behavior changes, especially macOS/Linux divergence.
-- Substantial changes in `area:sandbox`, `area:session`, `area:model`, `area:responses`, `area:chat`, `area:tools`, `area:prompts`, or `area:config`.
+- Substantial changes in an architecturally significant area of this repository (for example its core domain logic, public interfaces, persistence, or configuration shape).
 
 ADRs are usually optional for localized bug fixes, tests, docs, small refactors, and implementation-only follow-through that does not create a new durable decision. When in doubt, prefer a short ADR over leaving an important decision implicit.
 

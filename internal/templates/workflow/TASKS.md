@@ -1,15 +1,15 @@
 # Task Workflow
 
-This output explains how tasks are handled in this repository. For the first
+This document explains how tasks are handled in this repository. For the first
 task you work in a session, run `ahm context task`, then use `ahm task next`,
 `ahm task ready`, `ahm task list`, `ahm task blocked`, or
 `ahm task show <id>` to inspect task state. For later tasks in the same
 session, rerun the relevant `ahm task ...` command and reread the specific
-task source unless this guidance changed or the task changes task workflow
-semantics. `ahm task show <id>` is the normal task inspection primitive
-because it prints the task file contents; open the task file directly only
-when `ahm` is unavailable or when manually editing the task record. If you
-need to refresh this workflow guidance, rerun `ahm context task`.
+task source. Rerun `ahm context task` only to refresh this guidance, or when a
+task changes the task workflow itself. `ahm task show <id>` is the normal task
+inspection primitive because it prints the task file contents; open the task
+file directly only when `ahm` is unavailable or when manually editing the task
+record.
 
 ## Task Storage
 
@@ -75,7 +75,7 @@ ahm task labels
 Choose work using these rules:
 
 1. Prefer the lowest priority number first: `P0`, then `P1`, `P2`, `P3`, and `P4`.
-2. Skip tasks marked `Completed`, `Cancelled`, `Blocked`, `Open`, `In Progress`, or `Tracking`.
+2. Only `Pending` tasks are workable. Skip every other status (`Open`, `In Progress`, `Blocked`, `Tracking`, `Completed`, `Cancelled`); an `Open` task must go through `ahm task accept <id>` first, and resume an `In Progress` task only when the user asks.
 3. Check dependencies before starting. If a dependency is incomplete, do the dependency first or tell the user why the requested task is blocked.
 4. Treat parent tracker tasks as planning references. Work their child tasks in
    the order stated by the parent tracker or shown by `ahm task ready`.
@@ -114,8 +114,14 @@ Files, Fix Direction, and Acceptance Notes, use `--body-file`. This lets `ahm`
 own ID allocation, front matter, placement, and index regeneration while you
 supply the full body. See `docs/cli.md` for details and examples.
 
-`ahm task create` regenerates task, research, and ExecPlan indexes
-automatically, so no separate `ahm index` is needed after creation.
+If you cannot run `ahm`, create tasks by hand:
+
+Create new tasks in `.agents/.tasks/active/` with the next available three-digit
+id across `active/`, `completed/`, and `cancelled/`. For example, if the highest
+numbered task is `109.md`, the next unrelated task is `110.md`. Use letter
+suffixes only for subtasks that belong to a parent tracker, such as `110a.md`.
+Use the field definitions and task shape in the Task Reference section below,
+then run `ahm index` to regenerate the indexes.
 
 ## Accepting Tasks
 
@@ -155,21 +161,13 @@ Tasks that are fully scoped at creation time can skip acceptance by passing
 creator already knows the problem, the affected surface, and the completion
 criteria.
 
-`ahm task accept` regenerates task, research, and ExecPlan indexes
-automatically, so no separate `ahm index` is needed.
-
-If you cannot run `ahm`, create tasks by hand:
-
-Create new tasks in `.agents/.tasks/active/` with the next available three-digit
-id across `active/`, `completed/`, and `cancelled/`. For example, if the highest
-numbered task is `109.md`, the next unrelated task is `110.md`. Use letter
-suffixes only for subtasks that belong to a parent tracker, such as `110a.md`.
+## Task Reference
 
 A new task should include enough context for another agent to work it later
 without the original conversation. Use this shape unless the existing task
 family clearly uses a narrower format:
 
-- Front matter with id, title, status, priority, effort, ExecPlan, and
+- Front matter with id, title, status, priority, effort, labels, ExecPlan, and
   dependencies.
 - Title as the first heading.
 - Created date when useful.
@@ -193,6 +191,28 @@ depends_on: -
 ---
 ```
 
+Use this body skeleton beneath the front matter:
+
+```markdown
+# Short Imperative Task Title
+
+## Problem
+
+What needs to change and why.
+
+## Relevant Files
+
+- `path/to/file` — what it does and why it matters here.
+
+## Fix Direction
+
+The intended approach or implementation notes.
+
+## Acceptance Notes
+
+- [ ] How to know the task is complete.
+```
+
 Use this priority scale:
 
 - `P0` (Critical/Blocker): Emergencies needing immediate "all hands on deck" action (e.g., system down, major revenue loss).
@@ -204,7 +224,10 @@ Use this priority scale:
 Use labels to make work easier to filter and route. Prefer a small set of stable labels over one-off tags:
 
 - Type labels: `type:bug`, `type:feature`, `type:task`, `type:docs`, `type:maintenance`, `type:refactor`, `type:test`, `type:security`.
-- Area labels: `area:cli`, `area:agent`, `area:responses`, `area:chat`, `area:tools`, `area:sandbox`, `area:config`, `area:session`, `area:model`, `area:prompts`, `area:logger`, `area:ci`, `area:deps`, `area:dev-env`.
+- Area labels describe the part of the codebase a task touches. Define an
+  `area:*` vocabulary that fits this repository; common starting points are
+  `area:cli`, `area:core`, `area:docs`, `area:build`, `area:ci`, and
+  `area:deps`. Run `ahm task labels` to see the areas already in use.
 - Risk labels: `risk:breaking-change`, `risk:security-sensitive`, `risk:external-service`, `risk:migration`, `risk:release`.
 
 Every task should have at least one `type:*` label and one `area:*` label. Add `risk:*` labels only when they help reviewers or agents choose validation depth.
@@ -239,10 +262,6 @@ ahm task dep add <id> <dependency-id>
 ahm task complete <id>
 ahm task cancel <id> --reason <text>
 ```
-
-When a command can express the change, use it and do not run a separate
-`ahm index` afterward. If you manually update front matter, move a task file,
-or create a task by hand, run `ahm index` after the edit.
 
 When editing by hand as a fallback, keep task storage consistent with status:
 
@@ -290,7 +309,7 @@ When completing a task with an ExecPlan, use this order:
 Tasks that introduce or change an architectural decision must have an Architecture Decision Record before implementation. ADRs live under `docs/adr/`; use `ahm context adr` for the numbering, naming, and template rules.
 
 - `type:feature` tasks require an ADR when they introduce or change user-visible behavior, persisted state, tool behavior, model-provider behavior, sandbox behavior, configuration shape, or another durable architectural contract.
-- ADRs are also required for security-sensitive changes, breaking changes, migrations, major runtime dependencies, cross-platform behavior changes, and substantial changes in `area:sandbox`, `area:session`, `area:model`, `area:responses`, `area:chat`, `area:tools`, `area:prompts`, or `area:config`.
+- ADRs are also required for security-sensitive changes, breaking changes, migrations, major runtime dependencies, cross-platform behavior changes, and substantial changes in an architecturally significant area of this repository.
 - ADRs are optional for localized fixes, tests, docs, small refactors, and implementation-only follow-through that does not create a new durable decision.
 - When an ADR is required, create or update it before code changes begin, then reference it from the task body or implementation notes. If the task also requires an ExecPlan, the ExecPlan should cite the ADR and implement the accepted decision.
 
