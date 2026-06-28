@@ -16,6 +16,7 @@ No inbox research documents yet.
 
 ## Topics
 
+- [Agent Instruction Retrieval Via ahm](topics/agent-instruction-retrieval-via-ahm.md)
 - [MADR ADR Management Design (ahm adr)](topics/madr-adr-management-design.md)
 
 ## Archived
