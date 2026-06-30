@@ -18,6 +18,7 @@ No inbox research documents yet.
 
 - [Agent Instruction Retrieval Via ahm](topics/agent-instruction-retrieval-via-ahm.md)
 - [MADR ADR Management Design (ahm adr)](topics/madr-adr-management-design.md)
+- [Records Storage Via Private Git Refs](topics/records-storage-via-git-refs.md)
 
 ## Archived
 
