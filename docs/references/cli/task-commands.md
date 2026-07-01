@@ -79,9 +79,16 @@ to confirm the repair.
 
 Creates a new active task and regenerates indexes.
 
-The next ID is the next zero-padded numeric ID after the highest existing
-numeric task ID, such as `001`, `002`, and `003`. Non-numeric suffix IDs are
-ignored for this calculation.
+**Top-level ID allocation:** The next ID is the next zero-padded numeric ID
+after the highest existing numeric task ID, such as `001`, `002`, and `003`.
+Non-numeric suffix IDs are ignored for this calculation.
+
+**Subtask (child) ID allocation:** When the `--parent` flag is provided, the
+next available lettered child ID is allocated under that parent. For a parent
+with ID `137`, children are named `137a`, `137b`, ..., `137z`. At most 26
+children are allowed per parent. The allocation scans parsed tasks and
+filesystem entries across `active/`, `completed/`, and `cancelled/` buckets to
+avoid collisions with existing children.
 
 Concurrent `task create` commands in the same repository are serialized with a
 repo-local workflow lock while the ID is allocated, the task file is written,
@@ -105,6 +112,7 @@ Command flags:
 | `--status <value>` | Sets initial task status. Default is `Open`. |
 | `--description <text>`, `-d <text>` | Sets the initial summary body. Default is `TODO.` |
 | `--body-file <path>` | Reads the task body from a file, or from stdin when the path is `-`. |
+| `--parent <id>` | Parent task ID for subtask creation. Allocates a suffixed child ID (e.g., `137a`) and writes `parent: <id>` in front matter. The parent must be a top-level task (no letter suffix); child tasks cannot be parents. |
 
 By default the created task has `exec_plan: -`, no dependencies, a `## Summary`
 section, and a `## Acceptance Notes` checklist.
@@ -137,10 +145,13 @@ Useful global flags:
 - `--json` or `--plain`: affects only dry-run output. Successful non-dry-run
   creation prints the task ID.
 
-Example:
+Examples:
 
 ```bash
 ahm task create "Add release workflow" --priority P2 --effort M --labels type:task,area:ci
+
+ahm task create "Implement auth" --parent 047 --status Pending \
+  --labels "type:feature, area:config" --priority P1
 ```
 
 ### `task list`

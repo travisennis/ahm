@@ -61,6 +61,7 @@ Examples:
 	create.Flags().StringVar(&createArgs.status, "status", createArgs.status, "Set initial task status")
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
 	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
+	create.Flags().StringVar(&createArgs.parent, "parent", "", "Parent task ID for subtask creation; allocates a suffixed child ID like 137a, 137b")
 	task.AddCommand(create)
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.

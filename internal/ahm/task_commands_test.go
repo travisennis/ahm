@@ -445,6 +445,163 @@ func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 	}
 }
 
+func TestTaskCreateSubtask(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a parent task (a top-level numeric-only task).
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Parent Task", "--status", "Tracking")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create parent stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Create a child task under the parent.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child A", "--parent", "001")
+	if code != 0 {
+		t.Fatalf("create child stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	childID := strings.TrimSpace(stdout)
+	if childID != "001a" {
+		t.Errorf("child id = %q, want %q", childID, "001a")
+	}
+
+	// Verify the child file exists with correct parent front matter.
+	childPath := filepath.Join(root, ".agents", ".tasks", "active", "001a.md")
+	content := mustRead(t, childPath)
+	assertContainsAll(t, content, "id: 001a", "parent: 001", "title: Child A")
+
+	// Create another child — should get next letter.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child B", "--parent", "001")
+	if code != 0 || strings.TrimSpace(stdout) != "001b" {
+		t.Errorf("second child stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Index should include both children.
+	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	assertContainsAll(t, indexContent, "Parent Task", "Child A", "Child B")
+}
+
+func TestTaskCreateSubtaskParentNotFound(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Orphan", "--parent", "999")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "not found") {
+		t.Errorf("stderr = %q, want parent not found error", stderr)
+	}
+}
+
+func TestTaskCreateSubtaskParentIsChildRejected(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a top-level task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Parent", "--status", "Tracking")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create parent stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Create a child.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child", "--parent", "001")
+	if code != 0 || strings.TrimSpace(stdout) != "001a" {
+		t.Fatalf("create child stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Try creating a subtask of the child — should be rejected.
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Grandchild", "--parent", "001a")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "is a child task") {
+		t.Errorf("stderr = %q, want child task rejection", stderr)
+	}
+}
+
+func TestTaskCreateSubtaskCollisionAvoidance(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Manually create a child with letter 'c' to skip 'a', 'b'.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001c.md"), "001c", "Existing Child C", "Pending", "parent: 001\n")
+
+	// Also create a completed child with letter 'e' to prove scanning happens across buckets.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001e.md"), "001e", "Completed Child E", "Completed", "parent: 001\n")
+
+	// Collect tasks and call nextChildTaskID directly.
+	tasks, err := collectTasks(root)
+	if err == nil {
+		t.Log("collectTasks returned no error") // may warn but succeed
+	}
+
+	got, err := nextChildTaskID(tasks, root, "001")
+	if err != nil {
+		t.Fatalf("nextChildTaskID: %v", err)
+	}
+	// 'c' and 'e' exist, so first available is 'a'.
+	if got != "001a" {
+		t.Errorf("nextChildTaskID = %q, want %q", got, "001a")
+	}
+}
+
+func TestTaskCreateSubtaskDryRun(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a parent.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Parent")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create parent stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Dry-run child creation.
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "create", "Dry Child", "--parent", "001")
+	if code != 0 {
+		t.Fatalf("dry-run child stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	assertContainsAll(t, stdout, "001a")
+
+	// File should not exist.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "001a.md")); err == nil {
+		t.Errorf("dry-run should not create child file")
+	}
+}
+
+func TestTaskCreateTopLevelUnchangedWithParentFlag(t *testing.T) {
+	// Verify that not using --parent still produces top-level IDs.
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Normal Task")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	assertNotContains(t, content, "parent:")
+}
+
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")

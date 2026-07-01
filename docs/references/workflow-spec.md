@@ -109,11 +109,19 @@ left unchanged. `--dry-run` reports the completion move and dependent unblock
 changes without writing task files or indexes.
 
 `ahm task create` allocates task IDs under a repository-local workflow lock.
-The lock is held while the command computes the next numeric ID, writes the new
-task file, and regenerates indexes, so concurrent creates in the same
-repository receive distinct IDs and the final generated indexes include all
+The lock is held while the command computes the next numeric ID (or child ID),
+writes the new task file, and regenerates indexes, so concurrent creates in the
+same repository receive distinct IDs and the final generated indexes include all
 created tasks. `--dry-run` does not take the lock because it does not write
 workflow state.
+
+When the `--parent <id>` flag is provided, `ahm task create` allocates the next
+available lettered child ID under that parent (`137a`, `137b`, ..., `137z`) and
+writes `parent: <id>` in the child task front matter. The parent must be a
+top-level task (no letter suffix); child tasks cannot be parents. The allocation
+scans parsed tasks and filesystem entries across all three task buckets to avoid
+collisions. At most 26 children are allowed per parent. The workflow lock
+serializes both top-level and child ID allocation.
 
 ## File Ownership Boundary
 
