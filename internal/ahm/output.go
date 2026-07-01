@@ -8,6 +8,14 @@ import (
 	"sort"
 )
 
+// textRenderer is implemented by types that can render themselves as text.
+// emitText checks for this interface before falling through to the generic
+// any dispatch. New command data structs should implement RenderText to
+// produce deterministic text output without modifying writeTextValue.
+type textRenderer interface {
+	RenderText(w io.Writer) error
+}
+
 func (a *app) emit(value any) error {
 	switch {
 	case a.opts.json:
@@ -50,6 +58,9 @@ func (a *app) emitText(value any) error {
 		_, err := fmt.Fprintln(a.out, "none")
 		return err
 	}
+	if tr, ok := value.(textRenderer); ok {
+		return tr.RenderText(a.out)
+	}
 	return writeTextValue(a.out, value, "")
 }
 
@@ -70,12 +81,6 @@ func writeTextValue(w io.Writer, value any, prefix string) error {
 		return err
 	case int:
 		_, err := fmt.Fprintf(w, "%d\n", v)
-		return err
-	case int64:
-		_, err := fmt.Fprintf(w, "%d\n", v)
-		return err
-	case float64:
-		_, err := fmt.Fprintf(w, "%v\n", v)
 		return err
 	case map[string]any:
 		return writeMapText(w, v, prefix)
@@ -146,12 +151,6 @@ func writeSimpleValue(w io.Writer, value any) error {
 		return err
 	case int:
 		_, err := fmt.Fprintf(w, "%d\n", v)
-		return err
-	case int64:
-		_, err := fmt.Fprintf(w, "%d\n", v)
-		return err
-	case float64:
-		_, err := fmt.Fprintf(w, "%v\n", v)
 		return err
 	default:
 		_, err := fmt.Fprintf(w, "%v\n", value)
