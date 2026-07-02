@@ -33,16 +33,46 @@ func (a *app) taskStatus(argv []string, status string) error {
 }
 
 func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
-	defer a.emitWarnings()
 	task, err := a.resolveTask(parsed.ids[0])
 	if err != nil {
 		return err
 	}
-	status := parsed.status
 	cancelReason := strings.TrimSpace(parsed.reason)
-	if status == "Cancelled" && cancelReason == "" {
+	if parsed.status == "Cancelled" && cancelReason == "" {
 		return usageError("task cancel requires --reason\n  ahm task cancel <id> --reason <text>")
 	}
+
+	// True no-op: status and bucket both match. Cancellation still rewrites the
+	// task so the required reason can be inserted or replaced.
+	expectedBucket := bucketForStatus(parsed.status)
+	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" {
+		fmt.Fprintf(a.out, "%s already %s\n", task.ID, parsed.status)
+		return nil
+	}
+
+	if !a.opts.dryRun {
+		release, err := acquireWorkflowLock(a.opts.root, "task-mutate")
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := release(); err != nil {
+				fmt.Fprintln(a.err, err)
+			}
+		}()
+		return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+	}
+	return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+}
+
+func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelReason string) error {
+	defer a.emitWarnings()
+	// Invalidate the task cache so the locked section reads fresh state from
+	// disk. resolveTask outside the lock may have populated the cache before
+	// the lock was acquired, and concurrent completions may have changed the
+	// on-disk state since then.
+	a.invalidateTasks()
+	status := parsed.status
 
 	var allTasks []Task
 	var allTasksLoaded bool
@@ -78,14 +108,6 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 			return fmt.Errorf("cannot complete task %s: incomplete dependencies: %s",
 				task.ID, strings.Join(incomplete, ", "))
 		}
-	}
-
-	// True no-op: status and bucket both match. Cancellation still rewrites the
-	// task so the required reason can be inserted or replaced.
-	expectedBucket := bucketForStatus(status)
-	if task.Status == status && task.Bucket == expectedBucket && status != "Cancelled" {
-		fmt.Fprintf(a.out, "%s already %s\n", task.ID, status)
-		return nil
 	}
 
 	// Run acceptance notes validation only when actually transitioning to Completed.
@@ -138,8 +160,8 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 			return err
 		}
 	}
-	for _, task := range unblocked {
-		if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+	for _, utask := range unblocked {
+		if err := writeFileAtomic(utask.Path, []byte(renderTask(utask)), 0o644); err != nil {
 			return err
 		}
 	}
@@ -147,8 +169,8 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		return err
 	}
 	fmt.Fprintf(a.out, "%s -> %s\n", task.ID, status)
-	for _, task := range unblocked {
-		fmt.Fprintf(a.out, "%s -> Pending\n", task.ID)
+	for _, utask := range unblocked {
+		fmt.Fprintf(a.out, "%s -> Pending\n", utask.ID)
 	}
 	return nil
 }

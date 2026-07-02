@@ -60,6 +60,7 @@ func validateWorkflowScoped(root string, scopes []string) (validationReport, []T
 	if want(CheckScopeWorkflow) {
 		tasks = validateManagedFiles(root, &report)
 		validateTaskDependencies(root, tasks, &report)
+		validateBlockedDepsComplete(root, tasks, &report)
 		validateTaskBuckets(root, tasks, &report)
 		validateTaskExecPlans(root, tasks, &report)
 		validateExecPlans(root, tasks, &report)
@@ -208,6 +209,30 @@ func validateTaskDependencies(root string, tasks []Task, report *validationRepor
 	}
 	for _, cycle := range taskDependencyCycles(tasks) {
 		report.addError("task_dependency_cycle", "", "dependency cycle: "+strings.Join(cycle, " -> "))
+	}
+}
+
+func validateBlockedDepsComplete(root string, tasks []Task, report *validationReport) {
+	completed := map[string]bool{}
+	for _, task := range tasks {
+		if task.Status == "Completed" {
+			completed[task.ID] = true
+		}
+	}
+	for _, task := range tasks {
+		if task.Status != "Blocked" || task.Bucket != "active" || len(task.DependsOn) == 0 {
+			continue
+		}
+		depsAllComplete := true
+		for _, dep := range task.DependsOn {
+			if !completed[dep] {
+				depsAllComplete = false
+				break
+			}
+		}
+		if depsAllComplete {
+			report.addWarning("task_blocked_deps_complete", relPath(root, task.Path), fmt.Sprintf("task %s is Blocked but all its dependencies are Completed", task.ID))
+		}
 	}
 }
 

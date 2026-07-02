@@ -3332,6 +3332,112 @@ func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, s
 	writeTaskFile(t, path, id, title, status, extra)
 }
 
+func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
+	root := t.TempDir()
+	// Create tasks manually (no install needed — just raw task files).
+	// 001 and 002 are dependencies of 003 (Blocked).
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency A", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency B", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
+
+	// Verify initial state.
+	for _, id := range []string{"001", "002", "003"} {
+		p := filepath.Join(root, ".agents", ".tasks", "active", id+".md")
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("missing task %s: %v", id, err)
+		}
+	}
+
+	const completions = 2
+	var wg sync.WaitGroup
+	errc := make(chan error, completions)
+	ids := []string{"001", "002"}
+	for _, id := range ids {
+		id := id
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var out strings.Builder
+			a := app{opts: options{root: root}, out: &out}
+			if err := a.taskStatus([]string{id}, "Completed"); err != nil {
+				errc <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errc)
+	for err := range errc {
+		t.Error(err)
+	}
+
+	// Task 003 must now be Pending (both dependencies completed).
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "003.md"))
+	if err != nil {
+		t.Errorf("active/003.md: %v", err)
+	} else if !strings.Contains(string(data), "status: Pending") {
+		t.Errorf("003.md status not Pending, got:\n%s", string(data))
+	}
+	// Both dependencies should be in completed/.
+	for _, id := range []string{"001", "002"} {
+		p := filepath.Join(root, ".agents", ".tasks", "completed", id+".md")
+		assertFileContainsAll(t, p, "status: Completed")
+	}
+	// Index must show 003 as Pending (it renders as a table cell, not front matter).
+	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	if !strings.Contains(indexContent, "Dependent Task") {
+		t.Errorf("index missing Dependent Task:\n%s", indexContent)
+	}
+	// The table shows | [id](path) | Title | Status | ... so look for the task row with Pending status.
+	if !strings.Contains(indexContent, "003.md) | Dependent Task | Pending") {
+		t.Errorf("index does not show 003 as Pending:\n%s", indexContent)
+	}
+}
+
+func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
+	saveLockTimeout(t)
+	workflowLockTimeout = 2 * time.Second
+	workflowLockRetryDelay = time.Millisecond
+
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
+
+	release, err := acquireWorkflowLock(root, "task-mutate")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	var out strings.Builder
+	go func() {
+		a := app{opts: options{root: root}, out: &out}
+		done <- a.taskStatus([]string{"001"}, "Completed")
+	}()
+
+	select {
+	case err := <-done:
+		t.Errorf("task complete finished while workflow lock was held: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	if err := release(); err != nil {
+		t.Error(err)
+	}
+
+	select {
+	case err := <-done:
+		// May fail with incomplete acceptance notes (created via writeTaskFile
+		// has no acceptance section). The important thing is that it didn't hang.
+		_ = err
+	case <-time.After(2 * time.Second):
+		t.Error("task complete did not finish after workflow lock was released")
+	}
+}
+
 func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

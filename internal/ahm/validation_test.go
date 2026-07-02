@@ -98,6 +98,29 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 	)
 }
 
+func TestValidationReportsBlockedDepsComplete(t *testing.T) {
+	root := t.TempDir()
+	// 002 is Blocked but all its deps (001) are Completed.
+	// Use writeTaskFileWithDeps for all tasks so depends_on is always present.
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done Dep", "Completed", "-")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Still Blocked Task", "Blocked", "001")
+	// 003 is Pending with no deps — should not trigger the warning.
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Pending Dep", "Pending", "-")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Legitimately Blocked", "Blocked", "003")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	// doctor returns an error when validation has errors; warnings don't cause errors.
+	_ = a.doctor()
+	got := out.String()
+	assertContainsAll(t, got,
+		`"code": "task_blocked_deps_complete"`,
+		`task 002 is Blocked but all its dependencies are Completed`,
+	)
+	// 004 should not appear in the blocked-deps-complete findings.
+	assertNotContains(t, got, "004")
+}
+
 func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
