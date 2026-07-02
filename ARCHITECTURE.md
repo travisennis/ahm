@@ -37,15 +37,21 @@ resolved task to an external coding-agent CLI.
 - `internal/ahm/root.go`: repository root discovery.
 - `internal/ahm/context.go`: `context` command briefing and managed-work
   references.
+- `internal/ahm/agents.go`: `agents suggestions` command that reports missing
+  AGENTS.md integration suggestions.
 - `internal/ahm/install.go`: `init`, `upgrade`, metadata, legacy instruction
   removal, and generated index writes.
 - `internal/ahm/status.go`: `status` and `doctor`.
 - `internal/ahm/validation.go`: workflow, link, ADR, task, and project-doc
   validation.
 - `internal/ahm/output.go`: shared text, JSON, and plain emitters.
+- `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
+  slash-separated relative paths.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
 - `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
   `taskListCommand`).
+- `internal/ahm/task_comment.go`: `task comment` command for appending
+  timestamped comments to task bodies.
 - `internal/ahm/task_create.go`: `task create` parsing, body resolution, and ID
   allocation.
 - `internal/ahm/task_list.go`: task list, next, labels, show, and
