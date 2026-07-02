@@ -17,6 +17,7 @@ No inbox research documents yet.
 ## Topics
 
 - [Agent Instruction Retrieval Via ahm](topics/agent-instruction-retrieval-via-ahm.md)
+- [ahm docs check: mechanical project-doc validation and hooks](topics/ahm-docs-check.md)
 - [MADR ADR Management Design (ahm adr)](topics/madr-adr-management-design.md)
 - [Records Storage Via Private Git Refs](topics/records-storage-via-git-refs.md)
 

@@ -7,6 +7,8 @@ index.
 
 ## Start Here
 
+- [Vision](VISION.md): where ahm is going — the channel model, ownership
+  split, git-safety boundary, and design tests for new work.
 - [CLI reference](cli.md): entrypoint for command, flag, output, and validation
   contracts.
 - [Workflow specification](references/workflow-spec.md): workflow state, file
