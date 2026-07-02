@@ -1417,6 +1417,57 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	})
 }
 
+func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Create a valid task first so there's at least one parsed task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Valid Task", "--status", "Pending")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create valid stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Write a malformed task file in active/.
+	malformed := filepath.Join(root, ".agents", ".tasks", "active", "bad.md")
+	if err := os.WriteFile(malformed, []byte("---\ninvalid : key\n---\n# Bad\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run task create "x" — should print each distinct warning exactly once.
+	var createOut, createErr strings.Builder
+	a := app{
+		opts: options{root: root},
+		out:  &createOut,
+		err:  &createErr,
+	}
+	if err := a.taskCreateParsed(taskCreateArgs{title: "x", status: "Pending", priority: "P2", effort: "S", labels: "type:task, area:unknown"}); err != nil {
+		t.Fatal(err)
+	}
+	got := createErr.String()
+	warnCount := strings.Count(got, "warning:")
+	// With one malformed file, the expected warnings are:
+	//   1. "some task files could not be parsed and were skipped"
+	//   2. "some task files could not be parsed and were skipped: ..."
+	// The drain+dedupe fix ensures each appears exactly once.
+	if warnCount != 2 {
+		t.Errorf("expected exactly 2 warning lines, got %d:\n%s", warnCount, got)
+	}
+	if !strings.Contains(got, "some task files could not be parsed and were skipped") {
+		t.Errorf("missing generic parse warning:\n%s", got)
+	}
+	if !strings.Contains(got, "bad.md") {
+		t.Errorf("expected malformed file reference in stderr:\n%s", got)
+	}
+	// Verify the created task exists.
+	createdPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	if _, err := os.Stat(createdPath); err != nil {
+		t.Errorf("created task not found: %v", err)
+	}
+}
+
 func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

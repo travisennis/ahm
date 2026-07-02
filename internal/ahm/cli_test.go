@@ -5,6 +5,59 @@ import (
 	"testing"
 )
 
+func TestEmitWarningsDrains(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		var buf strings.Builder
+		a := app{err: &buf}
+		a.emitWarnings()
+		if buf.Len() != 0 {
+			t.Errorf("expected no output, got %q", buf.String())
+		}
+	})
+
+	t.Run("prints and clears", func(t *testing.T) {
+		var buf strings.Builder
+		a := app{err: &buf}
+		a.addWarning("something went wrong")
+		a.addWarning("another issue")
+		a.emitWarnings()
+		got := buf.String()
+		if !strings.Contains(got, "warning: something went wrong") {
+			t.Errorf("missing first warning:\n%s", got)
+		}
+		if !strings.Contains(got, "warning: another issue") {
+			t.Errorf("missing second warning:\n%s", got)
+		}
+		if len(a.warnings) != 0 {
+			t.Errorf("warnings not drained: %v", a.warnings)
+		}
+	})
+
+	t.Run("dedupes identical messages", func(t *testing.T) {
+		var buf strings.Builder
+		a := app{err: &buf}
+		a.addWarning("duplicate message")
+		a.addWarning("duplicate message")
+		a.emitWarnings()
+		got := buf.String()
+		if strings.Count(got, "warning:") != 1 {
+			t.Errorf("expected 1 warning line, got %d:\n%s", strings.Count(got, "warning:"), got)
+		}
+		if len(a.warnings) != 0 {
+			t.Errorf("warnings not drained: %v", a.warnings)
+		}
+	})
+
+	t.Run("nil err is no-op", func(t *testing.T) {
+		a := app{}
+		a.addWarning("should be ignored")
+		a.emitWarnings()
+		if len(a.warnings) != 1 {
+			t.Errorf("warnings were drained despite nil err: %v", a.warnings)
+		}
+	})
+}
+
 func TestNestedHelp(t *testing.T) {
 	stdout, stderr, code := runCLI(t, "task", "--help")
 	if code != 0 {

@@ -35,12 +35,19 @@ func (a *app) addWarning(format string, args ...any) {
 }
 
 func (a *app) emitWarnings() {
-	if a.err == nil {
+	if a.err == nil || len(a.warnings) == 0 {
 		return
 	}
+	// Dedupe exact duplicates within one batch so the same message added
+	// by nested call sites prints only once.
+	seen := make(map[string]bool, len(a.warnings))
 	for _, w := range a.warnings {
-		fmt.Fprintln(a.err, "warning:", w)
+		if !seen[w] {
+			fmt.Fprintln(a.err, "warning:", w)
+			seen[w] = true
+		}
 	}
+	a.warnings = nil
 }
 
 // getTasks returns the cached task list or reads it from disk.
