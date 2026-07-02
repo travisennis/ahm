@@ -515,11 +515,21 @@ push branches, or open pull requests. With review and commit enabled by default,
 but the review, completion, and commit actions
 are performed by the delegated agent.
 
+When the file `.agents/prompt.md` exists in the repository root, its content
+is appended to the built work prompt under a `## Project Instructions` heading.
+This lets the project maintainer carry standing orientation and
+company/project-specific instructions that apply to every delegated work session.
+The path is configurable via `taskWork.promptFile` in `.agents/ahm.json`;
+a missing or unreadable file is silently ignored — the feature is opt-in
+by file presence.
+
 Useful flags:
 
 - `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
 - `--no-review`: skip the preflight review workflow (review runs by default).
 - `--no-commit`: skip the commit handoff (commit runs by default).
+- `--no-project-prompt`: skip inclusion of the project instructions file for
+  this single run.
 - `--dry-run`: previews the selected executable, arguments, prompt, task ID, agent, and
   requested orchestration flags without rewriting the task or invoking the
   external CLI.
@@ -528,7 +538,10 @@ Repository configuration:
 
 ```json
 {
-  "default_work_agent": "codex"
+  "default_work_agent": "codex",
+  "taskWork": {
+    "promptFile": ".agents/prompt.md"
+  }
 }
 ```
 
@@ -541,6 +554,7 @@ ahm task work 001 --agent cursor --no-review
 ahm task work 001 --agent claude --no-commit
 ahm task work 001 --no-review
 ahm task work 001 --no-commit
+ahm task work 001 --no-project-prompt
 ahm --dry-run task work 001 --agent cursor
 ```
 

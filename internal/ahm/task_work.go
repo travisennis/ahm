@@ -27,10 +27,11 @@ var (
 )
 
 type taskWorkArgs struct {
-	id       string
-	agent    string
-	noReview bool
-	noCommit bool
+	id              string
+	agent           string
+	noReview        bool
+	noCommit        bool
+	noProjectPrompt bool
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
@@ -49,7 +50,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if err != nil {
 		return err
 	}
-	prompt := a.buildTaskWorkPrompt(task)
+	prompt := a.buildTaskWorkPrompt(task, parsed.noProjectPrompt)
 	executable, err := taskWorkLookPath(agent.executable)
 	if err != nil {
 		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, agent.name, agent.executable)
@@ -115,13 +116,41 @@ func (a *app) ensureTaskDependenciesComplete(task Task) error {
 	return nil
 }
 
-func (a *app) buildTaskWorkPrompt(task Task) string {
-	return fmt.Sprintf(`Work on task %s.
+func (a *app) buildTaskWorkPrompt(task Task, noProjectPrompt bool) string {
+	prompt := fmt.Sprintf(`Work on task %s.
 
 Before making changes, run ahm context task to load the task workflow reference, then run ahm task show %s to inspect the task.
 
 Use the repository task workflow. Keep changes scoped to the task. Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied. Do not commit or push unless the user explicitly asked for that.
 `, task.ID, task.ID)
+
+	if noProjectPrompt {
+		return prompt
+	}
+
+	// Resolve the project instructions file path: configured or default.
+	promptFile := filepath.Join(a.opts.root, ".agents", "prompt.md")
+	meta, err := readMetadata(a.opts.root)
+	if err == nil && meta.TaskWork != nil && meta.TaskWork.PromptFile != "" {
+		promptFile = meta.TaskWork.PromptFile
+		if !filepath.IsAbs(promptFile) {
+			promptFile = filepath.Join(a.opts.root, promptFile)
+		}
+	}
+
+	content, err := os.ReadFile(filepath.Clean(promptFile))
+	if err != nil {
+		// Missing or unreadable file is not an error — feature is opt-in by presence.
+		return prompt
+	}
+
+	trimmed := strings.TrimSpace(string(content))
+	if trimmed == "" {
+		return prompt
+	}
+
+	prompt += "\n\n## Project Instructions\n\n" + trimmed
+	return prompt
 }
 
 func (a *app) markTaskInProgress(task Task) error {

@@ -75,6 +75,9 @@ Example:
   "version": "0.1.0",
   "strict_acceptance": true,
   "default_work_agent": "codex",
+  "taskWork": {
+    "promptFile": ".agents/prompt.md"
+  },
   "files": {
     ".agents/skills/preflight/SKILL.md": "..."
   }
@@ -91,6 +94,13 @@ The optional `default_work_agent` string selects the agent used by
 `ahm task work <id>` when no `--agent` flag is provided. Supported values are
 `cake`, `claude`, `codex`, and `cursor`; the command defaults to `cake` when neither the
 flag nor metadata setting is present.
+
+The optional `taskWork` block configures how `ahm task work` delegates work to
+an external agent. The `promptFile` field sets the path (relative to the
+repository root) of a Markdown file whose content is appended to the built work
+prompt under a `## Project Instructions` heading. Defaults to
+`.agents/prompt.md`. A missing or unreadable file is silently ignored;
+`ahm` never creates, templates, or upgrades this file.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
 must be non-empty; `--force` does not bypass this requirement. Cancellation

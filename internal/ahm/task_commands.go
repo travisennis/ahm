@@ -205,6 +205,7 @@ Examples:
 	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, claude, codex, or cursor")
 	work.Flags().BoolVar(&workArgs.noReview, "no-review", false, "Skip review orchestration (review runs by default)")
 	work.Flags().BoolVar(&workArgs.noCommit, "no-commit", false, "Skip commit handoff (commit runs by default)")
+	work.Flags().BoolVar(&workArgs.noProjectPrompt, "no-project-prompt", false, "Skip project instructions file inclusion")
 	task.AddCommand(work)
 
 	for _, spec := range []struct {

@@ -15,10 +15,15 @@ import (
 	"github.com/travisennis/ahm/internal/templates"
 )
 
+type taskWorkConfig struct {
+	PromptFile string `json:"promptFile,omitempty"`
+}
+
 type metadata struct {
 	Version          string            `json:"version"`
 	StrictAcceptance bool              `json:"strict_acceptance"`
 	DefaultWorkAgent string            `json:"default_work_agent,omitempty"`
+	TaskWork         *taskWorkConfig   `json:"taskWork,omitempty"`
 	Files            map[string]string `json:"files"`
 }
 

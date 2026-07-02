@@ -3566,6 +3566,83 @@ func TestTaskCommentCLI(t *testing.T) {
 	})
 }
 
+func TestTaskWorkProjectInstructionsPresent(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	// Create the project instructions file.
+	writeFile(t, filepath.Join(root, ".agents", "prompt.md"), "Follow the vision document.")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "## Project Instructions", "Follow the vision document.")
+}
+
+func TestTaskWorkProjectInstructionsSkippedWithFlag(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	// Create the project instructions file.
+	writeFile(t, filepath.Join(root, ".agents", "prompt.md"), "Should not appear.")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--no-project-prompt")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertNotContains(t, stdout, "## Project Instructions")
+	assertNotContains(t, stdout, "Should not appear.")
+}
+
+func TestTaskWorkProjectInstructionsMissingFileIsSilent(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	// No .agents/prompt.md exists.
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertNotContains(t, stdout, "## Project Instructions")
+}
+
+func TestTaskWorkProjectInstructionsConfiguredPath(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	// Create metadata with a custom prompt file path.
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), `{
+  "version": "0.1.0",
+  "taskWork": {
+    "promptFile": ".agents/custom-prompt.md"
+  },
+  "files": {}
+}`)
+
+	// Create the custom prompt file (not the default).
+	writeFile(t, filepath.Join(root, ".agents", "custom-prompt.md"), "Custom instructions.")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "## Project Instructions", "Custom instructions.")
+}
+
 func TestTrimTrailingBlankLines(t *testing.T) {
 	tests := []struct {
 		name  string
