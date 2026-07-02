@@ -87,4 +87,4 @@ When a doc is no longer current:
 - `docs/references/workflow-spec.md`
 - `docs/references/glossary.md`
 - `docs/guides/workflow-upgrades.md`
-- `docs/adr/README.md`
+- `docs/adr/index.md`

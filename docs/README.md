@@ -20,7 +20,7 @@ index.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
 - [Guardrails](guardrails/): short agent-facing rules by risk surface.
-- [ADRs](adr/README.md): decision record lifecycle and decision history.
+- [ADRs](adr/index.md): decision record lifecycle and decision history.
 
 ## Common Tasks
 
