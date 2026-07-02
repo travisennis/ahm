@@ -48,10 +48,18 @@ The pairing rule: `ahm context <topic>` says *how* to do work;
 | Content | Home | Why |
 | --- | --- | --- |
 | Durable project docs, ADRs, accepted designs | committed project history | knowledge the project must keep |
-| Tasks, scratch research, draft ExecPlans | gitignored `.agents/` files, synced via `refs/ahm/records` | working records: durable, private, out of branch history |
-| Generated indexes | local-only, regenerated from records | derived data is never a source of truth |
+| Tasks, scratch research, draft ExecPlans | gitignored files under tool-owned `.ahm/`, synced via `refs/ahm/records` | working records: durable, private, out of branch history |
+| Generated indexes | local-only under `.ahm/`, regenerated from records | derived data is never a source of truth |
+| ahm config | committed under `.ahm/` | settings must be identical on every clone and in CI |
 | Procedures, templates, checks | the `ahm` binary | versioned with the tool that interprets them |
 | Routing, operating loop, project rules | project-owned `AGENTS.md` and `docs/` | per-project judgment ahm must never overwrite |
+| Agent-facing project content (skills, standing instructions) | committed `.agents/` | the ecosystem-standard directory agents read; ahm may read it, never manages it |
+
+The namespace rule behind the table: `.agents/` is for agents to read
+and the project to own; `.ahm/` is for ahm to manage. `.ahm/` carries a
+managed internal `.gitignore` (records ignored, config not), so the
+consumer's root `.gitignore` is never touched. Decided 2026-07-02;
+recorded formally in the ADR 013 revision (task 137).
 
 Working records whose outcomes matter get promoted into project docs or
 ADRs; the records themselves are ceremony and stay out of history.
@@ -61,7 +69,8 @@ ADRs; the records themselves are ceremony and stay out of history.
 Stated once, canonically. `ahm` may:
 
 - read git state freely (status, diffs, refs);
-- write workflow files under `.agents/`;
+- write workflow files under its own `.ahm/` directory (and, during
+  explicit opt-in migration only, move files out of `.agents/`);
 - write refs under `refs/ahm/*` and fetch/push that namespace to the
   configured remote, plus the minimal repo config to do so.
 
