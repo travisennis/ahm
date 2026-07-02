@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -208,11 +209,27 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 		return err
 	}
 	body = stripHeading(body, parsed.title)
+	if !a.opts.dryRun {
+		release, err := acquireWorkflowLock(a.opts.root, "adr-create")
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := release(); err != nil {
+				fmt.Fprintln(a.err, err)
+			}
+		}()
+		return a.adrCreateParsedLocked(parsed, body)
+	}
+	return a.adrCreateParsedLocked(parsed, body)
+}
+
+func (a *app) adrCreateParsedLocked(parsed adrCreateArgs, body string) error {
+	defer a.emitWarnings()
 	adrs, err := collectADRs(a.opts.root)
 	if err != nil {
 		a.addWarning("some ADR files could not be parsed and were skipped")
 	}
-	defer a.emitWarnings()
 	id := nextADRID(adrs, a.opts.root)
 	slug := adrSlug(parsed.title)
 	if slug == "" {
@@ -233,6 +250,11 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 	}
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"create": path, "id": id})
+	}
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("adr id %s already exists at %s; retry adr create", id, relPath(a.opts.root, path))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checking adr path %s: %w", relPath(a.opts.root, path), err)
 	}
 	if err := writeFileAtomic(path, []byte(renderADR(record)), 0o644); err != nil {
 		return err

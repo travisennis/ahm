@@ -1,9 +1,12 @@
 package ahm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -535,6 +538,73 @@ func TestADRMigrateUnrecognizedStatus(t *testing.T) {
 	assertContainsAll(t, stdout, `unrecognized status "In Review"; fix manually`)
 }
 
+func TestADRCreateParallelAllocatesUniqueIDs(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	const creates = 5
+	type result struct {
+		id    string
+		title string
+	}
+	var wg sync.WaitGroup
+	results := make(chan result, creates)
+	errs := make(chan error, creates)
+	for i := 0; i < creates; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var out strings.Builder
+			a := app{opts: options{root: root}, out: &out}
+			parsed := adrCreateArgs{
+				title:  fmt.Sprintf("Parallel ADR %d", i+1),
+				status: "proposed",
+			}
+			err := a.adrCreateParsed(parsed)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- result{id: strings.TrimSpace(out.String()), title: parsed.title}
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+
+	var got []string
+	seen := map[string]bool{}
+	for r := range results {
+		got = append(got, r.id)
+		if seen[r.id] {
+			t.Errorf("duplicate id %s", r.id)
+		}
+		seen[r.id] = true
+		slug := adrSlug(r.title)
+		path := filepath.Join(root, "docs", "adr", r.id+"-"+slug+".md")
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("adr %s (%s) not found at %s: %v", r.id, r.title, path, err)
+		}
+	}
+	sort.Strings(got)
+	want := []string{"001", "002", "003", "004", "005"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("parallel adr IDs = %v, want %v", got, want)
+	}
+
+	indexContent := mustRead(t, filepath.Join(root, "docs", "adr", "index.md"))
+	for i := 0; i < creates; i++ {
+		assertContainsAll(t, indexContent, fmt.Sprintf("Parallel ADR %d", i+1))
+	}
+}
 func TestADRMigrateMissingBoldLines(t *testing.T) {
 	root := t.TempDir()
 	writeADRFile(t, root, "004-nodate.md", "# ADR 004: No Date\n\n**Status:** Accepted\n\n## Context\n\nBody.\n")

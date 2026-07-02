@@ -115,6 +115,11 @@ same repository receive distinct IDs and the final generated indexes include all
 created tasks. `--dry-run` does not take the lock because it does not write
 workflow state.
 
+`ahm adr create` similarly serializes ID allocation under
+`.agents/.lock/adr-create`. The lock is held while ADRs are collected, the
+next numeric ID is computed, the new ADR file is written, and indexes are
+regenerated. `--dry-run` does not take the lock.
+
 When the `--parent <id>` flag is provided, `ahm task create` allocates the next
 available lettered child ID under that parent (`137a`, `137b`, ..., `137z`) and
 writes `parent: <id>` in the child task front matter. The parent must be a
@@ -329,10 +334,10 @@ rename is indistinguishable from a successful write. Stale `.tmp` files left
 by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
 and `index` commands.
 
-`ahm task create` also uses a repository-local lock under `.agents/.lock/` to
-serialize ID allocation and index regeneration across concurrent invocations.
-Other managed write paths rely on atomic rename semantics unless their
-read-compute-write behavior needs a narrower lock.
+`ahm task create` and `ahm adr create` each use a repository-local lock under
+`.agents/.lock/` to serialize ID allocation and index regeneration across
+concurrent invocations. Other managed write paths rely on atomic rename
+semantics unless their read-compute-write behavior needs a narrower lock.
 
 ### Generated Index Write Semantics
 
