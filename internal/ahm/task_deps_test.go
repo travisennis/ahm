@@ -117,6 +117,29 @@ func TestTaskDependencyCycleDetection(t *testing.T) {
 	}
 }
 
+func TestTaskDependencyCycleNoAliasing(t *testing.T) {
+	tasks := []Task{
+		{ID: "a", Status: "Pending", DependsOn: []string{"b"}},
+		{ID: "b", Status: "Pending", DependsOn: []string{"c"}},
+		{ID: "c", Status: "Pending", DependsOn: []string{"d"}},
+		{ID: "d", Status: "Pending", DependsOn: []string{"e"}},
+		{ID: "e", Status: "Pending", DependsOn: []string{"g"}},
+		{ID: "f", Status: "Pending", DependsOn: []string{"g"}},
+		{ID: "g", Status: "Pending", DependsOn: []string{"b", "h"}},
+		{ID: "h", Status: "Pending", DependsOn: []string{"i"}},
+		{ID: "i", Status: "Pending", DependsOn: []string{}},
+	}
+	cycles := taskDependencyCycles(tasks)
+	if len(cycles) != 1 {
+		t.Fatalf("expected 1 cycle, got %d: %v", len(cycles), cycles)
+	}
+	got := strings.Join(cycles[0], " -> ")
+	want := "b -> c -> d -> e -> g -> b"
+	if got != want {
+		t.Errorf("cycle = %q, want %q", got, want)
+	}
+}
+
 func TestTaskDepCyclesCommand(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")

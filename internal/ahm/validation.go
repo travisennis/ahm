@@ -802,7 +802,7 @@ func taskDependencyCycles(tasks []Task) [][]string {
 					break
 				}
 			}
-			cycles = append(cycles, append(path[start:], id))
+			cycles = append(cycles, append(append([]string{}, path[start:]...), id))
 			return
 		}
 		if visited[id] {
