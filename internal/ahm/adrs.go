@@ -189,7 +189,7 @@ func renderADR(adr ADR) string {
 	fmt.Fprintf(&b, "status: %s\n", adr.Status)
 	fmt.Fprintf(&b, "date: %s\n", adr.Date)
 	if adr.DecisionMakers != "" {
-		fmt.Fprintf(&b, "decision-makers: %s\n", adr.DecisionMakers)
+		fmt.Fprintf(&b, "decision-makers: %s\n", strings.ReplaceAll(strings.ReplaceAll(adr.DecisionMakers, "\r\n", " "), "\n", " "))
 	}
 	if adr.Consulted != "" {
 		fmt.Fprintf(&b, "consulted: %s\n", adr.Consulted)
@@ -201,7 +201,7 @@ func renderADR(adr ADR) string {
 		fmt.Fprintf(&b, "%s: %s\n", k, adr.Extra[k])
 	}
 	fmt.Fprintln(&b, "---")
-	fmt.Fprintf(&b, "# %s\n\n", adr.Title)
+	fmt.Fprintf(&b, "# %s\n\n", strings.ReplaceAll(strings.ReplaceAll(adr.Title, "\r\n", " "), "\n", " "))
 	body := strings.TrimSpace(adr.Body)
 	if body != "" {
 		fmt.Fprintln(&b, body)

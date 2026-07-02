@@ -445,6 +445,48 @@ func TestTaskCreateRejectsUnsupportedEnums(t *testing.T) {
 	}
 }
 
+func TestTaskCreateRejectsNewlines(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "title with newline",
+			args: []string{"Smoke\ntask"},
+			want: "task create title must not contain newlines",
+		},
+		{
+			name: "title with CRLF",
+			args: []string{"Smoke\r\ntask"},
+			want: "task create title must not contain newlines",
+		},
+		{
+			name: "labels with newline",
+			args: []string{"Smoke task", "--labels", "type:task\nstatus: Completed"},
+			want: "task create labels must not contain newlines",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			stdout, stderr, code := runCLI(t, "--root", root, "init")
+			if code != 0 {
+				t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			}
+
+			_, stderr, code = runCLI(t, append([]string{"--root", root, "task", "create"}, tt.args...)...)
+			if code != 2 {
+				t.Errorf("exit code = %d, stderr = %s", code, stderr)
+			}
+			if !strings.Contains(stderr, tt.want) {
+				t.Errorf("stderr = %q, want %q", stderr, tt.want)
+			}
+		})
+	}
+}
+
 func TestTaskCreateSubtask(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

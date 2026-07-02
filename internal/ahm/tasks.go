@@ -324,11 +324,11 @@ func renderTask(task Task) string {
 	var b strings.Builder
 	fmt.Fprintln(&b, "---")
 	fmt.Fprintf(&b, "id: %s\n", task.ID)
-	fmt.Fprintf(&b, "title: %s\n", task.Title)
+	fmt.Fprintf(&b, "title: %s\n", strings.ReplaceAll(strings.ReplaceAll(task.Title, "\r\n", " "), "\n", " "))
 	fmt.Fprintf(&b, "status: %s\n", task.Status)
 	fmt.Fprintf(&b, "priority: %s\n", task.Priority)
 	fmt.Fprintf(&b, "effort: %s\n", task.Effort)
-	fmt.Fprintf(&b, "labels: %s\n", task.Labels)
+	fmt.Fprintf(&b, "labels: %s\n", strings.ReplaceAll(strings.ReplaceAll(task.Labels, "\r\n", " "), "\n", " "))
 	fmt.Fprintf(&b, "exec_plan: %s\n", task.ExecPlan)
 	fmt.Fprintf(&b, "depends_on: %s\n", formatList(task.DependsOn))
 	if task.Created != "" {

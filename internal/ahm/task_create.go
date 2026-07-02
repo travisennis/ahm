@@ -26,6 +26,12 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.title == "" {
 		return usageError("task create requires a title\n  ahm task create <title>")
 	}
+	if strings.ContainsAny(parsed.title, "\n\r") {
+		return usageError("task create title must not contain newlines")
+	}
+	if strings.ContainsAny(parsed.labels, "\n\r") {
+		return usageError("task create labels must not contain newlines")
+	}
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err
 	}

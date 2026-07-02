@@ -201,6 +201,12 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 	if parsed.title == "" {
 		return usageError("adr create requires a title\n  ahm adr create <title>")
 	}
+	if strings.ContainsAny(parsed.title, "\n\r") {
+		return usageError("adr create title must not contain newlines")
+	}
+	if strings.ContainsAny(parsed.decisionMakers, "\n\r") {
+		return usageError("adr create decision-makers must not contain newlines")
+	}
 	if !validADRCreateStatus(parsed.status) {
 		return usageError(fmt.Sprintf("unsupported ADR status %q (supported: %s)", parsed.status, strings.Join(adrCreateStatuses(), ", ")))
 	}

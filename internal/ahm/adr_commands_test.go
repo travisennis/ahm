@@ -125,6 +125,9 @@ func TestADRCreateErrors(t *testing.T) {
 		{name: "unsupported status", args: []string{"adr", "create", "Bad Status", "--status", "doing"}, code: 2, want: `unsupported ADR status "doing"`},
 		{name: "unreadable body file", args: []string{"adr", "create", "Missing Body", "--body-file", filepath.Join(root, "missing.md")}, code: 1, want: "reading ADR body from"},
 		{name: "conflicting body inputs", args: []string{"adr", "create", "Conflict", "--description", "summary", "--body-file", filepath.Join(root, "missing.md")}, code: 2, want: "--body-file or --description"},
+		{name: "title with newline", args: []string{"adr", "create", "Bad\ntitle"}, code: 2, want: "adr create title must not contain newlines"},
+		{name: "title with CRLF", args: []string{"adr", "create", "Bad\r\ntitle"}, code: 2, want: "adr create title must not contain newlines"},
+		{name: "decision-makers with newline", args: []string{"adr", "create", "Bad DM", "--decision-makers", "Travis\nAlice"}, code: 2, want: "adr create decision-makers must not contain newlines"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
