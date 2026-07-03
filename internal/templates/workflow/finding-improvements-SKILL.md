@@ -339,7 +339,7 @@ re-audited next run.
 Present the vetted findings table to the user, ordered by leverage (impact ÷
 effort, weighted by confidence):
 
-```
+```text
 | # | Finding | Category | Impact | Effort | Risk | Evidence |
 ```
 
@@ -425,7 +425,7 @@ hand as a fallback).
 
 **After all tasks are created**, report a summary:
 
-```
+```text
 Created N tasks:
 - #XXX — <title> (P<N>, <effort>)
 - #YYY — <title> (P<N>, <effort>)

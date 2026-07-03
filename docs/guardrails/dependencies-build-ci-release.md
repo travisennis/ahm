@@ -20,7 +20,7 @@ release behavior.
 The repository maintains two independent version numbers:
 
 | Constant | File | Appears in | Semantics |
-|----------|------|------------|----------|
+| ---------- | ------ | ------------ | ---------- |
 | `version.Binary` | `internal/version/version.go` | `ahm version` | Binary release version. Set by goreleaser ldflags at build time. Dev builds default to `"dev"`. |
 | `templates.Version` | `internal/templates/templates.go` | `ahm status` → `template_version`; stamped into `.agents/ahm.json` on install/upgrade | Embedded workflow template schema version. Bumps only when the `//go:embed workflow/*` template pack changes (new files, content changes, new agent suggestions). |
 

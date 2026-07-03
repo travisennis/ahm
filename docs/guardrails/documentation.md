@@ -54,8 +54,8 @@ Require a documentation check when a change touches:
 Markdown structure is checked by `markdownlint-cli2` via `just docs-md-lint`.
 Configuration lives in `.markdownlint-cli2.jsonc`.
 
-The check is not yet in `just ci` — there is a baseline of pre-existing issues
-that must be cleaned up before it can block CI.
+The check runs as part of `just ci` and blocks the pipeline on any
+markdownlint error.
 
 ## Retiring Docs
 

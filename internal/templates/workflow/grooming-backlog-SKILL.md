@@ -108,7 +108,7 @@ cannot make alone:
 1. Set `status: Blocked` in the task front matter.
 2. Add or update the blocker note at the top of the task body:
 
-   ```
+   ```text
    ## Blocker
    Awaiting decision on [describe what]. See [reference].
    ```

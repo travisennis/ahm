@@ -71,7 +71,7 @@ the default explicitly and does not override `--json` or `--plain`.
 In the default text mode, structured commands such as `status` and `doctor`
 print human-friendly key-value output:
 
-```
+```text
 root: /path/to/repo
 template_version: 1.0.0
 installed: true
@@ -91,7 +91,7 @@ When the workflow metadata is missing (not yet installed), `installed_version`
 shows as `none` in text mode and `null` in JSON/plain mode, and the
 validation report includes the metadata error:
 
-```
+```text
 root: /path/to/repo
 template_version: 1.0.0
 installed: false
