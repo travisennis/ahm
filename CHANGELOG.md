@@ -2,21 +2,117 @@
 
 All notable user-facing changes to `ahm` are recorded here.
 
-## v0.3.0 - 2026-06-24
+## v1.0.0 - 2026-07-03
+
+### Added
+
+- *(skills)* Add finding-improvements skill managed by ahm
+- *(cli)* Add context command
+- *(cli)* Improve agents suggestions integration guidance
+- *(context)* Redesign ahm context role around managed-work intake
+- *(cli)* **breaking:** Invert ahm task work defaults, replace --review/--commit with --no-review/--no-commit
+- Add ahm task comment command (#116)
+- *(tasks)* Add CLI improvement tasks from agent-focused review
+- *(cli)* Add examples to --help for all commands
+- Add JSON tags to Task struct for consistent field naming
+- *(task)* Add --priority and --effort filters to task list
+- *(cli)* Add scope descriptions to context --help (task 127)
+- *(cli)* Add prompt field to task work dry-run preview
+- *(task)* Add JSON output for task dep cycles and dep tree
+- *(cli)* Add task search command for title matching
+- *(adr)* Add ADR 012 superseding ADR 008, close out ExecPlan 074
+- *(task)* Add subtask creation support to ahm task create
+- *(task-work)* Include project instructions file in work prompts
+- *(ci)* Add docs-md-lint to just ci
+
+### Fixed
+
+- *(cli)* Surface non-fatal parse errors as structured warnings instead of inline stderr (task 105)
+- *(ci)* Scope local pre-commit hooks to pre-commit stage
+- *(task-work)* Add 30-minute timeout to external agent execution
+- Empty list output in text mode and JSON null vs empty array (task 122)
+- *(cli)* Add example invocations to usage error messages
+- *(cli)* Warn on context task parse failures
+- *(workflow)* Keep cleaning stale temps past os.Remove failure
+- *(workflow)* Replace os.Remove with os.RemoveAll in removeStaleWorkflowLock
+- *(adr)* Serialize adr create ID allocation with workflow lock
+- Reject newlines in task and ADR create fields rendered into front matter (closes #148)
+- Fix slice aliasing that corrupts reported dependency cycles
+- *(cli)* Drain and deduplicate warnings on emit to stop duplicate stderr output
+- *(tasks)* Serialize task status transitions to close dependent auto-unblock race
 
 ### Changed
 
-- *(cli)* Invert `ahm task work` defaults: review and commit now run by default.
-  Remove `--review` and `--commit` flags; add `--no-review` and `--no-commit`
-  opt-out flags. Remove unused agent capability warnings (`supportsSessions`,
-  `supportsReview`) and the unreachable non-session fallback path.
+- *(validation)* Scope exec-plan sections cache to validationReport
+- *(cleanupStaleTemps)* Collapse duplicate branches into single guard (task 106)
+- *(task_commands)* Split god file into focused files (task 107)
+- Move relPath from agents.go to path.go
+- *(agents)* Align suggestions output with project AGENTS.md style
+- *(output)* Add textRenderer interface, reduce any dispatch in text rendering
+- *(templates)* Shrink DOCS.md to repo-specific workflow
 
-## v0.2.0 - 2026-06-24
+### Build
 
-### Changed
+- Skip pre-commit Go checks when no .go files staged
 
-- *(cli)* Remove `--complete` flag from `ahm task work`. Completion is already
-  part of the base work prompt; the separate `--complete` handoff is redundant.
+### Documentation
+
+- *(release)* Clarify repeatable release checklist
+- *(docs)* Route agents to CONTRIBUTING.md for command discovery
+- *(cli)* Enumerate valid statuses in ahm task list --help (task 108)
+- Add concept glossary mapping terms to implementing types
+- *(workflow)* Document partial-write behavior of mid-batch index writes
+- *(workflow)* Clarify ahm intake routing for agents
+- Add Go module-path fallback for restricted agents
+- Add tasks 118/119 to rework ahm task work flags
+- *(preflight)* Require doc impact review
+- *(cli)* Document task list filters
+- Point contributors to docs context
+- *(preflight)* Update the original workflow template for preflight
+- *(cli)* Document root command exit code behavior in help (task 129)
+- *(ops)* Add markdown linting, PR template, and doc lifecycle rules
+- Require conventional commit messages
+- Link workflow routing references
+- Genericize task/ADR template label vocabulary and tighten TASKS.md
+- Research agent instruction retrieval
+- Research records storage via private git refs
+- Plan ref-backed workflow record storage
+- Add subtask creation support task
+- Complete task 153 — add missing entries to ARCHITECTURE.md module map
+- Fix broken adr/README.md links → adr/index.md
+- Add vision doc and plan ahm docs check work
+- Adopt .ahm/ as the tool-state namespace; add project-instructions records
+
+### Tests
+
+- Fix assertion patterns to surface all failures
+- *(cli)* Add subprocess integration smoke tests
+- *(lock)* Add tests for workflow lock mechanism (lock.go)
+
+### Maintenance
+
+- *(task)* Cancel 103 — Binary and templates.Version are independent
+- *(tasks)* Add task 108 for enumerating valid statuses in help output
+- Run ahm upgrade
+- *(tasks)* Add 3 tasks from codebase audit (109-111)
+- *(tasks)* Add 3 follow-up tasks from audit (112-114)
+- *(tasks)* Groom backlog — fix labels, resolve decisions, accept all 6
+- *(tasks)* Add context and comment tasks
+- Run ahm upgrade
+- *(tasks)* Track ahm context role redesign
+- *(tasks)* Scope context redesign
+- *(tasks)* Groom open backlog
+- *(tasks)* Add 7 improvement findings from audit (130–136)
+- *(tasks)* Groom backlog
+- *(tasks)* Add 9 improvement findings from audit (147-155)
+- *(tasks)* Groom backlog
+- *(tasks)* Add tracker 156 to replace managed skills with ahm prime and procedure scopes
+- *(tasks)* Groom and accept three new tasks
+- *(tasks)* Record sequencing preferences for the 138/156/160 work
+
+### Other
+
+- *(md)* Auto-fix markdown formatting baseline
 
 ## v0.1.0 - 2026-06-17
 
