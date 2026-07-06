@@ -13,8 +13,10 @@ external coding-agent CLI.
   validation, task/ADR lifecycle commands, generated indexes, and external
   agent orchestration.
 - Target repositories own their source code and project-specific `AGENTS.md`.
-  `ahm` does not patch source files, commit, push, create PRs, or run implicit
-  git operations.
+  `ahm` does not patch source files, commit, create PRs, or run implicit git
+  operations. Explicit records commands may fetch, push, and update private
+  `refs/ahm/*` refs without moving `HEAD`, staging files, writing the project
+  index, or modifying project-owned `.agents/` content.
 - External coding agents own the actual work performed through
   `ahm task work`. `ahm` validates state, builds the invocation, captures
   session IDs, and resumes sessions for review, completion, or commit handoff.
@@ -53,6 +55,9 @@ external coding-agent CLI.
 - `internal/ahm/records.go`: internal ref-backed workflow record plumbing for
   selecting `.ahm/` source records, snapshotting them to `refs/ahm/*`, syncing
   private refs, comparing ref state, and materializing records back to `.ahm/`.
+- `internal/ahm/records_commands.go`: `records status`, `pull`, `push`,
+  `sync`, and `doctor` command surface for explicit ref-backed records sync and
+  diagnostics.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
 - `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
   `taskListCommand`).

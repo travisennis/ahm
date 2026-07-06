@@ -239,6 +239,7 @@ Examples:
 	}))
 	root.AddCommand(a.agentsCommand())
 	root.AddCommand(a.adrCommand())
+	root.AddCommand(a.recordsCommand())
 	root.AddCommand(a.taskCommand())
 	return root
 }

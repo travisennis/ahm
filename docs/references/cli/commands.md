@@ -267,6 +267,164 @@ ahm agents suggestions --all
 ahm --json agents suggestions
 ```
 
+### `records status`
+
+Reports ref-backed workflow record state without writing files, moving refs, or
+materializing records. The command reads `.ahm/config.json` or legacy
+`.agents/ahm.json`, inspects the configured local records ref, checks the
+configured remote with `git ls-remote`, and compares local `.ahm/` source
+records against the local records ref.
+
+The text report includes:
+
+- `mode`: configured records storage mode.
+- `ref`: records ref, defaulting to `refs/ahm/records`.
+- `remote`: records remote, defaulting to `origin`.
+- `remote_url`: remote URL when configured.
+- `remote_supported`: whether the remote URL is supported for the initial
+  records sync surface. GitHub remotes are supported; local filesystem remotes
+  are accepted for local testing and offline validation.
+- `local_commit` and `remote_commit`: commit IDs, or `missing`.
+- `relation`: `equal`, `local_only`, `remote_only`, `different`, `ahead`,
+  `behind`, `diverged`, `missing`, or `unknown`.
+- `working_clean`, `working_added`, `working_modified`, and `working_deleted`:
+  local `.ahm/` source-record state relative to the local records ref.
+- `diagnostic`: actionable setup or remote-access guidance when available.
+
+Useful flags:
+
+- `--json`: prints indented JSON with the same fields.
+- `--plain`: prints compact JSON with the same fields.
+
+Example:
+
+```bash
+ahm records status
+ahm --json records status
+```
+
+### `records pull`
+
+Fetches the configured remote records ref into a private tracking ref, updates
+the local records ref, and materializes source records into `.ahm/`.
+
+The command requires `store_mode: "ref"` metadata. It rejects unsupported
+remotes before fetching. It also refuses to pull when local `.ahm/` source
+records differ from the local records ref, because pulling would overwrite
+unsnapshotted local work.
+
+Writes:
+
+- `refs/ahm/remotes/<remote>/...` through `git fetch`.
+- `refs/ahm/records` through `git update-ref`.
+- `.ahm/` source records through materialization.
+- `records_last_sync` in workflow metadata after a successful pull.
+
+It does not move `HEAD`, create branch commits, stage files, write the project
+index, or modify project-owned `.agents/` content.
+
+Useful flags:
+
+- `--dry-run`: previews the pull plan without fetching, moving refs, writing
+  files, or updating metadata.
+- `--json`: prints indented JSON.
+- `--plain`: prints compact JSON.
+
+Example:
+
+```bash
+ahm records pull
+ahm --dry-run records pull
+```
+
+### `records push`
+
+Snapshots local `.ahm/` source records into the configured local records ref
+and pushes that ref to the configured remote.
+
+The command requires `store_mode: "ref"` metadata and a supported remote. Push
+uses a normal non-forced ref update; when the remote records ref is not a
+fast-forward, the command fails with a diagnostic that points to `ahm records
+pull` or conflict resolution.
+
+Writes:
+
+- Git objects for the records tree and commit.
+- `refs/ahm/records` through `git update-ref`.
+- The remote `refs/ahm/records` through `git push`.
+- `records_last_sync` in workflow metadata after a successful push.
+
+It does not move `HEAD`, create branch commits, stage files, write the project
+index, or modify project-owned `.agents/` content.
+
+Useful flags:
+
+- `--dry-run`: previews the push plan without snapshotting, moving refs,
+  pushing, or updating metadata.
+- `--json`: prints indented JSON.
+- `--plain`: prints compact JSON.
+
+Example:
+
+```bash
+ahm records push
+ahm --dry-run records push
+```
+
+### `records sync`
+
+Synchronizes local `.ahm/` source records and the configured remote
+`refs/ahm/records` ref. The command fetches remote state, compares it with the
+local records ref, then pulls, pushes, or reports divergence.
+
+Behavior:
+
+- If the remote ref is missing, local records are snapshotted and pushed.
+- If the local ref is missing and local `.ahm/` records are clean, remote
+  records are pulled and materialized.
+- If local and remote refs are equal but `.ahm/` records changed locally, the
+  local records are snapshotted and pushed.
+- If the local ref is ahead, it is pushed.
+- If the remote ref is ahead and local `.ahm/` records are clean, it is pulled
+  and materialized.
+- If local and remote refs diverged, or pulling would overwrite unsnapshotted
+  local `.ahm/` changes, the command fails with an actionable diagnostic.
+
+Writes are the union of `records pull` and `records push`, depending on the
+chosen path. The command does not move `HEAD`, create branch commits, stage
+files, write the project index, or modify project-owned `.agents/` content.
+
+Useful flags:
+
+- `--dry-run`: previews the sync plan without fetching, snapshotting, moving
+  refs, writing files, pushing, or updating metadata.
+- `--json`: prints indented JSON.
+- `--plain`: prints compact JSON.
+
+Example:
+
+```bash
+ahm records sync
+ahm --dry-run records sync
+```
+
+### `records doctor`
+
+Reports diagnostics for ref-backed records setup. It checks metadata,
+`store_mode`, records ref validity, remote configuration and support, local ref
+presence, and remote ref accessibility. The command is read-only: it does not
+fetch, push, move refs, materialize files, or update metadata.
+
+Text output includes `ok: true|false` and a `checks:` section. With `--json` or
+`--plain`, the same information is emitted as structured JSON.
+
+Example:
+
+```bash
+ahm records doctor
+ahm --json records doctor
+```
+
 ### `context`
 
 Prints a read-only repository briefing or a managed-work reference.

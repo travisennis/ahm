@@ -147,6 +147,7 @@ func materializeRecordsRef(ctx context.Context, root string, ref string) ([]stri
 	if err != nil {
 		return nil, err
 	}
+	refFiles := map[string]bool{}
 	var written []string
 	for _, entry := range bytes.Split([]byte(out), []byte{0}) {
 		if len(entry) == 0 {
@@ -167,6 +168,7 @@ func materializeRecordsRef(ctx context.Context, root string, ref string) ([]stri
 		if !isRecordRelPath(rel) {
 			continue
 		}
+		refFiles[rel] = true
 		data, err := runGitBytes(ctx, root, []string{"blob", fields[2]}, nil, nil, "cat-file")
 		if err != nil {
 			return nil, err
@@ -176,6 +178,19 @@ func materializeRecordsRef(ctx context.Context, root string, ref string) ([]stri
 			return nil, err
 		}
 		written = append(written, rel)
+	}
+	localFiles, err := collectRecordFiles(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range localFiles {
+		if refFiles[file.RelPath] {
+			continue
+		}
+		if err := os.Remove(file.AbsPath); err != nil {
+			return nil, err
+		}
+		written = append(written, file.RelPath)
 	}
 	sort.Strings(written)
 	return written, nil

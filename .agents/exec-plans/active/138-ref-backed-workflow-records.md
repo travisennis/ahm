@@ -20,7 +20,7 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - [x] (2026-07-06 00:00Z) Accepted ADR 013 via `ahm adr accept 013`.
 - [x] (2026-07-06 00:00Z) Implemented records metadata and storage-mode model for `.ahm/config.json` read compatibility, legacy `.agents/ahm.json` fallback, unknown-field preservation, storage defaults, and dynamic metadata validation paths.
 - [x] (2026-07-06 16:21Z) Implemented private-ref snapshot and materialization plumbing in `internal/ahm/records.go`, including `.ahm/` source-record selection, generated-index and `.agents/` exclusion, Git tree/commit creation, local `refs/ahm/records` updates, remote fetch into `refs/ahm/remotes/<remote>/...`, push helpers, ref comparison, materialization back to `.ahm/`, and tests proving routine snapshot/materialization/fetch/push helpers preserve `HEAD`, the current branch, the project index bytes, and staged status.
-- [ ] Add `ahm records` command surface.
+- [x] (2026-07-06 17:45Z) Added `ahm records status`, `pull`, `push`, `sync`, and `doctor` in `internal/ahm/records_commands.go`, wired the command family into the root CLI, documented text/JSON/plain output and explicit ref/network write behavior, and added command tests for local/remote status, pull/push/sync, dry-run no-write behavior, unsupported remotes, and non-fast-forward diagnostics.
 - [ ] Add migration workflow for existing committed records.
 - [ ] Add `ahm prime` and stale-state reporting.
 - [ ] Integrate ref-backed records with task, research, and ExecPlan write paths.
@@ -38,6 +38,8 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
   Evidence: Task 140 added read/write preference tests showing `writeMetadata` writes `.agents/ahm.json` by default and switches to `.ahm/config.json` only when that file already exists.
 - Observation: The records snapshot helper can avoid the project index entirely.
   Evidence: Task 139 builds blobs with `git hash-object -w --stdin`, assembles trees with `git mktree`, creates commits with `git commit-tree`, and updates only `refs/ahm/records` with `git update-ref`; `TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState`, `TestMaterializeRecordsRefWritesAhmFilesWithoutMutatingProjectGitState`, and `TestPushAndFetchRecordsRefUsePrivateRefWithoutMutatingProjectGitState` compare `HEAD`, branch name, `.git/index` bytes, and staged status before and after those helpers.
+- Observation: Command tests need a hermetic remote transport even though GitHub is the first user-facing hosted remote.
+  Evidence: `TestRecordsPushPullAndSyncUsePrivateRef` and related command tests use local bare repositories to exercise real `git ls-remote`, `fetch`, `push`, and `refs/ahm/records` behavior without external network access, while unsupported hosted remotes such as GitLab still produce diagnostics.
 
 ## Decision Log
 
@@ -71,10 +73,18 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - Decision: Fetch remote records into a private tracking ref instead of directly overwriting `refs/ahm/records`.
   Rationale: Later `ahm records status`, `pull`, and `sync` commands need to compare the local snapshot with the fetched remote snapshot before deciding whether to materialize, fast-forward, or report divergence. Fetching into `refs/ahm/remotes/<remote>/...` preserves the local records ref while still avoiding branches, `HEAD`, and the project index.
   Date/Author: 2026-07-06, Codex.
+- Decision: Keep `ahm records status` read-only by using `git ls-remote` for the configured remote and comparing local `.ahm/` files to the local records ref without snapshotting.
+  Rationale: Status should report local/remote state without materializing records, moving refs, writing workflow files, or updating sync metadata. Pull, push, and sync are the explicit mutating commands.
+  Date/Author: 2026-07-06, Codex.
+- Decision: Accept local filesystem Git remotes for command tests and offline validation while keeping GitHub as the documented hosted-service support target.
+  Rationale: The command surface must be tested without live network credentials, and local bare remotes exercise the same Git custom-ref transport paths. Hosted remotes outside GitHub still report unsupported-remote diagnostics.
+  Date/Author: 2026-07-06, Codex.
 
 ## Outcomes & Retrospective
 
 Task 139 completed the internal plumbing layer without adding user-facing commands. `internal/ahm/records.go` now provides the helper surface that later `ahm records`, migration, `prime`, and write-path tasks can call. The new tests use throwaway Git repositories and a local bare remote to prove snapshots include task, research, and ExecPlan source records under `.ahm/`, exclude generated indexes and project-owned `.agents/` content, materialize records back to `.ahm/`, fetch remote records into a private tracking ref, push the local records ref, and preserve normal project Git state during routine snapshot, materialization, fetch, and push operations. Command-surface diagnostics, conflict handling for unsnapshotted local edits, migration planning, and automatic integration with mutating workflow commands remain for tasks 141 through 145.
+
+Task 141 added the first user-facing records command surface. `ahm records status` and `doctor` are read-only diagnostics; `pull`, `push`, and `sync` are explicit ref/network operations for `refs/ahm/records` that reject unsupported remotes, avoid branch/index/`HEAD` mutations, and report stale local state or non-fast-forward remote refs. The command tests cover text output plus JSON/plain-compatible shared emission, dry-run no-write behavior, local filesystem remotes for hermetic Git transport, and actionable remote diagnostics. Migration, `prime`, write-path integration, and full agent guidance remain for later child tasks.
 
 ## Context and Orientation
 

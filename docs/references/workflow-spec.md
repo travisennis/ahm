@@ -11,9 +11,12 @@ context, and upgrade workflow state when `ahm` ships newer templates.
 - No model or coding-agent calls except explicit `ahm task work <id>`
   delegation to a user-selected external coding-agent CLI.
 - No source-code patching.
-- No implicit git commits, pushes, PRs, or branch operations. `ahm task work
-  <id>` may ask the delegated external agent to commit
-  completed work (commit runs by default), but `ahm` does not run git operations itself.
+- No implicit git commits, pushes, PRs, or branch operations. Explicit
+  ref-backed records commands may read and write `refs/ahm/*` through Git, but
+  they must not move `HEAD`, create branch commits, stage files, write the
+  project index, or modify project-owned `.agents/` content. `ahm task work
+  <id>` may ask the delegated external agent to commit completed work (commit
+  runs by default), but `ahm` does not itself create project commits.
 - No database.
 
 ## CLI Contract
@@ -45,6 +48,7 @@ Commands:
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
 - `agents`: print advisory `AGENTS.md` snippets.
+- `records`: inspect, pull, push, sync, and diagnose ref-backed workflow records.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
 
