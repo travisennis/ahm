@@ -1031,6 +1031,33 @@ func TestValidateReportsCorruptMetadata(t *testing.T) {
 	}
 }
 
+func TestValidateReportsCorruptAhmConfig(t *testing.T) {
+	root := t.TempDir()
+	// Keep a valid legacy metadata file present; .ahm/config.json should be
+	// preferred and reported as the corrupt source.
+	if err := writeMetadata(root, metadata{Version: "0.1.0", Files: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{invalid json}")
+
+	report, _ := validateWorkflow(root)
+	foundCorrupt := false
+	for _, err := range report.Errors {
+		if err.Code == "metadata_corrupt" && err.Path == ".ahm/config.json" {
+			foundCorrupt = true
+			break
+		}
+	}
+	if !foundCorrupt {
+		t.Errorf("expected metadata_corrupt error for .ahm/config.json, got: %v", report.Errors)
+	}
+	for _, err := range report.Errors {
+		if err.Code == "metadata_corrupt" && err.Path == ".agents/ahm.json" {
+			t.Errorf("unexpected legacy metadata path for corrupt .ahm/config.json: %v", err)
+		}
+	}
+}
+
 func TestValidateReportsMissingMetadata(t *testing.T) {
 	root := t.TempDir()
 	// No init, no metadata at all.

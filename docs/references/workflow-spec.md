@@ -61,12 +61,20 @@ Exit codes:
 
 ## Workflow State
 
-Workflow state is repo-local under `.agents/`.
+Workflow state is repo-local. Existing repositories use `.agents/`; the
+ref-backed records migration introduced by ADR 013 will move ahm-managed state
+to `.ahm/` while leaving project-owned agent content under `.agents/`.
 
 `ahm` writes `.agents/ahm.json` with the installed template version, managed
 file hashes for any legacy managed templates, and repository-scoped workflow
 settings. This metadata lets future versions remove or migrate files that have
 not been locally changed while preserving user edits.
+
+`ahm` also recognizes committed `.ahm/config.json` as the next configuration
+home. When `.ahm/config.json` exists, metadata reads prefer it over the legacy
+`.agents/ahm.json`; when it does not exist, legacy behavior is unchanged.
+Fresh `init` and ordinary `upgrade` still write `.agents/ahm.json` until an
+explicit migration creates `.ahm/config.json`.
 
 Example:
 
@@ -78,11 +86,21 @@ Example:
   "taskWork": {
     "promptFile": ".agents/prompt.md"
   },
+  "store_mode": "ref",
+  "records_ref": "refs/ahm/records",
+  "records_remote": "origin",
+  "records_last_sync": "2026-07-06T12:00:00Z",
   "files": {
     ".agents/skills/preflight/SKILL.md": "..."
   }
 }
 ```
+
+The optional record-storage fields are reserved for ADR 013 implementation
+work. Missing `store_mode` means the current committed-record behavior. The
+supported internal storage mode values are `committed`, `local`, and `ref`;
+`records_ref` defaults to `refs/ahm/records`, and `records_remote` defaults to
+`origin` when omitted.
 
 The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
 `ahm task complete <id>` fails if the task acceptance section is missing, still

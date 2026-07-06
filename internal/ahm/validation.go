@@ -94,9 +94,9 @@ func validateManagedFiles(root string, report *validationReport) []Task {
 	meta, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
-			report.addError("metadata_missing", ".agents/ahm.json", "workflow metadata is missing")
+			report.addError("metadata_missing", metadataErrorPath(metaErr), "workflow metadata is missing")
 		} else {
-			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
+			report.addError("metadata_corrupt", metadataErrorPath(metaErr), fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
 	} else {
 		for _, item := range templates.Files() {
@@ -490,7 +490,7 @@ func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 func validateGeneratedIndexes(root string, tasks []Task, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", err))
+			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}
@@ -568,7 +568,7 @@ var markdownLinkSchemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 func validateMarkdownLinks(root string, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			report.addError("metadata_corrupt", ".agents/ahm.json", fmt.Sprintf("workflow metadata is corrupt: %v", err))
+			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}

@@ -122,7 +122,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 			case errors.Is(err, os.ErrNotExist):
 				// No metadata, strict acceptance not configured.
 			case err != nil:
-				a.addWarning("corrupt workflow metadata .agents/ahm.json, strict acceptance disabled")
+				a.addWarning("%s, strict acceptance disabled", metadataCorruptMessage(err))
 			case meta.StrictAcceptance:
 				return fmt.Errorf("cannot complete task %s: acceptance notes are incomplete; use --force to override", task.ID)
 			}

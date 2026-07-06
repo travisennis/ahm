@@ -9,7 +9,10 @@ ahm upgrade
 ```
 
 The upgrade process compares the installed metadata in `.agents/ahm.json` with
-the target repository files.
+the target repository files. Repositories that have already migrated to the
+ADR 013 `.ahm/` namespace use `.ahm/config.json` as the committed config file;
+when that file exists, `ahm upgrade` reads and writes it instead of the legacy
+`.agents/ahm.json`.
 
 - Missing workflow directories, metadata, and generated indexes are created.
 - Legacy instruction files that still match the previous managed hash are

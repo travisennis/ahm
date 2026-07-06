@@ -18,7 +18,7 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - [x] (2026-06-30 15:15Z) Created tracking task 138 and implementation tasks 137, 139, 140, 141, 142, 143, 144, and 145.
 - [x] (2026-07-06 00:00Z) Revised ADR 013 around the accepted `.ahm/` namespace, GitHub-only initial support, generated-index exclusion, opt-in migration, `ahm prime`, and deferred task-ID redesign.
 - [x] (2026-07-06 00:00Z) Accepted ADR 013 via `ahm adr accept 013`.
-- [ ] Implement records metadata and storage-mode model.
+- [x] (2026-07-06 00:00Z) Implemented records metadata and storage-mode model for `.ahm/config.json` read compatibility, legacy `.agents/ahm.json` fallback, unknown-field preservation, storage defaults, and dynamic metadata validation paths.
 - [ ] Implement private-ref snapshot and materialization plumbing.
 - [ ] Add `ahm records` command surface.
 - [ ] Add migration workflow for existing committed records.
@@ -34,6 +34,8 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
   Evidence: The design requires an explicit remote push/sync path through `ahm records sync` or `ahm prime`; otherwise the only copy may remain local.
 - Observation: The initial remote support target can be GitHub-only.
   Evidence: Bitbucket Data Center is not a blocking requirement for the first ADR or implementation.
+- Observation: Current `init` and unmigrated `upgrade` should keep writing legacy `.agents/ahm.json` until migration creates `.ahm/config.json`.
+  Evidence: Task 140 added read/write preference tests showing `writeMetadata` writes `.agents/ahm.json` by default and switches to `.ahm/config.json` only when that file already exists.
 
 ## Decision Log
 
@@ -55,6 +57,9 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - Decision: Treat GitHub as the initial supported remote and defer Bitbucket/Data Center probes.
   Rationale: GitHub has been smoke-tested successfully and Bitbucket is not currently a blocked requirement.
   Date/Author: 2026-06-30, Travis Ennis and Codex.
+- Decision: For task 140, prefer `.ahm/config.json` only when it already exists; otherwise preserve legacy `.agents/ahm.json` writes.
+  Rationale: This lets migration introduce the new committed config path explicitly without changing fresh install or unmigrated upgrade behavior in the metadata-model task.
+  Date/Author: 2026-07-06, Codex.
 
 ## Outcomes & Retrospective
 

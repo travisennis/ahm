@@ -66,6 +66,145 @@ func TestReadWorkflowFile_BOM(t *testing.T) {
 	}
 }
 
+func TestReadMetadataUsesLegacyPathWhenConfigMissing(t *testing.T) {
+	root := t.TempDir()
+	if err := writeMetadata(root, metadata{
+		Version:          "0.1.0",
+		DefaultWorkAgent: "codex",
+		Files:            map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, source, err := readMetadataWithSource(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source != legacyMetadataRelPath {
+		t.Fatalf("source = %q, want %q", source, legacyMetadataRelPath)
+	}
+	if meta.DefaultWorkAgent != "codex" {
+		t.Errorf("default agent = %q, want codex", meta.DefaultWorkAgent)
+	}
+}
+
+func TestReadMetadataPrefersAhmConfig(t *testing.T) {
+	root := t.TempDir()
+	if err := writeMetadata(root, metadata{
+		Version:          "0.1.0",
+		DefaultWorkAgent: "cake",
+		Files:            map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeConfigMetadata(root, metadata{
+		Version:          "0.2.0",
+		DefaultWorkAgent: "cursor",
+		StoreMode:        "ref",
+		RecordsRef:       "refs/ahm/records",
+		RecordsRemote:    "origin",
+		RecordsLastSync:  "2026-07-06T12:00:00Z",
+		Files:            map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, source, err := readMetadataWithSource(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source != configMetadataRelPath {
+		t.Fatalf("source = %q, want %q", source, configMetadataRelPath)
+	}
+	if meta.Version != "0.2.0" || meta.DefaultWorkAgent != "cursor" {
+		t.Errorf("read wrong metadata: version=%q default=%q", meta.Version, meta.DefaultWorkAgent)
+	}
+	storage := meta.recordsStorage()
+	if storage.Mode != recordStoreModeRef || storage.Ref != defaultRecordsRef || storage.Remote != defaultRecordsRemote || storage.LastSync != "2026-07-06T12:00:00Z" {
+		t.Errorf("storage = %#v", storage)
+	}
+}
+
+func TestWriteMetadataUsesAhmConfigWhenPresent(t *testing.T) {
+	root := t.TempDir()
+	if err := writeMetadata(root, metadata{
+		Version:          "0.1.0",
+		DefaultWorkAgent: "cake",
+		Files:            map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeConfigMetadata(root, metadata{
+		Version:          "0.2.0",
+		DefaultWorkAgent: "codex",
+		Files:            map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.DefaultWorkAgent = "cursor"
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"default_work_agent": "cursor"`)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"default_work_agent": "cake"`)
+}
+
+func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "0.1.0",
+  "strict_acceptance": true,
+  "store_mode": "ref",
+  "records_ref": "refs/ahm/custom",
+  "future_object": {
+    "enabled": true
+  },
+  "future_string": "kept",
+  "files": {
+    ".agents/skills/preflight/SKILL.md": "abc"
+  }
+}`)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.DefaultWorkAgent = "codex"
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	assertContainsAll(t, got,
+		`"future_object": {`,
+		`"enabled": true`,
+		`"future_string": "kept"`,
+		`"default_work_agent": "codex"`,
+		`"store_mode": "ref"`,
+		`"records_ref": "refs/ahm/custom"`,
+	)
+}
+
+func TestRecordsStorageDefaults(t *testing.T) {
+	meta := metadata{}
+	storage := meta.recordsStorage()
+	if storage.Mode != recordStoreModeCommitted {
+		t.Errorf("mode = %q, want %q", storage.Mode, recordStoreModeCommitted)
+	}
+	if storage.Ref != defaultRecordsRef {
+		t.Errorf("ref = %q, want %q", storage.Ref, defaultRecordsRef)
+	}
+	if storage.Remote != defaultRecordsRemote {
+		t.Errorf("remote = %q, want %q", storage.Remote, defaultRecordsRemote)
+	}
+}
+
 func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
 	root := t.TempDir()
 	var out strings.Builder

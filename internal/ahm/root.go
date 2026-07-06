@@ -43,12 +43,15 @@ func detectManagedRoot() (string, error) {
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			return dir, nil
 		}
+		if stat, err := os.Stat(filepath.Join(dir, ".ahm", "config.json")); err == nil && !stat.IsDir() {
+			return dir, nil
+		}
 		if stat, err := os.Stat(filepath.Join(dir, ".agents", "ahm.json")); err == nil && !stat.IsDir() {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("not in a managed repository (no .git or .agents/ahm.json found); use --root to specify a directory or run 'ahm init' to create a workflow")
+			return "", fmt.Errorf("not in a managed repository (no .git, .ahm/config.json, or .agents/ahm.json found); use --root to specify a directory or run 'ahm init' to create a workflow")
 		}
 		dir = parent
 	}

@@ -57,7 +57,7 @@ func TestDetectManagedRootFailsWithoutGitOrMetadata(t *testing.T) {
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "no .git or .agents/ahm.json found") {
+	if !strings.Contains(err.Error(), "no .git, .ahm/config.json, or .agents/ahm.json found") {
 		t.Errorf("error should mention missing markers: %v", err)
 	}
 	if !strings.Contains(err.Error(), "--root") {
@@ -168,6 +168,42 @@ func TestDetectManagedRootSucceedsWithMetadata(t *testing.T) {
 	}
 }
 
+func TestDetectManagedRootSucceedsWithAhmConfig(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, ".ahm")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if chErr := os.Chdir(origDir); chErr != nil {
+			t.Errorf("failed to restore working directory: %v", chErr)
+		}
+	}()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := detectManagedRoot()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("root = %q, want %q", got, want)
+	}
+}
+
 func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
 	root := t.TempDir()
 	// Temp dir has no .git and no .agents/ahm.json
@@ -184,8 +220,8 @@ func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
 			if code != 1 {
 				t.Errorf("exit code = %d, want 1; stderr = %s", code, stderr)
 			}
-			if !strings.Contains(stderr, "no .git or .agents/ahm.json found") {
-				t.Errorf("stderr should mention no .git or .agents/ahm.json: %s", stderr)
+			if !strings.Contains(stderr, "no .git, .ahm/config.json, or .agents/ahm.json found") {
+				t.Errorf("stderr should mention missing root markers: %s", stderr)
 			}
 		})
 	}

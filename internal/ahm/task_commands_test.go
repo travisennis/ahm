@@ -2010,6 +2010,27 @@ func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
 	}
 }
 
+func TestTaskWorkAgentConfigFromAhmConfig(t *testing.T) {
+	root := t.TempDir()
+	if err := writeConfigMetadata(root, metadata{DefaultWorkAgent: "codex"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Configured Task", "In Progress", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("configured task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if captured.executable != "/stub/codex" {
+		t.Errorf("configured invocation executable=%q args=%#v", captured.executable, captured.args)
+	}
+}
+
 func TestTaskWorkUnsupportedAgentIsUsageError(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")
@@ -3747,6 +3768,28 @@ func TestTaskWorkProjectInstructionsConfiguredPath(t *testing.T) {
 		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "## Project Instructions", "Custom instructions.")
+}
+
+func TestTaskWorkProjectInstructionsConfiguredPathFromAhmConfig(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	if err := writeConfigMetadata(root, metadata{
+		TaskWork: &taskWorkConfig{PromptFile: ".agents/custom-prompt.md"},
+		Files:    map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", "custom-prompt.md"), "Custom instructions from config.")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "## Project Instructions", "Custom instructions from config.")
 }
 
 func TestTrimTrailingBlankLines(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 
 	"github.com/travisennis/ahm/internal/templates"
@@ -19,12 +20,186 @@ type taskWorkConfig struct {
 	PromptFile string `json:"promptFile,omitempty"`
 }
 
+type recordStoreMode string
+
+const (
+	recordStoreModeCommitted recordStoreMode = "committed"
+	recordStoreModeLocal     recordStoreMode = "local"
+	recordStoreModeRef       recordStoreMode = "ref"
+
+	defaultRecordsRef    = "refs/ahm/records"
+	defaultRecordsRemote = "origin"
+
+	legacyMetadataRelPath = ".agents/ahm.json"
+	configMetadataRelPath = ".ahm/config.json"
+)
+
+type recordsStorageConfig struct {
+	Mode     recordStoreMode
+	Ref      string
+	Remote   string
+	LastSync string
+}
+
 type metadata struct {
-	Version          string            `json:"version"`
-	StrictAcceptance bool              `json:"strict_acceptance"`
-	DefaultWorkAgent string            `json:"default_work_agent,omitempty"`
-	TaskWork         *taskWorkConfig   `json:"taskWork,omitempty"`
-	Files            map[string]string `json:"files"`
+	Version          string                     `json:"version"`
+	StrictAcceptance bool                       `json:"strict_acceptance"`
+	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
+	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
+	StoreMode        string                     `json:"store_mode,omitempty"`
+	RecordsRef       string                     `json:"records_ref,omitempty"`
+	RecordsRemote    string                     `json:"records_remote,omitempty"`
+	RecordsLastSync  string                     `json:"records_last_sync,omitempty"`
+	Files            map[string]string          `json:"files"`
+	Extra            map[string]json.RawMessage `json:"-"`
+}
+
+func (m *metadata) UnmarshalJSON(data []byte) error {
+	type metadataAlias metadata
+	var alias metadataAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	for _, key := range []string{
+		"version",
+		"strict_acceptance",
+		"default_work_agent",
+		"taskWork",
+		"store_mode",
+		"records_ref",
+		"records_remote",
+		"records_last_sync",
+		"files",
+	} {
+		delete(raw, key)
+	}
+	*m = metadata(alias)
+	if len(raw) > 0 {
+		m.Extra = raw
+	}
+	return nil
+}
+
+func (m metadata) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	first := true
+	if err := writeJSONField(&buf, &first, "version", m.Version); err != nil {
+		return nil, err
+	}
+	if err := writeJSONField(&buf, &first, "strict_acceptance", m.StrictAcceptance); err != nil {
+		return nil, err
+	}
+	if m.DefaultWorkAgent != "" {
+		if err := writeJSONField(&buf, &first, "default_work_agent", m.DefaultWorkAgent); err != nil {
+			return nil, err
+		}
+	}
+	if m.TaskWork != nil {
+		if err := writeJSONField(&buf, &first, "taskWork", m.TaskWork); err != nil {
+			return nil, err
+		}
+	}
+	if m.StoreMode != "" {
+		if err := writeJSONField(&buf, &first, "store_mode", m.StoreMode); err != nil {
+			return nil, err
+		}
+	}
+	if m.RecordsRef != "" {
+		if err := writeJSONField(&buf, &first, "records_ref", m.RecordsRef); err != nil {
+			return nil, err
+		}
+	}
+	if m.RecordsRemote != "" {
+		if err := writeJSONField(&buf, &first, "records_remote", m.RecordsRemote); err != nil {
+			return nil, err
+		}
+	}
+	if m.RecordsLastSync != "" {
+		if err := writeJSONField(&buf, &first, "records_last_sync", m.RecordsLastSync); err != nil {
+			return nil, err
+		}
+	}
+	if err := writeJSONField(&buf, &first, "files", m.Files); err != nil {
+		return nil, err
+	}
+	for _, key := range sortedMetadataKeys(m.Extra) {
+		if err := writeRawJSONField(&buf, &first, key, m.Extra[key]); err != nil {
+			return nil, err
+		}
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+func writeJSONField(buf *bytes.Buffer, first *bool, key string, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return writeRawJSONField(buf, first, key, data)
+}
+
+func writeRawJSONField(buf *bytes.Buffer, first *bool, key string, value json.RawMessage) error {
+	keyData, err := json.Marshal(key)
+	if err != nil {
+		return err
+	}
+	if !*first {
+		buf.WriteByte(',')
+	}
+	*first = false
+	buf.Write(keyData)
+	buf.WriteByte(':')
+	buf.Write(value)
+	return nil
+}
+
+func sortedMetadataKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (m metadata) recordsStorage() recordsStorageConfig {
+	mode := recordStoreMode(enumKey(m.StoreMode))
+	if mode == "" {
+		mode = recordStoreModeCommitted
+	}
+	ref := m.RecordsRef
+	if ref == "" {
+		ref = defaultRecordsRef
+	}
+	remote := m.RecordsRemote
+	if remote == "" {
+		remote = defaultRecordsRemote
+	}
+	return recordsStorageConfig{
+		Mode:     mode,
+		Ref:      ref,
+		Remote:   remote,
+		LastSync: m.RecordsLastSync,
+	}
+}
+
+type metadataReadError struct {
+	RelPath string
+	Err     error
+}
+
+func (e metadataReadError) Error() string {
+	return e.Err.Error()
+}
+
+func (e metadataReadError) Unwrap() error {
+	return e.Err
 }
 
 type obsoleteManagedFile struct {
@@ -65,7 +240,7 @@ func (a *app) install(upgrade bool) error {
 	root := a.opts.root
 	meta, err := readMetadata(root)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("corrupt workflow metadata .agents/ahm.json: %w", err)
+		return fmt.Errorf("corrupt workflow metadata %s: %w", metadataErrorPath(err), err)
 	}
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
@@ -153,7 +328,7 @@ func (a *app) install(upgrade bool) error {
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
-	result["metadata"] = []string{".agents/ahm.json"}
+	result["metadata"] = []string{metadataWriteRelPath(root)}
 	indexes, err := a.indexWriteTargets()
 	if err != nil {
 		return err
@@ -251,21 +426,63 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 }
 
 func readMetadata(root string) (metadata, error) {
-	var meta metadata
-	data, err := os.ReadFile(filepath.Join(root, ".agents", "ahm.json")) // #nosec G304 // path constructed from project root, not user input
-	if err != nil {
-		return meta, err
-	}
-	err = json.Unmarshal(data, &meta)
+	meta, _, err := readMetadataWithSource(root)
 	return meta, err
 }
 
+func readMetadataWithSource(root string) (metadata, string, error) {
+	var meta metadata
+	relPath := metadataReadRelPath(root)
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relPath))) // #nosec G304 // path constructed from project root, not user input
+	if err != nil {
+		return meta, relPath, metadataReadError{RelPath: relPath, Err: err}
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return meta, relPath, metadataReadError{RelPath: relPath, Err: err}
+	}
+	return meta, relPath, nil
+}
+
 func writeMetadata(root string, meta metadata) error {
+	return writeMetadataRel(root, metadataWriteRelPath(root), meta)
+}
+
+func writeConfigMetadata(root string, meta metadata) error {
+	return writeMetadataRel(root, configMetadataRelPath, meta)
+}
+
+func writeMetadataRel(root string, relPath string, meta metadata) error {
 	data, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(filepath.Join(root, ".agents", "ahm.json"), append(data, '\n'), 0o644)
+	return writeFileAtomic(filepath.Join(root, filepath.FromSlash(relPath)), append(data, '\n'), 0o644)
+}
+
+func metadataReadRelPath(root string) string {
+	if stat, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); err == nil && !stat.IsDir() { // #nosec G703 // path constructed from project root, not user input
+		return configMetadataRelPath
+	}
+	return legacyMetadataRelPath
+}
+
+func metadataWriteRelPath(root string) string {
+	if stat, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); err == nil && !stat.IsDir() { // #nosec G703 // path constructed from project root, not user input
+		return configMetadataRelPath
+	}
+	return legacyMetadataRelPath
+}
+
+func metadataErrorPath(err error) string {
+	var metaErr metadataReadError
+	if errors.As(err, &metaErr) && metaErr.RelPath != "" {
+		return metaErr.RelPath
+	}
+	return legacyMetadataRelPath
+}
+
+func metadataCorruptMessage(err error) string {
+	return fmt.Sprintf("corrupt workflow metadata %s", metadataErrorPath(err))
 }
 
 func hashBytes(data []byte) string {

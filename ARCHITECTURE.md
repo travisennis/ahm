@@ -1,9 +1,11 @@
 # Architecture
 
-`ahm` is a single-binary Go CLI. It manages repository-local `.agents`
-workflow state, exposes managed-work references and live repository briefings,
-validates that workflow, regenerates deterministic indexes, and can delegate a
-resolved task to an external coding-agent CLI.
+`ahm` is a single-binary Go CLI. It manages repository-local workflow state
+under `.agents` today and recognizes `.ahm/config.json` as the next committed
+configuration home for ADR 013 ref-backed records work. It exposes
+managed-work references and live repository briefings, validates that workflow,
+regenerates deterministic indexes, and can delegate a resolved task to an
+external coding-agent CLI.
 
 ## System Boundaries
 
@@ -21,7 +23,8 @@ resolved task to an external coding-agent CLI.
 
 - CLI command names, flags, aliases, exit codes, help text, and output modes.
 - Text, JSON, and plain output shapes, including validation finding codes.
-- `.agents/ahm.json` metadata fields and version semantics.
+- `.agents/ahm.json` and `.ahm/config.json` metadata fields and version
+  semantics.
 - Task, research, ExecPlan, ADR, and generated index formats.
 - Embedded templates under `internal/templates/workflow/`.
 - Install and upgrade conflict behavior, including project-owned `AGENTS.md`
