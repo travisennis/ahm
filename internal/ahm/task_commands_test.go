@@ -714,16 +714,54 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 	}
 }
 
-func TestTaskAcceptDoesNotDuplicateFormattedTitleH1(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
+	tests := []struct {
+		name          string
+		initial       string
+		target        string
+		initialBucket string
+		targetBucket  string
+		reason        string
+	}{
+		{name: "accept", initial: "Open", target: "Pending", initialBucket: "active", targetBucket: "active"},
+		{name: "start", initial: "Pending", target: "In Progress", initialBucket: "active", targetBucket: "active"},
+		{name: "complete", initial: "In Progress", target: "Completed", initialBucket: "active", targetBucket: "completed"},
+		{name: "cancel", initial: "Pending", target: "Cancelled", initialBucket: "active", targetBucket: "cancelled", reason: "No longer needed"},
+		{name: "reopen completed", initial: "Completed", target: "Pending", initialBucket: "completed", targetBucket: "active"},
+		{name: "reopen cancelled", initial: "Cancelled", target: "Pending", initialBucket: "cancelled", targetBucket: "active"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, ".agents", ".tasks", tt.initialBucket, "001.md")
+			writeFormattedTitleTask(t, path, "001", "Fix ahm task accept", tt.initial)
+
+			var out strings.Builder
+			a := app{opts: options{root: root}, out: &out}
+			err := a.taskStatusWithArgs(taskStatusArgs{
+				ids:    []string{"001"},
+				status: tt.target,
+				reason: tt.reason,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			updatedPath := filepath.Join(root, ".agents", ".tasks", tt.targetBucket, "001.md")
+			assertTaskHasSinglePlainH1(t, updatedPath, "Fix ahm task accept")
+		})
+	}
+}
+
+func writeFormattedTitleTask(t *testing.T, path string, id string, title string, status string) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	content := "---\n" +
-		"id: 001\n" +
-		"title: Fix ahm task accept\n" +
-		"status: Open\n" +
+		"id: " + id + "\n" +
+		"title: " + title + "\n" +
+		"status: " + status + "\n" +
 		"priority: P2\n" +
 		"effort: S\n" +
 		"labels: type:bug, area:tasks\n" +
@@ -732,22 +770,17 @@ func TestTaskAcceptDoesNotDuplicateFormattedTitleH1(t *testing.T) {
 		"---\n" +
 		"# Fix `ahm task accept`\n\n" +
 		"## Summary\n\n" +
-		"TODO.\n"
+		"TODO.\n\n" +
+		"## Acceptance Notes\n\n" +
+		"- [x] Verified.\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
 
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
-		t.Error(err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	updated := string(data)
+func assertTaskHasSinglePlainH1(t *testing.T, path string, title string) {
+	t.Helper()
+	updated := mustRead(t, path)
 	h1Count := 0
 	for _, line := range strings.Split(updated, "\n") {
 		if strings.HasPrefix(line, "# ") {
@@ -757,7 +790,7 @@ func TestTaskAcceptDoesNotDuplicateFormattedTitleH1(t *testing.T) {
 	if h1Count != 1 {
 		t.Errorf("H1 heading count = %d, want 1:\n%s", h1Count, updated)
 	}
-	if got := strings.Count(updated, "# Fix ahm task accept"); got != 1 {
+	if got := strings.Count(updated, "# "+title); got != 1 {
 		t.Errorf("plain task H1 count = %d, want 1:\n%s", got, updated)
 	}
 	if strings.Contains(updated, "# Fix `ahm task accept`") {
