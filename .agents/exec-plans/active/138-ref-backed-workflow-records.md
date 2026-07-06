@@ -19,7 +19,7 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - [x] (2026-07-06 00:00Z) Revised ADR 013 around the accepted `.ahm/` namespace, GitHub-only initial support, generated-index exclusion, opt-in migration, `ahm prime`, and deferred task-ID redesign.
 - [x] (2026-07-06 00:00Z) Accepted ADR 013 via `ahm adr accept 013`.
 - [x] (2026-07-06 00:00Z) Implemented records metadata and storage-mode model for `.ahm/config.json` read compatibility, legacy `.agents/ahm.json` fallback, unknown-field preservation, storage defaults, and dynamic metadata validation paths.
-- [ ] Implement private-ref snapshot and materialization plumbing.
+- [x] (2026-07-06 16:21Z) Implemented private-ref snapshot and materialization plumbing in `internal/ahm/records.go`, including `.ahm/` source-record selection, generated-index and `.agents/` exclusion, Git tree/commit creation, local `refs/ahm/records` updates, remote fetch into `refs/ahm/remotes/<remote>/...`, push helpers, ref comparison, materialization back to `.ahm/`, and tests proving routine snapshot/materialization/fetch/push helpers preserve `HEAD`, the current branch, the project index bytes, and staged status.
 - [ ] Add `ahm records` command surface.
 - [ ] Add migration workflow for existing committed records.
 - [ ] Add `ahm prime` and stale-state reporting.
@@ -36,6 +36,8 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
   Evidence: Bitbucket Data Center is not a blocking requirement for the first ADR or implementation.
 - Observation: Current `init` and unmigrated `upgrade` should keep writing legacy `.agents/ahm.json` until migration creates `.ahm/config.json`.
   Evidence: Task 140 added read/write preference tests showing `writeMetadata` writes `.agents/ahm.json` by default and switches to `.ahm/config.json` only when that file already exists.
+- Observation: The records snapshot helper can avoid the project index entirely.
+  Evidence: Task 139 builds blobs with `git hash-object -w --stdin`, assembles trees with `git mktree`, creates commits with `git commit-tree`, and updates only `refs/ahm/records` with `git update-ref`; `TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState`, `TestMaterializeRecordsRefWritesAhmFilesWithoutMutatingProjectGitState`, and `TestPushAndFetchRecordsRefUsePrivateRefWithoutMutatingProjectGitState` compare `HEAD`, branch name, `.git/index` bytes, and staged status before and after those helpers.
 
 ## Decision Log
 
@@ -60,8 +62,19 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - Decision: For task 140, prefer `.ahm/config.json` only when it already exists; otherwise preserve legacy `.agents/ahm.json` writes.
   Rationale: This lets migration introduce the new committed config path explicitly without changing fresh install or unmigrated upgrade behavior in the metadata-model task.
   Date/Author: 2026-07-06, Codex.
+- Decision: Build record snapshots with low-level object plumbing rather than a temporary Git index.
+  Rationale: `hash-object`, `mktree`, `commit-tree`, and `update-ref` match the ADR safety boundary most directly: they create Git objects and move only `refs/ahm/*`, without relying on `GIT_INDEX_FILE` or any staging-area operation. This keeps tests simple and makes it clear that routine record snapshots do not touch branch history, `HEAD`, or the project index.
+  Date/Author: 2026-07-06, Codex.
+- Decision: Reject symlinked record files during snapshot selection.
+  Rationale: Workflow records should be regular Markdown files under the fixed `.ahm/` record roots. Rejecting symlinks prevents a record-looking path from causing a snapshot to read content outside the intended tool-owned state tree.
+  Date/Author: 2026-07-06, Codex.
+- Decision: Fetch remote records into a private tracking ref instead of directly overwriting `refs/ahm/records`.
+  Rationale: Later `ahm records status`, `pull`, and `sync` commands need to compare the local snapshot with the fetched remote snapshot before deciding whether to materialize, fast-forward, or report divergence. Fetching into `refs/ahm/remotes/<remote>/...` preserves the local records ref while still avoiding branches, `HEAD`, and the project index.
+  Date/Author: 2026-07-06, Codex.
 
 ## Outcomes & Retrospective
+
+Task 139 completed the internal plumbing layer without adding user-facing commands. `internal/ahm/records.go` now provides the helper surface that later `ahm records`, migration, `prime`, and write-path tasks can call. The new tests use throwaway Git repositories and a local bare remote to prove snapshots include task, research, and ExecPlan source records under `.ahm/`, exclude generated indexes and project-owned `.agents/` content, materialize records back to `.ahm/`, fetch remote records into a private tracking ref, push the local records ref, and preserve normal project Git state during routine snapshot, materialization, fetch, and push operations. Command-surface diagnostics, conflict handling for unsnapshotted local edits, migration planning, and automatic integration with mutating workflow commands remain for tasks 141 through 145.
 
 ## Context and Orientation
 

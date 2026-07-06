@@ -50,6 +50,9 @@ external coding-agent CLI.
 - `internal/ahm/output.go`: shared text, JSON, and plain emitters.
 - `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
   slash-separated relative paths.
+- `internal/ahm/records.go`: internal ref-backed workflow record plumbing for
+  selecting `.ahm/` source records, snapshotting them to `refs/ahm/*`, syncing
+  private refs, comparing ref state, and materializing records back to `.ahm/`.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
 - `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
   `taskListCommand`).
