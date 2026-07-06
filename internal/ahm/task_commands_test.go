@@ -714,6 +714,57 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 	}
 }
 
+func TestTaskAcceptDoesNotDuplicateFormattedTitleH1(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\n" +
+		"id: 001\n" +
+		"title: Fix ahm task accept\n" +
+		"status: Open\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:bug, area:tasks\n" +
+		"exec_plan: -\n" +
+		"depends_on: -\n" +
+		"---\n" +
+		"# Fix `ahm task accept`\n\n" +
+		"## Summary\n\n" +
+		"TODO.\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
+		t.Error(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := string(data)
+	h1Count := 0
+	for _, line := range strings.Split(updated, "\n") {
+		if strings.HasPrefix(line, "# ") {
+			h1Count++
+		}
+	}
+	if h1Count != 1 {
+		t.Errorf("H1 heading count = %d, want 1:\n%s", h1Count, updated)
+	}
+	if got := strings.Count(updated, "# Fix ahm task accept"); got != 1 {
+		t.Errorf("plain task H1 count = %d, want 1:\n%s", got, updated)
+	}
+	if strings.Contains(updated, "# Fix `ahm task accept`") {
+		t.Errorf("formatted duplicate H1 was preserved:\n%s", updated)
+	}
+}
+
 func TestTaskStatusNoOp(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")

@@ -235,6 +235,57 @@ func TestStripHeading(t *testing.T) {
 	}
 }
 
+func TestStripHeadingFormattedDuplicateH1(t *testing.T) {
+	tests := []struct {
+		name  string
+		body  string
+		title string
+	}{
+		{
+			name:  "inline code",
+			body:  "\n# Fix `ahm task accept`\n\n## Summary\n\nBody\n",
+			title: "Fix ahm task accept",
+		},
+		{
+			name:  "strong emphasis",
+			body:  "\n# Fix **formatted** title\n\n## Summary\n\nBody\n",
+			title: "Fix formatted title",
+		},
+		{
+			name:  "markdown link",
+			body:  "\n# Fix [formatted title](https://example.test)\n\n## Summary\n\nBody\n",
+			title: "Fix formatted title",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripHeading(tt.body, tt.title)
+			if !strings.HasPrefix(got, "## Summary") {
+				t.Errorf("body = %q", got)
+			}
+			for _, line := range strings.Split(got, "\n") {
+				if strings.HasPrefix(line, "# ") {
+					t.Errorf("formatted duplicate H1 was preserved:\n%s", got)
+				}
+			}
+		})
+	}
+}
+
+func TestStripHeadingPreservesDifferentFormattedH1(t *testing.T) {
+	got := stripHeading("\n# Different `Heading`\n\n## Summary\n\nBody\n", "Task Title")
+	if !strings.HasPrefix(got, "# Different `Heading`") {
+		t.Errorf("body = %q", got)
+	}
+}
+
+func TestStripHeadingPreservesLiteralMarkdownTitleCharacters(t *testing.T) {
+	got := stripHeading("\n# Use glob syntax\n\n## Summary\n\nBody\n", "Use * glob syntax")
+	if !strings.HasPrefix(got, "# Use glob syntax") {
+		t.Errorf("body = %q", got)
+	}
+}
+
 func TestNextTaskID(t *testing.T) {
 	got := nextTaskID([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}}, t.TempDir())
 	if got != "011" {

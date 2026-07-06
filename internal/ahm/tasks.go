@@ -242,13 +242,58 @@ func stripHeading(body string, title string) string {
 	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
 		lines = lines[1:]
 	}
-	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "# "+title {
+	if len(lines) > 0 && headingMatchesTitle(lines[0], title) {
 		lines = lines[1:]
 	}
 	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
 		lines = lines[1:]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func headingMatchesTitle(line string, title string) bool {
+	heading, ok := strings.CutPrefix(strings.TrimSpace(line), "# ")
+	if !ok {
+		return false
+	}
+	heading = strings.TrimSpace(heading)
+	if heading == title {
+		return true
+	}
+	plainHeading := plainHeadingText(heading)
+	return plainHeading != "" && plainHeading == strings.Join(strings.Fields(title), " ")
+}
+
+func plainHeadingText(text string) string {
+	var b strings.Builder
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '`', '*', '~':
+			continue
+		case '\\':
+			if i+1 < len(text) {
+				i++
+				b.WriteByte(text[i])
+			}
+		case '[':
+			end := strings.IndexByte(text[i+1:], ']')
+			if end < 0 {
+				b.WriteByte(text[i])
+				continue
+			}
+			label := text[i+1 : i+1+end]
+			b.WriteString(plainHeadingText(label))
+			i += end + 1
+			if i+1 < len(text) && text[i+1] == '(' {
+				if close := strings.IndexByte(text[i+2:], ')'); close >= 0 {
+					i += close + 2
+				}
+			}
+		default:
+			b.WriteByte(text[i])
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 func parseList(value string) []string {
