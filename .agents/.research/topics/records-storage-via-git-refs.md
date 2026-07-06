@@ -2,7 +2,7 @@
 
 Status: active
 Created: 2026-06-29
-Updated: 2026-06-30
+Updated: 2026-07-06
 Related tasks: -
 Related plans: -
 Confidence: medium
@@ -41,6 +41,13 @@ machines.
 The agent-facing entry point should probably be a new command such as
 `ahm prime`: sync records, validate workflow state, and print a compact
 backlog briefing before each coding-agent work session.
+
+Revision note, 2026-07-06: ADR 013 now records the accepted namespace decision.
+The recommended working layer moves from `.agents/` to tool-owned `.ahm/`;
+`.agents/` remains committed project-owned agent content that `ahm` may read
+but does not manage. Older `.agents/` path references below document the
+research path that led to the decision and should not be used as implementation
+guidance.
 
 ## Research Questions
 
