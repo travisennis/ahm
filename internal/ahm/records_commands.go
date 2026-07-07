@@ -61,6 +61,7 @@ func (a *app) recordsCommand() *cobra.Command {
 		Long: `Sync ref-backed ahm workflow records through refs/ahm/records.
 
 Examples:
+  ahm records migrate
   ahm records status
   ahm records pull
   ahm records push
@@ -73,6 +74,24 @@ Examples:
 			return usageError("records requires a subcommand\n  ahm records status")
 		},
 	}
+	records.AddCommand(a.simpleCommand("migrate", "Opt into ref-backed record storage", `Migrate ahm-managed workflow state from .agents/ into tool-owned .ahm/.
+
+Migration moves task, research, and ExecPlan files (including generated
+indexes) to the same relative paths under .ahm/, installs internal
+.ahm/.gitignore entries, writes committed .ahm/config.json metadata with
+store_mode "ref", removes legacy .agents/ahm.json, and seeds the local
+refs/ahm/records ref. It prints the git rm -r --cached command needed to
+untrack legacy record paths instead of running it, and it never touches
+project-owned .agents/ content such as .agents/prompt.md.
+
+The command is safe to re-run: an interrupted migration resumes, and a fully
+migrated repository reports its remaining git-index cleanup, if any.
+
+Examples:
+  ahm --dry-run records migrate
+  ahm records migrate`, func() error {
+		return a.recordsMigrate()
+	}))
 	records.AddCommand(a.simpleCommand("status", "Show records sync state", `Show local and remote ref-backed workflow record state.
 
 Examples:
@@ -132,7 +151,7 @@ func (a *app) recordsDoctor() error {
 	report.Checks["mode"] = string(cfg.Mode)
 	if cfg.Mode != recordStoreModeRef {
 		report.OK = false
-		report.Checks["storage"] = "records storage is not ref-backed"
+		report.Checks["storage"] = "records storage is not ref-backed; run 'ahm records migrate' to opt in"
 		return a.emit(report)
 	}
 	if err := validateRecordsRef(ctx, a.opts.root, cfg.Ref); err != nil {
@@ -175,6 +194,16 @@ func (a *app) recordsDoctor() error {
 		}
 	} else {
 		report.Checks["remote_ref"] = "present"
+	}
+	migration, migrationOK, err := recordsMigrationDiagnostic(ctx, a.opts.root)
+	if err != nil {
+		report.OK = false
+		report.Checks["migration"] = err.Error()
+	} else {
+		if !migrationOK {
+			report.OK = false
+		}
+		report.Checks["migration"] = migration
 	}
 	return a.emit(report)
 }

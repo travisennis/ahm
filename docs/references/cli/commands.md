@@ -267,6 +267,71 @@ ahm agents suggestions --all
 ahm --json agents suggestions
 ```
 
+### `records migrate`
+
+Opts a repository into ref-backed record storage by migrating ahm-managed
+workflow state from `.agents/` into tool-owned `.ahm/`. Migration is explicit
+and opt-in; it is not part of `ahm upgrade`.
+
+Migration:
+
+- Moves every file under `.agents/.tasks/`, `.agents/.research/`, and
+  `.agents/exec-plans/` (including generated indexes) to the same relative
+  paths under `.ahm/`, then removes the emptied legacy directories.
+- Installs or updates `.ahm/.gitignore` with `/.tasks/`, `/.research/`, and
+  `/exec-plans/` entries so records and generated indexes stay local-only
+  while `.ahm/config.json` and `.ahm/.gitignore` remain committed.
+- Writes committed `.ahm/config.json` metadata with `store_mode: "ref"` and
+  explicit `records_ref` and `records_remote` values, preserving all other
+  metadata fields, and removes legacy `.agents/ahm.json`.
+- Seeds the local `refs/ahm/records` ref with a snapshot of the migrated
+  source records. Generated indexes are excluded from the snapshot.
+- Prints the `git rm -r --cached` command covering the legacy record paths
+  that are still tracked in the project git index. The user runs that command
+  and commits the result, adding the new `.ahm/config.json` and
+  `.ahm/.gitignore` in the same commit; `ahm` never runs it.
+
+Migration never touches project-owned `.agents/` content such as
+`.agents/prompt.md`, `AGENTS.md`, or `.agents/skills/`, and it does not move
+`HEAD`, create branch commits, stage files, or write the project index.
+
+The command is idempotent and resumable. Re-running after an interrupted
+migration completes the remaining steps: targets that already hold identical
+content are treated as moved, while a target with different content fails with
+a conflict diagnostic instead of being overwritten. A fully migrated
+repository reports `records storage is already migrated` plus any remaining
+git-index cleanup. `ahm records doctor` reports partially migrated states:
+leftover legacy record files or config, and legacy record paths still tracked
+in the project git index.
+
+To roll back an opt-in migration:
+
+1. Move the record directories back from `.ahm/` to `.agents/` and restore
+   `.agents/ahm.json` from `.ahm/config.json`, removing the `store_mode`,
+   `records_ref`, `records_remote`, and `records_last_sync` fields.
+2. Remove `.ahm/` (config and gitignore included).
+3. Re-add the record paths to the project branch if they were untracked
+   (`git add .agents/.tasks .agents/.research .agents/exec-plans
+   .agents/ahm.json`) and commit.
+4. Optionally delete the private ref with
+   `git update-ref -d refs/ahm/records` locally and
+   `git push <remote> :refs/ahm/records` on the remote.
+
+Useful flags:
+
+- `--dry-run`: previews the full plan — file moves, gitignore and config
+  changes, legacy config removal, ref seeding, and the user-run git command —
+  without writing files, metadata, or refs.
+- `--json`: prints indented JSON.
+- `--plain`: prints compact JSON.
+
+Example:
+
+```bash
+ahm --dry-run records migrate
+ahm records migrate
+```
+
 ### `records status`
 
 Reports ref-backed workflow record state without writing files, moving refs, or
@@ -412,8 +477,12 @@ ahm --dry-run records sync
 
 Reports diagnostics for ref-backed records setup. It checks metadata,
 `store_mode`, records ref validity, remote configuration and support, local ref
-presence, and remote ref accessibility. The command is read-only: it does not
-fetch, push, move refs, materialize files, or update metadata.
+presence, remote ref accessibility, and migration state. The migration check
+reports leftover legacy record files or config under `.agents/` and legacy
+record paths still tracked in the project git index, pointing at
+`ahm records migrate` or the required `git rm -r --cached` command. The
+command is read-only: it does not fetch, push, move refs, materialize files,
+or update metadata.
 
 Text output includes `ok: true|false` and a `checks:` section. With `--json` or
 `--plain`, the same information is emitted as structured JSON.

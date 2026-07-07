@@ -43,6 +43,37 @@ instruction files should be removed even though they no longer match their
 recorded managed hash, or when local edits to managed skill templates should
 be replaced.
 
+## Ref-Backed Records Migration (2026-07-06)
+
+ADR 013 introduces an explicit, opt-in migration from committed `.agents/`
+workflow records to gitignored `.ahm/` records backed by `refs/ahm/records`.
+The migration is a separate command, `ahm records migrate`; routine
+`ahm upgrade` never performs it, and repositories keep the current
+committed-record behavior until they opt in.
+
+Migration moves `.agents/.tasks/`, `.agents/.research/`, and
+`.agents/exec-plans/` (including generated indexes) to the same relative paths
+under `.ahm/`, installs internal `.ahm/.gitignore` entries, converts
+`.agents/ahm.json` into committed `.ahm/config.json` with `store_mode: "ref"`,
+and seeds the local records ref. It prints the `git rm -r --cached` command
+for the user to run instead of untracking project-owned records itself, and it
+never touches project-owned `.agents/` content such as `.agents/prompt.md` or
+`AGENTS.md`.
+
+Use `ahm --dry-run records migrate` to preview every effect first. The command
+is resumable after interruption, and `ahm records doctor` diagnoses partially
+migrated states. Rollback steps are documented in the
+[`records migrate` reference](../references/cli/commands.md#records-migrate).
+
+### Impact
+
+- `.ahm/config.json` becomes the committed config file after migration;
+  `ahm upgrade` and other commands read and write it instead of legacy
+  `.agents/ahm.json` (see the note above about metadata paths).
+- Migrated record files leave normal branch history once the printed
+  `git rm -r --cached` command is run and committed.
+- Repositories that do not run `ahm records migrate` are unaffected.
+
 ## Context Role Split (2026-06-20)
 
 `internal/templates.Version` advanced from `0.4.2` to `0.4.3`.

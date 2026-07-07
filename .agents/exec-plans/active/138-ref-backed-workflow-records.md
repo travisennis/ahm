@@ -21,7 +21,7 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - [x] (2026-07-06 00:00Z) Implemented records metadata and storage-mode model for `.ahm/config.json` read compatibility, legacy `.agents/ahm.json` fallback, unknown-field preservation, storage defaults, and dynamic metadata validation paths.
 - [x] (2026-07-06 16:21Z) Implemented private-ref snapshot and materialization plumbing in `internal/ahm/records.go`, including `.ahm/` source-record selection, generated-index and `.agents/` exclusion, Git tree/commit creation, local `refs/ahm/records` updates, remote fetch into `refs/ahm/remotes/<remote>/...`, push helpers, ref comparison, materialization back to `.ahm/`, and tests proving routine snapshot/materialization/fetch/push helpers preserve `HEAD`, the current branch, the project index bytes, and staged status.
 - [x] (2026-07-06 17:45Z) Added `ahm records status`, `pull`, `push`, `sync`, and `doctor` in `internal/ahm/records_commands.go`, wired the command family into the root CLI, documented text/JSON/plain output and explicit ref/network write behavior, and added command tests for local/remote status, pull/push/sync, dry-run no-write behavior, unsupported remotes, and non-fast-forward diagnostics.
-- [ ] Add migration workflow for existing committed records.
+- [x] (2026-07-07 00:37Z) Added `ahm records migrate` in `internal/ahm/records_migrate.go`: dry-run-previewed, resumable opt-in migration that moves `.agents/` record trees to `.ahm/`, installs `.ahm/.gitignore`, writes committed `.ahm/config.json` with `store_mode: "ref"`, removes legacy `.agents/ahm.json`, seeds `refs/ahm/records`, and prints the user-run `git rm -r --cached` command; `ahm records doctor` now diagnoses partially migrated states, and rollback is documented in the CLI reference.
 - [ ] Add `ahm prime` and stale-state reporting.
 - [ ] Integrate ref-backed records with task, research, and ExecPlan write paths.
 - [ ] Update docs, tests, and agent guidance.
@@ -40,6 +40,8 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
   Evidence: Task 139 builds blobs with `git hash-object -w --stdin`, assembles trees with `git mktree`, creates commits with `git commit-tree`, and updates only `refs/ahm/records` with `git update-ref`; `TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState`, `TestMaterializeRecordsRefWritesAhmFilesWithoutMutatingProjectGitState`, and `TestPushAndFetchRecordsRefUsePrivateRefWithoutMutatingProjectGitState` compare `HEAD`, branch name, `.git/index` bytes, and staged status before and after those helpers.
 - Observation: Command tests need a hermetic remote transport even though GitHub is the first user-facing hosted remote.
   Evidence: `TestRecordsPushPullAndSyncUsePrivateRef` and related command tests use local bare repositories to exercise real `git ls-remote`, `fetch`, `push`, and `refs/ahm/records` behavior without external network access, while unsupported hosted remotes such as GitLab still produce diagnostics.
+- Observation: `ahm records migrate` ships before workflow commands are mode-aware, so a migrated repository's task, index, context, and validation commands still read the now-empty `.agents/` paths until task 144 lands.
+  Evidence: `internal/ahm/tasks.go`, `internal/ahm/indexes.go`, `internal/ahm/validation.go`, and `internal/ahm/install.go` hardcode `.agents/` record paths as of task 142. Migration remains opt-in and undocumented in agent guidance until task 145, but real-world migration should wait for the task 144 write-path integration.
 
 ## Decision Log
 
@@ -79,12 +81,23 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - Decision: Accept local filesystem Git remotes for command tests and offline validation while keeping GitHub as the documented hosted-service support target.
   Rationale: The command surface must be tested without live network credentials, and local bare remotes exercise the same Git custom-ref transport paths. Hosted remotes outside GitHub still report unsupported-remote diagnostics.
   Date/Author: 2026-07-06, Codex.
+- Decision: Migration moves every file under the legacy record roots, including generated indexes and stray non-Markdown files, while record snapshots keep excluding indexes.
+  Rationale: Moving whole trees keeps local state complete and lets the emptied `.agents/` record directories be removed, while the existing snapshot selector still guarantees `refs/ahm/records` holds only source records.
+  Date/Author: 2026-07-06, Claude.
+- Decision: Make `ahm records migrate` resumable by treating an identical migration target as already moved and a differing target as a conflict error.
+  Rationale: An interrupted migration must be safe to re-run without silent overwrites, matching the plan's idempotence and recovery requirements; conflicts need a human decision.
+  Date/Author: 2026-07-06, Claude.
+- Decision: Diagnose partially migrated state in `ahm records doctor` via a `migration` check instead of a separate command.
+  Rationale: Doctor is already the read-only records diagnostic surface; leftover legacy files, leftover legacy config, and still-tracked legacy git paths are records-health findings with clear next commands.
+  Date/Author: 2026-07-06, Claude.
 
 ## Outcomes & Retrospective
 
 Task 139 completed the internal plumbing layer without adding user-facing commands. `internal/ahm/records.go` now provides the helper surface that later `ahm records`, migration, `prime`, and write-path tasks can call. The new tests use throwaway Git repositories and a local bare remote to prove snapshots include task, research, and ExecPlan source records under `.ahm/`, exclude generated indexes and project-owned `.agents/` content, materialize records back to `.ahm/`, fetch remote records into a private tracking ref, push the local records ref, and preserve normal project Git state during routine snapshot, materialization, fetch, and push operations. Command-surface diagnostics, conflict handling for unsnapshotted local edits, migration planning, and automatic integration with mutating workflow commands remain for tasks 141 through 145.
 
 Task 141 added the first user-facing records command surface. `ahm records status` and `doctor` are read-only diagnostics; `pull`, `push`, and `sync` are explicit ref/network operations for `refs/ahm/records` that reject unsupported remotes, avoid branch/index/`HEAD` mutations, and report stale local state or non-fast-forward remote refs. The command tests cover text output plus JSON/plain-compatible shared emission, dry-run no-write behavior, local filesystem remotes for hermetic Git transport, and actionable remote diagnostics. Migration, `prime`, write-path integration, and full agent guidance remain for later child tasks.
+
+Task 142 added the opt-in migration flow. `ahm records migrate` previews everything under `--dry-run`, moves the `.agents/` record trees to `.ahm/`, installs internal `.ahm/.gitignore` entries, writes committed `.ahm/config.json` with explicit ref-backed storage metadata, removes legacy `.agents/ahm.json`, seeds `refs/ahm/records`, and prints the `git rm -r --cached` command for the user instead of touching the project git index. Command tests prove dry-run writes nothing, project-owned `.agents/` content survives, generated indexes move locally but stay out of the seeded ref, migration is idempotent and resumable, differing targets fail as conflicts, and `records doctor` diagnoses leftover legacy paths and still-tracked git paths. Rollback is documented in the `records migrate` CLI reference and the workflow-upgrades guide. Until task 144 integrates workflow commands with `.ahm/` paths, migrated repositories cannot use the task/index commands, so migration stays a developer-facing opt-in.
 
 ## Context and Orientation
 
