@@ -76,8 +76,12 @@ overwritten or removed by `init`, `upgrade`, or `--force`.
 
 ## More Information
 
-- Supersedes the `ahm init` starter-file portion of ADR 002. The advisory
-  `ahm agents suggestions` command remains valid for project-owned `AGENTS.md`.
+- Supersedes the `ahm init` starter-file portion of ADR 002. ADR 014 later
+  supersedes the remaining `ahm agents suggestions` mechanism with
+  `ahm onboard`.
+- ADR 014 resolves this ADR's explicit deferral of the managed-skills
+  decision by replacing installed skill templates with command-based
+  procedure scopes.
 - Task 115: Add session context command.
 
 ## Refinement (2026-06-20): Context Role Split

@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-05-30
+status: superseded by ADR-014
+date: 2026-07-07
 ---
 # Advisory AGENTS.md Suggestions
 
@@ -90,3 +90,7 @@ do not drift.
   policy; it tells maintainers or agents how to place ahm-managed work intake
   within an existing project-owned loop, when to add a minimal loop for a
   routed AGENTS.md, and when not to invent one.
+
+## Supersession
+
+Superseded by [ADR-014](014-replace-managed-skills-with-command-based-procedures.md).
