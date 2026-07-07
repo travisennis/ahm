@@ -45,6 +45,7 @@ func TestAgentSmoke(t *testing.T) {
 			root := setupSmokeRepo(t)
 			// Verifies session capture and agent args against a real session ID.
 			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name)
+			t.Logf("%s stderr evidence:\n%s", agent.executable, liveSmokeStderrEvidence(stderr))
 			if code != 0 {
 				t.Errorf("task work exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 			}
@@ -54,6 +55,21 @@ func TestAgentSmoke(t *testing.T) {
 				"could not capture session ID")
 		})
 	}
+}
+
+func liveSmokeStderrEvidence(stderr string) string {
+	var evidence []string
+	for _, line := range strings.Split(stderr, "\n") {
+		if strings.Contains(line, "session started:") ||
+			strings.Contains(line, "no session ID returned by") ||
+			strings.Contains(line, "could not capture session ID") {
+			evidence = append(evidence, line)
+		}
+	}
+	if len(evidence) > 0 {
+		return strings.Join(evidence, "\n")
+	}
+	return strings.TrimSpace(stderr)
 }
 
 // setupSmokeRepo builds a throwaway git repository with the ahm workflow

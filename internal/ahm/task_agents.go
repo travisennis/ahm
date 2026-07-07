@@ -50,7 +50,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			resumeArgs:     cakeResumeArgs,
 			parseSessionID: parseCakeSessionID,
 			reviewArgs: func(prompt string) []string {
-				return []string{"--no-session", "--skills", "preflight", "--output-format", "stream-json", prompt}
+				return []string{"--skills", "preflight", "--output-format", "stream-json", prompt}
 			},
 			parseReviewFeedback: parseCakeReviewFeedback,
 		}, nil

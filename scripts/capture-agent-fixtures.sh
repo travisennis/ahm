@@ -69,7 +69,7 @@ if command -v cake >/dev/null 2>&1; then
   capture cake-work "$cake_version" \
     cake --max-tokens 512 --output-format stream-json "$work_prompt"
   capture cake-review "$cake_version" \
-    cake --max-tokens 512 --no-session --skills preflight --output-format stream-json "$review_prompt"
+    cake --max-tokens 512 --skills preflight --output-format stream-json "$review_prompt"
 else
   echo "── cake not on PATH, skipping cake captures ──" >&2
 fi

@@ -465,7 +465,7 @@ invocation. Review runs by default after the work session. `ahm` runs the reposi
 review workflow (`.agents/skills/preflight/SKILL.md`) against the current
 uncommitted changes, using each agent's normal execution path:
 
-- `cake`: `--no-session --skills preflight --output-format stream-json`
+- `cake`: `--skills preflight --output-format stream-json`
 - `codex`: `codex exec --dangerously-bypass-approvals-and-sandbox --json`
   with the preflight prompt
 - `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`

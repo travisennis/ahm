@@ -2415,6 +2415,28 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 	}
 }
 
+func TestTaskWorkSessionCapableAgentsDoNotSuppressSessions(t *testing.T) {
+	for _, name := range []string{"cake", "codex", "cursor", "claude"} {
+		t.Run(name, func(t *testing.T) {
+			agent, err := parseTaskWorkAgent(name)
+			if err != nil {
+				t.Error(err)
+			}
+			for phase, args := range map[string][]string{
+				"work":   agent.args("Work on task 001."),
+				"review": agent.reviewArgs("Review the changes."),
+				"resume": agent.resumeArgs("session-id", "Continue working."),
+			} {
+				for _, arg := range args {
+					if arg == "--no-session" {
+						t.Fatalf("%s args for %s suppress session creation: %#v", phase, name, args)
+					}
+				}
+			}
+		})
+	}
+}
+
 type taskWorkCapture struct {
 	root       string
 	executable string
@@ -2933,7 +2955,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 	}{
 		{
 			name: "cake",
-			want: []string{"--no-session", "--skills", "preflight", "--output-format", "stream-json", "Review the changes."},
+			want: []string{"--skills", "preflight", "--output-format", "stream-json", "Review the changes."},
 		},
 		{
 			name: "codex",
@@ -3020,8 +3042,8 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		t.Error("first invocation should have stdin connected")
 	}
 
-	// Second invocation: review with --no-session --skills preflight.
-	if invocations[1].args[0] != "--no-session" || invocations[1].args[1] != "--skills" || invocations[1].args[2] != "preflight" {
+	// Second invocation: review with --skills preflight.
+	if invocations[1].args[0] != "--skills" || invocations[1].args[1] != "preflight" || invocations[1].args[2] != "--output-format" || invocations[1].args[3] != "stream-json" {
 		t.Errorf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
 	// Review invocation should have no stdin (independent run).

@@ -48,7 +48,7 @@ echo "" >&2
 # ────────────────────────────────────────────────────────────────────────────
 echo "── Step 2/4: Running preflight review ──" >&2
 
-preflight_json=$(cake --no-session --model glm5-1 --skills preflight --output-format json \
+preflight_json=$(cake --model glm5-1 --skills preflight --output-format json \
   "Run the preflight skill on the current uncommitted changes." 2>/dev/null)
 
 preflight_feedback=$(echo "$preflight_json" | jq -r '.result // .error // "No feedback from preflight"')
