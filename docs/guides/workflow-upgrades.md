@@ -70,6 +70,16 @@ migrated states. Rollback steps are documented in the
 - `.ahm/config.json` becomes the committed config file after migration;
   `ahm upgrade` and other commands read and write it instead of legacy
   `.agents/ahm.json` (see the note above about metadata paths).
+- After migration, workflow commands (`ahm task ...`, `ahm index`,
+  `ahm status`, `ahm doctor`, `ahm context`, `ahm init`/`ahm upgrade`
+  directory creation) read and write records and generated indexes under
+  `.ahm/` instead of `.agents/`.
+- Supported record mutations in a migrated repository automatically refresh
+  the local `refs/ahm/records` snapshot (generated indexes excluded); pushing
+  to the remote stays explicit via `ahm records push` or `ahm records sync`.
+- The `ahm task work` commit handoff prompt scopes delegated commits to
+  project source changes in migrated repositories so gitignored `.ahm/`
+  records are not swept into project commits.
 - Migrated record files leave normal branch history once the printed
   `git rm -r --cached` command is run and committed.
 - Repositories that do not run `ahm records migrate` are unaffected.

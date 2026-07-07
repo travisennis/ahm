@@ -137,7 +137,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	task.Status = status
 	task.Updated = now
 	bucket := bucketForStatus(status)
-	target := filepath.Join(a.opts.root, ".agents", ".tasks", bucket, task.ID+".md")
+	target := workflowPathsFor(a.opts.root).taskFile(bucket, task.ID)
 	var unblocked []Task
 	if status == "Completed" {
 		unblocked = a.taskUnblockDependents(loadTasks(), task.ID, now)

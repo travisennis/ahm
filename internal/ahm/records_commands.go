@@ -524,6 +524,28 @@ func (a *app) requireRefRecordsConfig() (metadata, recordsStorageConfig, error) 
 	return meta, cfg, nil
 }
 
+// snapshotRecordsAfterWrite refreshes the local records ref after a workflow
+// mutation in ref-backed repositories. Legacy committed-record repositories
+// are unaffected. A snapshot failure degrades to a warning: the record files
+// on disk are already written, and 'ahm records status' reports the stale ref
+// until a later snapshot or push succeeds.
+func (a *app) snapshotRecordsAfterWrite() {
+	if a.opts.dryRun {
+		return
+	}
+	meta, err := readMetadata(a.opts.root)
+	if err != nil {
+		return
+	}
+	cfg := meta.recordsStorage()
+	if cfg.Mode != recordStoreModeRef {
+		return
+	}
+	if _, err := snapshotRecordsRef(context.Background(), a.opts.root, cfg, "Snapshot ahm workflow records"); err != nil {
+		a.addWarning("records snapshot failed: %v; run 'ahm records status' and 'ahm records push' after resolving", err)
+	}
+}
+
 func (a *app) markRecordsSynced(meta metadata) error {
 	meta.RecordsLastSync = time.Now().UTC().Format(time.RFC3339)
 	return writeMetadata(a.opts.root, meta)

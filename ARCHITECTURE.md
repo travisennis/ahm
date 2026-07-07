@@ -1,11 +1,14 @@
 # Architecture
 
 `ahm` is a single-binary Go CLI. It manages repository-local workflow state
-under `.agents` today and recognizes `.ahm/config.json` as the next committed
-configuration home for ADR 013 ref-backed records work. It exposes
-managed-work references and live repository briefings, validates that workflow,
-regenerates deterministic indexes, and can delegate a resolved task to an
-external coding-agent CLI.
+under `.agents` for legacy committed-record repositories and under tool-owned
+`.ahm` after the opt-in ADR 013 ref-backed records migration, which also moves
+committed configuration to `.ahm/config.json`. Workflow commands resolve
+record paths from the configured storage mode, and record mutations in
+ref-backed repositories refresh the local `refs/ahm/records` snapshot. It
+exposes managed-work references and live repository briefings, validates that
+workflow, regenerates deterministic indexes, and can delegate a resolved task
+to an external coding-agent CLI.
 
 ## System Boundaries
 
@@ -52,6 +55,9 @@ external coding-agent CLI.
 - `internal/ahm/output.go`: shared text, JSON, and plain emitters.
 - `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
   slash-separated relative paths.
+- `internal/ahm/workflow_paths.go`: storage-mode-aware resolution of workflow
+  record paths (`.agents` for legacy committed records, `.ahm` after the
+  ref-backed migration).
 - `internal/ahm/records.go`: internal ref-backed workflow record plumbing for
   selecting `.ahm/` source records, snapshotting them to `refs/ahm/*`, syncing
   private refs, comparing ref state, and materializing records back to `.ahm/`.

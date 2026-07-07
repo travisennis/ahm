@@ -156,7 +156,7 @@ Use the repository task workflow. Keep changes scoped to the task. Fill the task
 func (a *app) markTaskInProgress(task Task) error {
 	task.Status = "In Progress"
 	task.Updated = time.Now().Format(time.RFC3339)
-	target := filepath.Join(a.opts.root, ".agents", ".tasks", "active", task.ID+".md")
+	target := workflowPathsFor(a.opts.root).taskFile("active", task.ID)
 	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 		return err
 	}

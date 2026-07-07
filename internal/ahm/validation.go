@@ -133,7 +133,7 @@ func validateTaskFiles(root string, report *validationReport) []Task {
 	var tasks []Task
 	files, err := taskFilePaths(root)
 	if err != nil {
-		report.addError("task_dir_unreadable", ".agents/.tasks", err.Error())
+		report.addError("task_dir_unreadable", workflowPathsFor(root).tasksRel(), err.Error())
 		return nil
 	}
 	for _, f := range files {
@@ -237,24 +237,26 @@ func validateBlockedDepsComplete(root string, tasks []Task, report *validationRe
 }
 
 func validateTaskBuckets(root string, tasks []Task, report *validationReport) {
+	tasksRel := workflowPathsFor(root).tasksRel()
 	for _, task := range tasks {
 		switch {
 		case task.Status == "Completed" && task.Bucket != "completed":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "completed task should be in .agents/.tasks/completed")
+			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "completed task should be in "+tasksRel+"/completed")
 		case task.Status == "Cancelled" && task.Bucket != "cancelled":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "cancelled task should be in .agents/.tasks/cancelled")
+			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "cancelled task should be in "+tasksRel+"/cancelled")
 		case task.Status != "Completed" && task.Status != "Cancelled" && task.Bucket != "active":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "active task status should be in .agents/.tasks/active")
+			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "active task status should be in "+tasksRel+"/active")
 		}
 	}
 }
 
 func validateTaskExecPlans(root string, tasks []Task, report *validationReport) {
+	paths := workflowPathsFor(root)
 	for _, task := range tasks {
 		if task.ExecPlan == "" || task.ExecPlan == "-" {
 			continue
 		}
-		plan, bucket, ok := resolveExecPlanReference(root, task.ExecPlan)
+		plan, bucket, ok := resolveExecPlanReference(paths, task.ExecPlan)
 		if !ok {
 			report.addWarning("task_exec_plan_missing", relPath(root, task.Path), fmt.Sprintf("task %s references missing ExecPlan %s", task.ID, task.ExecPlan))
 			continue
@@ -277,9 +279,10 @@ var mandatoryExecPlanSections = []string{
 }
 
 func validateExecPlans(root string, tasks []Task, report *validationReport) {
-	referenced := referencedExecPlans(root, tasks)
+	paths := workflowPathsFor(root)
+	referenced := referencedExecPlans(paths, tasks)
 	for _, bucket := range []string{"active", "completed"} {
-		dir := filepath.Join(root, ".agents", "exec-plans", bucket)
+		dir := paths.execPlansDir(bucket)
 		plans, err := execPlanPaths(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -300,13 +303,13 @@ func validateExecPlans(root string, tasks []Task, report *validationReport) {
 	}
 }
 
-func referencedExecPlans(root string, tasks []Task) map[string]bool {
+func referencedExecPlans(paths workflowPaths, tasks []Task) map[string]bool {
 	referenced := map[string]bool{}
 	for _, task := range tasks {
 		if task.ExecPlan == "" || task.ExecPlan == "-" {
 			continue
 		}
-		plan, _, ok := resolveExecPlanReference(root, task.ExecPlan)
+		plan, _, ok := resolveExecPlanReference(paths, task.ExecPlan)
 		if ok {
 			referenced[filepath.Clean(plan)] = true
 		}
@@ -407,18 +410,26 @@ func validateExecPlanSections(root string, path string, bucket string, sections 
 	}
 }
 
-func resolveExecPlanReference(root string, ref string) (string, string, bool) {
+func resolveExecPlanReference(paths workflowPaths, ref string) (string, string, bool) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || ref == "-" {
 		return "", "", false
 	}
+	root := paths.root
 	var candidates []string
 	if filepath.IsAbs(ref) {
 		candidates = append(candidates, ref)
 	} else {
 		candidates = append(candidates, filepath.Join(root, filepath.FromSlash(ref)))
+		// Records migrated from .agents/ to .ahm/ may still reference their
+		// ExecPlans by the legacy repo-relative path.
+		if paths.recordsDir == toolRecordsDirName {
+			if legacyRel, ok := strings.CutPrefix(ref, legacyRecordsDirName+"/exec-plans/"); ok {
+				candidates = append(candidates, filepath.Join(paths.execPlansDir(""), filepath.FromSlash(legacyRel)))
+			}
+		}
 		for _, bucket := range []string{"active", "completed"} {
-			candidates = append(candidates, filepath.Join(root, ".agents", "exec-plans", bucket, filepath.FromSlash(ref)))
+			candidates = append(candidates, filepath.Join(paths.execPlansDir(bucket), filepath.FromSlash(ref)))
 		}
 	}
 	if filepath.Ext(ref) == "" {
@@ -435,9 +446,9 @@ func resolveExecPlanReference(root string, ref string) (string, string, bool) {
 		}
 		rel := relPath(root, candidate)
 		switch {
-		case strings.HasPrefix(rel, ".agents/exec-plans/active/"):
+		case strings.HasPrefix(rel, paths.execPlansRel("active")+"/"):
 			return candidate, "active", true
-		case strings.HasPrefix(rel, ".agents/exec-plans/completed/"):
+		case strings.HasPrefix(rel, paths.execPlansRel("completed")+"/"):
 			return candidate, "completed", true
 		default:
 			return candidate, "", true
@@ -596,14 +607,19 @@ func workflowMarkdownFiles(root string) []string {
 			add(target)
 		}
 	}
-	agentsRoot := filepath.Join(root, ".agents")
-	_ = filepath.WalkDir(agentsRoot, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+	walkRoots := []string{filepath.Join(root, legacyRecordsDirName)}
+	if recordsDir := workflowPathsFor(root).recordsDir; recordsDir != legacyRecordsDirName {
+		walkRoots = append(walkRoots, filepath.Join(root, recordsDir))
+	}
+	for _, walkRoot := range walkRoots {
+		_ = filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				return nil
+			}
+			add(path)
 			return nil
-		}
-		add(path)
-		return nil
-	})
+		})
+	}
 	sort.Strings(paths)
 	return paths
 }

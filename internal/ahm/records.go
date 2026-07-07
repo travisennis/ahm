@@ -113,6 +113,14 @@ func snapshotRecordsRef(ctx context.Context, root string, cfg recordsStorageConf
 	if parentErr != nil && !errors.Is(parentErr, errGitRefMissing) {
 		return recordsSnapshot{}, parentErr
 	}
+	// Reuse the existing snapshot commit when the records tree is unchanged so
+	// routine post-mutation snapshots stay idempotent.
+	if parent != "" {
+		parentTree, treeErr := runGit(ctx, root, []string{"--verify", parent + "^{tree}"}, nil, nil, "rev-parse")
+		if treeErr == nil && strings.TrimSpace(parentTree) == tree {
+			return recordsSnapshot{Commit: parent, Tree: tree, Files: files}, nil
+		}
+	}
 	var args []string
 	if parent != "" {
 		args = append(args, "-p", parent)

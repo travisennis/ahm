@@ -20,9 +20,10 @@ type taskFileInfo struct {
 // active, completed, and cancelled buckets. It skips index.md and
 // non-.md entries. Directories that do not exist are silently skipped.
 func taskFilePaths(root string) ([]taskFileInfo, error) {
+	paths := workflowPathsFor(root)
 	var files []taskFileInfo
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue

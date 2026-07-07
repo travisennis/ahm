@@ -15,7 +15,7 @@ var (
 )
 
 func acquireWorkflowLock(root string, name string) (func() error, error) {
-	lockRoot := filepath.Join(root, ".agents", ".lock")
+	lockRoot := filepath.Join(root, workflowPathsFor(root).recordsDir, ".lock")
 	if err := os.MkdirAll(lockRoot, 0o755); err != nil { // #nosec G301 // workflow lock directories use standard permissions
 		return nil, fmt.Errorf("acquire workflow lock: create lock dir: %w", err)
 	}

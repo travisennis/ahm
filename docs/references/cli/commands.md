@@ -295,6 +295,14 @@ Migration never touches project-owned `.agents/` content such as
 `.agents/prompt.md`, `AGENTS.md`, or `.agents/skills/`, and it does not move
 `HEAD`, create branch commits, stage files, or write the project index.
 
+After migration, workflow commands operate on the `.ahm/` paths: task,
+research, ExecPlan, index, validation, and install behavior reads and writes
+records and generated indexes under `.ahm/`, and supported record mutations
+(task lifecycle and metadata commands, plus `ahm index` after hand edits)
+refresh the local records ref automatically. Generated indexes stay out of
+those snapshots, and pushing to the remote remains explicit through
+`ahm records push` or `ahm records sync`.
+
 The command is idempotent and resumable. Re-running after an interrupted
 migration completes the remaining steps: targets that already hold identical
 content are treated as moved, while a target with different content fails with

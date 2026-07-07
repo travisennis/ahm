@@ -492,9 +492,13 @@ that trust tradeoff is acceptable.
 Agents marked **Full orchestration** for Commit support session-based commit
 handoff. Commit runs by default after the work session (and after review
 feedback is addressed when review also runs). The commit prompt
-asks the delegated agent to commit the completed task work, make sure the task
-is marked completed before committing, and include both task files and project
-source files in a single commit.
+asks the delegated agent to commit the completed task work and make sure the
+task is marked completed before committing. In legacy committed-record
+repositories it asks for both task files and project source files in a single
+commit. In ref-backed record repositories (after `ahm records migrate`) task
+records are gitignored under `.ahm/` and snapshotted to the records ref by
+`ahm` itself, so the prompt instead scopes the commit to project source
+changes and tells the agent not to add or force-add gitignored `.ahm/` files.
 
 `ahm` does not run `git commit`, choose commit messages, push branches, or open
 pull requests. Commit-message convention is owned by the target project and its

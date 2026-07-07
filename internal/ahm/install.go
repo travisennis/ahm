@@ -387,17 +387,18 @@ func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result ma
 }
 
 func (a *app) ensureWorkflowDirs() ([]string, error) {
+	paths := workflowPathsFor(a.opts.root)
 	dirs := []string{
-		".agents/.tasks/active",
-		".agents/.tasks/completed",
-		".agents/.tasks/cancelled",
-		".agents/.research/inbox",
-		".agents/.research/investigations",
-		".agents/.research/sources",
-		".agents/.research/topics",
-		".agents/.research/archived",
-		".agents/exec-plans/active",
-		".agents/exec-plans/completed",
+		paths.tasksRel() + "/active",
+		paths.tasksRel() + "/completed",
+		paths.tasksRel() + "/cancelled",
+		paths.researchRel() + "/inbox",
+		paths.researchRel() + "/investigations",
+		paths.researchRel() + "/sources",
+		paths.researchRel() + "/topics",
+		paths.researchRel() + "/archived",
+		paths.execPlansRel("active"),
+		paths.execPlansRel("completed"),
 		".agents/skills/preflight",
 		".agents/skills/grooming-backlog",
 		".agents/skills/finding-improvements",

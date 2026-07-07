@@ -98,16 +98,32 @@ func fsyncDir(path string) error {
 	return err
 }
 
-// cleanupStaleTemps scans the .agents directory inside root for orphaned
-// .tmp files — files ending in ".tmp" whose corresponding non-.tmp path
-// does not exist or is not a regular file. Such files can be left behind
-// by a crash during an atomic write.
+// cleanupStaleTemps scans the workflow state directories inside root
+// (.agents and, for migrated repositories, .ahm) for orphaned .tmp files —
+// files ending in ".tmp" whose corresponding non-.tmp path does not exist or
+// is not a regular file. Such files can be left behind by a crash during an
+// atomic write.
 //
-// Only regular files under .agents/ are considered; files in subdirectories
-// like .git/ are not scanned.
+// Only regular files under the scanned directories are considered; files in
+// subdirectories like .git/ are not scanned.
 func cleanupStaleTemps(root string) error {
-	agentsDir := filepath.Join(root, ".agents")
-	stat, err := os.Stat(agentsDir)
+	// removeFailures collects .tmp files that could not be removed for a reason
+	// other than "already gone". A single unremovable file (permission denied,
+	// for example) must not abort cleanup of the remaining stale .tmp files.
+	var removeFailures []string
+	for _, dir := range []string{legacyRecordsDirName, toolRecordsDirName} {
+		if err := cleanupStaleTempsIn(filepath.Join(root, dir), &removeFailures); err != nil {
+			return err
+		}
+	}
+	if len(removeFailures) > 0 {
+		return fmt.Errorf("could not remove %d stale .tmp file(s): %s", len(removeFailures), strings.Join(removeFailures, "; "))
+	}
+	return nil
+}
+
+func cleanupStaleTempsIn(stateDir string, removeFailures *[]string) error {
+	stat, err := os.Stat(stateDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -118,11 +134,7 @@ func cleanupStaleTemps(root string) error {
 		return nil
 	}
 
-	// removeFailures collects .tmp files that could not be removed for a reason
-	// other than "already gone". A single unremovable file (permission denied,
-	// for example) must not abort cleanup of the remaining stale .tmp files.
-	var removeFailures []string
-	walkErr := filepath.WalkDir(agentsDir, func(path string, d fs.DirEntry, err error) error {
+	return filepath.WalkDir(stateDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -136,7 +148,7 @@ func cleanupStaleTemps(root string) error {
 		// Resolve the path to a clean absolute form to avoid
 		// symlink-TOC-TOU attacks (gosec G122).
 		cleanPath := filepath.Clean(path)
-		if !strings.HasPrefix(cleanPath, filepath.Clean(agentsDir)) {
+		if !strings.HasPrefix(cleanPath, filepath.Clean(stateDir)) {
 			return nil
 		}
 
@@ -152,16 +164,9 @@ func cleanupStaleTemps(root string) error {
 		// non-fatal so the walk continues to the remaining .tmp files: a missing
 		// file (concurrent removal by another process) is ignored silently, and
 		// any other failure is recorded and summarized after the walk completes.
-		if rmErr := os.Remove(cleanPath); rmErr != nil && !os.IsNotExist(rmErr) { //nolint:gosec // best-effort cleanup of .tmp files within .agents/
-			removeFailures = append(removeFailures, fmt.Sprintf("%s: %v", cleanPath, rmErr))
+		if rmErr := os.Remove(cleanPath); rmErr != nil && !os.IsNotExist(rmErr) { //nolint:gosec // best-effort cleanup of .tmp files within workflow state directories
+			*removeFailures = append(*removeFailures, fmt.Sprintf("%s: %v", cleanPath, rmErr))
 		}
 		return nil
 	})
-	if walkErr != nil {
-		return walkErr
-	}
-	if len(removeFailures) > 0 {
-		return fmt.Errorf("could not remove %d stale .tmp file(s): %s", len(removeFailures), strings.Join(removeFailures, "; "))
-	}
-	return nil
 }

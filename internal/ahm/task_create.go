@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -89,7 +88,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	} else {
 		id = nextTaskID(tasks, a.opts.root)
 	}
-	path := filepath.Join(a.opts.root, ".agents", ".tasks", "active", id+".md")
+	path := workflowPathsFor(a.opts.root).taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
 		ID:       id,
@@ -174,8 +173,9 @@ func nextTaskID(tasks []Task, root string) string {
 	}
 	// Also scan the filesystem for task files that may have been skipped
 	// due to parse errors, to avoid colliding with them.
+	paths := workflowPathsFor(root)
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
@@ -214,8 +214,9 @@ func nextChildTaskID(tasks []Task, root string, parentID string) (string, error)
 	}
 
 	// Also scan the filesystem for unparsed files that may have been skipped.
+	paths := workflowPathsFor(root)
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := filepath.Join(root, ".agents", ".tasks", bucket)
+		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
