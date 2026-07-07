@@ -18,6 +18,7 @@ type options struct {
 	text   bool
 	dryRun bool
 	force  bool
+	noSync bool
 	check  []string
 }
 
@@ -179,25 +180,44 @@ Examples:
   ahm --dry-run upgrade`, func() error {
 		return a.install(true)
 	}))
-	root.AddCommand(a.simpleCommand("prime", "Session briefing with live backlog state", `Print a read-only session briefing with repository state, task backlog,
+	primeCmd := &cobra.Command{
+		Use:   "prime",
+		Short: "Session briefing with live backlog state",
+		Long: `Print a session briefing with repository state, task backlog,
 and managed-work routing.
+
+In ref-backed record mode, prime synchronizes workflow records
+(fetch/pull from remote when available), materializes them,
+regenerates indexes, and validates workflow state before printing the
+briefing. Sync failures degrade to warnings; the briefing is always
+shown.
 
 The briefing includes:
 - Dirty-worktree warning when the working tree is not clean.
 - Repository root, workflow version, and validation status.
 - In-progress and ready task lists (ready capped at 5).
 - Blocked and open task counts.
+- Active ExecPlans and recent research notes.
+- Stale/unsynced records state in ref mode.
 - Managed-work intake routing table.
 
-Supports --json, --plain, and --text output. Read-only; no writes or
-git mutations.
+Supports --json, --plain, and --text output.
 
 Examples:
   ahm prime
+  ahm --no-sync prime
   ahm --json prime
-  ahm --plain prime`, func() error {
-		return a.prime()
-	}))
+  ahm --plain prime`,
+		Args: noArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			return a.prime()
+		},
+	}
+	primeCmd.Flags().BoolVar(&a.opts.noSync, "no-sync", false, "Skip records sync in ref mode (offline/hooks)")
+	root.AddCommand(primeCmd)
 	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
 		Use:   "status",

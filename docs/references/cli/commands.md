@@ -504,9 +504,13 @@ ahm --json records doctor
 
 ### `prime`
 
-Prints a read-only session briefing with live repository state, task backlog,
-and managed-work routing. This is the canonical session-start command for
-coding agents.
+Prints a session briefing with repository state, task backlog, and managed-work
+routing. This is the canonical session-start command for coding agents.
+
+In ref-backed record mode, `prime` synchronizes workflow records (fetch/pull
+from remote when available), materializes them, regenerates indexes, and
+validates workflow state before printing the briefing. Sync failures degrade
+to warnings; the briefing is always shown.
 
 The briefing includes (in order, omitting empty sections):
 
@@ -516,17 +520,22 @@ The briefing includes (in order, omitting empty sections):
 - `## Ready` — ready task lines capped at 5, with an overflow pointer to
   `ahm task ready` for the remainder.
 - Blocked and open task counts, with commands to expand each.
+- Active ExecPlans and recent research notes.
+- Stale/unsynced records state in ref mode.
 - `## Managed Work Intake` — the routing table for managed-work types,
   with notes on workflow and multi-step plans.
 - `## Useful Commands` — common follow-up commands.
 
-The command is read-only. It does not write files, mutate workflow state,
-invoke external agents, or run mutating git commands.
+Supports `--json`, `--plain`, and `--text` output.
 
 Useful flags:
 
+- `--no-sync`: skip records sync in ref mode (offline or hook-constrained
+  environments).
 - `--json`: prints structured output with `root`, `workflow`, `git`,
   `tasks` (with `in_progress`, `ready`, `ready_total`, `blocked`, `open`),
+  `records` (with `mode`, `synced`, `stale`, `last_sync`, `message`),
+  `plans` (active ExecPlan summaries), `research` (recent research notes),
   and `commands`.
 - `--plain`: prints compact JSON.
 
@@ -534,6 +543,7 @@ Examples:
 
 ```bash
 ahm prime
+ahm --no-sync prime
 ahm --json prime
 ahm --plain prime
 ```

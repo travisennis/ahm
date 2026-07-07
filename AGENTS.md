@@ -14,6 +14,10 @@ not implicitly patch source code or run git operations.
 
 ## Operating Loop
 
+0. **Before any work**: run `ahm prime` to sync workflow records, regenerate
+   indexes, and get the session briefing. This is the canonical session-start
+   command for coding agents.
+
 1. Do work intake first:
    - If the request is about a task, ExecPlan, ADR, or research note, use `ahm`
      to understand that managed work item before choosing implementation docs.
