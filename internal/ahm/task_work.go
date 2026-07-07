@@ -12,10 +12,26 @@ import (
 	"time"
 )
 
-// taskWorkTimeout is the maximum time an external agent subprocess is
-// allowed to run before being killed. This prevents hung agent CLIs from
-// blocking ahm indefinitely.
-const taskWorkTimeout = 30 * time.Minute
+// taskWorkDefaultTimeout is the default maximum time an external agent
+// subprocess is allowed to run before being killed. This prevents hung
+// agent CLIs from blocking ahm indefinitely. The --timeout flag overrides
+// this for a single invocation.
+var taskWorkDefaultTimeout = 30 * time.Minute
+
+// Unexported context key for threading the task work timeout through
+// to runTaskWorkCommand without changing the taskWorkRunnerFunc signature.
+type taskWorkTimeoutKey struct{}
+
+func withTaskWorkTimeout(ctx context.Context, d time.Duration) context.Context {
+	return context.WithValue(ctx, taskWorkTimeoutKey{}, d)
+}
+
+func taskWorkTimeoutFromContext(ctx context.Context) time.Duration {
+	if d, ok := ctx.Value(taskWorkTimeoutKey{}).(time.Duration); ok && d > 0 {
+		return d
+	}
+	return taskWorkDefaultTimeout
+}
 
 // taskWorkRunnerFunc is the signature for running an external agent command.
 // The context carries the deadline or cancellation signal.
@@ -32,6 +48,7 @@ type taskWorkArgs struct {
 	noReview        bool
 	noCommit        bool
 	noProjectPrompt bool
+	timeout         time.Duration
 }
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
@@ -58,6 +75,10 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	args := agent.args(prompt)
 	review := !parsed.noReview
 	commit := !parsed.noCommit
+	timeout := parsed.timeout
+	if timeout <= 0 {
+		timeout = taskWorkDefaultTimeout
+	}
 	if a.opts.dryRun {
 		preview := map[string]any{
 			"task":       task.ID,
@@ -66,6 +87,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			"args":       args,
 			"prompt":     prompt,
 			"status":     taskWorkDryRunStatus(task.Status),
+			"timeout":    timeout,
 		}
 		if commit {
 			preview["commit"] = true
@@ -80,7 +102,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
-	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID)
+	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID, timeout)
 }
 
 func taskWorkDryRunStatus(status string) string {
@@ -169,7 +191,7 @@ func (a *app) markTaskInProgress(task Task) error {
 }
 
 func runTaskWorkCommand(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, taskWorkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, taskWorkTimeoutFromContext(ctx))
 	defer cancel()
 	cmd := exec.CommandContext(ctx, executable, args...) //nolint:gosec // executable is selected from the supported task work agent allowlist before LookPath.
 	cmd.Dir = root

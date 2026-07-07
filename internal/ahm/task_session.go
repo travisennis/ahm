@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // taskWorkWithSession runs a session-capable agent, captures its stdout,
@@ -13,11 +14,11 @@ import (
 // user's terminal. The session ID is kept in memory for the current
 // orchestration run and is available for later review and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string) error {
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string, timeout time.Duration) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
-	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, args, a.in, out, a.err); err != nil {
+	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, args, a.in, out, a.err); err != nil {
 		return err
 	}
 	sessionID, parseErr := agent.parseSessionID(stdoutBuf.Bytes())
@@ -39,12 +40,12 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	fmt.Fprintf(a.err, "%s session started: %s\n", agent.name, truncatedID(sessionID, 8))
 
 	if review {
-		if err := a.runReview(agent, executable, sessionID); err != nil {
+		if err := a.runReview(agent, executable, sessionID, timeout); err != nil {
 			return err
 		}
 	}
 	if commit {
-		return a.runCommit(agent, executable, sessionID, taskID)
+		return a.runCommit(agent, executable, sessionID, taskID, timeout)
 	}
 	return nil
 }
@@ -61,7 +62,7 @@ const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted
 // capability, then feeds actionable feedback back into the original work
 // session. If the review produces no feedback, the feedback-resume step is
 // skipped. If the review command itself fails, the error is surfaced.
-func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error {
+func (a *app) runReview(agent taskWorkAgent, executable, sessionID string, timeout time.Duration) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
 	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt)
@@ -69,7 +70,7 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
 
-	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
+	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
 		return fmt.Errorf("review failed: %w", err)
 	}
 
@@ -88,16 +89,16 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string) error
 	fmt.Fprintf(a.err, "Review produced feedback, applying to session %s...\n", truncatedID(sessionID, 8))
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
 	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
-	return taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
+	return taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
 }
 
 // runCommit resumes the agent session with a commit handoff prompt. The
 // delegated agent owns the actual git operation; ahm only sends the prompt.
-func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID string) error {
+func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID string, timeout time.Duration) error {
 	fmt.Fprintln(a.err, "--- Running commit handoff ---")
 	prompt := a.buildTaskWorkCommitPrompt(taskID)
 	resumeArgs := agent.resumeArgs(sessionID, prompt)
-	if err := taskWorkRunCommand(context.Background(), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
+	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
 		return fmt.Errorf("commit handoff failed: %w", err)
 	}
 	return nil

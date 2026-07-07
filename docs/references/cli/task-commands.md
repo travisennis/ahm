@@ -527,9 +527,20 @@ The path is configurable via `taskWork.promptFile` in `.agents/ahm.json`;
 a missing or unreadable file is silently ignored — the feature is opt-in
 by file presence.
 
+Each phase (work session, review, feedback resume, and commit handoff) has an
+independent timeout. If the delegated agent exceeds the timeout for the current
+phase, the subprocess is killed and `ahm` exits with a non-zero code.
+
+The default timeout is 30 minutes per phase. Use `--timeout` to override for
+long-running tasks — for example, L/XL tasks that need more time for the
+initial work session or a lengthy review.
+
 Useful flags:
 
 - `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
+- `--timeout <duration>`: maximum time for each phase before timeout, in Go
+  duration syntax (e.g., `2h`, `45m`, `90s`). Must be greater than zero.
+  Default is `30m`.
 - `--no-review`: skip the preflight review workflow (review runs by default).
 - `--no-commit`: skip the commit handoff (commit runs by default).
 - `--no-project-prompt`: skip inclusion of the project instructions file for
@@ -556,6 +567,7 @@ ahm task work 001
 ahm task work 001 --agent codex
 ahm task work 001 --agent cursor --no-review
 ahm task work 001 --agent claude --no-commit
+ahm task work 001 --timeout 2h
 ahm task work 001 --no-review
 ahm task work 001 --no-commit
 ahm task work 001 --no-project-prompt

@@ -2143,6 +2143,69 @@ func TestTaskWorkUnsupportedConfiguredAgentIsUsageError(t *testing.T) {
 	assertContainsAll(t, stderr, `unsupported task work agent "unknown"`, "supported: cake, claude, codex, cursor")
 }
 
+func TestTaskWorkTimeoutZeroIsUsageError(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Timeout Zero", "Pending", "")
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--timeout", "0", "--no-review", "--no-commit")
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2; stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, "must be greater than 0", "--timeout")
+}
+
+func TestTaskWorkTimeoutNegativeIsUsageError(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Timeout Negative", "Pending", "")
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--timeout", "-5m", "--no-review", "--no-commit")
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2; stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, "must be greater than 0", "--timeout")
+}
+
+func TestTaskWorkTimeoutValidDuration(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Timeout Valid", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--timeout", "2h", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if captured.root != root {
+		t.Errorf("runner root = %q, want %q", captured.root, root)
+	}
+	if captured.executable != "/stub/cake" {
+		t.Errorf("runner executable = %q, want /stub/cake", captured.executable)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+}
+
+func TestTaskWorkTimeoutDryRunPreview(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Timeout Dry-Run", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Error("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--timeout", "90m", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "timeout", "1h30m0s")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+}
+
 func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")

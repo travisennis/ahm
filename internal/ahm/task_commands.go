@@ -3,6 +3,7 @@ package ahm
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -192,6 +193,7 @@ Examples:
   ahm task work 001
   ahm task work 001 --agent codex
   ahm task work 001 --agent cursor --no-review
+  ahm task work 001 --timeout 2h
   ahm --dry-run task work 001 --agent cake`,
 		Args: exactArgs(1, "task work requires an id\n  ahm task work <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -199,6 +201,9 @@ Examples:
 				return err
 			}
 			workArgs.id = args[0]
+			if workArgs.timeout <= 0 {
+				return usageError("task work --timeout must be greater than 0 (e.g. 30m, 2h, 90s)\n  ahm task work <id> --timeout 2h")
+			}
 			return a.taskWork(workArgs)
 		},
 	}
@@ -206,6 +211,7 @@ Examples:
 	work.Flags().BoolVar(&workArgs.noReview, "no-review", false, "Skip review orchestration (review runs by default)")
 	work.Flags().BoolVar(&workArgs.noCommit, "no-commit", false, "Skip commit handoff (commit runs by default)")
 	work.Flags().BoolVar(&workArgs.noProjectPrompt, "no-project-prompt", false, "Skip project instructions file inclusion")
+	work.Flags().DurationVar(&workArgs.timeout, "timeout", 30*time.Minute, "Maximum time for each phase before timeout (e.g. 2h, 45m); must be > 0")
 	task.AddCommand(work)
 
 	for _, spec := range []struct {
