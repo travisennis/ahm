@@ -118,12 +118,12 @@ func (a *app) command() *cobra.Command {
 ADRs, generated indexes, and coding-agent delegation.
 
 When run with no command, ahm runs 'status', which exits with code 1
-when validation errors are found. For a briefing that always succeeds,
-run 'ahm context'.
+when validation errors are found. For a session briefing with live backlog
+state, run 'ahm prime'.
 
 Examples:
   ahm
-  ahm context
+  ahm prime
   ahm status
   ahm --json doctor`,
 		SilenceUsage:  true,
@@ -178,6 +178,25 @@ Examples:
   ahm --force upgrade
   ahm --dry-run upgrade`, func() error {
 		return a.install(true)
+	}))
+	root.AddCommand(a.simpleCommand("prime", "Session briefing with live backlog state", `Print a read-only session briefing with repository state, task backlog,
+and managed-work routing.
+
+The briefing includes:
+- Dirty-worktree warning when the working tree is not clean.
+- Repository root, workflow version, and validation status.
+- In-progress and ready task lists (ready capped at 5).
+- Blocked and open task counts.
+- Managed-work intake routing table.
+
+Supports --json, --plain, and --text output. Read-only; no writes or
+git mutations.
+
+Examples:
+  ahm prime
+  ahm --json prime
+  ahm --plain prime`, func() error {
+		return a.prime()
 	}))
 	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
@@ -246,7 +265,6 @@ Examples:
 
 func (a *app) contextCommand() *cobra.Command {
 	validScopes := map[string]bool{
-		"":         true,
 		"task":     true,
 		"adr":      true,
 		"research": true,
@@ -254,12 +272,12 @@ func (a *app) contextCommand() *cobra.Command {
 		"docs":     true,
 	}
 	return &cobra.Command{
-		Use:   "context [task|adr|research|plan|docs]",
-		Short: "Repository briefing or managed-work reference",
-		Long: `Print a repository briefing or managed-work reference.
+		Use:   "context <task|adr|research|plan|docs>",
+		Short: "Managed-work reference",
+		Long: `Print a managed-work reference for one scope.
 
-With no scope, prints a live repository briefing with repository state,
-validation status, git branch, task counts, and useful follow-up commands.
+Unscoped 'ahm context' is no longer valid as a session briefing. The
+session briefing has moved to 'ahm prime'.
 
 Scopes:
   task     Task workflow reference for creating, choosing, and working on tasks
@@ -269,14 +287,13 @@ Scopes:
   docs     Documentation workflow reference for auditing and updating docs
 
 Examples:
-  ahm context
   ahm context task
   ahm --json context adr`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 1 {
-				return usageError(fmt.Sprintf("unknown command %q for %q", args[1], cmd.CommandPath()))
+			if len(args) != 1 {
+				return usageError("session briefing moved to `ahm prime`\n  ahm prime\n\nValid scoped contexts:\n  ahm context task\n  ahm context adr\n  ahm context research\n  ahm context plan\n  ahm context docs")
 			}
-			if len(args) == 1 && !validScopes[args[0]] {
+			if !validScopes[args[0]] {
 				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)\n  ahm context <scope>", args[0]))
 			}
 			return nil
@@ -285,11 +302,7 @@ Examples:
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			scope := ""
-			if len(args) == 1 {
-				scope = args[0]
-			}
-			return a.context(scope)
+			return a.context(args[0])
 		},
 	}
 }

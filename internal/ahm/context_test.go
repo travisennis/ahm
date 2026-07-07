@@ -5,42 +5,33 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
-func TestContextPrintsSessionBriefing(t *testing.T) {
+func TestUnscopedContextErrorsWithGuidance(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Current Work", "In Progress", "depends_on: -\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Ready Work", "Pending", "depends_on: -\n")
-	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
-	if err := indexer.writeIndexes(); err != nil {
-		t.Fatal(err)
-	}
 
 	stdout, stderr, code := runCLI(t, "--root", root, "context")
-	if code != 0 {
-		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+	if code != 2 {
+		t.Fatalf("unscoped context exit code = %d (expected 2), stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		"# ahm context",
-		"workflow: installed "+templates.Version,
-		"validation: ok",
-		"tasks: open=0 ready=1 blocked=0 in_progress=1",
-		"next: 002 [Pending] P2 S Ready Work",
-		"in_progress: 001 [In Progress] P2 S Current Work",
-		"## Useful Commands",
-		"`ahm task show <id>`",
+	assertContainsAll(t, stderr,
+		"session briefing moved to `ahm prime`",
+		"ahm prime",
+		"Valid scoped contexts",
+		"ahm context task",
+		"ahm context adr",
 	)
-	assertNotContains(t, stdout, "## Instructions", "Start by running `ahm context`")
+	if stdout != "" {
+		t.Fatalf("unscoped context should not print any output to stdout, got:\n%s", stdout)
+	}
 }
 
-func TestContextScopePrintsEmbeddedInstructionDocument(t *testing.T) {
+func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -60,7 +51,7 @@ func TestContextScopePrintsEmbeddedInstructionDocument(t *testing.T) {
 	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands")
 }
 
-func TestContextJSONOutputUnscoped(t *testing.T) {
+func TestUnscopedContextJSONErrors(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -69,19 +60,16 @@ func TestContextJSONOutputUnscoped(t *testing.T) {
 	}
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "context")
-	if code != 0 {
-		t.Fatalf("context --json exit code = %d, stderr = %s", code, stderr)
+	if code != 2 {
+		t.Fatalf("unscoped context --json exit code = %d (expected 2), stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		`"root": "`+root+`"`,
-		`"template_version": "`+templates.Version+`"`,
-		`"validation_ok": true`,
-		`"commands":`,
-	)
-	assertNotContains(t, stdout, `"instructions"`)
+	assertContainsAll(t, stderr, "session briefing moved to `ahm prime`")
+	if stdout != "" {
+		t.Fatalf("unscoped context --json should not print anything to stdout, got:\n%s", stdout)
+	}
 }
 
-func TestContextJSONOutputScoped(t *testing.T) {
+func TestScopedContextJSONOutput(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -105,7 +93,7 @@ func TestContextJSONOutputScoped(t *testing.T) {
 	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, `"tasks"`)
 }
 
-func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
+func TestPrimeReportsValidationFindings(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -114,9 +102,9 @@ func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Missing Dependency", "Pending", "depends_on: 999\n")
 
-	stdout, stderr, code := runCLI(t, "--root", root, "context")
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
-		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"validation:",
@@ -126,13 +114,13 @@ func TestContextReportsValidationFindingsWithoutFailing(t *testing.T) {
 	)
 }
 
-func TestContextWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
+func TestPrimeWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
 
-	stdout, stderr, code := runCLI(t, "--root", root, "context")
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
-		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"metadata_missing",
@@ -144,7 +132,7 @@ func TestContextWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T
 	}
 }
 
-func TestContextWarningsOnlyValidationDisplay(t *testing.T) {
+func TestPrimeWarningsOnlyValidationDisplay(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
@@ -154,9 +142,9 @@ func TestContextWarningsOnlyValidationDisplay(t *testing.T) {
 	// A Completed task in the active bucket yields a warning with no errors.
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bucket Mismatch", "Completed", "")
 
-	stdout, stderr, code := runCLI(t, "--root", root, "context")
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
-		t.Fatalf("context exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
 		"warnings; run `ahm doctor`",
@@ -164,9 +152,9 @@ func TestContextWarningsOnlyValidationDisplay(t *testing.T) {
 	)
 	assertNotContains(t, stdout, "validation: ok")
 
-	jsonOut, stderr, code := runCLI(t, "--root", root, "--json", "context")
+	jsonOut, stderr, code := runCLI(t, "--root", root, "--json", "prime")
 	if code != 0 {
-		t.Fatalf("context --json exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("prime --json exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, jsonOut, `"validation_ok": false`)
 }

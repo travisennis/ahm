@@ -34,9 +34,9 @@ directory.
 
 `init`, `upgrade`, and `agents suggestions` are lenient: they can run in any
 directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
-refreshes it, and `agents suggestions` only prints advisory text. `context` and
-all other state-aware commands require a managed repository (`.git` or
-`.agents/ahm.json`).
+refreshes it, and `agents suggestions` only prints advisory text. `prime`,
+`context`, and all other state-aware commands require a managed repository
+(`.git` or `.agents/ahm.json`).
 
 ## Global Flags
 

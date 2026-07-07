@@ -502,26 +502,55 @@ ahm records doctor
 ahm --json records doctor
 ```
 
+### `prime`
+
+Prints a read-only session briefing with live repository state, task backlog,
+and managed-work routing. This is the canonical session-start command for
+coding agents.
+
+The briefing includes (in order, omitting empty sections):
+
+- Dirty-worktree warning when the working tree has uncommitted changes.
+- Repository root, installed workflow version, and validation status.
+- `## In Progress` — full task lines for all in-progress tasks.
+- `## Ready` — ready task lines capped at 5, with an overflow pointer to
+  `ahm task ready` for the remainder.
+- Blocked and open task counts, with commands to expand each.
+- `## Managed Work Intake` — the routing table for managed-work types,
+  with notes on workflow and multi-step plans.
+- `## Useful Commands` — common follow-up commands.
+
+The command is read-only. It does not write files, mutate workflow state,
+invoke external agents, or run mutating git commands.
+
+Useful flags:
+
+- `--json`: prints structured output with `root`, `workflow`, `git`,
+  `tasks` (with `in_progress`, `ready`, `ready_total`, `blocked`, `open`),
+  and `commands`.
+- `--plain`: prints compact JSON.
+
+Examples:
+
+```bash
+ahm prime
+ahm --json prime
+ahm --plain prime
+```
+
 ### `context`
 
-Prints a read-only repository briefing or a managed-work reference.
+Prints a managed-work reference for one scope.
 
-With no scope, `context` prints a live briefing with repository state:
-
-- Repository root, installed workflow version, and embedded template version.
-- Validation status and the first few validation findings, without failing the
-  command when findings exist.
-- Git branch and dirty worktree count when `git` is available.
-- Task counts, in-progress tasks, and the next ready task.
-- A warning on stderr when task files cannot be parsed while gathering counts.
-- Useful read-only follow-up commands.
+Unscoped `ahm context` is no longer valid as a session briefing. The session
+briefing has moved to `ahm prime`.
 
 With a scope, `context` prints the full embedded reference document for that
 artifact type. For example, `ahm context task` prints the task workflow
 reference for creating, choosing, updating, or working on tasks. Scoped output
 is pure reference text with no live briefing wrapper.
 
-Supported optional scopes:
+Required scope:
 
 - `task`
 - `adr`
@@ -534,15 +563,13 @@ workflow files, invoke external agents, or run mutating git commands.
 
 Useful flags:
 
-- `--json`: prints structured output. Unscoped output includes `root`,
-  `workflow`, `git`, `tasks`, and `commands`. Scoped output includes `scope`,
-  `instructions`, and `commands` without live briefing fields.
+- `--json`: prints structured output with `scope`, `instructions`, and
+  `commands`.
 - `--plain`: prints compact JSON.
 
 Examples:
 
 ```bash
-ahm context
 ahm context task
 ahm --json context adr
 ```
