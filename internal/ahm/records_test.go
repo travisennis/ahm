@@ -14,10 +14,10 @@ import (
 
 func TestCollectRecordFilesSelectsAhmSourceRecords(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "index.md"), "# Generated\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "topics", "storage.md"), "# Research\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "index.md"), "# Generated\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"), "# Generated\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "storage.md"), "# Research\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "index.md"), "# Generated\n")
 	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan\n")
 	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "index.md"), "# Generated\n")
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{}\n")
@@ -32,9 +32,9 @@ func TestCollectRecordFilesSelectsAhmSourceRecords(t *testing.T) {
 		got = append(got, file.RelPath)
 	}
 	want := []string{
-		".ahm/.research/topics/storage.md",
-		".ahm/.tasks/active/001.md",
 		".ahm/exec-plans/active/plan.md",
+		".ahm/research/topics/storage.md",
+		".ahm/tasks/active/001.md",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("record files = %#v, want %#v", got, want)
@@ -44,13 +44,13 @@ func TestCollectRecordFilesSelectsAhmSourceRecords(t *testing.T) {
 func TestCollectRecordFilesRejectsSymlinkedMarkdownRecords(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "outside.md"), "# Outside\n")
-	if err := os.MkdirAll(filepath.Join(root, ".ahm", ".tasks", "active"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".ahm", "tasks", "active"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(root, "outside.md"), filepath.Join(root, ".ahm", ".tasks", "active", "001.md")); err != nil {
+	if err := os.Symlink(filepath.Join(root, "outside.md"), filepath.Join(root, ".ahm", "tasks", "active", "001.md")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(root, "outside.md"), filepath.Join(root, ".ahm", ".tasks", "active", "ignored.txt")); err != nil {
+	if err := os.Symlink(filepath.Join(root, "outside.md"), filepath.Join(root, ".ahm", "tasks", "active", "ignored.txt")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,7 +58,7 @@ func TestCollectRecordFilesRejectsSymlinkedMarkdownRecords(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected symlinked markdown record to be rejected")
 	}
-	assertContainsAll(t, err.Error(), "record file symlinks are not supported", ".ahm/.tasks/active/001.md")
+	assertContainsAll(t, err.Error(), "record file symlinks are not supported", ".ahm/tasks/active/001.md")
 }
 
 func TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState(t *testing.T) {
@@ -68,10 +68,10 @@ func TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState(t *te
 	git(t, root, "add", ".gitignore", "README.md")
 	git(t, root, "commit", "-m", "initial")
 
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "index.md"), "# Generated Task Index\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "topics", "storage.md"), "# Research\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "index.md"), "# Generated Research Index\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"), "# Generated Task Index\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "storage.md"), "# Research\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "index.md"), "# Generated Research Index\n")
 	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan\n")
 	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "legacy.md"), "# Legacy\n")
 
@@ -91,9 +91,9 @@ func TestSnapshotRecordsRefCreatesPrivateRefWithoutMutatingProjectGitState(t *te
 	}
 	got := gitLines(t, root, "ls-tree", "-r", "--name-only", defaultRecordsRef)
 	want := []string{
-		".ahm/.research/topics/storage.md",
-		".ahm/.tasks/active/001.md",
 		".ahm/exec-plans/active/plan.md",
+		".ahm/research/topics/storage.md",
+		".ahm/tasks/active/001.md",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ref files = %#v, want %#v", got, want)
@@ -107,16 +107,16 @@ func TestMaterializeRecordsRefWritesAhmFilesWithoutMutatingProjectGitState(t *te
 	git(t, root, "add", ".gitignore", "README.md")
 	git(t, root, "commit", "-m", "initial")
 
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task\n")
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "topics", "storage.md"), "# Research\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "storage.md"), "# Research\n")
 	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan\n")
 	if _, err := snapshotRecordsRef(context.Background(), root, recordsStorageConfig{Ref: defaultRecordsRef}, "test snapshot"); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.RemoveAll(filepath.Join(root, ".ahm", ".tasks")); err != nil {
+	if err := os.RemoveAll(filepath.Join(root, ".ahm", "tasks")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.RemoveAll(filepath.Join(root, ".ahm", ".research")); err != nil {
+	if err := os.RemoveAll(filepath.Join(root, ".ahm", "research")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(filepath.Join(root, ".ahm", "exec-plans")); err != nil {
@@ -134,15 +134,15 @@ func TestMaterializeRecordsRefWritesAhmFilesWithoutMutatingProjectGitState(t *te
 	assertSameProjectGitState(t, before, after)
 
 	want := []string{
-		".ahm/.research/topics/storage.md",
-		".ahm/.tasks/active/001.md",
 		".ahm/exec-plans/active/plan.md",
+		".ahm/research/topics/storage.md",
+		".ahm/tasks/active/001.md",
 	}
 	if !reflect.DeepEqual(written, want) {
 		t.Fatalf("written = %#v, want %#v", written, want)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".research", "topics", "storage.md"), "# Research")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "topics", "storage.md"), "# Research")
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan")
 }
 
@@ -152,7 +152,7 @@ func TestCompareRecordsRefs(t *testing.T) {
 	git(t, root, "add", "README.md")
 	git(t, root, "commit", "-m", "initial")
 
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# One\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# One\n")
 	first, err := snapshotRecordsRef(context.Background(), root, recordsStorageConfig{Ref: "refs/ahm/left"}, "left")
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ func TestCompareRecordsRefs(t *testing.T) {
 		t.Fatalf("comparison = %q, want %q", cmp, recordsRefEqual)
 	}
 
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "002.md"), "# Two\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "# Two\n")
 	if _, err := snapshotRecordsRef(context.Background(), root, recordsStorageConfig{Ref: "refs/ahm/left"}, "left again"); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestCompareRecordsRefs(t *testing.T) {
 	if cmp != recordsRefRightMissing {
 		t.Fatalf("comparison = %q, want %q", cmp, recordsRefRightMissing)
 	}
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "003.md"), "# Three\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "# Three\n")
 	if _, err := snapshotRecordsRef(context.Background(), root, recordsStorageConfig{Ref: "refs/ahm/right"}, "right again"); err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestPushAndFetchRecordsRefUsePrivateRefWithoutMutatingProjectGitState(t *te
 	writeFile(t, filepath.Join(root, "README.md"), "# Repo\n")
 	git(t, root, "add", "README.md")
 	git(t, root, "commit", "-m", "initial")
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# One\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# One\n")
 	snapshot, err := snapshotRecordsRef(context.Background(), root, recordsStorageConfig{Ref: defaultRecordsRef}, "snapshot")
 	if err != nil {
 		t.Fatal(err)

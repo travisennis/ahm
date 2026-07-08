@@ -88,15 +88,15 @@ func TestTaskCreateInRefModeWritesAhmRecordsAndSnapshotsRef(t *testing.T) {
 	}
 
 	// The record and regenerated indexes live under .ahm/, not .agents/.
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "active", "002.md"), "Ref Mode Task")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "index.md"), "Ref Mode Task")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "Ref Mode Task")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"), "Ref Mode Task")
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("task create resurrected legacy .agents/.tasks: %v", err)
 	}
 
 	// The mutation refreshed the records ref with source records only.
 	refPaths := recordsRefPaths(t, root)
-	assertContainsAll(t, refPaths, ".ahm/.tasks/active/002.md", ".ahm/.research/topics/note.md")
+	assertContainsAll(t, refPaths, ".ahm/tasks/active/002.md", ".ahm/research/topics/note.md")
 	assertNotContains(t, refPaths, "index.md")
 
 	// Routine mutations never touch project git state.
@@ -117,14 +117,14 @@ func TestTaskCompleteInRefModeMovesRecordAndSnapshotsRef(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
 
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "completed", "001.md"), "status: Completed")
-	if _, err := os.Stat(filepath.Join(root, ".ahm", ".tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("completed task still in active bucket: %v", err)
 	}
 
 	refPaths := recordsRefPaths(t, root)
-	assertContainsAll(t, refPaths, ".ahm/.tasks/completed/001.md")
-	assertNotContains(t, refPaths, ".ahm/.tasks/active/001.md")
+	assertContainsAll(t, refPaths, ".ahm/tasks/completed/001.md")
+	assertNotContains(t, refPaths, ".ahm/tasks/active/001.md")
 }
 
 func TestIndexInRefModeSnapshotsHandEditsAndStaysIdempotent(t *testing.T) {
@@ -132,7 +132,7 @@ func TestIndexInRefModeSnapshotsHandEditsAndStaysIdempotent(t *testing.T) {
 	countAfterMigrate := recordsRefCommitCount(t, root)
 
 	// A hand edit to a research record is captured by the next ahm index run.
-	writeFile(t, filepath.Join(root, ".ahm", ".research", "topics", "note.md"), "# Ref Note\n\nEdited body.\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Ref Note\n\nEdited body.\n")
 	if _, stderr, code := runCLI(t, "--root", root, "index"); code != 0 {
 		t.Fatalf("index exit code = %d, stderr = %s", code, stderr)
 	}
@@ -158,7 +158,7 @@ func TestDryRunTaskCreateInRefModeWritesNothing(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("dry-run task create exit code = %d, stderr = %s", code, stderr)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".ahm", ".tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run created a task record: %v", err)
 	}
 	if got := recordsRefCommitCount(t, root); got != countBefore {

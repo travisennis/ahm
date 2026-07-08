@@ -27,10 +27,16 @@ func workflowPathsFor(root string) workflowPaths {
 }
 
 func (p workflowPaths) tasksRel() string {
+	if p.recordsDir == toolRecordsDirName {
+		return p.recordsDir + "/tasks"
+	}
 	return p.recordsDir + "/.tasks"
 }
 
 func (p workflowPaths) tasksBucketDir(bucket string) string {
+	if p.recordsDir == toolRecordsDirName {
+		return filepath.Join(p.root, p.recordsDir, "tasks", bucket)
+	}
 	return filepath.Join(p.root, p.recordsDir, ".tasks", bucket)
 }
 
@@ -39,6 +45,9 @@ func (p workflowPaths) taskFile(bucket string, id string) string {
 }
 
 func (p workflowPaths) researchRel() string {
+	if p.recordsDir == toolRecordsDirName {
+		return p.recordsDir + "/research"
+	}
 	return p.recordsDir + "/.research"
 }
 

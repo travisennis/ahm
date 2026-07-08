@@ -13,8 +13,8 @@ func TestRecordsStatusReportsRemoteStateWithoutMutatingFiles(t *testing.T) {
 	remote := newBareRemote(t)
 	git(t, root, "remote", "add", "origin", remote)
 	writeRefRecordsConfig(t, root)
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task\n")
-	before := mustRead(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"))
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task\n")
+	before := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	if _, err := snapshotRecordsRef(testContext(t), root, recordsStorageConfig{Ref: defaultRecordsRef}, "snapshot"); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestRecordsStatusReportsRemoteStateWithoutMutatingFiles(t *testing.T) {
 		"relation: equal",
 		"working_clean: true",
 	)
-	after := mustRead(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"))
+	after := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	if after != before {
 		t.Fatalf("records status mutated record file: before %q after %q", before, after)
 	}
@@ -57,13 +57,13 @@ func TestRecordsPushPullAndSyncUsePrivateRef(t *testing.T) {
 	remote := newBareRemote(t)
 	git(t, source, "remote", "add", "origin", remote)
 	writeRefRecordsConfig(t, source)
-	writeFile(t, filepath.Join(source, ".ahm", ".tasks", "active", "001.md"), "# One\n")
+	writeFile(t, filepath.Join(source, ".ahm", "tasks", "active", "001.md"), "# One\n")
 
 	stdout, stderr, code := runCLI(t, "--root", source, "records", "push")
 	if code != 0 {
 		t.Fatalf("records push exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "action: push", "message: pushed local records", ".ahm/.tasks/active/001.md")
+	assertContainsAll(t, stdout, "action: push", "message: pushed local records", ".ahm/tasks/active/001.md")
 	if got := strings.TrimSpace(git(t, remote, "rev-parse", defaultRecordsRef+"^{commit}")); got == "" {
 		t.Fatal("remote records ref was not pushed")
 	}
@@ -75,10 +75,10 @@ func TestRecordsPushPullAndSyncUsePrivateRef(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("records pull exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "action: pull", "message: pulled remote records", ".ahm/.tasks/active/001.md")
-	assertFileContainsAll(t, filepath.Join(clone, ".ahm", ".tasks", "active", "001.md"), "# One")
+	assertContainsAll(t, stdout, "action: pull", "message: pulled remote records", ".ahm/tasks/active/001.md")
+	assertFileContainsAll(t, filepath.Join(clone, ".ahm", "tasks", "active", "001.md"), "# One")
 
-	writeFile(t, filepath.Join(clone, ".ahm", ".tasks", "active", "001.md"), "# Two\n")
+	writeFile(t, filepath.Join(clone, ".ahm", "tasks", "active", "001.md"), "# Two\n")
 	stdout, stderr, code = runCLI(t, "--root", clone, "records", "sync")
 	if code != 0 {
 		t.Fatalf("records sync exit code = %d, stderr = %s", code, stderr)
@@ -89,7 +89,7 @@ func TestRecordsPushPullAndSyncUsePrivateRef(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("source records pull exit code = %d, stderr = %s", code, stderr)
 	}
-	assertFileContainsAll(t, filepath.Join(source, ".ahm", ".tasks", "active", "001.md"), "# Two")
+	assertFileContainsAll(t, filepath.Join(source, ".ahm", "tasks", "active", "001.md"), "# Two")
 }
 
 func TestRecordsDryRunPushDoesNotCreateRef(t *testing.T) {
@@ -97,7 +97,7 @@ func TestRecordsDryRunPushDoesNotCreateRef(t *testing.T) {
 	remote := newBareRemote(t)
 	git(t, root, "remote", "add", "origin", remote)
 	writeRefRecordsConfig(t, root)
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "records", "push")
 	if code != 0 {
@@ -129,7 +129,7 @@ func TestRecordsPushReportsNonFastForward(t *testing.T) {
 	remote := newBareRemote(t)
 	git(t, first, "remote", "add", "origin", remote)
 	writeRefRecordsConfig(t, first)
-	writeFile(t, filepath.Join(first, ".ahm", ".tasks", "active", "001.md"), "# One\n")
+	writeFile(t, filepath.Join(first, ".ahm", "tasks", "active", "001.md"), "# One\n")
 	if _, _, code := runCLI(t, "--root", first, "records", "push"); code != 0 {
 		t.Fatalf("initial records push failed")
 	}
@@ -141,12 +141,12 @@ func TestRecordsPushReportsNonFastForward(t *testing.T) {
 		t.Fatalf("second records pull failed")
 	}
 
-	writeFile(t, filepath.Join(first, ".ahm", ".tasks", "active", "001.md"), "# From first\n")
+	writeFile(t, filepath.Join(first, ".ahm", "tasks", "active", "001.md"), "# From first\n")
 	if _, _, code := runCLI(t, "--root", first, "records", "sync"); code != 0 {
 		t.Fatalf("first records sync failed")
 	}
 
-	writeFile(t, filepath.Join(second, ".ahm", ".tasks", "active", "001.md"), "# From second\n")
+	writeFile(t, filepath.Join(second, ".ahm", "tasks", "active", "001.md"), "# From second\n")
 	_, stderr, code := runCLI(t, "--root", second, "records", "push")
 	if code != 1 {
 		t.Fatalf("records push exit code = %d, stderr = %s", code, stderr)

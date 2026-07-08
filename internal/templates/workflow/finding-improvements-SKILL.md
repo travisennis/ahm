@@ -420,7 +420,7 @@ ahm task create "<title>" \
 
 Pipe the task body to stdin via `--body-file -`. If `ahm` is unavailable,
 write the task file directly to the active task bucket in the current storage
-mode (`.agents/.tasks/active/` or `.ahm/.tasks/active/`) following the `ahm`
+mode (`.agents/.tasks/active/` or `.ahm/tasks/active/`) following the `ahm`
 task file format, then run `ahm index` (or write index files by hand as a
 fallback).
 

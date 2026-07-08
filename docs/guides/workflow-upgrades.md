@@ -52,8 +52,9 @@ The migration is a separate command, `ahm records migrate`; routine
 committed-record behavior until they opt in.
 
 Migration moves `.agents/.tasks/`, `.agents/.research/`, and
-`.agents/exec-plans/` (including generated indexes) to the same relative paths
-under `.ahm/`, installs internal `.ahm/.gitignore` entries, converts
+`.agents/exec-plans/` (including generated indexes) to non-dot names
+under `.ahm/` (`.ahm/tasks/`, `.ahm/research/`, `.ahm/exec-plans/`),
+installs internal `.ahm/.gitignore` entries, converts
 `.agents/ahm.json` into committed `.ahm/config.json` with `store_mode: "ref"`,
 and seeds the local records ref. It prints the `git rm -r --cached` command
 for the user to run instead of untracking project-owned records itself, and it

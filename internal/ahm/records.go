@@ -38,6 +38,20 @@ const (
 )
 
 var recordSourceDirs = []string{
+	".ahm/tasks/active",
+	".ahm/tasks/completed",
+	".ahm/tasks/cancelled",
+	".ahm/research/inbox",
+	".ahm/research/investigations",
+	".ahm/research/sources",
+	".ahm/research/topics",
+	".ahm/research/archived",
+	".ahm/exec-plans/active",
+	".ahm/exec-plans/completed",
+	// Legacy dot-prefixed paths under .ahm/ (task 165). Repositories that
+	// migrated before the non-dot-record-directory convention was introduced
+	// may still have records at the old paths; scanning both during the
+	// transition window prevents data loss until migration is re-run.
 	".ahm/.tasks/active",
 	".ahm/.tasks/completed",
 	".ahm/.tasks/cancelled",
@@ -46,8 +60,6 @@ var recordSourceDirs = []string{
 	".ahm/.research/sources",
 	".ahm/.research/topics",
 	".ahm/.research/archived",
-	".ahm/exec-plans/active",
-	".ahm/exec-plans/completed",
 }
 
 func collectRecordFiles(root string) ([]recordFile, error) {

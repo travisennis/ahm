@@ -119,6 +119,18 @@ var generatedIndexTargetsList = []string{
 	".agents/.research/index.md",
 	".agents/exec-plans/active/index.md",
 	".agents/exec-plans/completed/index.md",
+	".ahm/.tasks/index.md",
+	".ahm/.tasks/active/index.md",
+	".ahm/.tasks/completed/index.md",
+	".ahm/.tasks/cancelled/index.md",
+	".ahm/.research/index.md",
+	".ahm/tasks/index.md",
+	".ahm/tasks/active/index.md",
+	".ahm/tasks/completed/index.md",
+	".ahm/tasks/cancelled/index.md",
+	".ahm/research/index.md",
+	".ahm/exec-plans/active/index.md",
+	".ahm/exec-plans/completed/index.md",
 	"docs/adr/index.md",
 }
 

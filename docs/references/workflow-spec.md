@@ -73,8 +73,8 @@ tool-owned `.ahm/` while leaving project-owned agent content under `.agents/`.
 Workflow commands are storage-mode aware. In legacy repositories (metadata
 `store_mode` absent or `"committed"`), task, research, ExecPlan, index,
 validation, and install behavior is unchanged and uses `.agents/` paths. After
-migration, the same commands read and write task records under `.ahm/.tasks/`,
-research under `.ahm/.research/`, and ExecPlans under `.ahm/exec-plans/`, and
+migration, the same commands read and write task records under `.ahm/tasks/`,
+research under `.ahm/research/`, and ExecPlans under `.ahm/exec-plans/`, and
 generated indexes are regenerated at the same relative paths under `.ahm/`.
 Task front matter that still references an ExecPlan by its legacy
 `.agents/exec-plans/...` path resolves to the migrated `.ahm/exec-plans/...`

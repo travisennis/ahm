@@ -41,9 +41,9 @@ func TestRecordsMigrateDryRunPreviewsWithoutWriting(t *testing.T) {
 		"action: migrate",
 		"dry_run: true",
 		"moves: 4",
-		".agents/.tasks/active/001.md -> .ahm/.tasks/active/001.md",
-		".agents/.tasks/index.md -> .ahm/.tasks/index.md",
-		".agents/.research/topics/note.md -> .ahm/.research/topics/note.md",
+		".agents/.tasks/active/001.md -> .ahm/tasks/active/001.md",
+		".agents/.tasks/index.md -> .ahm/tasks/index.md",
+		".agents/.research/topics/note.md -> .ahm/research/topics/note.md",
 		".agents/exec-plans/active/plan.md -> .ahm/exec-plans/active/plan.md",
 		"gitignore: create",
 		"config: create",
@@ -97,9 +97,9 @@ func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
 	)
 
 	// Records and generated indexes moved to .ahm/; sources are gone.
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task One")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".tasks", "index.md"), "# Generated Index")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".research", "topics", "note.md"), "# Note")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task One")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"), "# Generated Index")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Note")
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan")
 	for _, gone := range []string{
 		filepath.Join(root, ".agents", ".tasks"),
@@ -122,13 +122,13 @@ func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
 		`"records_remote": "origin"`,
 		`"version": "test"`,
 	)
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".gitignore"), "/.tasks/", "/.research/", "/exec-plans/")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".gitignore"), "/tasks/", "/research/", "/exec-plans/")
 
 	// The seeded ref holds source records but not generated indexes.
 	seeded := git(t, root, "ls-tree", "-r", "--name-only", defaultRecordsRef)
 	assertContainsAll(t, seeded,
-		".ahm/.tasks/active/001.md",
-		".ahm/.research/topics/note.md",
+		".ahm/tasks/active/001.md",
+		".ahm/research/topics/note.md",
 		".ahm/exec-plans/active/plan.md",
 	)
 	assertNotContains(t, seeded, "index.md", "prompt.md")
@@ -177,7 +177,7 @@ func TestRecordsMigrateResumesPartialStateAndRejectsConflicts(t *testing.T) {
 	root := newLegacyCommittedRepo(t)
 
 	// Simulate an interrupted migration: one record was already copied.
-	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task One\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task One\n")
 	stdout, stderr, code := runCLI(t, "--root", root, "records", "migrate")
 	if code != 0 {
 		t.Fatalf("resumed records migrate exit code = %d, stderr = %s", code, stderr)
@@ -189,17 +189,17 @@ func TestRecordsMigrateResumesPartialStateAndRejectsConflicts(t *testing.T) {
 
 	// A differing target is a conflict, not a silent overwrite.
 	conflicted := newLegacyCommittedRepo(t)
-	writeFile(t, filepath.Join(conflicted, ".ahm", ".tasks", "active", "001.md"), "# Different\n")
+	writeFile(t, filepath.Join(conflicted, ".ahm", "tasks", "active", "001.md"), "# Different\n")
 	_, stderr, code = runCLI(t, "--root", conflicted, "records", "migrate")
 	if code != 1 {
 		t.Fatalf("conflicting records migrate exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stderr,
-		".ahm/.tasks/active/001.md already exists with different content",
+		".ahm/tasks/active/001.md already exists with different content",
 		"resolve the conflict before migrating",
 	)
 	assertFileContainsAll(t, filepath.Join(conflicted, ".agents", ".tasks", "active", "001.md"), "# Task One")
-	assertFileContainsAll(t, filepath.Join(conflicted, ".ahm", ".tasks", "active", "001.md"), "# Different")
+	assertFileContainsAll(t, filepath.Join(conflicted, ".ahm", "tasks", "active", "001.md"), "# Different")
 }
 
 func TestRecordsMigrateRequiresWorkflowMetadata(t *testing.T) {

@@ -53,7 +53,7 @@ Use these entry points:
 - ADRs: run `ahm context adr` when the request or task calls for an ADR.
 - Research: run `ahm context research` and use the generated research index in
   the current storage mode (`.agents/.research/index.md` or
-  `.ahm/.research/index.md`) as the map when asked to create, update,
+  `.ahm/research/index.md`) as the map when asked to create, update,
   organize, or use research.
 - General session briefing: run `ahm prime` when asked for broad project
   context or when no narrower managed-work context applies.

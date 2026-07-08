@@ -105,7 +105,7 @@ func TestPrimePlainOutput(t *testing.T) {
 func TestPrimeNoSyncFlagSkipsRefSyncAndReportsStaleRecords(t *testing.T) {
 	root := newGitRepo(t)
 	writeRefRecordsConfig(t, root)
-	writeTaskFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "001", "Ref Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Ref Task", "Pending", "depends_on: -\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime", "--no-sync")
 	if code != 0 {

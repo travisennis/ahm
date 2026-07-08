@@ -100,7 +100,7 @@ var agentSuggestions = []AgentSuggestion{
 			"  use `ahm adr` commands for lifecycle changes.\n" +
 			"- Research: run `ahm context research` and use the generated research index\n" +
 			"  in the current storage mode (`.agents/.research/index.md` or\n" +
-			"  `.ahm/.research/index.md`) as the map when asked to create, update,\n" +
+			"  `.ahm/research/index.md`) as the map when asked to create, update,\n" +
 			"  organize, or use research.\n" +
 			"- Session start: run `ahm prime` before work to sync workflow records,\n" +
 			"  regenerate indexes, and get the live briefing.\n" +

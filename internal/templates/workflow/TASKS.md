@@ -14,7 +14,7 @@ record.
 ## Task Storage
 
 Tasks live in the current workflow storage mode: `.agents/.tasks/` in legacy
-committed-record repositories, or `.ahm/.tasks/` after ref-backed migration.
+committed-record repositories, or `.ahm/tasks/` after ref-backed migration.
 Within that tree, active work lives in `active/`, completed tasks in
 `completed/`, and abandoned tasks in `cancelled/`. Each task is a Markdown file
 named with a stable task id, such as `046.md` or `109.md`. Parent tasks may
@@ -24,7 +24,7 @@ The `ahm task ...` commands are the primary task interface. Use them for queue
 inspection, filtering, lifecycle changes, dependency updates, and completion.
 
 The task index in the current storage mode (`.agents/.tasks/index.md` or
-`.ahm/.tasks/index.md`) is a generated read-only dashboard and fallback
+`.ahm/tasks/index.md`) is a generated read-only dashboard and fallback
 reference. It lists status counts, the next ready work, blocked or untriaged
 tasks, parent trackers, and links to the generated active, completed, and
 cancelled indexes. Use it when `ahm` is unavailable or when you need to inspect

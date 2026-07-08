@@ -9,7 +9,7 @@ cancellation, and reopening commands. For task file and validation formats, see
 Task commands operate on Markdown task files in the current storage mode:
 
 - `.agents/.tasks/active|completed|cancelled/` in legacy committed-record repositories.
-- `.ahm/.tasks/active|completed|cancelled/` after ref-backed migration.
+- `.ahm/tasks/active|completed|cancelled/` after ref-backed migration.
 
 Task IDs are resolved by exact string match first. If no exact match is found, an exact numeric match is attempted: the pattern and task ID are parsed by numeric value and optional letter suffix, so `1` matches `001` and `1a` matches `001a`. If no exact numeric match exists, numeric prefix matching is used, which can match multiple tasks (e.g., `1` matches both `001` and `001a`). If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
 
