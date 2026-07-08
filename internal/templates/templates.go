@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.4.4"
+const Version = "0.4.5"
 
 // FS contains the embedded workflow template files.
 //
@@ -49,7 +49,8 @@ var agentSuggestions = []AgentSuggestion{
 			"`ahm`.\n" +
 			"\n" +
 			"If `AGENTS.md` already has an Operating Loop, update it so managed-work intake\n" +
-			"happens before normal workflow routing. If `AGENTS.md` has workflow routing but\n" +
+			"happens after the session-start `ahm prime` step and before normal workflow\n" +
+			"routing. If `AGENTS.md` has workflow routing but\n" +
 			"no Operating Loop, add a short `## Operating Loop` before `## Workflow Routing`.\n" +
 			"If the file has neither an Operating Loop nor workflow routing, do not invent a\n" +
 			"full project workflow; add only sections for Managed Work Intake With `ahm`\n" +
@@ -64,7 +65,9 @@ var agentSuggestions = []AgentSuggestion{
 		Body: "When an Operating Loop exists or should be added, it should include this\n" +
 			"ordering:\n" +
 			"\n" +
-			"1. Do managed-work intake first:\n" +
+			"0. Before any work, run `ahm prime` to sync workflow records, regenerate\n" +
+			"   indexes, and get the session briefing.\n" +
+			"1. Do managed-work intake:\n" +
 			"   - If the request is about a task, ExecPlan, ADR, or research note, use `ahm`\n" +
 			"     to understand that managed work item before choosing implementation docs.\n" +
 			"   - If the request is directly about code, CLI behavior, tests, docs, build,\n" +
@@ -95,10 +98,12 @@ var agentSuggestions = []AgentSuggestion{
 			"  ExecPlan.\n" +
 			"- ADRs: run `ahm context adr` when the request or task calls for an ADR, and\n" +
 			"  use `ahm adr` commands for lifecycle changes.\n" +
-			"- Research: run `ahm context research` and use `.agents/.research/index.md` as\n" +
-			"  the map when asked to create, update, organize, or use research.\n" +
-			"- General session briefing: run `ahm context` only when asked for broad project\n" +
-			"  context or when no narrower managed-work context applies.\n" +
+			"- Research: run `ahm context research` and use the generated research index\n" +
+			"  in the current storage mode (`.agents/.research/index.md` or\n" +
+			"  `.ahm/.research/index.md`) as the map when asked to create, update,\n" +
+			"  organize, or use research.\n" +
+			"- Session start: run `ahm prime` before work to sync workflow records,\n" +
+			"  regenerate indexes, and get the live briefing.\n" +
 			"\n" +
 			"After `ahm` intake, re-classify the discovered work under the repository's\n" +
 			"normal Workflow Routing. For example, a task about CLI flags still uses the\n" +
@@ -116,7 +121,7 @@ var agentSuggestions = []AgentSuggestion{
 			"\n" +
 			"Treat scoped `ahm context task|plan|adr|research|docs` as the managed-work\n" +
 			"reference for ahm-managed artifacts. Project `AGENTS.md` owns workflow routing\n" +
-			"and implementation decisions. Unscoped `ahm context` provides a live repository\n" +
+			"and implementation decisions. `ahm prime` provides the live repository\n" +
 			"briefing. Do not recreate removed workflow guide files such as\n" +
 			"`.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,\n" +
 			"`.agents/DOCS.md`, or `docs/adr/README.md`.",

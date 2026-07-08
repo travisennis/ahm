@@ -72,8 +72,8 @@ Finding codes:
 
 | Code | Meaning |
 | ---- | ------- |
-| `metadata_missing` | `.agents/ahm.json` is missing. |
-| `metadata_corrupt` | `.agents/ahm.json` exists but cannot be read or parsed. |
+| `metadata_missing` | Workflow metadata is missing (`.ahm/config.json` after migration, otherwise `.agents/ahm.json`). |
+| `metadata_corrupt` | Workflow metadata exists but cannot be read or parsed. |
 | `managed_file_missing` | A managed workflow file is missing. |
 | `managed_file_unreadable` | A managed workflow file could not be read. |
 | `managed_file_untracked` | A managed workflow file exists but is not recorded in metadata; run `ahm init` to adopt. |
@@ -90,7 +90,7 @@ Finding codes:
 | `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |
 | `task_acceptance_unchecked` | A completed task acceptance section contains unchecked `- [ ]` or `* [ ]` items. |
 | `task_exec_plan_missing` | A task references an ExecPlan that could not be found. |
-| `task_completed_exec_plan_active` | A completed task references an ExecPlan still under `.agents/exec-plans/active/`. |
+| `task_completed_exec_plan_active` | A completed task references an ExecPlan still in the active ExecPlan bucket. |
 | `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |
 | `exec_plan_active_with_outcomes` | An active ExecPlan has a filled `Outcomes & Retrospective` section. |
 | `exec_plan_completed_without_outcomes` | A completed ExecPlan has an empty or missing `Outcomes & Retrospective` section. |

@@ -106,7 +106,8 @@ to an external coding-agent CLI.
 - Writes are explicit and use the atomic temp-file-then-rename path in
   `internal/ahm/write.go`.
 - Cross-process workflow mutations that require read-compute-write consistency
-  use repository-local locks under `.agents/.lock/`.
+  use repository-local locks under `.agents/.lock/` in legacy mode and
+  `.ahm/.lock/` after ref-backed migration.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
 - Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`;

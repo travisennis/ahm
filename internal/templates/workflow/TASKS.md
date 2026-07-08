@@ -13,24 +13,33 @@ record.
 
 ## Task Storage
 
-Tasks live in `.agents/.tasks/active/` while they are not complete, `.agents/.tasks/completed/` after they are finished, and `.agents/.tasks/cancelled/` when they have been abandoned. Each task is a Markdown file named with a stable task id, such as `046.md` or `109.md`. Parent tasks may have lettered child tasks, such as `047a.md`, `047b.md`, and `047c.md`.
+Tasks live in the current workflow storage mode: `.agents/.tasks/` in legacy
+committed-record repositories, or `.ahm/.tasks/` after ref-backed migration.
+Within that tree, active work lives in `active/`, completed tasks in
+`completed/`, and abandoned tasks in `cancelled/`. Each task is a Markdown file
+named with a stable task id, such as `046.md` or `109.md`. Parent tasks may
+have lettered child tasks, such as `047a.md`, `047b.md`, and `047c.md`.
 
 The `ahm task ...` commands are the primary task interface. Use them for queue
 inspection, filtering, lifecycle changes, dependency updates, and completion.
 
-The file `.agents/.tasks/index.md` is a generated read-only dashboard and
-fallback reference. It lists status counts, the next ready work, blocked or
-untriaged tasks, parent trackers, and links to the generated active,
-completed, and cancelled indexes. Use it when `ahm` is unavailable or when you
-need to inspect the deterministic generated artifact itself, but always open
-the task file before making changes or deciding the implementation approach.
+The task index in the current storage mode (`.agents/.tasks/index.md` or
+`.ahm/.tasks/index.md`) is a generated read-only dashboard and fallback
+reference. It lists status counts, the next ready work, blocked or untriaged
+tasks, parent trackers, and links to the generated active, completed, and
+cancelled indexes. Use it when `ahm` is unavailable or when you need to inspect
+the deterministic generated artifact itself, but always open the task file
+before making changes or deciding the implementation approach.
 
 The generated indexes are:
 
-- `.agents/.tasks/index.md` for the concise dashboard and next ready queue.
-- `.agents/.tasks/active/index.md` for all active, blocked, open, pending, and tracking tasks.
-- `.agents/.tasks/completed/index.md` for historical lookup of completed tasks.
-- `.agents/.tasks/cancelled/index.md` for historical lookup of cancelled tasks.
+- `.tasks/index.md` for the concise dashboard and next ready queue.
+- `.tasks/active/index.md` for all active, blocked, open, pending, and tracking tasks.
+- `.tasks/completed/index.md` for historical lookup of completed tasks.
+- `.tasks/cancelled/index.md` for historical lookup of cancelled tasks.
+
+Those paths are rooted under `.agents/` in legacy repositories and `.ahm/` in
+ref-backed repositories.
 
 Do not edit generated indexes by hand. Prefer `ahm task ...` commands for
 task changes. After changing task metadata by hand, moving tasks between
@@ -86,8 +95,9 @@ Choose work using these rules:
    repository. Repeat `--label` or pass comma-separated labels to require all
    listed labels.
 
-If `ahm` is unavailable, use `.agents/.tasks/index.md` as the fallback queue
-artifact and follow the same priority, status, dependency, and label rules.
+If `ahm` is unavailable, use the generated task index in the current storage
+mode as the fallback queue artifact and follow the same priority, status,
+dependency, and label rules.
 
 Before editing code, read the full task file and inspect the relevant source
 files. If the task is vague, stale, or conflicts with the current code, update
@@ -97,7 +107,7 @@ the task with the discovery or ask the user for the missing product decision.
 
 Use `ahm task create <title> [flags]` to create a new task. This is the
 preferred path because it automatically allocates the next available ID, writes
-front matter and body, places the file in `.agents/.tasks/active/`, and
+front matter and body, places the file in the active task bucket, and
 regenerates all task indexes in one step.
 
 Available flags include:
@@ -116,12 +126,13 @@ supply the full body. See `docs/cli.md` for details and examples.
 
 If you cannot run `ahm`, create tasks by hand:
 
-Create new tasks in `.agents/.tasks/active/` with the next available three-digit
-id across `active/`, `completed/`, and `cancelled/`. For example, if the highest
-numbered task is `109.md`, the next unrelated task is `110.md`. Use letter
-suffixes only for subtasks that belong to a parent tracker, such as `110a.md`.
-Use the field definitions and task shape in the Task Reference section below,
-then run `ahm index` to regenerate the indexes.
+Create new tasks by hand only as a fallback, under the active task bucket in
+the current storage mode, with the next available three-digit id across
+`active/`, `completed/`, and `cancelled/`. For example, if the highest numbered
+task is `109.md`, the next unrelated task is `110.md`. Use letter suffixes only
+for subtasks that belong to a parent tracker, such as `110a.md`. Use the field
+definitions and task shape in the Task Reference section below, then run
+`ahm index` to regenerate the indexes.
 
 ## Accepting Tasks
 
@@ -265,9 +276,9 @@ ahm task cancel <id> --reason <text>
 
 When editing by hand as a fallback, keep task storage consistent with status:
 
-- Non-completed, non-cancelled tasks stay in `.agents/.tasks/active/`.
-- Completed tasks move to `.agents/.tasks/completed/`.
-- Cancelled tasks move to `.agents/.tasks/cancelled/`.
+- Non-completed, non-cancelled tasks stay in the active task bucket.
+- Completed tasks move to the completed task bucket.
+- Cancelled tasks move to the cancelled task bucket.
 - When moving a task, keep the same filename so the stable task id is preserved.
 - After moving or editing task metadata, regenerate the indexes.
 
@@ -275,14 +286,15 @@ Before marking a task as Completed, fill in Acceptance Notes when practical so
 the completed record captures the verification and outcome. `ahm task complete`
 warns when Acceptance Notes are missing, still contain the seeded `- [ ] TODO`
 placeholder, or include unchecked checklist items. Repositories can set
-`"strict_acceptance": true` in `.agents/ahm.json` to make those warnings block
-completion unless `--force` is used. If you edit only the completed task body
-afterward, no index regeneration is needed. If you edit task front matter
-afterward, rerun `ahm index`.
+`"strict_acceptance": true` in `.ahm/config.json` after migration, or legacy
+`.agents/ahm.json` before migration, to make those warnings block completion
+unless `--force` is used. If you edit only the completed task body afterward,
+no index regeneration is needed. If you edit task front matter afterward, rerun
+`ahm index`.
 
-To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/completed/<id>.md`, changes directly dependent `Blocked` tasks to `Pending` when all of their dependencies are now complete, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
+To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from the active bucket to the completed bucket, changes directly dependent `Blocked` tasks to `Pending` when all of their dependencies are now complete, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
 
-To mark a task as Cancelled, use `ahm task cancel <id> --reason <text>`. It requires a non-empty reason, stores that reason in a `## Cancellation Reason` body section, sets the front-matter `status:` to `Cancelled`, moves the file from `.agents/.tasks/active/<id>.md` to `.agents/.tasks/cancelled/<id>.md`, and regenerates the indexes in one step. The global `--force` flag does not bypass the reason requirement. Do not leave Cancelled tasks in `active/`.
+To mark a task as Cancelled, use `ahm task cancel <id> --reason <text>`. It requires a non-empty reason, stores that reason in a `## Cancellation Reason` body section, sets the front-matter `status:` to `Cancelled`, moves the file from the active bucket to the cancelled bucket, and regenerates the indexes in one step. The global `--force` flag does not bypass the reason requirement. Do not leave Cancelled tasks in `active/`.
 
 If a generated index is stale, do not patch the index directly. Fix the task file metadata or location, then rerun `ahm index`. Always go through `ahm`; do not invoke legacy scaffold scripts directly.
 
@@ -293,18 +305,21 @@ When implementing a task, keep the change scoped to the task's problem statement
 Before implementing any task, check its labels, effort, and risk.
 
 - `Effort: L` and `Effort: XL` tasks must have an ExecPlan before code changes begin.
-- If no ExecPlan exists for an `L` or `XL` task, create one under `.agents/exec-plans/active/` using `ahm context plan` before implementation.
+- If no ExecPlan exists for an `L` or `XL` task, create one under the active
+  ExecPlan bucket in the current storage mode using `ahm context plan` before
+  implementation.
 - Update the task file to point to the ExecPlan and record whether the task is blocked on, tracked by, or completed by that plan.
-- Update `.agents/exec-plans/active/index.md` when creating, completing, or moving an ExecPlan.
+- Run `ahm index` when creating, completing, or moving an ExecPlan by hand so
+  the generated ExecPlan indexes stay current.
 - For `Effort: S` or `Effort: M`, an ExecPlan is optional unless the task is a significant refactor, cross-cutting behavior change, or has substantial unknowns.
 
 When completing a task with an ExecPlan, use this order:
 
 1. Fill in task Acceptance Notes.
 2. Update the ExecPlan Outcomes & Retrospective.
-3. Move the ExecPlan from `.agents/exec-plans/active/` to `.agents/exec-plans/completed/`.
+3. Move the ExecPlan from the active ExecPlan bucket to the completed ExecPlan bucket.
 4. Update the task `exec_plan` field to the completed path.
-5. Run `ahm task complete <id>` so the task moves to `.agents/.tasks/completed/` and indexes regenerate.
+5. Run `ahm task complete <id>` so the task moves to the completed task bucket and indexes regenerate.
 
 Tasks that introduce or change an architectural decision must have an Architecture Decision Record before implementation. ADRs live under `docs/adr/`; use `ahm context adr` for the numbering, naming, and template rules.
 

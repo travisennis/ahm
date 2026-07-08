@@ -6,11 +6,10 @@ cancellation, and reopening commands. For task file and validation formats, see
 
 ## Task Commands
 
-Task commands operate on Markdown task files under:
+Task commands operate on Markdown task files in the current storage mode:
 
-- `.agents/.tasks/active/`
-- `.agents/.tasks/completed/`
-- `.agents/.tasks/cancelled/`
+- `.agents/.tasks/active|completed|cancelled/` in legacy committed-record repositories.
+- `.ahm/.tasks/active|completed|cancelled/` after ref-backed migration.
 
 Task IDs are resolved by exact string match first. If no exact match is found, an exact numeric match is attempted: the pattern and task ID are parsed by numeric value and optional letter suffix, so `1` matches `001` and `1a` matches `001a`. If no exact numeric match exists, numeric prefix matching is used, which can match multiple tasks (e.g., `1` matches both `001` and `001a`). If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
 
@@ -364,8 +363,8 @@ ahm --json task show 001
 ### `task start <id>`
 
 Sets a task status to `In Progress`, moves it to
-`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
-and regenerates indexes.
+the active task bucket, removes the old file when the bucket changed, and
+regenerates indexes.
 
 Useful flags:
 
@@ -381,8 +380,8 @@ ahm task start 001
 
 Sets a task status to `Pending`, stamps `updated`, and regenerates indexes.
 This is the intentional transition from `Open` (newly captured, untriaged)
-into the ready backlog. The file stays in `.agents/.tasks/active/` because
-both `Open` and `Pending` live in the same bucket.
+into the ready backlog. The file stays in the active task bucket because both
+`Open` and `Pending` live in the same bucket.
 
 Before accepting a task, verify:
 
@@ -437,9 +436,9 @@ coding-agent CLI from the repository root.
 `task work` refuses completed and cancelled tasks. It also verifies every task
 listed in `depends_on` is already `Completed` before invoking an agent. If the
 task is `Pending`, the command marks it `In Progress`, writes it to
-`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
-and regenerates indexes after validation and executable lookup, but before
-invoking the external CLI.
+the active task bucket, removes the old file when the bucket changed, and
+regenerates indexes after validation and executable lookup, but before invoking
+the external CLI.
 Tasks already `In Progress`, `Open`, or `Blocked` are not rewritten.
 
 Supported agents:
@@ -507,7 +506,8 @@ hooks. Pass `--no-commit` to skip the commit handoff.
 Agent selection precedence is:
 
 1. `--agent <cake|claude|codex|cursor>`
-2. `.agents/ahm.json` `"default_work_agent": "<agent>"`
+2. `.ahm/config.json` `"default_work_agent": "<agent>"` after migration, or
+   legacy `.agents/ahm.json` before migration.
 3. `cake`
 
 The generated prompt includes the resolved task ID and instructs
@@ -523,7 +523,8 @@ When the file `.agents/prompt.md` exists in the repository root, its content
 is appended to the built work prompt under a `## Project Instructions` heading.
 This lets the project maintainer carry standing orientation and
 company/project-specific instructions that apply to every delegated work session.
-The path is configurable via `taskWork.promptFile` in `.agents/ahm.json`;
+The path is configurable via `taskWork.promptFile` in `.ahm/config.json` after
+migration, or legacy `.agents/ahm.json` before migration;
 a missing or unreadable file is silently ignored — the feature is opt-in
 by file presence.
 
@@ -577,8 +578,8 @@ ahm --dry-run task work 001 --agent cursor
 ### `task complete <id>`
 
 Sets a task status to `Completed`, moves it to
-`.agents/.tasks/completed/<id>.md`, removes the old file when the bucket changed,
-and regenerates indexes.
+the completed task bucket, removes the old file when the bucket changed, and
+regenerates indexes.
 
 Before completing, `ahm` verifies that all task dependencies (listed in
 `depends_on`) are already in `Completed` status. If any dependency is not
@@ -598,7 +599,8 @@ section is missing, still contains the seeded `- [ ] TODO` placeholder, or has
 unchecked `- [ ]` or `* [ ]` checklist items.
 
 By default, incomplete acceptance notes warn but do not block completion. Set
-`"strict_acceptance": true` in `.agents/ahm.json` to make those findings return
+`"strict_acceptance": true` in `.ahm/config.json` after migration, or legacy
+`.agents/ahm.json` before migration, to make those findings return
 a non-zero error. The global `--force` flag overrides strict acceptance and
 completes the task while still printing the warnings.
 
@@ -669,10 +671,10 @@ ahm --dry-run task comment 001 "Preview"
 ### `task cancel <id> --reason <text>`
 
 Sets a task status to `Cancelled`, moves it to
-`.agents/.tasks/cancelled/<id>.md`, removes the old file when the bucket changed,
-stores the supplied reason in a `## Cancellation Reason` body section, and
-regenerates indexes. The reason is required after trimming whitespace. The
-global `--force` flag does not bypass this requirement.
+the cancelled task bucket, removes the old file when the bucket changed, stores
+the supplied reason in a `## Cancellation Reason` body section, and regenerates
+indexes. The reason is required after trimming whitespace. The global `--force`
+flag does not bypass this requirement.
 
 When the task's acceptance notes still contain the seeded `- [ ] TODO`
 placeholder, cancellation prints a warning but still proceeds.
@@ -691,8 +693,8 @@ ahm task cancel 001 --reason "Superseded by 002"
 ### `task reopen <id>`
 
 Sets a task status to `Pending`, moves it to
-`.agents/.tasks/active/<id>.md`, removes the old file when the bucket changed,
-and regenerates indexes.
+the active task bucket, removes the old file when the bucket changed, and
+regenerates indexes.
 
 Useful flags:
 

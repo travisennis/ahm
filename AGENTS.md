@@ -2,15 +2,18 @@
 
 ## Project
 
-`ahm` is a Go CLI that installs and manages repo-local `.agents` workflow
-files for tasks, research notes, ExecPlans, ADRs, generated indexes, and
-delegated coding-agent work.
+`ahm` is a Go CLI that manages repo-local agent workflow state. Legacy
+repositories store ahm-managed records under `.agents/`; repositories that opt
+into ref-backed records store tasks, research notes, ExecPlans, generated
+indexes, and config under tool-owned `.ahm/`, backed by `refs/ahm/records`.
+Project-owned agent guidance remains under `.agents/`.
 
 Compatibility surfaces: CLI commands, flags, exit codes, output formats,
-`.agents/ahm.json`, workflow file formats, generated indexes, embedded
-templates, atomic writes, root detection, validation codes, external agent
-orchestration, release/version semantics, and the guarantee that `ahm` does
-not implicitly patch source code or run git operations.
+`.agents/ahm.json`, `.ahm/config.json`, `refs/ahm/*`, workflow file formats,
+generated indexes, embedded templates, atomic writes, root detection,
+validation codes, external agent orchestration, release/version semantics, and
+the guarantee that `ahm` does not patch project source, stage files, move
+`HEAD`, mutate branches, or create project commits.
 
 ## Operating Loop
 
@@ -48,9 +51,11 @@ Use these entry points:
 - ExecPlans: run `ahm context plan` when the request or task calls for an
   ExecPlan.
 - ADRs: run `ahm context adr` when the request or task calls for an ADR.
-- Research: run `ahm context research` and use `.agents/.research/index.md` as
-  the map when asked to create, update, organize, or use research.
-- General session briefing: run `ahm context` only when asked for broad project
+- Research: run `ahm context research` and use the generated research index in
+  the current storage mode (`.agents/.research/index.md` or
+  `.ahm/.research/index.md`) as the map when asked to create, update,
+  organize, or use research.
+- General session briefing: run `ahm prime` when asked for broad project
   context or when no narrower managed-work context applies.
 
 After `ahm` intake, re-classify the discovered work under Workflow Routing.
@@ -72,14 +77,15 @@ explicitly a breaking CLI change.
 
 ### Workflow State, File Formats, And Upgrades
 
-Use this workflow for `.agents/ahm.json`, workflow formats, generated indexes,
-install/upgrade/context/status/doctor behavior, and embedded templates. Consult
+Use this workflow for `.agents/ahm.json`, `.ahm/config.json`, workflow formats,
+generated indexes, install/upgrade/context/status/doctor behavior, and embedded
+templates. Consult
 [`docs/guardrails/workflow-state-and-file-formats.md`](docs/guardrails/workflow-state-and-file-formats.md),
 [`docs/references/workflow-spec.md`](docs/references/workflow-spec.md),
 [`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and
 [`ARCHITECTURE.md`](ARCHITECTURE.md). Do not edit generated indexes by hand.
-For `ahm context`, the default command is a session briefing; scoped commands
-such as `ahm context task`, `ahm context adr`, `ahm context research`,
+For `ahm prime`, the command is a session briefing; scoped commands such as
+`ahm context task`, `ahm context adr`, `ahm context research`,
 `ahm context plan`, and `ahm context docs` should expose the full scoped
 instruction content, not the same briefing with a different label. Do not
 remove or stop installing agent skills unless that is explicitly in scope.

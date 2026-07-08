@@ -205,7 +205,7 @@ Supports --json, --plain, and --text output.
 
 Examples:
   ahm prime
-  ahm --no-sync prime
+  ahm prime --no-sync
   ahm --json prime
   ahm --plain prime`,
 		Args: noArgs,

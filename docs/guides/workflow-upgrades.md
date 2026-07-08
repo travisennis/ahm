@@ -77,12 +77,37 @@ migrated states. Rollback steps are documented in the
 - Supported record mutations in a migrated repository automatically refresh
   the local `refs/ahm/records` snapshot (generated indexes excluded); pushing
   to the remote stays explicit via `ahm records push` or `ahm records sync`.
+- `ahm prime` is the session-start command for agents. In ref-backed
+  repositories it attempts records sync, materializes records, regenerates
+  indexes, validates workflow state, and prints the backlog briefing. Network
+  or remote failures degrade to warnings; `ahm prime --no-sync` skips sync for
+  offline or hook-constrained runs.
 - The `ahm task work` commit handoff prompt scopes delegated commits to
   project source changes in migrated repositories so gitignored `.ahm/`
   records are not swept into project commits.
 - Migrated record files leave normal branch history once the printed
   `git rm -r --cached` command is run and committed.
 - Repositories that do not run `ahm records migrate` are unaffected.
+
+## Ref-Backed Agent Guidance (2026-07-07)
+
+`internal/templates.Version` advanced from `0.4.4` to `0.4.5`.
+
+The embedded task, research, and ExecPlan workflow references now describe the
+current storage mode instead of hard-coding only legacy `.agents/` paths.
+Legacy repositories still use `.agents/`; repositories that run
+`ahm records migrate` use `.ahm/` for task, research, ExecPlan, and generated
+index paths. The `ahm agents suggestions` advisory output now includes
+`ahm prime` as the session-start step before managed-work intake.
+
+### Impact
+
+- `ahm context task`, `ahm context research`, and `ahm context plan` output is
+  storage-mode neutral for fallback paths and generated indexes.
+- `ahm agents suggestions` tells maintainers to put `ahm prime` before normal
+  managed-work intake in project-owned `AGENTS.md`.
+- `ahm upgrade` records template version `0.4.5` in `.ahm/config.json` after
+  migration, or legacy `.agents/ahm.json` before migration.
 
 ## Context Role Split (2026-06-20)
 

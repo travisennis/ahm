@@ -24,7 +24,10 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
 - [x] (2026-07-07 00:37Z) Added `ahm records migrate` in `internal/ahm/records_migrate.go`: dry-run-previewed, resumable opt-in migration that moves `.agents/` record trees to `.ahm/`, installs `.ahm/.gitignore`, writes committed `.ahm/config.json` with `store_mode: "ref"`, removes legacy `.agents/ahm.json`, seeds `refs/ahm/records`, and prints the user-run `git rm -r --cached` command; `ahm records doctor` now diagnoses partially migrated states, and rollback is documented in the CLI reference.
 - [x] (2026-07-07 03:30Z) Integrated ref-backed records with workflow write paths (task 144): added `internal/ahm/workflow_paths.go` for storage-mode-aware record path resolution, routed task read/write, index generation, validation, install directory creation, the workflow lock, and stale-temp cleanup through it, hooked an idempotent post-mutation records snapshot into `writeIndexes`, made the `ahm task work` commit prompt mode-aware, and covered the behavior with ref-mode integration tests plus a manual scratch-repo end-to-end run (migrate, mutate, sync, fresh-clone pull).
 - [x] (2026-07-07 19:15Z) Added `ahm prime` with records sync, stale-state reporting, active ExecPlans, and recent research in the briefing; added `--no-sync` escape hatch; added stale/unsynced record warnings to status and doctor commands; added agent guidance to AGENTS.md.
-- [ ] Update docs, tests, and agent guidance.
+- [x] (2026-07-08 00:01Z) Updated documentation, tests, and agent guidance for
+      ref-backed records: storage-mode-neutral docs and embedded guidance,
+      `ahm prime` session-start instructions, ref-mode stale-state prime tests,
+      and template version `0.4.5`.
 
 ## Surprises & Discoveries
 
@@ -113,6 +116,16 @@ Task 141 added the first user-facing records command surface. `ahm records statu
 Task 142 added the opt-in migration flow. `ahm records migrate` previews everything under `--dry-run`, moves the `.agents/` record trees to `.ahm/`, installs internal `.ahm/.gitignore` entries, writes committed `.ahm/config.json` with explicit ref-backed storage metadata, removes legacy `.agents/ahm.json`, seeds `refs/ahm/records`, and prints the `git rm -r --cached` command for the user instead of touching the project git index. Command tests prove dry-run writes nothing, project-owned `.agents/` content survives, generated indexes move locally but stay out of the seeded ref, migration is idempotent and resumable, differing targets fail as conflicts, and `records doctor` diagnoses leftover legacy paths and still-tracked git paths. Rollback is documented in the `records migrate` CLI reference and the workflow-upgrades guide. Until task 144 integrated workflow commands with `.ahm/` paths, migrated repositories could not use the task/index commands, so migration stayed a developer-facing opt-in.
 
 Task 144 made the workflow commands storage-mode aware and wired the automatic snapshot layer. `internal/ahm/workflow_paths.go` resolves record paths from metadata (`committed` or absent stays at `.agents/`; `ref` and future `local` modes use `.ahm/`), and task reads/writes, ID allocation, index generation, validation (including legacy `.agents/exec-plans/...` `exec_plan:` references), `init`/`upgrade` directory creation, the workflow lock, and stale-temp cleanup all follow it. `writeIndexes` now ends with an idempotent, dry-run-aware records snapshot in ref mode, so every supported task, research, and ExecPlan mutation refreshes `refs/ahm/records` locally while generated indexes stay excluded and network pushes remain explicit. The `ahm task work` commit prompt scopes delegated commits to project sources in migrated repositories. Verified with ref-mode integration tests, the full CI suite, and a manual scratch-repo end-to-end run covering migrate, mutate, sync to a bare remote, and fresh-clone recovery via `records pull`. Migration is now functionally usable end to end; `ahm prime` (task 143) and documentation/agent guidance (task 145) remain.
+
+Task 145 updated the durable docs and agent guidance for the completed
+ref-backed records behavior. The workflow spec, CLI references, upgrade guide,
+architecture summary, project `AGENTS.md`, embedded `ahm context` workflow
+references, and shipped skills now describe `.ahm/` ref-backed storage, the
+`refs/ahm/*` git-safety boundary, `ahm prime` as the session-start command, and
+storage-mode-neutral fallback paths. The tests now cover `ahm prime --no-sync`
+and ref-mode stale-record reporting alongside the existing records, migration,
+generated-index exclusion, metadata, and GitHub-only hosted remote diagnostics.
+Verified with the focused template/ahm package tests and `just ci`.
 
 ## Context and Orientation
 

@@ -121,11 +121,11 @@ Example:
 }
 ```
 
-The optional record-storage fields are reserved for ADR 013 implementation
-work. Missing `store_mode` means the current committed-record behavior. The
-supported internal storage mode values are `committed`, `local`, and `ref`;
-`records_ref` defaults to `refs/ahm/records`, and `records_remote` defaults to
-`origin` when omitted.
+The optional record-storage fields configure the ADR 013 storage mode. Missing
+`store_mode` means the current committed-record behavior. The supported
+internal storage mode values are `committed`, `local`, and `ref`; `records_ref`
+defaults to `refs/ahm/records`, and `records_remote` defaults to `origin` when
+omitted.
 
 The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
 `ahm task complete <id>` fails if the task acceptance section is missing, still
@@ -192,8 +192,9 @@ The ownership categories are:
 
 1. **Generated indexes** (`.agents/.tasks/index.md`,
    `.agents/.research/index.md`, `.agents/exec-plans/active/index.md`,
-   `.agents/exec-plans/completed/index.md`, `docs/adr/index.md`) — owned by
-   `ahm`. Do not edit by hand. Update source records and run `ahm index`.
+   `.agents/exec-plans/completed/index.md`, or the same relative paths under
+   `.ahm/` after migration, plus `docs/adr/index.md`) — owned by `ahm`. Do
+   not edit by hand. Update source records and run `ahm index`.
 
 2. **Managed-work references** — owned by the `ahm` binary and exposed
    through scoped `ahm context task|plan|adr|research|docs`. Fresh `ahm init`
@@ -209,12 +210,15 @@ The ownership categories are:
    templates when their recorded hashes still match, or when `--force` is used.
    Locally modified skills are preserved as conflicts unless `--force` is used.
 
-4. **Workflow source records** (task files in `.agents/.tasks/`, research
-   notes in `.agents/.research/`, ExecPlans in `.agents/exec-plans/`, ADRs
-   under `docs/adr/`) — project-owned. Update through their documented
-   workflows (e.g., `ahm task create`, `ahm task complete <id>`,
-   `ahm adr create`, ADR lifecycle commands, or manual edits to source
-   markdown files).
+4. **Workflow source records** — task files, research notes, and ExecPlans live
+   under `.agents/` in legacy committed-record repositories and under
+   tool-owned `.ahm/` after ref-backed migration. Update them through their
+   documented workflows (e.g., `ahm task create`, `ahm task complete <id>`, or
+   `ahm index` after manual edits). In ref-backed repositories these records
+   are working artifacts: they are gitignored locally, snapshotted to
+   `refs/ahm/records`, and stay out of normal branch history. ADRs under
+   `docs/adr/` remain project-owned durable documentation and use `ahm adr`
+   lifecycle commands.
 
 5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
    never create, overwrite, or remove `AGENTS.md`. `ahm agents suggestions`
@@ -272,9 +276,9 @@ The output format and exit codes are the same regardless of which scopes are
 active; only the reported findings change.
 
 ExecPlan lifecycle state is implicit in file placement and Markdown sections.
-In-progress plans live under `.agents/exec-plans/active/`; completed plans live
-under `.agents/exec-plans/completed/`. Every ExecPlan must maintain
-`Progress`, `Surprises & Discoveries`, `Decision Log`, and
+In-progress plans live under the active ExecPlan bucket in the current storage
+mode; completed plans live under the completed ExecPlan bucket. Every ExecPlan
+must maintain `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` sections. Active plans should not have completed
 outcomes, completed plans should have completed outcomes, and completed plans
 should not retain open `- [ ]` progress items. Unreferenced ExecPlans are
@@ -404,7 +408,8 @@ state that self-heals on the next successful `ahm index` run. The individual
 write of each file is still atomic (see Atomic Write Guarantee above); only
 the batch as a whole has no rollback or transaction semantics.
 
-Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`
-instead of being copied into target repositories. Unscoped `ahm context` text output is
-a live briefing with repository state; `--json` and `--plain` expose structured
-sections for integrations.
+Managed-work references are exposed by scoped
+`ahm context task|plan|adr|research|docs` instead of being copied into target
+repositories. `ahm prime` is the live session briefing with repository state;
+`--json` and `--plain` expose the same structured briefing for integrations.
+Unscoped `ahm context` is no longer a briefing command.

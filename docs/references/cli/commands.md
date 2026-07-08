@@ -543,7 +543,7 @@ Examples:
 
 ```bash
 ahm prime
-ahm --no-sync prime
+ahm prime --no-sync
 ahm --json prime
 ahm --plain prime
 ```
@@ -592,13 +592,17 @@ Installs the managed `.agents` workflow into the target root.
 Canonical agent instructions are exposed through `ahm context`, not copied into
 consumer repositories. `init` does not create or overwrite `AGENTS.md`.
 
-Writes:
+Writes in legacy committed-record repositories:
 
 - Managed skill templates under `.agents/skills/`.
 - `.agents/ahm.json` metadata.
 - Generated index files under `.agents/.tasks/`, `.agents/.research/`,
   `.agents/exec-plans/`, and `docs/adr/index.md`.
 - Workflow directories under `.agents/` and `docs/adr/`.
+
+After a repository has migrated to ref-backed records, `init` and `upgrade`
+create missing record directories and generated indexes under `.ahm/` and read
+or write committed `.ahm/config.json` instead of `.agents/ahm.json`.
 
 Useful flags:
 
@@ -657,7 +661,8 @@ The report includes:
 - Target root.
 - Current embedded template version.
 - Whether workflow metadata is installed.
-- Installed workflow version from `.agents/ahm.json`.
+- Installed workflow version from `.ahm/config.json` when present, otherwise
+  `.agents/ahm.json`.
 - Task counts by status.
 - Validation errors, warnings, and info findings for managed workflow files,
   task consistency, ADR records, generated indexes, ExecPlan references and
@@ -745,7 +750,7 @@ ahm --check workflow doctor
 
 Regenerates generated task, research, ExecPlan, and ADR indexes.
 
-Writes:
+Writes in legacy committed-record repositories:
 
 - `.agents/.tasks/index.md`
 - `.agents/.tasks/active/index.md`
@@ -755,6 +760,11 @@ Writes:
 - `.agents/exec-plans/active/index.md`
 - `.agents/exec-plans/completed/index.md`
 - `docs/adr/index.md`
+
+In ref-backed repositories, the task, research, and ExecPlan indexes are
+written to the same relative paths under `.ahm/`; `docs/adr/index.md` stays in
+project documentation. `ahm index` also snapshots hand-edited `.ahm/` source
+records into the local records ref while excluding generated indexes.
 
 The root index includes status counts, the next ready queue, blocked/open tasks,
 and an all-task table. Bucket indexes include task tables for their bucket. The

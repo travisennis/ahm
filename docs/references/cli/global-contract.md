@@ -26,8 +26,9 @@ Exit codes:
 Most commands operate on a target repository root.
 
 By default, `ahm` walks upward from the current working directory until it finds
-a `.git` directory or `.agents/ahm.json`. If neither is found, the command
-fails with an error message that explains how to use `--root` or `ahm init`.
+a `.git` directory, `.ahm/config.json`, or `.agents/ahm.json`. If none are
+found, the command fails with an error message that explains how to use
+`--root` or `ahm init`.
 
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
@@ -36,7 +37,7 @@ directory.
 directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
 refreshes it, and `agents suggestions` only prints advisory text. `prime`,
 `context`, and all other state-aware commands require a managed repository
-(`.git` or `.agents/ahm.json`).
+(`.git`, `.ahm/config.json`, or `.agents/ahm.json`).
 
 ## Global Flags
 
@@ -44,11 +45,11 @@ Global flags must appear before the command.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
+| `--root <path>` | Sets the target repository root. Defaults to the nearest git root, `.ahm/config.json` parent, or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records pull`, `records push`, `records sync`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records migrate`, `records pull`, `records push`, `records sync`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported removals during `upgrade`, and overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |

@@ -1,10 +1,18 @@
 # Research Workflow
 
-This output explains how research artifacts are handled in this repository. When you are asked to create, update, organize, or use research, run `ahm context research` first, then use `.agents/.research/index.md` as the map and open the relevant files under `.agents/.research/`.
+This output explains how research artifacts are handled in this repository.
+When you are asked to create, update, organize, or use research, run
+`ahm context research` first, then use the generated research index in the
+current storage mode (`.agents/.research/index.md` or
+`.ahm/.research/index.md`) as the map and open the relevant source files.
 
 ## Research Storage
 
-Research lives in `.agents/.research/`. The directory is intentionally lightweight: it should be easy to capture rough notes, but durable notes should make their status, source, and relationship to project work clear.
+Research lives under `.agents/.research/` in legacy committed-record
+repositories and under `.ahm/.research/` after ref-backed migration. The
+directory is intentionally lightweight: it should be easy to capture rough
+notes, but durable notes should make their status, source, and relationship to
+project work clear.
 
 Use these subdirectories:
 
@@ -14,7 +22,9 @@ Use these subdirectories:
 - `topics/` for synthesized, durable notes about an area of this project or an idea that may feed several tasks or plans.
 - `archived/` for stale or superseded notes kept for historical reference.
 
-The file `.agents/.research/index.md` is the generated research map. Use it to orient yourself, but always open the source research file before relying on a note.
+The research index in the current storage mode is the generated research map.
+Use it to orient yourself, but always open the source research file before
+relying on a note.
 
 ## Creating Research
 
@@ -45,7 +55,10 @@ Confidence: low | medium | high
 
 Research is not automatically authoritative. Before using a research note to justify implementation work, check its status, date, confidence, evidence, and whether a newer task, ExecPlan, or source file supersedes it.
 
-If a research finding implies actionable work, either link an existing task or create one under `.agents/.tasks/`. If the finding is broad, risky, or implementation-heavy, promote it into an ExecPlan under `.agents/exec-plans/active/`.
+If a research finding implies actionable work, either link an existing task or
+create one with `ahm task create`. If the finding is broad, risky, or
+implementation-heavy, promote it into an ExecPlan under the active ExecPlan
+bucket in the current storage mode.
 
 Research should usually flow from rough capture to durable project work:
 
