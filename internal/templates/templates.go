@@ -1,12 +1,14 @@
 package templates
 
 import (
+	"bytes"
 	"embed"
 	"strings"
+	"text/template"
 )
 
 // Version is the embedded workflow template version.
-const Version = "0.4.5"
+const Version = "0.4.6"
 
 // FS contains the embedded workflow template files.
 //
@@ -99,9 +101,8 @@ var agentSuggestions = []AgentSuggestion{
 			"- ADRs: run `ahm context adr` when the request or task calls for an ADR, and\n" +
 			"  use `ahm adr` commands for lifecycle changes.\n" +
 			"- Research: run `ahm context research` and use the generated research index\n" +
-			"  in the current storage mode (`.agents/.research/index.md` or\n" +
-			"  `.ahm/research/index.md`) as the map when asked to create, update,\n" +
-			"  organize, or use research.\n" +
+			"  at `{{.ResearchIndex}}` as the map when asked to create, update, organize,\n" +
+			"  or use research.\n" +
 			"- Session start: run `ahm prime` before work to sync workflow records,\n" +
 			"  regenerate indexes, and get the live briefing.\n" +
 			"\n" +
@@ -138,7 +139,21 @@ func AgentSuggestions() []AgentSuggestion {
 func RenderAgentsMarkdown() string {
 	blocks := []string{"# Agent Instructions"}
 	for _, suggestion := range AgentSuggestions() {
-		blocks = append(blocks, "## "+suggestion.Title+"\n\n"+suggestion.Body)
+		blocks = append(blocks, "## "+suggestion.Title+"\n\n"+renderLegacyAgentSuggestion(suggestion.Body))
 	}
 	return strings.Join(blocks, "\n\n") + "\n"
+}
+
+func renderLegacyAgentSuggestion(body string) string {
+	tmpl, err := template.New("agent-suggestion").Option("missingkey=error").Parse(body)
+	if err != nil {
+		panic(err)
+	}
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, map[string]string{
+		"ResearchIndex": ".agents/.research/index.md",
+	}); err != nil {
+		panic(err)
+	}
+	return rendered.String()
 }

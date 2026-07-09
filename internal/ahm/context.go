@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"strings"
+	"text/template"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
@@ -78,7 +79,7 @@ func (a *app) context(scope string) error {
 	defer a.emitWarnings()
 	if a.opts.json || a.opts.plain {
 		if scope != "" {
-			instruction, err := scopedContextInstruction(scope)
+			instruction, err := scopedContextInstruction(scope, a.opts.root)
 			if err != nil {
 				return err
 			}
@@ -93,7 +94,7 @@ func (a *app) context(scope string) error {
 		return a.emit(report)
 	}
 	if scope != "" {
-		instruction, err := scopedContextInstruction(scope)
+		instruction, err := scopedContextInstruction(scope, a.opts.root)
 		if err != nil {
 			return err
 		}
@@ -208,7 +209,27 @@ func taskSummaryFor(task Task, root string) taskSummary {
 	}
 }
 
-func scopedContextInstruction(scope string) (contextInstruction, error) {
+type instructionRenderPaths struct {
+	RecordsDir              string
+	TasksDir                string
+	TasksActiveDir          string
+	TasksCompletedDir       string
+	TasksCancelledDir       string
+	TasksIndex              string
+	TasksActiveIndex        string
+	TasksCompletedIndex     string
+	TasksCancelledIndex     string
+	ResearchDir             string
+	ResearchIndex           string
+	ExecPlansDir            string
+	ExecPlansActiveDir      string
+	ExecPlansCompletedDir   string
+	ExecPlansActiveIndex    string
+	ExecPlansCompletedIndex string
+	ConfigPath              string
+}
+
+func scopedContextInstruction(scope string, root string) (contextInstruction, error) {
 	files := map[string]struct {
 		id     string
 		title  string
@@ -228,11 +249,69 @@ func scopedContextInstruction(scope string) (contextInstruction, error) {
 	if err != nil {
 		return contextInstruction{}, err
 	}
+	body, err := renderInstructionTemplate(file.source, string(data), instructionPathsFor(root))
+	if err != nil {
+		return contextInstruction{}, err
+	}
 	return contextInstruction{
 		ID:    file.id,
 		Title: file.title,
-		Body:  string(data),
+		Body:  body,
 	}, nil
+}
+
+func instructionPathsFor(root string) instructionRenderPaths {
+	paths := workflowPathsFor(root)
+	tasksRel := paths.tasksRel()
+	researchRel := paths.researchRel()
+	execPlansRel := paths.execPlansRel("")
+	configPath := legacyMetadataRelPath
+	if paths.recordsDir == toolRecordsDirName {
+		configPath = configMetadataRelPath
+	}
+	return instructionRenderPaths{
+		RecordsDir:              slashDir(paths.recordsDir),
+		TasksDir:                slashDir(tasksRel),
+		TasksActiveDir:          slashDir(tasksRel + "/active"),
+		TasksCompletedDir:       slashDir(tasksRel + "/completed"),
+		TasksCancelledDir:       slashDir(tasksRel + "/cancelled"),
+		TasksIndex:              tasksRel + "/index.md",
+		TasksActiveIndex:        tasksRel + "/active/index.md",
+		TasksCompletedIndex:     tasksRel + "/completed/index.md",
+		TasksCancelledIndex:     tasksRel + "/cancelled/index.md",
+		ResearchDir:             slashDir(researchRel),
+		ResearchIndex:           researchRel + "/index.md",
+		ExecPlansDir:            slashDir(execPlansRel),
+		ExecPlansActiveDir:      slashDir(paths.execPlansRel("active")),
+		ExecPlansCompletedDir:   slashDir(paths.execPlansRel("completed")),
+		ExecPlansActiveIndex:    paths.execPlansRel("active") + "/index.md",
+		ExecPlansCompletedIndex: paths.execPlansRel("completed") + "/index.md",
+		ConfigPath:              configPath,
+	}
+}
+
+func slashDir(rel string) string {
+	return strings.TrimSuffix(rel, "/") + "/"
+}
+
+func renderInstructionTemplate(name string, body string, values instructionRenderPaths) (string, error) {
+	tmpl, err := template.New(name).Option("missingkey=error").Parse(body)
+	if err != nil {
+		return "", err
+	}
+	var rendered strings.Builder
+	if err := tmpl.Execute(&rendered, values); err != nil {
+		return "", err
+	}
+	return rendered.String(), nil
+}
+
+func renderWorkflowTemplate(root string, name string, content []byte) ([]byte, error) {
+	rendered, err := renderInstructionTemplate(name, string(content), instructionPathsFor(root))
+	if err != nil {
+		return nil, err
+	}
+	return []byte(rendered), nil
 }
 
 func contextCommands(scope string) []string {

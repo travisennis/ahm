@@ -47,10 +47,10 @@ Required context items, in priority order:
 - `ahm context task`, `ahm task show <id>` output when the work came from a
   task; open the active task file only when `ahm` is unavailable or when
   reviewing manual edits to the task file itself; use
-  the generated task index in the current storage mode only as a fallback queue
+  the generated task index at `{{.TasksIndex}}` only as a fallback queue
   artifact when `ahm` is unavailable
 - the relevant active exec plan when one exists for the current work
-  (see the active ExecPlan bucket in the current storage mode)
+  (see the active ExecPlan bucket at `{{.ExecPlansActiveDir}}`)
 - `ahm context plan` and `docs/design-docs/index.md` for L/XL changes
 - any design doc or ADR directly relevant to the changed area
 - the changed files and enough nearby context to review them

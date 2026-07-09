@@ -32,12 +32,13 @@ project.
 ## Project Docs vs Agent Artifacts
 
 Project docs are durable repository documentation intended for humans working
-on or using the project. Agent artifacts are working records under `.agents/`,
-such as tasks, research notes, ExecPlans, and generated indexes. Keep these
-roles separate: durable behavior, architecture, and contributor guidance
-belong in project docs; actionable work, evidence, and plans belong in their
-`.agents/` records. Preserve uncertainty by recording open questions in tasks,
-research, or plans instead of presenting guesses as facts.
+on or using the project. Agent artifacts are working records under
+`{{.RecordsDir}}`, such as tasks, research notes, ExecPlans, and generated
+indexes. Keep these roles separate: durable behavior, architecture, and
+contributor guidance belong in project docs; actionable work, evidence, and
+plans belong in their `{{.RecordsDir}}` records. Preserve uncertainty by
+recording open questions in tasks, research, or plans instead of presenting
+guesses as facts.
 
 ## Generated Indexes
 

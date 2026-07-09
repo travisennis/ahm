@@ -43,9 +43,9 @@ ahm task list --status Open
 ahm task labels
 ```
 
-If `ahm` is unavailable, read the generated task index in the current storage
-mode (`.agents/.tasks/index.md` or `.ahm/tasks/index.md`) as the fallback
-queue artifact and inspect the relevant files under the active task bucket.
+If `ahm` is unavailable, read the generated task index at `{{.TasksIndex}}` as
+the fallback queue artifact and inspect the relevant files under the active
+task bucket.
 
 ### 2. For each task that is not Completed or Cancelled, audit
 

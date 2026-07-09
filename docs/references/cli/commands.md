@@ -252,6 +252,8 @@ sections rather than inventing a full project workflow.
 By default, the command reads `AGENTS.md` under the target root when present and
 omits exact suggestion blocks that already appear in the file. The matching is
 lightweight and advisory; projects should still review the output.
+When a suggestion names workflow record or generated index paths, the command
+renders those paths for the repository's active storage mode.
 
 Useful flags:
 
@@ -523,7 +525,8 @@ The briefing includes (in order, omitting empty sections):
 - Active ExecPlans and recent research notes.
 - Stale/unsynced records state in ref mode.
 - `## Managed Work Intake` — the routing table for managed-work types,
-  with notes on workflow and multi-step plans.
+  active-mode workflow record paths, and notes on workflow and multi-step
+  plans.
 - `## Useful Commands` — common follow-up commands.
 
 Supports `--json`, `--plain`, and `--text` output.
@@ -558,7 +561,9 @@ briefing has moved to `ahm prime`.
 With a scope, `context` prints the full embedded reference document for that
 artifact type. For example, `ahm context task` prints the task workflow
 reference for creating, choosing, updating, or working on tasks. Scoped output
-is pure reference text with no live briefing wrapper.
+is pure reference text with no live briefing wrapper. References that name
+workflow record, generated index, or metadata paths render those paths for the
+repository's active storage mode.
 
 Required scope:
 

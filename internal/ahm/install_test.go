@@ -342,6 +342,68 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".agents", "skills", "finding-improvements", "SKILL.md"), "name: finding-improvements")
 }
 
+func TestInstallRendersManagedSkillPathsAndHashes(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) {
+		root := t.TempDir()
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.install(false); err != nil {
+			t.Fatal(err)
+		}
+
+		target := filepath.Join(root, ".agents", "skills", "preflight", "SKILL.md")
+		body := mustRead(t, target)
+		assertContainsAll(t, body,
+			"the generated task index at `.agents/.tasks/index.md`",
+			"the active ExecPlan bucket at `.agents/exec-plans/active/`",
+		)
+		assertNotContains(t, body, "{{", ".ahm/tasks/index.md")
+
+		meta, err := readMetadata(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantHash := hashBytes([]byte(body))
+		if meta.Files[".agents/skills/preflight/SKILL.md"] != wantHash {
+			t.Fatalf("metadata hash = %q, want %q", meta.Files[".agents/skills/preflight/SKILL.md"], wantHash)
+		}
+	})
+
+	t.Run("ref backed", func(t *testing.T) {
+		root := t.TempDir()
+		if err := writeConfigMetadata(root, metadata{
+			Version:   "0.1.0",
+			StoreMode: string(recordStoreModeRef),
+			Files:     map[string]string{},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.install(false); err != nil {
+			t.Fatal(err)
+		}
+
+		target := filepath.Join(root, ".agents", "skills", "preflight", "SKILL.md")
+		body := mustRead(t, target)
+		assertContainsAll(t, body,
+			"the generated task index at `.ahm/tasks/index.md`",
+			"the active ExecPlan bucket at `.ahm/exec-plans/active/`",
+		)
+		assertNotContains(t, body, "{{", ".agents/.tasks/index.md")
+
+		meta, err := readMetadata(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantHash := hashBytes([]byte(body))
+		if meta.Files[".agents/skills/preflight/SKILL.md"] != wantHash {
+			t.Fatalf("metadata hash = %q, want %q", meta.Files[".agents/skills/preflight/SKILL.md"], wantHash)
+		}
+	})
+}
+
 func TestInstallLeavesExistingAgentsEntrypointAlone(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Project Agent Instructions\n\nKeep this.\n")

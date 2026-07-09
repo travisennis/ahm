@@ -90,6 +90,26 @@ migrated states. Rollback steps are documented in the
   `git rm -r --cached` command is run and committed.
 - Repositories that do not run `ahm records migrate` are unaffected.
 
+## Active-Mode Agent Guidance Rendering (2026-07-09)
+
+`internal/templates.Version` advanced from `0.4.5` to `0.4.6`.
+
+Live agent instruction output now renders workflow record, generated index, and
+metadata paths for the repository's active storage mode. Legacy repositories
+see direct `.agents/...` paths; ref-backed repositories see direct `.ahm/...`
+paths. Generic project documentation still describes both storage modes where
+that distinction is durable user-facing behavior.
+
+### Impact
+
+- `ahm context task`, `ahm context research`, `ahm context plan`,
+  `ahm context docs`, and `ahm prime` avoid unnecessary paired-path wording in
+  live output when the repository mode is known.
+- Managed skill templates and `ahm agents suggestions` render the generated
+  task or research index paths for the active storage mode.
+- `ahm upgrade` records template version `0.4.6` in `.ahm/config.json` after
+  migration, or legacy `.agents/ahm.json` before migration.
+
 ## Ref-Backed Agent Guidance (2026-07-07)
 
 `internal/templates.Version` advanced from `0.4.4` to `0.4.5`.
@@ -103,8 +123,8 @@ index paths. The `ahm agents suggestions` advisory output now includes
 
 ### Impact
 
-- `ahm context task`, `ahm context research`, and `ahm context plan` output is
-  storage-mode neutral for fallback paths and generated indexes.
+- `ahm context task`, `ahm context research`, and `ahm context plan` output
+  describes both storage modes for fallback paths and generated indexes.
 - `ahm agents suggestions` tells maintainers to put `ahm prime` before normal
   managed-work intake in project-owned `AGENTS.md`.
 - `ahm upgrade` records template version `0.4.5` in `.ahm/config.json` after

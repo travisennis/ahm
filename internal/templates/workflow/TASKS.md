@@ -13,33 +13,29 @@ record.
 
 ## Task Storage
 
-Tasks live in the current workflow storage mode: `.agents/.tasks/` in legacy
-committed-record repositories, or `.ahm/tasks/` after ref-backed migration.
-Within that tree, active work lives in `active/`, completed tasks in
-`completed/`, and abandoned tasks in `cancelled/`. Each task is a Markdown file
-named with a stable task id, such as `046.md` or `109.md`. Parent tasks may
-have lettered child tasks, such as `047a.md`, `047b.md`, and `047c.md`.
+Tasks live under `{{.TasksDir}}` in this repository. Within that tree, active
+work lives in `{{.TasksActiveDir}}`, completed tasks in
+`{{.TasksCompletedDir}}`, and abandoned tasks in `{{.TasksCancelledDir}}`. Each
+task is a Markdown file named with a stable task id, such as `046.md` or
+`109.md`. Parent tasks may have lettered child tasks, such as `047a.md`,
+`047b.md`, and `047c.md`.
 
 The `ahm task ...` commands are the primary task interface. Use them for queue
 inspection, filtering, lifecycle changes, dependency updates, and completion.
 
-The task index in the current storage mode (`.agents/.tasks/index.md` or
-`.ahm/tasks/index.md`) is a generated read-only dashboard and fallback
-reference. It lists status counts, the next ready work, blocked or untriaged
-tasks, parent trackers, and links to the generated active, completed, and
-cancelled indexes. Use it when `ahm` is unavailable or when you need to inspect
-the deterministic generated artifact itself, but always open the task file
-before making changes or deciding the implementation approach.
+The task index at `{{.TasksIndex}}` is a generated read-only dashboard and
+fallback reference. It lists status counts, the next ready work, blocked or
+untriaged tasks, parent trackers, and links to the generated active, completed,
+and cancelled indexes. Use it when `ahm` is unavailable or when you need to
+inspect the deterministic generated artifact itself, but always open the task
+file before making changes or deciding the implementation approach.
 
 The generated indexes are:
 
-- `.tasks/index.md` for the concise dashboard and next ready queue.
-- `.tasks/active/index.md` for all active, blocked, open, pending, and tracking tasks.
-- `.tasks/completed/index.md` for historical lookup of completed tasks.
-- `.tasks/cancelled/index.md` for historical lookup of cancelled tasks.
-
-Those paths are rooted under `.agents/` in legacy repositories and `.ahm/` in
-ref-backed repositories.
+- `{{.TasksIndex}}` for the concise dashboard and next ready queue.
+- `{{.TasksActiveIndex}}` for all active, blocked, open, pending, and tracking tasks.
+- `{{.TasksCompletedIndex}}` for historical lookup of completed tasks.
+- `{{.TasksCancelledIndex}}` for historical lookup of cancelled tasks.
 
 Do not edit generated indexes by hand. Prefer `ahm task ...` commands for
 task changes. After changing task metadata by hand, moving tasks between
@@ -286,11 +282,10 @@ Before marking a task as Completed, fill in Acceptance Notes when practical so
 the completed record captures the verification and outcome. `ahm task complete`
 warns when Acceptance Notes are missing, still contain the seeded `- [ ] TODO`
 placeholder, or include unchecked checklist items. Repositories can set
-`"strict_acceptance": true` in `.ahm/config.json` after migration, or legacy
-`.agents/ahm.json` before migration, to make those warnings block completion
-unless `--force` is used. If you edit only the completed task body afterward,
-no index regeneration is needed. If you edit task front matter afterward, rerun
-`ahm index`.
+`"strict_acceptance": true` in `{{.ConfigPath}}` to make those warnings block
+completion unless `--force` is used. If you edit only the completed task body
+afterward, no index regeneration is needed. If you edit task front matter
+afterward, rerun `ahm index`.
 
 To mark a task as Completed, prefer `ahm task complete <id>`. It sets the front-matter `status:` to `Completed`, moves the file from the active bucket to the completed bucket, changes directly dependent `Blocked` tasks to `Pending` when all of their dependencies are now complete, and regenerates the indexes in one step. Do not leave Completed tasks in `active/`.
 

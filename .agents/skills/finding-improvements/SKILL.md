@@ -339,7 +339,7 @@ re-audited next run.
 Present the vetted findings table to the user, ordered by leverage (impact ÷
 effort, weighted by confidence):
 
-```
+```text
 | # | Finding | Category | Impact | Effort | Risk | Evidence |
 ```
 
@@ -351,6 +351,7 @@ suggestion: the top 3–5 by leverage. Surface dependency ordering — e.g.
 (finding #5)."
 
 The user responds with which findings to accept. Accept responses like:
+
 - Numbers: `1, 3, 5`
 - Ranges: `1-4`
 - Keywords: `all`, `top 5`, `security`, `perf`
@@ -418,13 +419,13 @@ ahm task create "<title>" \
 ```
 
 Pipe the task body to stdin via `--body-file -`. If `ahm` is unavailable,
-write the task file directly to `.agents/.tasks/active/<id>.md` following
-the `ahm` task file format, then run `ahm index` (or write index files by
-hand as a fallback).
+write the task file directly to the active task bucket at
+`.agents/.tasks/active/` following the `ahm` task file format, then run
+`ahm index` (or write index files by hand as a fallback).
 
 **After all tasks are created**, report a summary:
 
-```
+```text
 Created N tasks:
 - #XXX — <title> (P<N>, <effort>)
 - #YYY — <title> (P<N>, <effort>)

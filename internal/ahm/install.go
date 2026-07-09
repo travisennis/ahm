@@ -265,6 +265,10 @@ func (a *app) install(upgrade bool) error {
 		if err != nil {
 			return err
 		}
+		content, err = renderWorkflowTemplate(root, item.Source, content)
+		if err != nil {
+			return err
+		}
 		target := filepath.Join(root, item.Target)
 		hash := hashBytes(content)
 		existing, readErr := readWorkflowFile(target)

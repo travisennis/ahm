@@ -47,8 +47,66 @@ func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 		"# Task Workflow",
 		"## Choosing Work",
 		"## Creating Tasks",
+		"Tasks live under `.agents/.tasks/` in this repository.",
+		"The task index at `.agents/.tasks/index.md`",
+		"`\"strict_acceptance\": true` in `.agents/ahm.json`",
 	)
-	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands")
+	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".ahm/tasks")
+}
+
+func TestScopedContextPrintsRefBackedInstructionPaths(t *testing.T) {
+	root := t.TempDir()
+	writeRefRecordsConfig(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context", "task")
+	if code != 0 {
+		t.Fatalf("context task exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"Tasks live under `.ahm/tasks/` in this repository.",
+		"The task index at `.ahm/tasks/index.md`",
+		"`\"strict_acceptance\": true` in `.ahm/config.json`",
+	)
+	assertNotContains(t, stdout,
+		".agents/.tasks/",
+		".agents/ahm.json",
+		"or `.ahm/tasks/",
+	)
+}
+
+func TestScopedContextsRenderStorageModePaths(t *testing.T) {
+	root := t.TempDir()
+	writeRefRecordsConfig(t, root)
+
+	cases := []struct {
+		scope string
+		want  []string
+		not   []string
+	}{
+		{
+			scope: "research",
+			want:  []string{"`ahm context research`", "`.ahm/research/index.md`", "Research lives under `.ahm/research/`"},
+			not:   []string{".agents/.research/", "or\n`.ahm/research/index.md`"},
+		},
+		{
+			scope: "plan",
+			want:  []string{"`ahm context plan`", "`.ahm/exec-plans/active/`", "`.ahm/exec-plans/completed/`"},
+			not:   []string{".agents/exec-plans/active/", "or `.ahm/exec-plans/active/`"},
+		},
+		{
+			scope: "docs",
+			want:  []string{"# Documentation Workflow", "working records under\n`.ahm/`", "their `.ahm/` records"},
+			not:   []string{"working records under `.agents/`"},
+		},
+	}
+	for _, tc := range cases {
+		stdout, stderr, code := runCLI(t, "--root", root, "context", tc.scope)
+		if code != 0 {
+			t.Fatalf("context %s exit code = %d, stderr = %s", tc.scope, code, stderr)
+		}
+		assertContainsAll(t, stdout, tc.want...)
+		assertNotContains(t, stdout, tc.not...)
+	}
 }
 
 func TestUnscopedContextJSONErrors(t *testing.T) {
@@ -87,10 +145,11 @@ func TestScopedContextJSONOutput(t *testing.T) {
 		`"id": "task-workflow"`,
 		`# Task Workflow`,
 		`## Choosing Work`,
+		`.agents/.tasks/index.md`,
 		`"commands":`,
 		`"ahm task show \u003cid\u003e"`,
 	)
-	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, `"tasks"`)
+	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, ".ahm/tasks")
 }
 
 func TestPrimeReportsValidationFindings(t *testing.T) {

@@ -201,9 +201,10 @@ The ownership categories are:
    does not copy reference documents such as `.agents/TASKS.md`,
    `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
    Scoped commands such as `ahm context task` expose the
-   full embedded reference document for that workflow. `ahm upgrade` removes
-   previously managed copies when metadata proves ownership; locally modified
-   copies are preserved as conflicts unless `--force` is used.
+   full embedded reference document for that workflow, with record and index
+   paths rendered for the repository's active storage mode. `ahm upgrade`
+   removes previously managed copies when metadata proves ownership; locally
+   modified copies are preserved as conflicts unless `--force` is used.
 
 3. **Managed skill templates** (`.agents/skills/*/SKILL.md`) — owned by `ahm`.
    Fresh `ahm init` installs them and `ahm upgrade` updates them from embedded
@@ -410,6 +411,8 @@ the batch as a whole has no rollback or transaction semantics.
 
 Managed-work references are exposed by scoped
 `ahm context task|plan|adr|research|docs` instead of being copied into target
-repositories. `ahm prime` is the live session briefing with repository state;
-`--json` and `--plain` expose the same structured briefing for integrations.
-Unscoped `ahm context` is no longer a briefing command.
+repositories. Scoped reference output renders record and index paths for the
+repository's active storage mode. `ahm prime` is the live session briefing with
+repository state and active-mode workflow record paths; `--json` and `--plain`
+expose the same structured briefing for integrations. Unscoped `ahm context`
+is no longer a briefing command.

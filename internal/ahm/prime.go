@@ -16,14 +16,15 @@ import (
 // primeReport is the structured data for the ahm prime session briefing.
 // It implements textRenderer for text output.
 type primeReport struct {
-	Root     string              `json:"root"`
-	Workflow contextWorkflow     `json:"workflow"`
-	Git      contextGit          `json:"git"`
-	Tasks    primeTasks          `json:"tasks"`
-	Records  primeRecords        `json:"records"`
-	Plans    []primePlanSummary  `json:"plans,omitempty"`
-	Research []primeResearchNote `json:"research,omitempty"`
-	Commands []string            `json:"commands"`
+	Root     string                 `json:"root"`
+	Workflow contextWorkflow        `json:"workflow"`
+	Git      contextGit             `json:"git"`
+	Tasks    primeTasks             `json:"tasks"`
+	Records  primeRecords           `json:"records"`
+	Plans    []primePlanSummary     `json:"plans,omitempty"`
+	Research []primeResearchNote    `json:"research,omitempty"`
+	Commands []string               `json:"commands"`
+	Paths    instructionRenderPaths `json:"-"`
 }
 
 type primeRecords struct {
@@ -175,6 +176,7 @@ func (a *app) buildPrimeReport() primeReport {
 		Plans:    plans,
 		Research: research,
 		Commands: contextCommands(""),
+		Paths:    instructionPathsFor(a.opts.root),
 	}
 }
 
@@ -414,6 +416,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 	fmt.Fprintln(w, "- ADR work → `ahm context adr`")
 	fmt.Fprintln(w, "- Research notes → `ahm context research`")
 	fmt.Fprintln(w, "- Documentation work → `ahm context docs`")
+	fmt.Fprintf(w, "- Workflow records: tasks `%s`, research `%s`, ExecPlans `%s`\n", r.Paths.TasksDir, r.Paths.ResearchDir, r.Paths.ExecPlansDir)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).")
 	fmt.Fprintln(w)

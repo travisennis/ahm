@@ -419,10 +419,9 @@ ahm task create "<title>" \
 ```
 
 Pipe the task body to stdin via `--body-file -`. If `ahm` is unavailable,
-write the task file directly to the active task bucket in the current storage
-mode (`.agents/.tasks/active/` or `.ahm/tasks/active/`) following the `ahm`
-task file format, then run `ahm index` (or write index files by hand as a
-fallback).
+write the task file directly to the active task bucket at
+`{{.TasksActiveDir}}` following the `ahm` task file format, then run
+`ahm index` (or write index files by hand as a fallback).
 
 **After all tasks are created**, report a summary:
 

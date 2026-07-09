@@ -77,12 +77,17 @@ func (a *app) collectAgentSuggestions() (agentsSuggestionsReport, error) {
 		Target: "AGENTS.md",
 		Exists: exists,
 	}
+	paths := instructionPathsFor(a.opts.root)
 	for _, suggestion := range templates.AgentSuggestions() {
-		body := strings.ReplaceAll(suggestion.Body, "\r\n", "\n")
+		rendered, err := renderInstructionTemplate("agent-suggestion/"+suggestion.ID, suggestion.Body, paths)
+		if err != nil {
+			return agentsSuggestionsReport{}, err
+		}
+		body := strings.ReplaceAll(rendered, "\r\n", "\n")
 		report.Suggestions = append(report.Suggestions, agentSuggestionWithHit{
 			ID:      suggestion.ID,
 			Title:   suggestion.Title,
-			Body:    suggestion.Body,
+			Body:    body,
 			Present: exists && strings.Contains(content, body),
 		})
 	}

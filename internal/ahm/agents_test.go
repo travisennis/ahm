@@ -30,6 +30,7 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 		"## Managed Work Intake With `ahm`",
 		"`ahm` is for understanding and managing higher-order workflow records",
 		"inspect the relevant task with `ahm task ...`",
+		"generated research index\n  at `.agents/.research/index.md`",
 		"Session start: run `ahm prime`",
 		"re-classify the discovered work under the repository's",
 		"## ahm-Owned Files",
@@ -43,6 +44,23 @@ func TestAgentsSuggestionsPrintsMissingMarkdownWithoutWriting(t *testing.T) {
 	if got := mustRead(t, agentsPath); got != original {
 		t.Errorf("AGENTS.md was modified:\n%s", got)
 	}
+}
+
+func TestAgentsSuggestionsRenderRefBackedPaths(t *testing.T) {
+	root := t.TempDir()
+	writeRefRecordsConfig(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "agents", "suggestions", "--all")
+	if code != 0 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"generated research index\n  at `.ahm/research/index.md`",
+	)
+	assertNotContains(t, stdout,
+		".agents/.research/index.md",
+		"or\n  `.ahm/research/index.md`",
+	)
 }
 
 func TestAgentsSuggestionsOmitsPresentBlocksUnlessAll(t *testing.T) {

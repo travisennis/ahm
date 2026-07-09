@@ -46,6 +46,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"- ADR work → `ahm context adr`",
 		"- Research notes → `ahm context research`",
 		"- Documentation work → `ahm context docs`",
+		"- Workflow records: tasks `.agents/.tasks/`, research `.agents/.research/`, ExecPlans `.agents/exec-plans/`",
 		"ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).",
 		"Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.",
 		"## Useful Commands",
@@ -115,7 +116,9 @@ func TestPrimeNoSyncFlagSkipsRefSyncAndReportsStaleRecords(t *testing.T) {
 		"# Records: local records ref is missing; run 'ahm records status'",
 		"001 [Pending] P2 S Ref Task",
 		"## Managed Work Intake",
+		"- Workflow records: tasks `.ahm/tasks/`, research `.ahm/research/`, ExecPlans `.ahm/exec-plans/`",
 	)
+	assertNotContains(t, stdout, ".agents/.tasks/", ".agents/.research/", ".agents/exec-plans/")
 	if _, err := resolveGitRef(testContext(t), root, defaultRecordsRef); !errors.Is(err, errGitRefMissing) {
 		t.Fatalf("prime --no-sync touched records ref: %v", err)
 	}

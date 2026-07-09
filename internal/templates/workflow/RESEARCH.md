@@ -3,16 +3,15 @@
 This output explains how research artifacts are handled in this repository.
 When you are asked to create, update, organize, or use research, run
 `ahm context research` first, then use the generated research index in the
-current storage mode (`.agents/.research/index.md` or
-`.ahm/research/index.md`) as the map and open the relevant source files.
+current storage mode (`{{.ResearchIndex}}`) as the map and open the relevant
+source files.
 
 ## Research Storage
 
-Research lives under `.agents/.research/` in legacy committed-record
-repositories and under `.ahm/research/` after ref-backed migration. The
-directory is intentionally lightweight: it should be easy to capture rough
-notes, but durable notes should make their status, source, and relationship to
-project work clear.
+Research lives under `{{.ResearchDir}}` in this repository. The directory is
+intentionally lightweight: it should be easy to capture rough notes, but
+durable notes should make their status, source, and relationship to project
+work clear.
 
 Use these subdirectories:
 

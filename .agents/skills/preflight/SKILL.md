@@ -29,12 +29,12 @@ Include untracked new files from `git status --short` (or
 into new files can look deceptively small in `git diff --stat` until those
 files are staged.
 
-| Change size                                     | Required context           | Review passes        | Compliance note |
-| ----------------------------------------------- | -------------------------- | -------------------- | --------------- |
-| **XS** (docs/skill/config only, ≤2 files)       | Root AGENTS.md if relevant | One combined pass    | One line        |
-| **S** (single module, ≤~50 LOC, no public API)  | Root AGENTS.md, nearest nested AGENTS.md | One combined pass    | One line        |
-| **M** (multi-file, ≤~200 LOC, no cross-module)  | + active task file, ExecPlan if one exists | Pass 1 + Pass 2      | Short block     |
-| **L/XL** (cross-module, public API, agent loop, persistence, concurrency, external integrations, security boundaries) | + design docs and ADRs in the changed area | All three passes     | Full block      |
+|Change size|Required context|Review passes|Compliance note|
+|-|-|-|-|
+|**XS** (docs/skill/config only, ≤2 files)|Root AGENTS.md if relevant|One combined pass|One line|
+|**S** (single module, ≤~50 LOC, no public API)|Root AGENTS.md, nearest nested AGENTS.md|One combined pass|One line|
+|**M** (multi-file, ≤~200 LOC, no cross-module)|+ active task file, ExecPlan if one exists|Pass 1 + Pass 2|Short block|
+|**L/XL** (cross-module, public API, agent loop, persistence, concurrency, external integrations, security boundaries)|+ design docs and ADRs in the changed area|All three passes|Full block|
 
 Only read context items that are relevant to the changed surface. Discover
 them with targeted commands, e.g. `rg --files -g AGENTS.md`,
@@ -47,10 +47,10 @@ Required context items, in priority order:
 - `ahm context task`, `ahm task show <id>` output when the work came from a
   task; open the active task file only when `ahm` is unavailable or when
   reviewing manual edits to the task file itself; use
-  `.agents/.tasks/index.md` only as a fallback queue artifact when `ahm` is
-  unavailable
+  the generated task index at `.agents/.tasks/index.md` only as a fallback queue
+  artifact when `ahm` is unavailable
 - the relevant active exec plan when one exists for the current work
-  (see `.agents/exec-plans/active/`)
+  (see the active ExecPlan bucket at `.agents/exec-plans/active/`)
 - `ahm context plan` and `docs/design-docs/index.md` for L/XL changes
 - any design doc or ADR directly relevant to the changed area
 - the changed files and enough nearby context to review them

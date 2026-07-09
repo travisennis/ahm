@@ -1,9 +1,9 @@
 {
-  "version": "0.4.3",
+  "version": "0.4.6",
   "strict_acceptance": false,
   "files": {
-    ".agents/skills/finding-improvements/SKILL.md": "17fb0ae0ff5bd042386262c1be5cf7759cfd4c3b72624f01e27871fde487880b",
-    ".agents/skills/grooming-backlog/SKILL.md": "cc03e3ce68dba4128def53657e99f00c55f66f91858bacc725306112636f2e85",
-    ".agents/skills/preflight/SKILL.md": "ed956a235a8e68ef9c4ee4b01dd7ba2a15b629b30f856b87ed88d08341d915e2"
+    ".agents/skills/finding-improvements/SKILL.md": "0a9187b8d2701a302228378de10e33192ff5d84e8337c83246fe4625e4cb3d65",
+    ".agents/skills/grooming-backlog/SKILL.md": "3c9abb09577e6370a9c26b5fbe60d4bf3e9158925b6259cd11b23f7778db5edd",
+    ".agents/skills/preflight/SKILL.md": "1c299fbefee2b7cae7c76db6991ff18d3e62a5d09b9f969b1cc38bdd47873581"
   }
 }
