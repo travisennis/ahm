@@ -157,10 +157,10 @@ an external agent. It may contain the following fields:
 
 - **`implementation`** (object, optional): Role-specific defaults for the
   implementation work phase. Fields:
-    - **`agent`** (string): Agent for this phase (`cake`, `claude`, `codex`,
-      or `cursor`).
-    - **`model`** (string): Model override for this phase (passed via the
-      agent's `--model` flag).
+  - **`agent`** (string): Agent for this phase (`cake`, `claude`, `codex`,
+    or `cursor`).
+  - **`model`** (string): Model override for this phase (passed via the
+    agent's `--model` flag).
 
 - **`review`** (object, optional): Role-specific defaults for the independent
   review phase. Same fields as `implementation`. When omitted, review uses the
