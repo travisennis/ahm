@@ -572,6 +572,74 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	assertNotContains(t, got, "also-missing.md")
 }
 
+func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	// Quoted example links inside inline code spans and fenced code blocks must
+	// not be treated as navigation, but a real broken link on the same line
+	// (outside any backticks) must still be reported.
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"),
+		"# Links\n\n"+
+			"Span: `[ADRs](adr/index.md)` and span2: `[broken](also-missing.md)`.\n\n"+
+			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
+			"[real](real-missing.md)\n")
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Error(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"code": "markdown_link_missing"`,
+		`relative Markdown link target does not exist: real-missing.md`,
+	)
+	assertNotContains(t, got, "adr/index.md")
+	assertNotContains(t, got, "also-missing.md")
+	assertNotContains(t, got, "fenced-missing.md")
+}
+
+func TestValidateProjectDocsIgnoresCodeSpansAndFences(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "docs", "guide.md"), "# Guide\n")
+	writeFile(t, filepath.Join(root, "README.md"),
+		"# Project\n\n"+
+			"See `[ADRs](adr/README.md)` and `[x](missing.md)`.\n\n"+
+			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
+			"But [real](docs/nope.md) is a real link.\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	var targets []string
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" {
+			targets = append(targets, w.Message)
+		}
+	}
+	if len(targets) != 1 {
+		t.Fatalf("expected 1 project_doc_link_missing for docs/nope.md, got %d: %#v", len(targets), report.Warnings)
+	}
+	if !strings.Contains(targets[0], "docs/nope.md") {
+		t.Errorf("expected finding for docs/nope.md, got %q", targets[0])
+	}
+	for _, msg := range targets {
+		for _, quoted := range []string{"adr/README.md", "missing.md", "fenced-missing.md"} {
+			if strings.Contains(msg, quoted) {
+				t.Errorf("quoted link inside code span was flagged: %q", msg)
+			}
+		}
+	}
+}
+
 func hasFinding(findings []validationFinding, code string) bool {
 	for _, finding := range findings {
 		if finding.Code == code {

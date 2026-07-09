@@ -576,6 +576,21 @@ func validateADRs(root string, report *validationReport) {
 var markdownLinkPattern = regexp.MustCompile(`!?\[[^\]]*\]\(([^)]+)\)`)
 var markdownLinkSchemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
+// inlineCodeSpanPattern matches inline code span content delimited by single
+// backticks. Quoted example links written inside backticks (for example a
+// span containing a markdown link) are text, not navigation, so the link
+// extractor strips them before matching link syntax. Fenced code blocks are
+// handled separately by the fence-tracking logic above this call.
+var inlineCodeSpanPattern = regexp.MustCompile("`[^`]*`")
+
+// stripInlineCodeSpans removes inline code span content from a line so the
+// link extractor does not treat quoted example links inside backticks as
+// navigation. Backticks are removed in pairs; an unmatched trailing backtick
+// is left untouched.
+func stripInlineCodeSpans(line string) string {
+	return inlineCodeSpanPattern.ReplaceAllString(line, "")
+}
+
 func validateMarkdownLinks(root string, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -646,7 +661,7 @@ func validateMarkdownFileLinksWithCodes(root string, path string, report *valida
 		if inFence {
 			continue
 		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(line, -1) {
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
 			target := normalizeMarkdownLinkTarget(match[1])
 			if target == "" || shouldSkipMarkdownLink(target) {
 				continue
@@ -737,7 +752,7 @@ func designDocIndexTargets(designDir string, indexData []byte) map[string]bool {
 		if inFence {
 			continue
 		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(line, -1) {
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
 			target := normalizeMarkdownLinkTarget(match[1])
 			if target == "" || shouldSkipMarkdownLink(target) {
 				continue
