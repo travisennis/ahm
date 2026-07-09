@@ -45,8 +45,8 @@ This matters because tasks, scratch research, and draft ExecPlans are working ar
   Evidence: `TestRecordsPushPullAndSyncUsePrivateRef` and related command tests use local bare repositories to exercise real `git ls-remote`, `fetch`, `push`, and `refs/ahm/records` behavior without external network access, while unsupported hosted remotes such as GitLab still produce diagnostics.
 - Observation: `ahm records migrate` shipped before workflow commands were mode-aware, so a migrated repository's task, index, context, and validation commands still read the now-empty `.agents/` paths until task 144 landed.
   Evidence: `internal/ahm/tasks.go`, `internal/ahm/indexes.go`, `internal/ahm/validation.go`, and `internal/ahm/install.go` hardcoded `.agents/` record paths as of task 142. Resolved by task 144's `workflowPaths` integration; agent guidance remains for task 145.
-- Observation: Migrated task records keep legacy `.agents/exec-plans/...` values in their `exec_plan:` front matter because migration moves files without rewriting record contents.
-  Evidence: This repository's own task 144 references `.agents/exec-plans/active/138-ref-backed-workflow-records.md`. `resolveExecPlanReference` therefore maps legacy `.agents/exec-plans/` references onto the migrated `.ahm/exec-plans/` tree in ref mode, proven by `TestStatusInRefModeReadsAhmRecordsAndLegacyExecPlanRefs`.
+- Observation: Migrated task records can keep legacy `.agents/exec-plans/...` values in their `exec_plan:` front matter because migration moves files without rewriting record contents.
+  Evidence: This repository's own task 144 previously referenced `.agents/exec-plans/active/138-ref-backed-workflow-records.md`. `resolveExecPlanReference` therefore maps legacy `.agents/exec-plans/` references onto the migrated `.ahm/exec-plans/` tree in ref mode, proven by `TestStatusInRefModeReadsAhmRecordsAndLegacyExecPlanRefs`.
 - Observation: Every supported record mutation already funnels through `writeIndexes`, including `ahm index` after hand edits to research notes and ExecPlans.
   Evidence: `task create/status/dep/comment/migrate/work`, the ADR commands, install, and `ahm index` all end in `writeIndexes`, so a single snapshot hook there covers task mutations and the documented hand-edit-then-index flow for research and ExecPlan records.
 
@@ -180,7 +180,7 @@ Inspect the current decision and plan:
 
     ahm adr show 013
     ahm task show 138
-    sed -n '1,260p' .agents/exec-plans/active/138-ref-backed-workflow-records.md
+    sed -n '1,260p' .agents/exec-plans/completed/138-ref-backed-workflow-records.md
 
 When ADR 013 is ready, accept it:
 

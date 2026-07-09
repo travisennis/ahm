@@ -152,7 +152,7 @@ team task creation becomes a supported target.
   `.agents/.research/topics/records-storage-via-git-refs.md`
 - Implementation tracker: task 138.
 - Execution plan:
-  `.agents/exec-plans/active/138-ref-backed-workflow-records.md`
+  `.agents/exec-plans/completed/138-ref-backed-workflow-records.md`
 - GitHub smoke test on 2026-06-30 confirmed that GitHub accepts
   `refs/ahm/records`, normal clone does not fetch that namespace, explicit
   fetch works, GitHub's refs API lists the ref, and deleting a probe custom ref
