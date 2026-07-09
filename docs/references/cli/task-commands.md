@@ -445,10 +445,10 @@ Supported agents:
 
 | Agent | Executable | Invocation | Sessions | Review | Completion | Commit |
 | ----- | ---------- | ---------- | -------- | ------ | ---------- | ------ |
-| `cake` | `cake` | `cake --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
-| `codex` | `codex` | `codex exec --dangerously-bypass-approvals-and-sandbox --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
-| `cursor` | `cursor-agent` | `cursor-agent -p --output-format stream-json --trust <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
-| `claude` | `claude` | `claude -p --verbose --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `cake` | `cake` | `cake [--model <name>] --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `codex` | `codex` | `codex exec [--model <name>] --dangerously-bypass-approvals-and-sandbox --json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `cursor` | `cursor-agent` | `cursor-agent -p [--model <name>] --output-format stream-json --trust <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
+| `claude` | `claude` | `claude -p [--model <name>] --verbose --output-format stream-json <prompt>` | Full orchestration | Full orchestration | Full orchestration | Full orchestration |
 
 Agents marked **Full orchestration** for Sessions support session capture and
 resume. When such an agent is used, `ahm` requests structured output, captures
@@ -464,8 +464,8 @@ invocation. Review runs by default after the work session. `ahm` runs the reposi
 review workflow (`.agents/skills/preflight/SKILL.md`) against the current
 uncommitted changes, using each agent's normal execution path:
 
-- `cake`: `--skills preflight --output-format stream-json`
-- `codex`: `codex exec --dangerously-bypass-approvals-and-sandbox --json`
+- `cake`: `cake [--model <name>] --skills preflight --output-format stream-json`
+- `codex`: `codex exec [--model <name>] --dangerously-bypass-approvals-and-sandbox --json`
   with the preflight prompt
 - `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`
   with the preflight prompt
@@ -539,6 +539,11 @@ initial work session or a lengthy review.
 Useful flags:
 
 - `--agent <cake|claude|codex|cursor>`: selects the external coding-agent CLI.
+- `--model <name>`: model override for the selected agent. Passes the model to
+  the agent via each provider's `--model <name>` CLI flag. Supported by all
+  agents (cake, claude, codex, cursor). Affects the initial work session and
+  review session; resume and commit handoff reuse the existing session which
+  already has the model set.
 - `--timeout <duration>`: maximum time for each phase before timeout, in Go
   duration syntax (e.g., `2h`, `45m`, `90s`). Must be greater than zero.
   Default is `30m`.
@@ -546,7 +551,8 @@ Useful flags:
 - `--no-commit`: skip the commit handoff (commit runs by default).
 - `--no-project-prompt`: skip inclusion of the project instructions file for
   this single run.
-- `--dry-run`: previews the selected executable, arguments, prompt, task ID, agent, and
+- `--dry-run`: previews the selected executable, arguments, prompt, model,
+  task ID, agent, and
   requested orchestration flags without rewriting the task or invoking the
   external CLI.
 
@@ -569,10 +575,13 @@ ahm task work 001 --agent codex
 ahm task work 001 --agent cursor --no-review
 ahm task work 001 --agent claude --no-commit
 ahm task work 001 --timeout 2h
+ahm task work 001 --model o4-mini
+ahm task work 001 --agent codex --model o3-mini
 ahm task work 001 --no-review
 ahm task work 001 --no-commit
 ahm task work 001 --no-project-prompt
 ahm --dry-run task work 001 --agent cursor
+ahm --dry-run task work 001 --model claude-sonnet-4
 ```
 
 ### `task complete <id>`

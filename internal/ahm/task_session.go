@@ -14,7 +14,7 @@ import (
 // user's terminal. The session ID is kept in memory for the current
 // orchestration run and is available for later review and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string, timeout time.Duration) error {
+func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string, timeout time.Duration, model string) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
@@ -40,7 +40,7 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 	fmt.Fprintf(a.err, "%s session started: %s\n", agent.name, truncatedID(sessionID, 8))
 
 	if review {
-		if err := a.runReview(agent, executable, sessionID, timeout); err != nil {
+		if err := a.runReview(agent, executable, sessionID, timeout, model); err != nil {
 			return err
 		}
 	}
@@ -62,10 +62,10 @@ const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted
 // capability, then feeds actionable feedback back into the original work
 // session. If the review produces no feedback, the feedback-resume step is
 // skipped. If the review command itself fails, the error is surfaced.
-func (a *app) runReview(agent taskWorkAgent, executable, sessionID string, timeout time.Duration) error {
+func (a *app) runReview(agent taskWorkAgent, executable, sessionID string, timeout time.Duration, model string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt)
+	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt, model)
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)

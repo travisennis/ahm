@@ -194,6 +194,8 @@ Examples:
   ahm task work 001 --agent codex
   ahm task work 001 --agent cursor --no-review
   ahm task work 001 --timeout 2h
+  ahm task work 001 --model o4-mini
+  ahm task work 001 --agent codex --model o3-mini
   ahm --dry-run task work 001 --agent cake`,
 		Args: exactArgs(1, "task work requires an id\n  ahm task work <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -208,6 +210,7 @@ Examples:
 		},
 	}
 	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, claude, codex, or cursor")
+	work.Flags().StringVar(&workArgs.model, "model", "", "Model override for the selected agent")
 	work.Flags().BoolVar(&workArgs.noReview, "no-review", false, "Skip review orchestration (review runs by default)")
 	work.Flags().BoolVar(&workArgs.noCommit, "no-commit", false, "Skip commit handoff (commit runs by default)")
 	work.Flags().BoolVar(&workArgs.noProjectPrompt, "no-project-prompt", false, "Skip project instructions file inclusion")

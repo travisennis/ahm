@@ -12,10 +12,10 @@ const codexBypassApprovalsAndSandboxFlag = "--dangerously-bypass-approvals-and-s
 type taskWorkAgent struct {
 	name                string
 	executable          string
-	args                func(string) []string
+	args                func(string, string) []string // prompt, model
 	resumeArgs          func(string, string) []string // sessionID, prompt
 	parseSessionID      func([]byte) (string, error)
-	reviewArgs          func(string) []string // prompt
+	reviewArgs          func(string, string) []string // prompt, model
 	parseReviewFeedback func([]byte) (string, error)
 }
 
@@ -44,13 +44,21 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 		return taskWorkAgent{
 			name:       "cake",
 			executable: "cake",
-			args: func(prompt string) []string {
-				return []string{"--output-format", "stream-json", prompt}
+			args: func(prompt, model string) []string {
+				base := []string{"--output-format", "stream-json"}
+				if model != "" {
+					base = append(base, "--model", model)
+				}
+				return append(base, prompt)
 			},
 			resumeArgs:     cakeResumeArgs,
 			parseSessionID: parseCakeSessionID,
-			reviewArgs: func(prompt string) []string {
-				return []string{"--skills", "preflight", "--output-format", "stream-json", prompt}
+			reviewArgs: func(prompt, model string) []string {
+				base := []string{"--skills", "preflight", "--output-format", "stream-json"}
+				if model != "" {
+					base = append(base, "--model", model)
+				}
+				return append(base, prompt)
 			},
 			parseReviewFeedback: parseCakeReviewFeedback,
 		}, nil
@@ -58,13 +66,23 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 		return taskWorkAgent{
 			name:       "codex",
 			executable: "codex",
-			args: func(prompt string) []string {
-				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
+			args: func(prompt, model string) []string {
+				base := []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json"}
+				if model != "" {
+					base = append([]string{"exec", "--model", model, codexBypassApprovalsAndSandboxFlag, "--json"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			resumeArgs:     codexResumeArgs,
 			parseSessionID: parseCodexSessionID,
-			reviewArgs: func(prompt string) []string {
-				return []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json", prompt}
+			reviewArgs: func(prompt, model string) []string {
+				base := []string{"exec", codexBypassApprovalsAndSandboxFlag, "--json"}
+				if model != "" {
+					base = append([]string{"exec", "--model", model, codexBypassApprovalsAndSandboxFlag, "--json"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			parseReviewFeedback: parseCodexReviewFeedback,
 		}, nil
@@ -72,13 +90,23 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 		return taskWorkAgent{
 			name:       "cursor",
 			executable: "cursor-agent",
-			args: func(prompt string) []string {
-				return []string{"-p", "--output-format", "stream-json", "--trust", prompt}
+			args: func(prompt, model string) []string {
+				base := []string{"-p", "--output-format", "stream-json", "--trust"}
+				if model != "" {
+					base = append([]string{"-p", "--model", model, "--output-format", "stream-json", "--trust"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			resumeArgs:     cursorResumeArgs,
 			parseSessionID: parseCursorSessionID,
-			reviewArgs: func(prompt string) []string {
-				return []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust", prompt}
+			reviewArgs: func(prompt, model string) []string {
+				base := []string{"-p", "--output-format", "stream-json", "--mode", "ask", "--trust"}
+				if model != "" {
+					base = append([]string{"-p", "--model", model, "--output-format", "stream-json", "--mode", "ask", "--trust"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			parseReviewFeedback: parseCursorReviewFeedback,
 		}, nil
@@ -86,13 +114,23 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 		return taskWorkAgent{
 			name:       "claude",
 			executable: "claude",
-			args: func(prompt string) []string {
-				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
+			args: func(prompt, model string) []string {
+				base := []string{"-p", "--verbose", "--output-format", "stream-json"}
+				if model != "" {
+					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			resumeArgs:     claudeResumeArgs,
 			parseSessionID: parseClaudeSessionID,
-			reviewArgs: func(prompt string) []string {
-				return []string{"-p", "--verbose", "--output-format", "stream-json", prompt}
+			reviewArgs: func(prompt, model string) []string {
+				base := []string{"-p", "--verbose", "--output-format", "stream-json"}
+				if model != "" {
+					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json"}, prompt)
+					return base
+				}
+				return append(base, prompt)
 			},
 			parseReviewFeedback: parseClaudeReviewFeedback,
 		}, nil

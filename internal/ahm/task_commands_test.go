@@ -2225,6 +2225,121 @@ func TestTaskWorkDryRunPreviewsWithoutMutatingOrInvoking(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
 }
 
+func TestTaskWorkModelFlagInArgs(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Model Task", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	var captured taskWorkCapture
+	stubTaskWorkRunner(t, captured.runner)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "codex", "--model", "o3-mini", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if len(captured.args) != 6 {
+		t.Fatalf("args = %#v, want 6 elements including --model", captured.args)
+	}
+	if captured.args[0] != "exec" || captured.args[1] != "--model" || captured.args[2] != "o3-mini" {
+		t.Errorf("expected exec --model o3-mini at start, got %#v", captured.args)
+	}
+}
+
+func TestTaskWorkModelFlagInDryRun(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Model Dry Run", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Error("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001", "--model", "o4-mini", "--agent", "cake")
+	if code != 0 {
+		t.Errorf("dry-run task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "model: o4-mini", "--model", "o4-mini")
+}
+
+func TestTaskWorkModelWithAllAgents(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		agentFlag  string
+		executable string
+		modelName  string
+		wantPrefix []string
+	}{
+		{name: "cake", agentFlag: "cake", executable: "cake", modelName: "claude-sonnet-4", wantPrefix: []string{"--output-format", "stream-json", "--model", "claude-sonnet-4"}},
+		{name: "codex", agentFlag: "codex", executable: "codex", modelName: "o3-mini", wantPrefix: []string{"exec", "--model", "o3-mini", "--dangerously-bypass-approvals-and-sandbox", "--json"}},
+		{name: "cursor", agentFlag: "cursor", executable: "cursor-agent", modelName: "gpt-4o", wantPrefix: []string{"-p", "--model", "gpt-4o", "--output-format", "stream-json", "--trust"}},
+		{name: "claude", agentFlag: "claude", executable: "claude", modelName: "sonnet", wantPrefix: []string{"-p", "--model", "sonnet", "--verbose", "--output-format", "stream-json"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Model Agent Test", "Pending", "")
+			stubTaskWorkLookPath(t, func(executable string) (string, error) {
+				return "/stub/" + executable, nil
+			})
+			var captured taskWorkCapture
+			stubTaskWorkRunner(t, captured.runner)
+
+			args := []string{"--root", root, "task", "work", "001", "--agent", tt.agentFlag, "--model", tt.modelName, "--no-review", "--no-commit"}
+			stdout, stderr, code := runCLI(t, args...)
+			if code != 0 {
+				t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			}
+			if len(captured.args) != len(tt.wantPrefix)+1 {
+				t.Fatalf("%s args = %#v, want %d args (prefix %#v + prompt)", tt.name, captured.args, len(tt.wantPrefix)+1, tt.wantPrefix)
+			}
+			for i, want := range tt.wantPrefix {
+				if captured.args[i] != want {
+					t.Errorf("%s args[%d] = %q, want %q; full args = %#v", tt.name, i, captured.args[i], want, captured.args)
+				}
+			}
+		})
+	}
+}
+
+func TestTaskWorkReviewArgsWithModel(t *testing.T) {
+	for _, name := range []string{"cake", "codex", "cursor", "claude"} {
+		t.Run(name, func(t *testing.T) {
+			agent, err := parseTaskWorkAgent(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Empty model should not add --model flag.
+			argsNoModel := agent.reviewArgs("Review the changes.", "")
+			for _, arg := range argsNoModel {
+				if arg == "--model" {
+					t.Errorf("%s review args with empty model should not contain --model: %#v", name, argsNoModel)
+				}
+			}
+
+			// Non-empty model should include --model <name> before the prompt.
+			argsWithModel := agent.reviewArgs("Review the changes.", "gpt-4o")
+			found := false
+			for i, arg := range argsWithModel {
+				if arg == "--model" {
+					found = true
+					if i+1 >= len(argsWithModel) || argsWithModel[i+1] != "gpt-4o" {
+						t.Errorf("%s review args with model: expected --model gpt-4o, got %#v", name, argsWithModel)
+					}
+				}
+			}
+			if !found {
+				t.Errorf("%s review args with model should contain --model flag: %#v", name, argsWithModel)
+			}
+			// Last arg should be the prompt.
+			if argsWithModel[len(argsWithModel)-1] != "Review the changes." {
+				t.Errorf("%s review args last arg = %q, want prompt", name, argsWithModel[len(argsWithModel)-1])
+			}
+		})
+	}
+}
+
 func TestTaskWorkCursorDryRunPreviewsStreamJSONArgs(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cursor Dry Run", "Pending", "")
@@ -2389,7 +2504,7 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 			if agent.executable != tt.executable {
 				t.Errorf("executable = %q, want %q", agent.executable, tt.executable)
 			}
-			args := agent.args("prompt")
+			args := agent.args("prompt", "")
 			for i, want := range tt.prefix {
 				if args[i] != want {
 					t.Errorf("args = %#v, want prefix %#v", args, tt.prefix)
@@ -2423,8 +2538,8 @@ func TestTaskWorkSessionCapableAgentsDoNotSuppressSessions(t *testing.T) {
 				t.Error(err)
 			}
 			for phase, args := range map[string][]string{
-				"work":   agent.args("Work on task 001."),
-				"review": agent.reviewArgs("Review the changes."),
+				"work":   agent.args("Work on task 001.", ""),
+				"review": agent.reviewArgs("Review the changes.", ""),
 				"resume": agent.resumeArgs("session-id", "Continue working."),
 			} {
 				for _, arg := range args {
@@ -2975,7 +3090,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			args := agent.reviewArgs("Review the changes.")
+			args := agent.reviewArgs("Review the changes.", "")
 			if len(args) != len(tt.want) {
 				t.Errorf("reviewArgs = %#v, want %#v", args, tt.want)
 			}

@@ -45,6 +45,7 @@ var (
 type taskWorkArgs struct {
 	id              string
 	agent           string
+	model           string
 	noReview        bool
 	noCommit        bool
 	noProjectPrompt bool
@@ -72,7 +73,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if err != nil {
 		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, agent.name, agent.executable)
 	}
-	args := agent.args(prompt)
+	args := agent.args(prompt, parsed.model)
 	review := !parsed.noReview
 	commit := !parsed.noCommit
 	timeout := parsed.timeout
@@ -83,6 +84,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		preview := map[string]any{
 			"task":       task.ID,
 			"agent":      agent.name,
+			"model":      parsed.model,
 			"executable": executable,
 			"args":       args,
 			"prompt":     prompt,
@@ -102,7 +104,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
-	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID, timeout)
+	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID, timeout, parsed.model)
 }
 
 func taskWorkDryRunStatus(status string) string {
