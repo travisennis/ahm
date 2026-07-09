@@ -16,8 +16,15 @@ import (
 	"github.com/travisennis/ahm/internal/templates"
 )
 
+type taskWorkRoleConfig struct {
+	Agent string `json:"agent,omitempty"`
+	Model string `json:"model,omitempty"`
+}
+
 type taskWorkConfig struct {
-	PromptFile string `json:"promptFile,omitempty"`
+	PromptFile     string              `json:"promptFile,omitempty"`
+	Implementation *taskWorkRoleConfig `json:"implementation,omitempty"`
+	Review         *taskWorkRoleConfig `json:"review,omitempty"`
 }
 
 type recordStoreMode string

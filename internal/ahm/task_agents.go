@@ -4,8 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 )
+
+// taskWorkRoles holds resolved agents and models for each task work phase.
+type taskWorkRoles struct {
+	implAgent   taskWorkAgent
+	implModel   string
+	reviewAgent taskWorkAgent
+	reviewModel string
+}
 
 const codexBypassApprovalsAndSandboxFlag = "--dangerously-bypass-approvals-and-sandbox"
 
@@ -19,23 +26,74 @@ type taskWorkAgent struct {
 	parseReviewFeedback func([]byte) (string, error)
 }
 
-func (a *app) selectTaskWorkAgent(flagValue string) (taskWorkAgent, error) {
-	value := strings.TrimSpace(flagValue)
-	if value == "" {
-		meta, err := readMetadata(a.opts.root)
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			// No metadata yet, no default agent configured.
-		case err != nil:
-			a.addWarning("%s, using default agent", metadataCorruptMessage(err))
-		default:
-			value = meta.DefaultWorkAgent
-		}
+// resolveTaskWorkRoles resolves agents and models for the implementation and
+// review phases. Precedence:
+//  1. flagAgent / flagModel (from --agent / --model CLI flags)
+//  2. Role-specific config under taskWork (implementation / review)
+//  3. Legacy default_work_agent
+//  4. Built-in default "cake" for agent, "" (no override) for model
+//
+// Review falls back to the resolved implementation agent when no review-specific
+// agent is configured and no --agent flag is provided. Feedback resume and
+// commit handoff always use the implementation agent because they resume the
+// implementation session.
+func (a *app) resolveTaskWorkRoles(flagAgent, flagModel string) (taskWorkRoles, error) {
+	meta, err := readMetadata(a.opts.root)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		a.addWarning("%s, using default agent", metadataCorruptMessage(err))
 	}
-	if value == "" {
-		value = "cake"
+
+	// Resolve implementation agent.
+	implName := flagAgent
+	if implName == "" && meta.TaskWork != nil && meta.TaskWork.Implementation != nil && meta.TaskWork.Implementation.Agent != "" {
+		implName = meta.TaskWork.Implementation.Agent
 	}
-	return parseTaskWorkAgent(value)
+	if implName == "" {
+		implName = meta.DefaultWorkAgent
+	}
+	if implName == "" {
+		implName = "cake"
+	}
+
+	implAgent, err := parseTaskWorkAgent(implName)
+	if err != nil {
+		return taskWorkRoles{}, err
+	}
+
+	// Resolve implementation model.
+	implModel := flagModel
+	if implModel == "" && meta.TaskWork != nil && meta.TaskWork.Implementation != nil {
+		implModel = meta.TaskWork.Implementation.Model
+	}
+
+	// Resolve review agent: flag wins, then review role config, then fall back
+	// to the resolved implementation agent (which already incorporates legacy
+	// default_work_agent and built-in default).
+	reviewName := flagAgent
+	if reviewName == "" && meta.TaskWork != nil && meta.TaskWork.Review != nil && meta.TaskWork.Review.Agent != "" {
+		reviewName = meta.TaskWork.Review.Agent
+	}
+	if reviewName == "" {
+		reviewName = implName
+	}
+
+	reviewAgent, err := parseTaskWorkAgent(reviewName)
+	if err != nil {
+		return taskWorkRoles{}, err
+	}
+
+	// Resolve review model.
+	reviewModel := flagModel
+	if reviewModel == "" && meta.TaskWork != nil && meta.TaskWork.Review != nil {
+		reviewModel = meta.TaskWork.Review.Model
+	}
+
+	return taskWorkRoles{
+		implAgent:   implAgent,
+		implModel:   implModel,
+		reviewAgent: reviewAgent,
+		reviewModel: reviewModel,
+	}, nil
 }
 
 func parseTaskWorkAgent(value string) (taskWorkAgent, error) {

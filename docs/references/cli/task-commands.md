@@ -503,12 +503,18 @@ changes and tells the agent not to add or force-add gitignored `.ahm/` files.
 pull requests. Commit-message convention is owned by the target project and its
 hooks. Pass `--no-commit` to skip the commit handoff.
 
-Agent selection precedence is:
+Agent and model selection precedence for each phase is:
 
-1. `--agent <cake|claude|codex|cursor>`
-2. `.ahm/config.json` `"default_work_agent": "<agent>"` after migration, or
+1. `--agent` / `--model` CLI flags (apply to all phases).
+2. Role-specific config under `taskWork.implementation` or `taskWork.review`.
+3. `.ahm/config.json` `"default_work_agent": "<agent>"` after migration, or
    legacy `.agents/ahm.json` before migration.
-3. `cake`
+4. Built-in default: `"cake"` for agent, no model override.
+
+When no review-specific config is provided, the review phase uses the same
+agent as the implementation phase (after applying the full fallback chain).
+Feedback-resume and commit handoff always use the implementation agent
+because they resume the implementation session.
 
 The generated prompt includes the resolved task ID and instructs
 the delegated agent to run `ahm context task`, then run `ahm task show <id>`
@@ -552,9 +558,9 @@ Useful flags:
 - `--no-project-prompt`: skip inclusion of the project instructions file for
   this single run.
 - `--dry-run`: previews the selected executable, arguments, prompt, model,
-  task ID, agent, and
-  requested orchestration flags without rewriting the task or invoking the
-  external CLI.
+  task ID, agent, requested orchestration flags, and (when review is enabled)
+  review agent and model, without rewriting the task or invoking the external
+  CLI.
 
 Repository configuration:
 
@@ -562,7 +568,15 @@ Repository configuration:
 {
   "default_work_agent": "codex",
   "taskWork": {
-    "promptFile": ".agents/prompt.md"
+    "promptFile": ".agents/prompt.md",
+    "implementation": {
+      "agent": "codex",
+      "model": "gpt-5-codex"
+    },
+    "review": {
+      "agent": "claude",
+      "model": "sonnet"
+    }
   }
 }
 ```

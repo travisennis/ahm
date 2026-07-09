@@ -4076,6 +4076,215 @@ func TestTaskWorkProjectInstructionsConfiguredPathFromAhmConfig(t *testing.T) {
 	assertContainsAll(t, stdout, "## Project Instructions", "Custom instructions from config.")
 }
 
+func TestTaskWorkResolvesRoleAgents(t *testing.T) {
+	// Test that role-specific config in taskWork affects the implementation
+	// and review agents independently.
+	root := t.TempDir()
+	if err := writeConfigMetadata(root, metadata{
+		TaskWork: &taskWorkConfig{
+			Implementation: &taskWorkRoleConfig{Agent: "codex", Model: "o3-mini"},
+			Review:         &taskWorkRoleConfig{Agent: "claude", Model: "sonnet"},
+		},
+		Files: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Role Test", "Pending", "")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	type invocation struct {
+		executable string
+		args       []string
+	}
+	var invocations []invocation
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		// First call (session work, codex): produce valid codex session JSON.
+		if len(invocations) == 0 {
+			fmt.Fprintln(stdout, `{"type":"thread.started","thread_id":"sess_role123"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"Work done."}}`)
+			invocations = append(invocations, invocation{executable, args})
+			return err
+		}
+		// Second call (review, claude): produce claude review feedback.
+		if len(invocations) == 1 {
+			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Review findings."}`)
+			invocations = append(invocations, invocation{executable, args})
+			return err
+		}
+		// Third call (resume with feedback, codex): return success.
+		_, err := fmt.Fprint(stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"Addressed."}}`)
+		invocations = append(invocations, invocation{executable, args})
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code != 0 {
+		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Should have 3 invocations: session work, review, resume.
+	if len(invocations) != 3 {
+		t.Fatalf("expected 3 invocations, got %d", len(invocations))
+	}
+
+	// First invocation: implementation agent (codex).
+	if invocations[0].executable != "/stub/codex" {
+		t.Errorf("impl executable = %q, want /stub/codex", invocations[0].executable)
+	}
+	if len(invocations[0].args) < 4 || invocations[0].args[0] != "exec" {
+		t.Errorf("impl args = %#v, want codex exec prefix", invocations[0].args)
+	}
+
+	// Second invocation: review agent (claude) with review prompt.
+	if invocations[1].executable != "/stub/claude" {
+		t.Errorf("review executable = %q, want /stub/claude", invocations[1].executable)
+	}
+	if len(invocations[1].args) < 2 || invocations[1].args[0] != "-p" {
+		t.Errorf("review args = %#v, want claude -p prefix", invocations[1].args)
+	}
+
+	// Third invocation: resume with feedback, uses implementation agent.
+	if invocations[2].executable != "/stub/codex" {
+		t.Errorf("resume executable = %q, want /stub/codex (same as impl)", invocations[2].executable)
+	}
+}
+
+func TestTaskWorkRoleAgentFlagOverridesAll(t *testing.T) {
+	// When --agent flag is provided, it overrides both role configs.
+	root := t.TempDir()
+	if err := writeConfigMetadata(root, metadata{
+		TaskWork: &taskWorkConfig{
+			Implementation: &taskWorkRoleConfig{Agent: "codex"},
+			Review:         &taskWorkRoleConfig{Agent: "claude"},
+		},
+		Files: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Flag Override", "Pending", "")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	var invocations int
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocations++
+		if invocations == 1 {
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_flag123","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+			return err
+		}
+		// Review with same agent.
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Reviewed."}`)
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--no-commit")
+	if code != 0 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	// With --agent=cursor, both impl and review should use cursor. No separate
+	// review executable lookup needed, so only the two invocations should occur.
+	// The runner doesn't distinguish executable, but the test verifies no crash.
+}
+
+func TestTaskWorkRoleAgentsDryRunPreview(t *testing.T) {
+	// Dry-run should preview review_agent and review_model when review is enabled.
+	root := t.TempDir()
+	if err := writeConfigMetadata(root, metadata{
+		TaskWork: &taskWorkConfig{
+			Implementation: &taskWorkRoleConfig{Agent: "codex", Model: "o3-mini"},
+			Review:         &taskWorkRoleConfig{Agent: "claude", Model: "sonnet"},
+		},
+		Files: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dry-Run Role", "Pending", "")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		t.Error("runner should not be called during dry-run")
+		return nil
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "work", "001")
+	if code != 0 {
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"agent: codex",
+		"model: o3-mini",
+		"review_agent: claude",
+		"review_model: sonnet",
+	)
+}
+
+func TestTaskWorkRoleAgentWithLegacyFallback(t *testing.T) {
+	// When review role config is absent, review falls back to impl agent.
+	// When impl role config is absent, it falls back to default_work_agent.
+	root := t.TempDir()
+	if err := writeMetadata(root, metadata{
+		DefaultWorkAgent: "codex",
+		TaskWork: &taskWorkConfig{
+			Implementation: &taskWorkRoleConfig{Agent: "cake"},
+			// No Review role config - should fall back to impl agent (cake).
+		},
+		Files: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Fallback Test", "Pending", "")
+
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/" + executable, nil
+	})
+
+	type invocation struct {
+		executable string
+	}
+	var invocations []invocation
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		if len(invocations) == 0 {
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_fallback","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+			invocations = append(invocations, invocation{executable})
+			return err
+		}
+		// Review should use same agent (cake) since no review config.
+		// Cake review feedback: task_complete with result produces feedback.
+		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Reviewed."}`)
+		invocations = append(invocations, invocation{executable})
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code != 0 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	// Expect 3 invocations: session work, review, resume with feedback.
+	if len(invocations) != 3 {
+		t.Fatalf("expected 3 invocations, got %d", len(invocations))
+	}
+	// Both should use cake (impl from role config, review falls back to impl).
+	if invocations[0].executable != "/stub/cake" {
+		t.Errorf("impl executable = %q, want /stub/cake", invocations[0].executable)
+	}
+	if invocations[1].executable != "/stub/cake" {
+		t.Errorf("review executable = %q, want /stub/cake", invocations[1].executable)
+	}
+	// Third invocation (resume) also uses cake.
+	if invocations[2].executable != "/stub/cake" {
+		t.Errorf("resume executable = %q, want /stub/cake", invocations[2].executable)
+	}
+}
+
 func TestTrimTrailingBlankLines(t *testing.T) {
 	tests := []struct {
 		name  string

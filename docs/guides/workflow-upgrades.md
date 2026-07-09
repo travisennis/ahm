@@ -90,6 +90,31 @@ migrated states. Rollback steps are documented in the
   `git rm -r --cached` command is run and committed.
 - Repositories that do not run `ahm records migrate` are unaffected.
 
+## Role-Specific Agent/Model Configuration (2026-07-09)
+
+`ahm task work` now supports role-specific agent and model defaults under the
+`taskWork` block in both `.ahm/config.json` and legacy `.agents/ahm.json`.
+
+The `implementation` and `review` objects each accept `agent` and `model`
+fields. Review falls back to the implementation agent when no review-specific
+config is set. Feedback-resume and commit handoff always use the implementation
+agent because they resume the implementation session.
+
+See the [workflow specification](../references/workflow-spec.md) and
+[task commands reference](../references/cli/task-commands.md) for the full
+precedence rules and examples.
+
+### Impact
+
+- Projects can now configure different agents and models for implementation vs.
+  review without relying on CLI flags.
+- Existing `default_work_agent` continues to work and serves as the fallback
+  when no role-specific config is present.
+- `ahm --dry-run task work <id>` includes `review_agent` and `review_model`
+  fields when review will run.
+- No template version change; existing metadata formats are fully backward
+  compatible.
+
 ## Active-Mode Agent Guidance Rendering (2026-07-09)
 
 `internal/templates.Version` advanced from `0.4.5` to `0.4.6`.

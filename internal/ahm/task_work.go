@@ -64,27 +64,40 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if err := a.ensureTaskDependenciesComplete(task); err != nil {
 		return err
 	}
-	agent, err := a.selectTaskWorkAgent(parsed.agent)
+
+	// Resolve role-specific agents and models.
+	roles, err := a.resolveTaskWorkRoles(parsed.agent, parsed.model)
 	if err != nil {
 		return err
 	}
+
 	prompt := a.buildTaskWorkPrompt(task, parsed.noProjectPrompt)
-	executable, err := taskWorkLookPath(agent.executable)
+	executable, err := taskWorkLookPath(roles.implAgent.executable)
 	if err != nil {
-		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, agent.name, agent.executable)
+		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, roles.implAgent.name, roles.implAgent.executable)
 	}
-	args := agent.args(prompt, parsed.model)
+	args := roles.implAgent.args(prompt, roles.implModel)
 	review := !parsed.noReview
 	commit := !parsed.noCommit
 	timeout := parsed.timeout
 	if timeout <= 0 {
 		timeout = taskWorkDefaultTimeout
 	}
+
+	// Validate review executable when review will run.
+	var reviewExecutable string
+	if review && roles.reviewAgent.executable != roles.implAgent.executable {
+		reviewExecutable, err = taskWorkLookPath(roles.reviewAgent.executable)
+		if err != nil {
+			return fmt.Errorf("cannot run review for task %s with %s: executable %q not found on PATH", task.ID, roles.reviewAgent.name, roles.reviewAgent.executable)
+		}
+	}
+
 	if a.opts.dryRun {
 		preview := map[string]any{
 			"task":       task.ID,
-			"agent":      agent.name,
-			"model":      parsed.model,
+			"agent":      roles.implAgent.name,
+			"model":      roles.implModel,
 			"executable": executable,
 			"args":       args,
 			"prompt":     prompt,
@@ -96,6 +109,8 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		}
 		if review {
 			preview["review"] = true
+			preview["review_agent"] = roles.reviewAgent.name
+			preview["review_model"] = roles.reviewModel
 		}
 		return a.emit(preview)
 	}
@@ -104,7 +119,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
-	return a.taskWorkWithSession(agent, executable, args, review, commit, task.ID, timeout, parsed.model)
+	return a.taskWorkWithSession(roles, executable, args, reviewExecutable, review, commit, task.ID, timeout)
 }
 
 func taskWorkDryRunStatus(status string) string {

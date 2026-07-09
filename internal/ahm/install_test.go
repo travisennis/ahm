@@ -191,6 +191,117 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 	)
 }
 
+func TestTaskWorkRoleConfigRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "0.2.0",
+  "default_work_agent": "codex",
+  "taskWork": {
+    "promptFile": ".agents/prompt.md",
+    "implementation": {
+      "agent": "codex",
+      "model": "gpt-5-codex"
+    },
+    "review": {
+      "agent": "claude",
+      "model": "sonnet"
+    }
+  },
+  "files": {}
+}`)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.DefaultWorkAgent != "codex" {
+		t.Errorf("DefaultWorkAgent = %q, want codex", meta.DefaultWorkAgent)
+	}
+	if meta.TaskWork == nil {
+		t.Fatal("TaskWork is nil")
+	}
+	if meta.TaskWork.PromptFile != ".agents/prompt.md" {
+		t.Errorf("PromptFile = %q, want .agents/prompt.md", meta.TaskWork.PromptFile)
+	}
+	if meta.TaskWork.Implementation == nil {
+		t.Fatal("TaskWork.Implementation is nil")
+	}
+	if meta.TaskWork.Implementation.Agent != "codex" {
+		t.Errorf("Implementation.Agent = %q, want codex", meta.TaskWork.Implementation.Agent)
+	}
+	if meta.TaskWork.Implementation.Model != "gpt-5-codex" {
+		t.Errorf("Implementation.Model = %q, want gpt-5-codex", meta.TaskWork.Implementation.Model)
+	}
+	if meta.TaskWork.Review == nil {
+		t.Fatal("TaskWork.Review is nil")
+	}
+	if meta.TaskWork.Review.Agent != "claude" {
+		t.Errorf("Review.Agent = %q, want claude", meta.TaskWork.Review.Agent)
+	}
+	if meta.TaskWork.Review.Model != "sonnet" {
+		t.Errorf("Review.Model = %q, want sonnet", meta.TaskWork.Review.Model)
+	}
+
+	// Round-trip: write back and verify.
+	meta.DefaultWorkAgent = "cursor"
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	assertContainsAll(t, got,
+		`"default_work_agent": "cursor"`,
+		`"implementation":`,
+		`"agent": "codex"`,
+		`"model": "gpt-5-codex"`,
+		`"review":`,
+		`"agent": "claude"`,
+		`"model": "sonnet"`,
+		`"promptFile": ".agents/prompt.md"`,
+	)
+}
+
+func TestTaskWorkRoleConfigRoundTripPreservesUnknownFields(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "0.2.0",
+  "default_work_agent": "codex",
+  "taskWork": {
+    "promptFile": ".agents/prompt.md",
+    "implementation": {
+      "agent": "codex",
+      "model": "gpt-5-codex"
+    },
+    "review": {
+      "agent": "claude"
+    }
+  },
+  "future_field": "preserved",
+  "files": {}
+}`)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.TaskWork == nil || meta.TaskWork.Implementation == nil {
+		t.Fatal("TaskWork.Implementation is nil after read")
+	}
+
+	// Write back and verify unknown top-level field is preserved.
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	assertContainsAll(t, got,
+		`"future_field": "preserved"`,
+		`"implementation":`,
+		`"agent": "codex"`,
+		`"model": "gpt-5-codex"`,
+	)
+	assertContainsAll(t, got, `"review":`)
+}
+
 func TestRecordsStorageDefaults(t *testing.T) {
 	meta := metadata{}
 	storage := meta.recordsStorage()

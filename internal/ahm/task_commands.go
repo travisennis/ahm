@@ -189,6 +189,17 @@ Examples:
 		Short: "Hand a task to a coding-agent CLI",
 		Long: `Hand a task to a coding-agent CLI for implementation.
 
+The implementation and review phases each resolve their agent and model from
+the following precedence:
+  1. --agent / --model CLI flags (apply to all phases)
+  2. Role-specific config under "taskWork" in ahm config
+  3. Legacy default_work_agent
+  4. Built-in default: "cake"
+
+When no review-specific agent is configured, review uses the same agent as
+implementation. Feedback-resume and commit handoff always use the
+implementation agent because they resume the implementation session.
+
 Examples:
   ahm task work 001
   ahm task work 001 --agent codex

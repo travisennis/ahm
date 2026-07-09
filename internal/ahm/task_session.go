@@ -14,38 +14,49 @@ import (
 // user's terminal. The session ID is kept in memory for the current
 // orchestration run and is available for later review and commit
 // handoff steps.
-func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args []string, review bool, commit bool, taskID string, timeout time.Duration, model string) error {
+//
+// roles carries the resolved agents and models for each phase.
+// executable and args are already built for the implementation agent.
+// reviewExecutable is empty when the review agent is the same as the
+// implementation agent (no separate PATH lookup needed).
+func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args []string, reviewExecutable string, review bool, commit bool, taskID string, timeout time.Duration) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
 	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, args, a.in, out, a.err); err != nil {
 		return err
 	}
-	sessionID, parseErr := agent.parseSessionID(stdoutBuf.Bytes())
+	sessionID, parseErr := roles.implAgent.parseSessionID(stdoutBuf.Bytes())
 	if parseErr != nil {
 		if commit {
-			return fmt.Errorf("cannot run commit handoff: could not capture session ID from %s output: %w", agent.name, parseErr)
+			return fmt.Errorf("cannot run commit handoff: could not capture session ID from %s output: %w", roles.implAgent.name, parseErr)
 		}
-		a.addWarning("could not capture session ID from %s output: %v", agent.name, parseErr)
+		a.addWarning("could not capture session ID from %s output: %v", roles.implAgent.name, parseErr)
 		return nil
 	}
 	if sessionID == "" {
 		if commit {
-			return fmt.Errorf("cannot run commit handoff: no session ID returned by %s", agent.name)
+			return fmt.Errorf("cannot run commit handoff: no session ID returned by %s", roles.implAgent.name)
 		}
-		a.addWarning("no session ID returned by %s", agent.name)
+		a.addWarning("no session ID returned by %s", roles.implAgent.name)
 		return nil
 	}
 
-	fmt.Fprintf(a.err, "%s session started: %s\n", agent.name, truncatedID(sessionID, 8))
+	fmt.Fprintf(a.err, "%s session started: %s\n", roles.implAgent.name, truncatedID(sessionID, 8))
 
 	if review {
-		if err := a.runReview(agent, executable, sessionID, timeout, model); err != nil {
+		revExec := reviewExecutable
+		if revExec == "" {
+			revExec = executable
+		}
+		// Pass implAgent and implExecutable for the feedback-resume step so
+		// runReview resumes the implementation session (not the review session).
+		if err := a.runReview(roles.reviewAgent, revExec, roles.implAgent, executable, sessionID, timeout, roles.reviewModel); err != nil {
 			return err
 		}
 	}
 	if commit {
-		return a.runCommit(agent, executable, sessionID, taskID, timeout)
+		return a.runCommit(roles.implAgent, executable, sessionID, taskID, timeout)
 	}
 	return nil
 }
@@ -58,25 +69,27 @@ func (a *app) taskWorkWithSession(agent taskWorkAgent, executable string, args [
 // TestCaptureScriptUsesReviewPrompt keeps the two in sync.
 const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted changes."
 
-// runReview runs an independent review pass using the agent's review
+// runReview runs an independent review pass using the reviewAgent's review
 // capability, then feeds actionable feedback back into the original work
-// session. If the review produces no feedback, the feedback-resume step is
-// skipped. If the review command itself fails, the error is surfaced.
-func (a *app) runReview(agent taskWorkAgent, executable, sessionID string, timeout time.Duration, model string) error {
+// session. The feedback-resume step uses the implAgent (and implExecutable)
+// because it resumes the implementation session, not the review session.
+// If the review produces no feedback, the feedback-resume step is skipped.
+// If the review command itself fails, the error is surfaced.
+func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, implAgent taskWorkAgent, implExecutable string, sessionID string, timeout time.Duration, reviewModel string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewArgs := agent.reviewArgs(taskWorkReviewPrompt, model)
+	reviewArgs := reviewAgent.reviewArgs(taskWorkReviewPrompt, reviewModel)
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
 
-	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, reviewArgs, nil, reviewOut, a.err); err != nil {
+	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, reviewExecutable, reviewArgs, nil, reviewOut, a.err); err != nil {
 		return fmt.Errorf("review failed: %w", err)
 	}
 
-	feedback, parseErr := agent.parseReviewFeedback(reviewBuf.Bytes())
+	feedback, parseErr := reviewAgent.parseReviewFeedback(reviewBuf.Bytes())
 	if parseErr != nil {
-		a.addWarning("could not parse review feedback from %s output: %v", agent.name, parseErr)
+		a.addWarning("could not parse review feedback from %s output: %v", reviewAgent.name, parseErr)
 		return nil
 	}
 
@@ -88,8 +101,9 @@ func (a *app) runReview(agent taskWorkAgent, executable, sessionID string, timeo
 
 	fmt.Fprintf(a.err, "Review produced feedback, applying to session %s...\n", truncatedID(sessionID, 8))
 	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
-	resumeArgs := agent.resumeArgs(sessionID, resumePrompt)
-	return taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, resumeArgs, a.in, a.out, a.err)
+	// Resume the implementation session, not the review session.
+	resumeArgs := implAgent.resumeArgs(sessionID, resumePrompt)
+	return taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, implExecutable, resumeArgs, a.in, a.out, a.err)
 }
 
 // runCommit resumes the agent session with a commit handoff prompt. The

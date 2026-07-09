@@ -109,7 +109,15 @@ Example:
   "strict_acceptance": true,
   "default_work_agent": "codex",
   "taskWork": {
-    "promptFile": ".agents/prompt.md"
+    "promptFile": ".agents/prompt.md",
+    "implementation": {
+      "agent": "codex",
+      "model": "gpt-5-codex"
+    },
+    "review": {
+      "agent": "claude",
+      "model": "sonnet"
+    }
   },
   "store_mode": "ref",
   "records_ref": "refs/ahm/records",
@@ -139,11 +147,34 @@ The optional `default_work_agent` string selects the agent used by
 flag nor metadata setting is present.
 
 The optional `taskWork` block configures how `ahm task work` delegates work to
-an external agent. The `promptFile` field sets the path (relative to the
-repository root) of a Markdown file whose content is appended to the built work
-prompt under a `## Project Instructions` heading. Defaults to
-`.agents/prompt.md`. A missing or unreadable file is silently ignored;
-`ahm` never creates, templates, or upgrades this file.
+an external agent. It may contain the following fields:
+
+- **`promptFile`** (string): Path (relative to the repository root) of a
+  Markdown file whose content is appended to the built work prompt under a
+  `## Project Instructions` heading. Defaults to `.agents/prompt.md`. A missing
+  or unreadable file is silently ignored; `ahm` never creates, templates, or
+  upgrades this file.
+
+- **`implementation`** (object, optional): Role-specific defaults for the
+  implementation work phase. Fields:
+    - **`agent`** (string): Agent for this phase (`cake`, `claude`, `codex`,
+      or `cursor`).
+    - **`model`** (string): Model override for this phase (passed via the
+      agent's `--model` flag).
+
+- **`review`** (object, optional): Role-specific defaults for the independent
+  review phase. Same fields as `implementation`. When omitted, review uses the
+  same agent as `implementation` (after applying the full fallback chain).
+
+Agent/model selection precedence for each phase:
+
+1. `--agent` / `--model` CLI flags (apply to all phases).
+2. Role-specific config under `taskWork`.
+3. Legacy `default_work_agent`.
+4. Built-in default: `"cake"` for agent, no model override.
+
+Feedback-resume and commit handoff always use the implementation agent
+because they resume the implementation session.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
 must be non-empty; `--force` does not bypass this requirement. Cancellation
