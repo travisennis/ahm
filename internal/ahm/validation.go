@@ -90,6 +90,25 @@ func containsScope(scopes []string, target string) bool {
 	return false
 }
 
+// emitPostMutationFindings runs workflow-scope validation after a successful
+// non-dry-run mutation and emits findings as warnings. It uses only the
+// workflow scope so that markdown-link false positives do not drown out core
+// workflow drift. The validation runs on every writeIndexes call, which
+// covers task create, lifecycle commands, dep updates, comments, ADR lifecycle
+// commands, and explicit ahm index.
+func (a *app) emitPostMutationFindings() {
+	if a.opts.dryRun {
+		return
+	}
+	report, _ := validateWorkflowScoped(a.opts.root, []string{CheckScopeWorkflow})
+	for _, finding := range report.Errors {
+		a.addWarning("%s", finding.Message)
+	}
+	for _, finding := range report.Warnings {
+		a.addWarning("%s", finding.Message)
+	}
+}
+
 func validateManagedFiles(root string, report *validationReport) []Task {
 	meta, metaErr := readMetadata(root)
 	if metaErr != nil {

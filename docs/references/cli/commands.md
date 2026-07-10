@@ -791,6 +791,11 @@ Behavior on errors:
   task file parse failures.
 - Malformed ADR files are omitted from `docs/adr/index.md` and reported by
   `status` / `doctor`; legacy-format ADRs remain readable until migrated.
+- After regenerating indexes, `ahm` runs workflow-scoped validation and
+  prints any resulting warnings to stderr. This surfaces drift (e.g., a
+  completed task referencing an active ExecPlan) immediately rather than
+  requiring a separate `ahm status` pass. Use `--dry-run` to preview index
+  changes without triggering post-mutation validation.
 
 Example:
 

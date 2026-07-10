@@ -1532,18 +1532,25 @@ func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
 	}
 	got := createErr.String()
 	warnCount := strings.Count(got, "warning:")
-	// With one malformed file, the expected warnings are:
+	// With one malformed file, the expected minimum warnings are:
 	//   1. "some task files could not be parsed and were skipped"
 	//   2. "some task files could not be parsed and were skipped: ..."
-	// The drain+dedupe fix ensures each appears exactly once.
-	if warnCount != 2 {
-		t.Errorf("expected exactly 2 warning lines, got %d:\n%s", warnCount, got)
+	// Plus post-mutation validation adds findings about the missing
+	// front matter fields and unsupported status from the bad.md file
+	// (its front matter has only "invalid : key" and is missing all
+	// required fields).
+	if warnCount < 3 {
+		t.Errorf("expected at least 3 warning lines (2 parse + validation findings), got %d:\n%s", warnCount, got)
 	}
 	if !strings.Contains(got, "some task files could not be parsed and were skipped") {
 		t.Errorf("missing generic parse warning:\n%s", got)
 	}
 	if !strings.Contains(got, "bad.md") {
 		t.Errorf("expected malformed file reference in stderr:\n%s", got)
+	}
+	// Post-mutation validation should report the missing front matter fields.
+	if !strings.Contains(got, "task front matter is missing") {
+		t.Errorf("expected post-mutation validation warning about missing front matter:\n%s", got)
 	}
 	// Verify the created task exists.
 	createdPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")

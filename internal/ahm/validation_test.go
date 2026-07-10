@@ -1147,3 +1147,160 @@ func TestValidateReportsMissingMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestPostMutation_TaskCompleteReferencesActiveExecPlan(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a task with exec_plan referencing an active plan.
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+		"---\n"+
+			"id: 001\n"+
+			"title: Needs ExecPlan Move\n"+
+			"status: Pending\n"+
+			"priority: P2\n"+
+			"effort: S\n"+
+			"labels: type:task\n"+
+			"exec_plan: rollout\n"+
+			"depends_on: -\n"+
+			"---\n"+
+			"# Needs ExecPlan Move\n\n"+
+			"## Summary\n\nDone.\n"+
+			"## Acceptance Notes\n\n- [x] All done.\n")
+
+	// Create an active ExecPlan that the task references.
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Errorf("task complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Verify the warning appears on stderr.
+	assertContainsAll(t, stderr,
+		"completed task 001 references active ExecPlan",
+	)
+}
+
+func TestPostMutation_IndexDetectsExecPlanDrift(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a completed task that still references an active ExecPlan.
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+		"---\n"+
+			"id: 001\n"+
+			"title: Done But Plan Active\n"+
+			"status: Completed\n"+
+			"priority: P2\n"+
+			"effort: S\n"+
+			"labels: type:task\n"+
+			"exec_plan: rollout\n"+
+			"depends_on: -\n"+
+			"---\n"+
+			"# Done But Plan Active\n\n"+
+			"## Summary\n\nDone.\n")
+
+	// Create an active ExecPlan.
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "index")
+	if code != 0 {
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Verify the warning appears on stderr.
+	assertContainsAll(t, stderr,
+		"completed task 001 references active ExecPlan",
+	)
+}
+
+func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a completed task referencing an active ExecPlan (workflow finding).
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+		"---\n"+
+			"id: 001\n"+
+			"title: Done But Plan Active\n"+
+			"status: Completed\n"+
+			"priority: P2\n"+
+			"effort: S\n"+
+			"labels: type:task\n"+
+			"exec_plan: rollout\n"+
+			"depends_on: -\n"+
+			"---\n"+
+			"# Done But Plan Active\n\n"+
+			"## Summary\n\nDone.\n")
+
+	// Create an active ExecPlan.
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+
+	// Create a broken markdown link that would trigger markdown_link_missing.
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"),
+		"# Links\n\n[missing](missing.md)\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "index")
+	if code != 0 {
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Verify the workflow finding appears.
+	assertContainsAll(t, stderr,
+		"completed task 001 references active ExecPlan",
+	)
+	// Verify the markdown_link_missing finding does NOT appear.
+	assertNotContains(t, stderr,
+		"markdown_link_missing",
+	)
+}
+
+func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a completed task that still references an active ExecPlan.
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+		"---\n"+
+			"id: 001\n"+
+			"title: Done But Plan Active\n"+
+			"status: Completed\n"+
+			"priority: P2\n"+
+			"effort: S\n"+
+			"labels: type:task\n"+
+			"exec_plan: rollout\n"+
+			"depends_on: -\n"+
+			"---\n"+
+			"# Done But Plan Active\n\n"+
+			"## Summary\n\nDone.\n")
+
+	// Create an active ExecPlan.
+	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+
+	stdout, stderr, code := runCLI(t, "--dry-run", "--root", root, "index")
+	if code != 0 {
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// The validation should not run during dry-run, so no warnings.
+	if strings.Contains(stderr, "completed task 001") {
+		t.Errorf("dry-run index emitted unexpected warning on stderr:\n%s", stderr)
+	}
+}
