@@ -127,6 +127,23 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 				return fmt.Errorf("cannot complete task %s: acceptance notes are incomplete; use --force to override", task.ID)
 			}
 		}
+
+		// Warn when completing a task linked to an active ExecPlan.
+		if task.ExecPlan != "" && task.ExecPlan != "-" {
+			paths := workflowPathsFor(a.opts.root)
+			planPath, bucket, ok := resolveExecPlanReference(paths, task.ExecPlan)
+			if ok && bucket == "active" {
+				relPlan := relPath(a.opts.root, planPath)
+				msg := fmt.Sprintf("task %s references active ExecPlan %s; move it to the completed ExecPlan bucket and update the task exec_plan field", task.ID, relPlan)
+				if sections, err := parseExecPlanSections(planPath); err == nil {
+					outcomes := sections[normalizedExecPlanSection("Outcomes & Retrospective")]
+					if execPlanSectionHasBody(outcomes) {
+						msg += " (the ExecPlan already has a filled Outcomes & Retrospective section)"
+					}
+				}
+				a.addWarning("%s", msg)
+			}
+		}
 	}
 	if status == "Cancelled" {
 		a.warnCancellationAcceptancePlaceholder(task)

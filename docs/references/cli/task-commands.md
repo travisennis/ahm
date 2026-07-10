@@ -627,12 +627,15 @@ By default, incomplete acceptance notes warn but do not block completion. Set
 a non-zero error. The global `--force` flag overrides strict acceptance and
 completes the task while still printing the warnings.
 
-After the task is moved and indexes are regenerated, `ahm` runs
-workflow-scoped validation and prints any resulting warnings to stderr.
-This catches issues like a completed task that still references an active
-ExecPlan — the warning includes the plan path and directs you to move the
-plan to the completed ExecPlan bucket and update the task's `exec_plan`
-field. Use `ahm status` for the full validation report.
+Before writing the completed task, `ahm` also inspects the task's `exec_plan`
+field. If it resolves to a file in the active ExecPlan bucket, `ahm` prints a
+stderr warning that includes the plan path and directs you to move the plan
+to the completed ExecPlan bucket and update the task's `exec_plan` field.
+If the active ExecPlan already has a filled Outcomes & Retrospective section,
+the warning notes that the plan is ready to be completed. The warning does
+not block completion — use `ahm status` for the full validation report after
+the fact, or move the ExecPlan first and update the `exec_plan` field before
+completing the task to avoid the warning entirely.
 
 Alias:
 
