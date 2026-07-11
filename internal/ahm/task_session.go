@@ -182,17 +182,9 @@ func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID strin
 
 // buildTaskWorkCommitPrompt returns the prompt used to ask the delegated agent
 // to commit completed task work. Commit message policy remains project-owned.
-// Legacy repositories commit task records with the source change; migrated
-// repositories keep gitignored .ahm/ records out of project commits because
-// ahm snapshots them to the records ref instead.
+// Both legacy (.agents/) and migrated (.ahm/) layouts keep source records
+// committed, so the prompt is the same for both layouts.
 func (a *app) buildTaskWorkCommitPrompt(taskID string) string {
-	if workflowPathsFor(a.opts.root).recordsDir == toolRecordsDirName {
-		return fmt.Sprintf(`Commit the completed work for task %s.
-
-Make sure the task is marked completed before committing. Task records are managed by ahm outside the project branch: commit only the project source changes, and do not add or force-add gitignored .ahm/ files.
-
-Do not push or open a pull request.`, taskID)
-	}
 	return fmt.Sprintf(`Commit the completed work for task %s.
 
 Make sure the task is marked completed before committing. Include both task files and project source files in a single commit.

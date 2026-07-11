@@ -186,16 +186,18 @@ func TestStatusInRefModeReadsAhmRecordsAndLegacyExecPlanRefs(t *testing.T) {
 	)
 }
 
-func TestBuildTaskWorkCommitPromptIsModeAware(t *testing.T) {
+func TestBuildTaskWorkCommitPromptIsSameForBothLayouts(t *testing.T) {
+	// Both legacy (.agents/) and migrated (.ahm/) layouts keep source records
+	// committed, so the commit prompt is the same: include both task files and
+	// project source files.
 	legacyRoot := t.TempDir()
 	writeFile(t, filepath.Join(legacyRoot, ".agents", "ahm.json"), `{"version": "test", "strict_acceptance": false, "files": {}}`)
 	legacyApp := app{opts: options{root: legacyRoot}}
 	legacyPrompt := legacyApp.buildTaskWorkCommitPrompt("007")
 	assertContainsAll(t, legacyPrompt, "Include both task files and project source files")
 
-	refRoot := newRefBackedWorkflowRepo(t)
-	refApp := app{opts: options{root: refRoot}}
-	refPrompt := refApp.buildTaskWorkCommitPrompt("007")
-	assertContainsAll(t, refPrompt, "do not add or force-add gitignored .ahm/ files")
-	assertNotContains(t, refPrompt, "Include both task files")
+	migratedRoot := newRefBackedWorkflowRepo(t)
+	migratedApp := app{opts: options{root: migratedRoot}}
+	migratedPrompt := migratedApp.buildTaskWorkCommitPrompt("007")
+	assertContainsAll(t, migratedPrompt, "Include both task files and project source files")
 }

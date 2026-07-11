@@ -2147,7 +2147,7 @@ func TestTaskWorkAgentConfigFromAhmConfig(t *testing.T) {
 	if err := writeConfigMetadata(root, metadata{DefaultWorkAgent: "codex"}); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Configured Task", "In Progress", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Configured Task", "In Progress", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
@@ -4113,7 +4113,7 @@ func TestTaskWorkProjectInstructionsConfiguredPath(t *testing.T) {
 
 func TestTaskWorkProjectInstructionsConfiguredPathFromAhmConfig(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Test", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
 	})
@@ -4146,7 +4146,7 @@ func TestTaskWorkResolvesRoleAgents(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Role Test", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Role Test", "Pending", "")
 
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
@@ -4221,7 +4221,7 @@ func TestTaskWorkRoleAgentFlagOverridesAll(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Flag Override", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Flag Override", "Pending", "")
 
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil
@@ -4261,7 +4261,7 @@ func TestTaskWorkRoleAgentsDryRunPreview(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dry-Run Role", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dry-Run Role", "Pending", "")
 
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
 		return "/stub/" + executable, nil

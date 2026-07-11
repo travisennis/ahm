@@ -34,7 +34,11 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
 
 - [x] (2026-07-11) ADR 015 accepted; ADR 013 marked superseded (task 172a).
 - [x] (2026-07-11) This ExecPlan written and linked from tracker 172 (task 172b).
-- [ ] Milestone 1: decouple record layout from ref storage mode (task 172c).
+- [x] (2026-07-11) Milestone 1: decouple record layout from ref storage mode (task 172c).
+  `workflowPathsFor` selects `.ahm/` based on metadata source (`.ahm/config.json`)
+  rather than `recordsStorage().Mode`. The commit prompt is unified; both layouts
+  produce the same prompt. Six task-work tests fixed to use correct `.ahm/tasks/`
+  paths when config is in `.ahm/config.json`.
 - [ ] Milestone 2: rework `ahm records migrate` to preserve Git tracking (task 172d).
 - [ ] Milestone 3: remove automatic ref sync from `prime` and mutations (task 172e).
 - [ ] Milestone 4: retire ref-backed records commands and sync metadata (task 172f).
