@@ -240,6 +240,18 @@ var obsoleteManagedFiles = []obsoleteManagedFile{
 		Target:    ".agents/skills/deslop/SKILL.md",
 		EmptyDirs: []string{".agents/skills/deslop"},
 	},
+	{
+		Target:    ".agents/skills/preflight/SKILL.md",
+		EmptyDirs: []string{".agents/skills/preflight", ".agents/skills"},
+	},
+	{
+		Target:    ".agents/skills/grooming-backlog/SKILL.md",
+		EmptyDirs: []string{".agents/skills/grooming-backlog", ".agents/skills"},
+	},
+	{
+		Target:    ".agents/skills/finding-improvements/SKILL.md",
+		EmptyDirs: []string{".agents/skills/finding-improvements", ".agents/skills"},
+	},
 }
 
 func (a *app) install(upgrade bool) error {
@@ -410,9 +422,6 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 		paths.researchRel() + "/archived",
 		paths.execPlansRel("active"),
 		paths.execPlansRel("completed"),
-		".agents/skills/preflight",
-		".agents/skills/grooming-backlog",
-		".agents/skills/finding-improvements",
 		"docs/adr",
 	}
 	var created []string

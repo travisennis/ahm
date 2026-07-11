@@ -598,7 +598,6 @@ consumer repositories. `init` does not create or overwrite `AGENTS.md`.
 
 Writes in legacy committed-record repositories:
 
-- Managed skill templates under `.agents/skills/`.
 - `.agents/ahm.json` metadata.
 - Generated index files under `.agents/.tasks/`, `.agents/.research/`,
   `.agents/exec-plans/`, and `docs/adr/index.md`.
@@ -612,7 +611,7 @@ Useful flags:
 
 - `--dry-run`: prints files, directories, metadata, and indexes that would be
   written.
-- `--force`: overwrites existing managed skill templates.
+- `--force`: adopts supported existing managed files where applicable.
 - `--json` or `--plain`: changes the emitted install summary format.
 
 Example:
@@ -628,10 +627,11 @@ Updates managed workflow state for the embedded template version.
 
 `upgrade` compares `.agents/ahm.json` hashes with managed files in the target
 root. Previously managed workflow instruction files that still match their
-recorded managed hash are removed because canonical guidance now comes from
-`ahm context`. Managed skill templates are still updated from embedded
-templates. Locally modified files are preserved and reported as conflicts
-unless `--force` is used. Generated indexes are regenerated.
+recorded managed hash are removed because canonical guidance and procedures now
+come from scoped contexts, delegation commands, and the embedded task-work
+review. This includes the three formerly managed procedure-skill files. Locally
+modified obsolete files are preserved and reported as conflicts unless
+`--force` is used. Generated indexes are regenerated.
 
 The metadata `version` field always advances to the embedded template version,
 even when conflicts exist. This means a partial upgrade (some files conflicted,
@@ -643,9 +643,8 @@ correctly identify already-updated files.
 Useful flags:
 
 - `--dry-run`: previews all supported writes.
-- `--force`: removes locally modified former instruction templates and
-  overwrites locally modified managed skill templates. This does not apply to
-  `AGENTS.md`.
+- `--force`: removes locally modified former instruction and procedure files.
+  This does not apply to `AGENTS.md`.
 - `--json` or `--plain`: changes the emitted upgrade summary format.
 
 Example:

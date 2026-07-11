@@ -17,8 +17,8 @@ when that file exists, `ahm upgrade` reads and writes it instead of the legacy
 - Missing workflow directories, metadata, and generated indexes are created.
 - Legacy instruction files that still match the previous managed hash are
   removed because managed-work references now come from scoped `ahm context`.
-- Managed skill templates under `.agents/skills/` are still installed and
-  upgraded from embedded templates.
+- Former managed procedure skills are removed when their recorded hashes prove
+  ownership; locally edited copies remain conflicts unless `--force` is used.
 - Files with local modifications are preserved and reported as conflicts.
 - `AGENTS.md` is project-owned. `ahm` never creates, overwrites, or removes it,
   even with `--force`.
@@ -39,9 +39,27 @@ conflict until resolved by deleting the local copy, restoring the recorded
 content, or running with `--force`.
 
 Use `--dry-run` to preview changes. Use `--force` only when old local
-instruction files should be removed even though they no longer match their
-recorded managed hash, or when local edits to managed skill templates should
-be replaced.
+instruction or procedure files should be removed even though they no longer
+match their recorded managed hash.
+
+## Command-Based Procedures (2026-07-11)
+
+`internal/templates.Version` advanced from `0.4.6` to `0.5.0` because the
+embedded managed-file set changed. Fresh installs no longer create
+`.agents/skills/`. Grooming is delegated through `ahm task groom`, improvement
+audits through `ahm audit`, and task-work review uses a binary-embedded
+preflight procedure. `ahm onboard` replaces the removed `ahm agents`
+suggestions group.
+
+On upgrade, pristine hash-owned copies of the former preflight,
+grooming-backlog, and finding-improvements procedure files are removed along
+with empty directories. Locally edited copies are reported as conflicts and
+remain in place unless the maintainer previews and runs `ahm --force upgrade`.
+`AGENTS.md` remains project-owned and is never modified.
+
+The dated entries below are release history and describe behavior at those
+versions. References there to installed skills or `ahm agents suggestions` are
+superseded by the `0.5.0` migration above.
 
 ## Ref-Backed Records Migration (2026-07-06)
 

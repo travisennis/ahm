@@ -123,9 +123,7 @@ Example:
   "records_ref": "refs/ahm/records",
   "records_remote": "origin",
   "records_last_sync": "2026-07-06T12:00:00Z",
-  "files": {
-    ".agents/skills/preflight/SKILL.md": "..."
-  }
+  "files": {}
 }
 ```
 
@@ -237,10 +235,10 @@ The ownership categories are:
    removes previously managed copies when metadata proves ownership; locally
    modified copies are preserved as conflicts unless `--force` is used.
 
-3. **Managed skill templates** (`.agents/skills/*/SKILL.md`) — owned by `ahm`.
-   Fresh `ahm init` installs them and `ahm upgrade` updates them from embedded
-   templates when their recorded hashes still match, or when `--force` is used.
-   Locally modified skills are preserved as conflicts unless `--force` is used.
+3. **Obsolete managed instruction/procedure files** — older releases copied
+   workflow guides and procedure skills into repositories. `upgrade` removes
+   pristine hash-owned copies and reports locally edited copies as conflicts;
+   `--force` removes those obsolete copies. Fresh installs create none.
 
 4. **Workflow source records** — task files, research notes, and ExecPlans live
    under `.agents/` in legacy committed-record repositories and under

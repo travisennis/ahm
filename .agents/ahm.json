@@ -1,9 +1,5 @@
 {
-  "version": "0.4.6",
+  "version": "0.5.0",
   "strict_acceptance": false,
-  "files": {
-    ".agents/skills/finding-improvements/SKILL.md": "0a9187b8d2701a302228378de10e33192ff5d84e8337c83246fe4625e4cb3d65",
-    ".agents/skills/grooming-backlog/SKILL.md": "3c9abb09577e6370a9c26b5fbe60d4bf3e9158925b6259cd11b23f7778db5edd",
-    ".agents/skills/preflight/SKILL.md": "1c299fbefee2b7cae7c76db6991ff18d3e62a5d09b9f969b1cc38bdd47873581"
-  }
+  "files": {}
 }

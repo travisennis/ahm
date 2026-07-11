@@ -36,14 +36,15 @@ the guarantee that `ahm` does not patch project source, stage files, move
 When this file conflicts with a specialized workflow doc for that workflow,
 the specialized doc wins.
 
-## Managed Work Intake With `ahm`
+## Managed Work With `ahm`
 
 `ahm` is for understanding and managing higher-order workflow records. It is
 not the implementation route. Use it first when the user asks about a managed
 work item, then return to Workflow Routing and choose the route for the actual
 change.
 
-Use these entry points:
+Run `ahm prime` at session start for live state and routing. Then use these
+entry points:
 
 - Tasks: run `ahm context task`, inspect the relevant task with `ahm task show <id>`
   (which prints the task file contents), and open the task file directly only when
@@ -55,8 +56,12 @@ Use these entry points:
   the current storage mode (`.agents/.research/index.md` or
   `.ahm/research/index.md`) as the map when asked to create, update,
   organize, or use research.
-- General session briefing: run `ahm prime` when asked for broad project
-  context or when no narrower managed-work context applies.
+- Backlog grooming: run `ahm task groom [<id>]`; ahm delegates judgment and
+  applies structured task-record changes.
+- Improvement audit: run `ahm audit`; findings become Open tasks with
+  `source:audit` provenance.
+- Finished task-work review: `ahm task work` carries the binary-embedded
+  preflight procedure; there is no installed skill or separate command.
 
 After `ahm` intake, re-classify the discovered work under Workflow Routing.
 For example, a task about CLI flags still uses the CLI routing docs; a task
@@ -87,8 +92,7 @@ templates. Consult
 For `ahm prime`, the command is a session briefing; scoped commands such as
 `ahm context task`, `ahm context adr`, `ahm context research`,
 `ahm context plan`, and `ahm context docs` should expose the full scoped
-instruction content, not the same briefing with a different label. Do not
-remove or stop installing agent skills unless that is explicitly in scope.
+instruction content, not the same briefing with a different label.
 
 ### External Agent Orchestration
 

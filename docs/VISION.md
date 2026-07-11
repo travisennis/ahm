@@ -94,7 +94,7 @@ A change fits this vision when:
 - it renders text, `--plain`, and `--json` from one structure;
 - it stays inside the git-safety boundary above;
 - its enforcement can run from a hook without judgment calls — anything
-  requiring judgment stays in agent skills or project docs;
+  requiring judgment stays in delegated binary procedures or project docs;
 - advisory output stays advisory: checks that say "may need review" never
   block, or agents learn to game them.
 
@@ -108,13 +108,13 @@ A change fits this vision when:
 ## Current work embodying this
 
 - ADR 013 + tracker 138: ref-backed record storage (state channel).
-- Tracker 156 (+ task 143): `ahm prime`, scoped procedure contexts,
-  `ahm onboard`, skills no longer installed (bootstrap, state, and
-  procedure channels).
+- Tracker 156 (+ task 143): `ahm prime`, delegation commands, the embedded
+  task-work review, and `ahm onboard` (bootstrap, state, and procedure
+  channels).
 - Tracker 160: `ahm docs check`, docMap, hook recipes (enforcement
   channel).
 
-These retire, in one coordinated arc: installed managed skills, unscoped
-`ahm context`, `ahm agents suggestions`, `--check project-docs`, and
-committed-by-default workflow records. Consumers should experience this as
-one migration with one upgrade guide, not five surprises.
+This coordinated arc retires copied procedures and legacy advisory surfaces,
+unscoped `ahm context`, `--check project-docs`, and committed-by-default
+workflow records. Consumers should experience this as one migration with one
+upgrade guide, not five surprises.

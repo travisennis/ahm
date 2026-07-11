@@ -13,7 +13,7 @@ behavior, embedded instructions, and file-format parsing or rendering.
   preservation.
 - ADR constrained-MADR front matter and lifecycle metadata.
 - Generated task, research, ExecPlan, and ADR index contents.
-- Legacy instruction-template removal and upgrade conflict behavior.
+- Legacy instruction/procedure-file removal and upgrade conflict behavior.
 - CRLF normalization and LF output.
 
 ## Required Checks

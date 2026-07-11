@@ -111,7 +111,7 @@ to an external coding-agent CLI.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
 - Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`;
-  managed agent skills remain installed templates under `.agents/skills/`.
+  procedures are binary-owned delegation/review prompts, not installed files.
 - Legacy managed instruction templates are removed by `upgrade` only when
   metadata proves ownership, unless `--force` is used.
 - `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed
