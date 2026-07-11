@@ -165,21 +165,20 @@ func buildGroomPrompt(tasks []Task, labels []taskLabelSummary) string {
 
 func delegatedResultArgs(agent taskWorkAgent, prompt, model, schema string) ([]string, func(), error) {
 	switch agent.name {
-	case "codex":
-		file, err := os.CreateTemp("", "ahm-result-schema-*.json")
+	case "cake":
+		path, cleanup, err := writeDelegatedResultSchema(schema)
 		if err != nil {
-			return nil, func() {}, fmt.Errorf("create groom output schema: %w", err)
+			return nil, cleanup, err
 		}
-		path := file.Name()
-		cleanup := func() { _ = os.Remove(path) }
-		if _, err := file.WriteString(schema); err != nil {
-			_ = file.Close()
-			cleanup()
-			return nil, func() {}, fmt.Errorf("write groom output schema: %w", err)
+		base := []string{"--output-format", "stream-json", "--output-schema", path}
+		if model != "" {
+			base = append(base, "--model", model)
 		}
-		if err := file.Close(); err != nil {
-			cleanup()
-			return nil, func() {}, fmt.Errorf("close groom output schema: %w", err)
+		return append(base, prompt), cleanup, nil
+	case "codex":
+		path, cleanup, err := writeDelegatedResultSchema(schema)
+		if err != nil {
+			return nil, cleanup, err
 		}
 		base := []string{"exec"}
 		if model != "" {
@@ -195,6 +194,25 @@ func delegatedResultArgs(agent taskWorkAgent, prompt, model, schema string) ([]s
 	default:
 		return agent.args(prompt, model), func() {}, nil
 	}
+}
+
+func writeDelegatedResultSchema(schema string) (string, func(), error) {
+	file, err := os.CreateTemp("", "ahm-result-schema-*.json")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("create delegated output schema: %w", err)
+	}
+	path := file.Name()
+	cleanup := func() { _ = os.Remove(path) }
+	if _, err := file.WriteString(schema); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", func() {}, fmt.Errorf("write delegated output schema: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", func() {}, fmt.Errorf("close delegated output schema: %w", err)
+	}
+	return path, cleanup, nil
 }
 
 func parseGroomResult(raw []byte) (groomResult, error) {

@@ -146,11 +146,11 @@ listing functions the task commands use, never by shelling out to `ahm`.
 
 Delegated procedure runs must produce a schema-constrained JSON final answer.
 The schema is supplied per agent through the CLI's native mechanism where one
-exists (`--json-schema` for `claude`, `--output-schema` for `codex exec`;
-`cake` is expected to gain an equivalent), and embedded in the prompt for
-agents without one. `ahm` validates the result against the schema before
-applying it regardless of transport. On invalid or missing output, `ahm`
-writes nothing, preserves the raw output for inspection, and exits nonzero.
+exists (`--json-schema` for `claude`, `--output-schema` for `codex exec` and
+`cake`), and embedded in the prompt for agents without one. `ahm` validates
+the result against the schema before applying it regardless of transport. On
+invalid or missing output, `ahm` writes nothing, preserves the raw output for
+inspection, and exits nonzero.
 
 ### Preflight
 

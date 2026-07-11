@@ -441,6 +441,8 @@ agent may return `accept` or `comment` verdicts plus dependency and label
 corrections. Ahm validates the entire result before writing anything, then
 owns every status, comment, dependency, label, timestamp, and index write.
 The command never cancels a task; cancellation recommendations are comments.
+For Cake, ahm supplies the schema through Cake's native `--output-schema`
+constraint while retaining the `stream-json` transport.
 
 Agent selection follows `task work`: `--agent`, then implementation-role
 configuration, then `default_work_agent`, then cake. `--model` overrides the

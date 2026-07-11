@@ -47,6 +47,62 @@ func TestTaskGroomAppliesValidatedVerdict(t *testing.T) {
 	assertContainsAll(t, string(data), "status: Pending", "depends_on: 002", "Ready after dependency correction.")
 }
 
+func TestTaskGroomAppliesValidatedCakeStreamVerdict(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First", "Open", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/cake", nil })
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, args []string, _ io.Reader, stdout, _ io.Writer) error {
+		assertContainsAll(t, strings.Join(args, " "), "--output-format stream-json", "--output-schema")
+		_, err := fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"{\"verdicts\":[{\"task\":\"001\",\"action\":\"accept\",\"comment\":\"Ready.\",\"add_deps\":[],\"remove_deps\":[],\"labels\":[\"type:task\"]}]}"}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "cake")
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001: accept", "commented")
+	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, string(data), "status: Pending", "Ready.")
+}
+
+func TestDelegatedResultArgsCakeWritesAndCleansSchema(t *testing.T) {
+	agent, err := parseTaskWorkAgent("cake")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, cleanup, err := delegatedResultArgs(agent, "prompt", "model-name", groomResultSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	assertContainsAll(t, joined, "--output-format stream-json", "--output-schema", "--model model-name", "prompt")
+	var schemaPath string
+	for i, arg := range args {
+		if arg == "--output-schema" && i+1 < len(args) {
+			schemaPath = args[i+1]
+			break
+		}
+	}
+	if schemaPath == "" {
+		t.Fatalf("schema path missing from args: %v", args)
+	}
+	data, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != groomResultSchema {
+		t.Fatalf("schema file = %q", data)
+	}
+	cleanup()
+	if _, err := os.Stat(schemaPath); !os.IsNotExist(err) {
+		t.Fatalf("schema file still exists after cleanup: %v", err)
+	}
+}
+
 func TestTaskGroomInvalidOutputMakesNoChanges(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
