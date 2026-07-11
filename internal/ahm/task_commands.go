@@ -183,6 +183,45 @@ Examples:
 	search.Flags().StringSliceVar(&searchLabels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
 	task.AddCommand(search)
 
+	groomArgs := taskGroomArgs{}
+	groom := &cobra.Command{
+		Use:   "groom [<id>]",
+		Short: "Delegate backlog grooming and apply task verdicts",
+		Long: `Delegate backlog grooming to the configured coding agent.
+
+With no id, all Open tasks are groomed and Blocked tasks are reviewed for
+staleness. With an id, exactly that task is groomed. The agent returns a
+schema-constrained verdict; ahm validates the complete result before applying
+acceptance, comments, dependency corrections, or label normalization.
+
+Examples:
+  ahm task groom
+  ahm task groom 157 --agent codex
+  ahm --dry-run task groom`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return usageError("task groom accepts at most one id\n  ahm task groom [<id>]")
+			}
+			if len(args) == 1 {
+				groomArgs.id = args[0]
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.detectRoot(); err != nil {
+				return err
+			}
+			if groomArgs.timeout <= 0 {
+				return usageError("task groom --timeout must be greater than 0 (e.g. 30m, 2h, 90s)\n  ahm task groom --timeout 2h")
+			}
+			return a.taskGroom(groomArgs)
+		},
+	}
+	groom.Flags().StringVar(&groomArgs.agent, "agent", "", "Coding-agent CLI (cake, claude, codex, cursor)")
+	groom.Flags().StringVar(&groomArgs.model, "model", "", "Model override for the delegated agent")
+	groom.Flags().DurationVar(&groomArgs.timeout, "timeout", taskWorkDefaultTimeout, "Maximum delegation duration")
+	task.AddCommand(groom)
+
 	workArgs := taskWorkArgs{}
 	work := &cobra.Command{
 		Use:   "work <id>",

@@ -11,7 +11,8 @@ they need.
 - [Commands](references/cli/commands.md): non-task commands including ADR,
   install, upgrade, status, doctor, and index behavior.
 - [Task commands](references/cli/task-commands.md): task lifecycle,
-  dependencies, delegation, completion, cancellation, and reopening.
+  backlog grooming, dependencies, delegation, completion, cancellation, and
+  reopening.
 - [Task file and validation formats](references/cli/task-file-format.md): task
   Markdown format and validation finding codes.
 

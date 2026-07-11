@@ -59,7 +59,7 @@ valid tasks, and print a warning to stderr.
 still assigns the next available ID, scanning both parsed tasks and task
 files on disk to avoid ID collisions.
 
-Task resolution commands (`task show`, `task work`, `task start`,
+Task resolution commands (`task show`, `task groom`, `task work`, `task start`,
 `task complete`, `task cancel`, `task accept`, `task reopen`, `task comment`,
 `task dep add`, `task dep remove`) also
 skip malformed files during ID resolution. A malformed task cannot be
@@ -426,6 +426,36 @@ ahm task create "Fix index sort order" \
   --labels "type:bug, area:workflow" \
   --description "Tasks list is unsorted; sort by ID ascending." \
   --status Pending
+```
+
+### `task groom [<id>] [flags]`
+
+Delegates backlog grooming to a supported coding-agent CLI and mechanically
+applies its schema-constrained verdicts through ahm. With no ID, the prompt
+contains all Open tasks plus Blocked tasks for a staleness review. With an ID,
+exactly that task is included. Only Open tasks can be accepted.
+
+The prompt includes task state, dependency values, paths for inspection, the
+repository's current label vocabulary, and the result schema. The delegated
+agent may return `accept` or `comment` verdicts plus dependency and label
+corrections. Ahm validates the entire result before writing anything, then
+owns every status, comment, dependency, label, timestamp, and index write.
+The command never cancels a task; cancellation recommendations are comments.
+
+Agent selection follows `task work`: `--agent`, then implementation-role
+configuration, then `default_work_agent`, then cake. `--model` overrides the
+configured implementation model. `--timeout` limits the external process.
+`--dry-run` prints the complete prompt and schema without delegation or writes.
+Text, `--plain`, and `--json` summaries are rendered from the same result.
+
+Invalid, missing, duplicated, or out-of-scope verdicts fail before mutation,
+print the preserved raw agent output for inspection, and exit nonzero.
+
+```bash
+ahm task groom
+ahm task groom 157 --agent codex
+ahm --json task groom
+ahm --dry-run task groom 157
 ```
 
 ### `task work <id> [flags]`
