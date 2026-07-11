@@ -45,14 +45,20 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
   writing to omit ref fields, updated all migration tests and messages, updated
   `newRefBackedWorkflowRepo` to construct state directly, updated `recordsDoctor`
   to handle committed mode, and updated `docs/references/cli/commands.md`.
-- [ ] Milestone 3: remove automatic ref sync from `prime` and mutations (task 172e).
-- [ ] Milestone 4: retire ref-backed records commands and sync metadata (task 172f).
+- [x] Milestone 3: remove automatic ref sync from `prime` and mutations (task 172e).
+- [x] Milestone 4: retire ref-backed records commands and sync metadata (task 172f).
 - [x] (2026-07-11) Milestone 5: committed sources versus ignored generated artifacts (task 172g).
   - Added `ensureWorkflowGitignore()` helper that creates `.ahm/.gitignore` with standard entries when in migrated layout.
   - Added `regenerateIndexes()` helper that writes stale indexes without warning emission, safe for `prime` to use before `buildPrimeReport`.
   - Modified `prime()` to ensure dirs, gitignore, and regenerate indexes before validation and briefing (only when workflow metadata is present).
   - Modified `install()` to ensure `.ahm/.gitignore` exists during init/upgrade in migrated layout.
-- [ ] Milestone 6: migration and repository-topology regression coverage (task 172h).
+- [x] (2026-07-11) Milestone 6: migration and repository-topology regression coverage (task 172h).
+  - Added `newCommittedModeRepoWithMultipleTasks` helper for setting up committed-mode repositories.
+  - Added tests: `TestPrimeInCommittedModeShowsTaskBriefing`, `TestPrimeInCommittedModeRegeneratesStaleIndexes`,
+    `TestPrimeInCommittedModePreservesGitState`, `TestPrimeInCommittedModeDryRunDoesNotWrite`,
+    `TestIndexInCommittedModePreservesGitState`, `TestStatusInCommittedModePreservesGitState`,
+    `TestBranchCheckoutRegeneratesIndexes`, `TestRecordsMigratePreservesAttachments`,
+    `TestRecordsMigrateHandlesDirtySourceRecordContent`, `TestRecordsMigrateWithAttachmentsInDryRun`.
 - [ ] Milestone 7: documentation, rollback guidance, and release notes (task 172i).
 
 ## Surprises & Discoveries

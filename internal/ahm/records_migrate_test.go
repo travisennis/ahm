@@ -252,3 +252,76 @@ func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "ok: false", "legacy record paths remain", "ahm records migrate")
 }
+
+func TestRecordsMigratePreservesAttachments(t *testing.T) {
+	root := newLegacyCommittedRepo(t)
+	// Add non-Markdown attachments and a custom subdirectory.
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "diagram.png"), "PNG\x00content\n")
+	writeFile(t, filepath.Join(root, ".agents", ".research", "inbox", "notes.txt"), "text attachment\n")
+	writeFile(t, filepath.Join(root, ".agents", ".research", "sources", "reference.pdf"), "PDF\n")
+	writeFile(t, filepath.Join(root, ".agents", ".research", "investigations", "subdir", "extra.md"), "# Subdir\n")
+	git(t, root, "add", ".agents/.research")
+	git(t, root, "commit", "-q", "-m", "add research attachments")
+
+	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {
+		t.Fatalf("records migrate failed: %s", stderr)
+	}
+
+	// Non-Markdown attachments moved to .ahm/.
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "topics", "diagram.png"), "PNG")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "inbox", "notes.txt"), "text attachment")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "sources", "reference.pdf"), "PDF")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "investigations", "subdir", "extra.md"), "# Subdir")
+
+	// Legacy paths are gone.
+	for _, gone := range []string{
+		filepath.Join(root, ".agents", ".research", "topics", "diagram.png"),
+		filepath.Join(root, ".agents", ".research", "sources", "reference.pdf"),
+	} {
+		if _, err := os.Stat(gone); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("attachment still exists at %s: %v", gone, err)
+		}
+	}
+
+	// Project-owned content preserved.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "prompt.md"), "project-owned prompt")
+}
+
+func TestRecordsMigrateHandlesDirtySourceRecordContent(t *testing.T) {
+	root := newLegacyCommittedRepo(t)
+	// Dirty a source record — modified but not staged.
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "# Task One Modified\n")
+
+	// Dry-run should still preview the full 4 moves (all records, modified content
+	// is the dirtied one).
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "records", "migrate")
+	if code != 0 {
+		t.Fatalf("dry-run with dirty source failed: %s", stderr)
+	}
+	assertContainsAll(t, stdout, "action: migrate", "moves: 4")
+
+	// Actual migration should move the dirty content.
+	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {
+		t.Fatalf("migrate with dirty source failed: %s", stderr)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task One Modified")
+	// Legacy path gone.
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("dirty source task still in legacy path after migration")
+	}
+}
+
+func TestRecordsMigrateWithAttachmentsInDryRun(t *testing.T) {
+	root := newLegacyCommittedRepo(t)
+	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "image.png"), "image\n")
+	git(t, root, "add", ".agents/.research")
+	git(t, root, "commit", "-q", "-m", "add attachment")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "records", "migrate")
+	if code != 0 {
+		t.Fatalf("dry-run with attachment failed: %s", stderr)
+	}
+	// Dry-run should include the attachment move in the count.
+	assertContainsAll(t, stdout, "moves: 5")
+	assertContainsAll(t, stdout, "image.png")
+}

@@ -62,14 +62,16 @@ func (a *app) prime() error {
 	// which keeps prime usable for bare git checkouts without
 	// creating untracked files.
 	if _, err := readMetadata(a.opts.root); err == nil {
-		if _, err := a.ensureWorkflowDirs(); err != nil {
-			return err
-		}
-		if err := a.ensureWorkflowGitignore(); err != nil {
-			return err
-		}
-		if err := a.regenerateIndexes(); err != nil {
-			return err
+		if !a.opts.dryRun {
+			if _, err := a.ensureWorkflowDirs(); err != nil {
+				return err
+			}
+			if err := a.ensureWorkflowGitignore(); err != nil {
+				return err
+			}
+			if err := a.regenerateIndexes(); err != nil {
+				return err
+			}
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		a.addWarning("unreadable workflow metadata: %v", err)
