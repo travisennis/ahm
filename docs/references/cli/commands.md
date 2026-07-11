@@ -6,6 +6,31 @@ commands, see [task commands](task-commands.md).
 
 ## Commands
 
+### `audit [flags]`
+
+Delegates a strictly read-only codebase improvement survey to a supported
+coding-agent CLI. The prompt includes active task titles and labels for
+deduplication, the current label vocabulary, and known validation findings.
+It requires self-contained findings and forbids source changes and disclosure
+of secret values.
+
+Ahm validates the entire schema-constrained result before writing. It then
+creates one standard task per finding through the task creation machinery,
+with status `Open` and the `source:audit` provenance label. `Open` is the
+acceptance gate; the audit command has no interactive acceptance step.
+
+Agent selection and `--agent`, `--model`, and `--timeout` behavior match
+`task groom`. `--dry-run` prints the prompt and schema without delegation or
+writes. Invalid output is printed for inspection, creates no tasks, and exits
+nonzero. Text, `--plain`, and `--json` summaries share one structured result.
+
+```bash
+ahm audit
+ahm audit --agent codex
+ahm --json audit
+ahm --dry-run audit
+```
+
 ### `help`
 
 Prints built-in help.

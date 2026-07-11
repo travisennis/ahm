@@ -417,6 +417,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 	fmt.Fprintln(w, "- Research notes → `ahm context research`")
 	fmt.Fprintln(w, "- Documentation work → `ahm context docs`")
 	fmt.Fprintln(w, "- Groom the backlog → `ahm task groom`")
+	fmt.Fprintln(w, "- Audit for improvements → `ahm audit`")
 	fmt.Fprintf(w, "- Workflow records: tasks `%s`, research `%s`, ExecPlans `%s`\n", r.Paths.TasksDir, r.Paths.ResearchDir, r.Paths.ExecPlansDir)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).")

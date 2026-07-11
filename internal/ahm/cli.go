@@ -277,6 +277,7 @@ Examples:
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.agentsCommand())
+	root.AddCommand(a.auditCommand())
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.recordsCommand())
 	root.AddCommand(a.taskCommand())

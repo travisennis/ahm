@@ -100,7 +100,7 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	if err != nil {
 		return fmt.Errorf("cannot groom with %s: executable %q not found on PATH", roles.implAgent.name, roles.implAgent.executable)
 	}
-	args, cleanup, err := delegationArgs(roles.implAgent, prompt, roles.implModel, groomResultSchema)
+	args, cleanup, err := delegatedResultArgs(roles.implAgent, prompt, roles.implModel, groomResultSchema)
 	if err != nil {
 		return err
 	}
@@ -163,10 +163,10 @@ func buildGroomPrompt(tasks []Task, labels []taskLabelSummary) string {
 	return b.String()
 }
 
-func delegationArgs(agent taskWorkAgent, prompt, model, schema string) ([]string, func(), error) {
+func delegatedResultArgs(agent taskWorkAgent, prompt, model, schema string) ([]string, func(), error) {
 	switch agent.name {
 	case "codex":
-		file, err := os.CreateTemp("", "ahm-groom-schema-*.json")
+		file, err := os.CreateTemp("", "ahm-result-schema-*.json")
 		if err != nil {
 			return nil, func() {}, fmt.Errorf("create groom output schema: %w", err)
 		}
