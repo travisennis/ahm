@@ -12,9 +12,9 @@ context, and upgrade workflow state when `ahm` ships newer templates.
   delegation to a user-selected external coding-agent CLI.
 - No source-code patching.
 - No implicit git commits, pushes, PRs, or branch operations. Explicit
-  ref-backed records commands may read and write `refs/ahm/*` through Git, but
-  they must not move `HEAD`, create branch commits, stage files, write the
-  project index, or modify project-owned `.agents/` content. `ahm task work
+  records commands may read and write under `.ahm/`, but they must not move
+  `HEAD`, create branch commits, stage files, write the project index, or
+  modify project-owned `.agents/` content. `ahm task work
   <id>` may ask the delegated external agent to commit completed work (commit
   runs by default), but `ahm` does not itself create project commits.
 - No database.
@@ -48,7 +48,7 @@ Commands:
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
 - `onboard`: print the paste-ready `AGENTS.md` bootstrap snippet.
-- `records`: inspect, pull, push, sync, and diagnose ref-backed workflow records.
+- `records`: migrate records to `.ahm/` and diagnose migration state.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
 
@@ -66,12 +66,12 @@ Exit codes:
 ## Workflow State
 
 Workflow state is repo-local. Legacy committed-record repositories keep
-ahm-managed records under `.agents/`. The opt-in ref-backed records migration
-introduced by ADR 013 (`ahm records migrate`) moves ahm-managed state to
+ahm-managed records under `.agents/`. The opt-in records migration
+(`ahm records migrate`) moves ahm-managed state to
 tool-owned `.ahm/` while leaving project-owned agent content under `.agents/`.
 
 Workflow commands are storage-mode aware. In legacy repositories (metadata
-`store_mode` absent or `"committed"`), task, research, ExecPlan, index,
+source `.agents/ahm.json`), task, research, ExecPlan, index,
 validation, and install behavior is unchanged and uses `.agents/` paths. After
 migration, the same commands read and write task records under `.ahm/tasks/`,
 research under `.ahm/research/`, and ExecPlans under `.ahm/exec-plans/`, and
@@ -80,15 +80,11 @@ Task front matter that still references an ExecPlan by its legacy
 `.agents/exec-plans/...` path resolves to the migrated `.ahm/exec-plans/...`
 location.
 
-In ref-backed repositories, supported record mutations (`ahm task` lifecycle
-and metadata commands, and `ahm index` after hand edits to records) also
-refresh the local records ref with a snapshot of the `.ahm/` source records.
-Generated indexes are excluded from those snapshots and remain local-only.
-Snapshots reuse the previous commit when the record tree is unchanged, never
-touch branches, `HEAD`, or the project index, and never contact the network;
-pushing and pulling the records ref stays explicit through `ahm records`
-commands. A failed snapshot degrades to a warning after the record write
-succeeds.
+After migration, supported record mutations (`ahm task` lifecycle
+and metadata commands, and `ahm index` after hand edits to records) write
+source records directly to `.ahm/`. Generated indexes remain local-only
+under `.ahm/`. Record writes never touch branches, `HEAD`, or the project
+index.
 
 `ahm` writes `.agents/ahm.json` with the installed template version, managed
 file hashes for any legacy managed templates, and repository-scoped workflow
@@ -119,19 +115,9 @@ Example:
       "model": "sonnet"
     }
   },
-  "store_mode": "ref",
-  "records_ref": "refs/ahm/records",
-  "records_remote": "origin",
-  "records_last_sync": "2026-07-06T12:00:00Z",
   "files": {}
 }
 ```
-
-The optional record-storage fields configure the ADR 013 storage mode. Missing
-`store_mode` means the current committed-record behavior. The supported
-internal storage mode values are `committed`, `local`, and `ref`; `records_ref`
-defaults to `refs/ahm/records`, and `records_remote` defaults to `origin` when
-omitted.
 
 The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
 `ahm task complete <id>` fails if the task acceptance section is missing, still
@@ -199,7 +185,7 @@ workflow state.
 
 `ahm adr create` similarly serializes ID allocation under the repository-local
 workflow lock (`.agents/.lock/adr-create`, or `.ahm/.lock/adr-create` in
-ref-backed repositories). The lock is held while ADRs are collected, the
+migrated repositories). The lock is held while ADRs are collected, the
 next numeric ID is computed, the new ADR file is written, and indexes are
 regenerated. `--dry-run` does not take the lock.
 
@@ -242,11 +228,10 @@ The ownership categories are:
 
 4. **Workflow source records** — task files, research notes, and ExecPlans live
    under `.agents/` in legacy committed-record repositories and under
-   tool-owned `.ahm/` after ref-backed migration. Update them through their
+   tool-owned `.ahm/` after migration. Update them through their
    documented workflows (e.g., `ahm task create`, `ahm task complete <id>`, or
-   `ahm index` after manual edits). In ref-backed repositories these records
-   are working artifacts: they are gitignored locally, snapshotted to
-   `refs/ahm/records`, and stay out of normal branch history. ADRs under
+   `ahm index` after manual edits). In migrated repositories, these records
+   are committed project files under `.ahm/`. ADRs under
    `docs/adr/` remain project-owned durable documentation and use `ahm adr`
    lifecycle commands.
 
@@ -426,7 +411,7 @@ by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
 and `index` commands.
 
 `ahm task create` and `ahm adr create` each use a repository-local lock under
-`.agents/.lock/` (or `.ahm/.lock/` in ref-backed repositories) to serialize ID
+`.agents/.lock/` or `.ahm/.lock/` to serialize ID
 allocation and index regeneration across concurrent invocations. Other managed
 write paths rely on atomic rename semantics unless their read-compute-write
 behavior needs a narrower lock.

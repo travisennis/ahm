@@ -56,14 +56,11 @@ to an external coding-agent CLI.
 - `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
   slash-separated relative paths.
 - `internal/ahm/workflow_paths.go`: storage-mode-aware resolution of workflow
-  record paths (`.agents` for legacy committed records, `.ahm` after the
-  ref-backed migration).
-- `internal/ahm/records.go`: internal ref-backed workflow record plumbing for
-  selecting `.ahm/` source records, snapshotting them to `refs/ahm/*`, syncing
-  private refs, comparing ref state, and materializing records back to `.ahm/`.
-- `internal/ahm/records_commands.go`: `records status`, `pull`, `push`,
-  `sync`, and `doctor` command surface for explicit ref-backed records sync and
-  diagnostics.
+  record paths (`.agents` for legacy committed records, `.ahm` after migration).
+- `internal/ahm/records.go`: internal workflow record plumbing for
+  selecting `.ahm/` source records.
+- `internal/ahm/records_commands.go`: `records migrate` and `records doctor`
+  command surface for migration and diagnostics.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
 - `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
   `taskListCommand`).

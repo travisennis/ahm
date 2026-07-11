@@ -61,23 +61,19 @@ The dated entries below are release history and describe behavior at those
 versions. References there to installed skills or `ahm agents suggestions` are
 superseded by the `0.5.0` migration above.
 
-## Ref-Backed Records Migration (2026-07-06)
+## Records Migration (2026-07-06)
 
-ADR 013 introduces an explicit, opt-in migration from committed `.agents/`
-workflow records to gitignored `.ahm/` records backed by `refs/ahm/records`.
-The migration is a separate command, `ahm records migrate`; routine
-`ahm upgrade` never performs it, and repositories keep the current
-committed-record behavior until they opt in.
-
-Migration moves `.agents/.tasks/`, `.agents/.research/`, and
+Workflow migration moves `.agents/.tasks/`, `.agents/.research/`, and
 `.agents/exec-plans/` (including generated indexes) to non-dot names
 under `.ahm/` (`.ahm/tasks/`, `.ahm/research/`, `.ahm/exec-plans/`),
 installs internal `.ahm/.gitignore` entries, converts
-`.agents/ahm.json` into committed `.ahm/config.json` with `store_mode: "ref"`,
-and seeds the local records ref. It prints the `git rm -r --cached` command
-for the user to run instead of untracking project-owned records itself, and it
-never touches project-owned `.agents/` content such as `.agents/prompt.md` or
-`AGENTS.md`.
+`.agents/ahm.json` into committed `.ahm/config.json`, and prints the
+`git rm -r --cached` command for the user to run instead of untracking
+project-owned records itself. It never touches project-owned `.agents/`
+content such as `.agents/prompt.md` or `AGENTS.md`. The migration is a
+separate command, `ahm records migrate`; routine `ahm upgrade` never
+performs it, and repositories keep the current committed-record behavior
+until they opt in.
 
 Use `ahm --dry-run records migrate` to preview every effect first. The command
 is resumable after interruption, and `ahm records doctor` diagnoses partially
@@ -93,15 +89,12 @@ migrated states. Rollback steps are documented in the
   `ahm status`, `ahm doctor`, `ahm context`, `ahm init`/`ahm upgrade`
   directory creation) read and write records and generated indexes under
   `.ahm/` instead of `.agents/`.
-- Supported record mutations in a migrated repository automatically refresh
-  the local `refs/ahm/records` snapshot (generated indexes excluded); pushing
-  to the remote stays explicit via `ahm records push` or `ahm records sync`.
+- Record mutations in a migrated repository write source records as
+  normal committed project files; generated indexes are regenerated
+  locally and remain gitignored.
 - `ahm prime` is the session-start command for agents. It regenerates
   indexes, validates workflow state, and prints the backlog briefing without
   network or custom-ref operations.
-- The `ahm task work` commit handoff prompt scopes delegated commits to
-  project source changes in migrated repositories so gitignored `.ahm/`
-  records are not swept into project commits.
 - Migrated record files leave normal branch history once the printed
   `git rm -r --cached` command is run and committed.
 - Repositories that do not run `ahm records migrate` are unaffected.
@@ -137,7 +130,7 @@ precedence rules and examples.
 
 Live agent instruction output now renders workflow record, generated index, and
 metadata paths for the repository's active storage mode. Legacy repositories
-see direct `.agents/...` paths; ref-backed repositories see direct `.ahm/...`
+see direct `.agents/...` paths; migrated repositories see direct `.ahm/...`
 paths. Generic project documentation still describes both storage modes where
 that distinction is durable user-facing behavior.
 
@@ -151,7 +144,7 @@ that distinction is durable user-facing behavior.
 - `ahm upgrade` records template version `0.4.6` in `.ahm/config.json` after
   migration, or legacy `.agents/ahm.json` before migration.
 
-## Ref-Backed Agent Guidance (2026-07-07)
+## Migrated Agent Guidance (2026-07-07)
 
 `internal/templates.Version` advanced from `0.4.4` to `0.4.5`.
 

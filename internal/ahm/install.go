@@ -31,21 +31,13 @@ type recordStoreMode string
 
 const (
 	recordStoreModeCommitted recordStoreMode = "committed"
-	recordStoreModeLocal     recordStoreMode = "local"
-	recordStoreModeRef       recordStoreMode = "ref"
-
-	defaultRecordsRef    = "refs/ahm/records"
-	defaultRecordsRemote = "origin"
 
 	legacyMetadataRelPath = ".agents/ahm.json"
 	configMetadataRelPath = ".ahm/config.json"
 )
 
 type recordsStorageConfig struct {
-	Mode     recordStoreMode
-	Ref      string
-	Remote   string
-	LastSync string
+	Mode recordStoreMode
 }
 
 type metadata struct {
@@ -53,10 +45,6 @@ type metadata struct {
 	StrictAcceptance bool                       `json:"strict_acceptance"`
 	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
 	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
-	StoreMode        string                     `json:"store_mode,omitempty"`
-	RecordsRef       string                     `json:"records_ref,omitempty"`
-	RecordsRemote    string                     `json:"records_remote,omitempty"`
-	RecordsLastSync  string                     `json:"records_last_sync,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
 }
@@ -76,10 +64,6 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 		"strict_acceptance",
 		"default_work_agent",
 		"taskWork",
-		"store_mode",
-		"records_ref",
-		"records_remote",
-		"records_last_sync",
 		"files",
 	} {
 		delete(raw, key)
@@ -108,26 +92,6 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if m.TaskWork != nil {
 		if err := writeJSONField(&buf, &first, "taskWork", m.TaskWork); err != nil {
-			return nil, err
-		}
-	}
-	if m.StoreMode != "" {
-		if err := writeJSONField(&buf, &first, "store_mode", m.StoreMode); err != nil {
-			return nil, err
-		}
-	}
-	if m.RecordsRef != "" {
-		if err := writeJSONField(&buf, &first, "records_ref", m.RecordsRef); err != nil {
-			return nil, err
-		}
-	}
-	if m.RecordsRemote != "" {
-		if err := writeJSONField(&buf, &first, "records_remote", m.RecordsRemote); err != nil {
-			return nil, err
-		}
-	}
-	if m.RecordsLastSync != "" {
-		if err := writeJSONField(&buf, &first, "records_last_sync", m.RecordsLastSync); err != nil {
 			return nil, err
 		}
 	}
@@ -176,23 +140,8 @@ func sortedMetadataKeys[V any](m map[string]V) []string {
 }
 
 func (m metadata) recordsStorage() recordsStorageConfig {
-	mode := recordStoreMode(enumKey(m.StoreMode))
-	if mode == "" {
-		mode = recordStoreModeCommitted
-	}
-	ref := m.RecordsRef
-	if ref == "" {
-		ref = defaultRecordsRef
-	}
-	remote := m.RecordsRemote
-	if remote == "" {
-		remote = defaultRecordsRemote
-	}
 	return recordsStorageConfig{
-		Mode:     mode,
-		Ref:      ref,
-		Remote:   remote,
-		LastSync: m.RecordsLastSync,
+		Mode: recordStoreModeCommitted,
 	}
 }
 

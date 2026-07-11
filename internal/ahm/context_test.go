@@ -54,9 +54,9 @@ func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".ahm/tasks")
 }
 
-func TestScopedContextPrintsRefBackedInstructionPaths(t *testing.T) {
+func TestScopedContextPrintsMigratedInstructionPaths(t *testing.T) {
 	root := t.TempDir()
-	writeRefRecordsConfig(t, root)
+	writeAHMConfig(t, root)
 
 	stdout, stderr, code := runCLI(t, "--root", root, "context", "task")
 	if code != 0 {
@@ -76,7 +76,7 @@ func TestScopedContextPrintsRefBackedInstructionPaths(t *testing.T) {
 
 func TestScopedContextsRenderStorageModePaths(t *testing.T) {
 	root := t.TempDir()
-	writeRefRecordsConfig(t, root)
+	writeAHMConfig(t, root)
 
 	cases := []struct {
 		scope string

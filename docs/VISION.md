@@ -25,9 +25,9 @@ state, versioned with the binary, and cheap to trigger from hooks.
 1. **Bootstrap** — the one durable line in project-owned `AGENTS.md`:
    run `ahm prime` before work. Everything else is discoverable from
    there. (`ahm onboard` prints the snippet.)
-2. **State** — `ahm prime`: sync and materialize ref-backed records,
-   regenerate indexes, validate, and print the live briefing (warnings,
-   backlog, managed-work routing). State-rich, instruction-light.
+2. **State** — `ahm prime`: regenerate indexes, validate workflow state,
+   and print the live briefing (warnings, backlog, managed-work routing).
+   State-rich, instruction-light.
 3. **Procedure** — `ahm context <scope>`: full instructions for a kind of
    managed work (task, plan, adr, research, docs, groom, improve,
    preflight). Emitted by the binary, never installed as files, not
@@ -48,7 +48,7 @@ The pairing rule: `ahm context <topic>` says *how* to do work;
 | Content | Home | Why |
 | --- | --- | --- |
 | Durable project docs, ADRs, accepted designs | committed project history | knowledge the project must keep |
-| Tasks, scratch research, draft ExecPlans | gitignored files under tool-owned `.ahm/`, synced via `refs/ahm/records` | working records: durable, private, out of branch history |
+| Tasks, scratch research, draft ExecPlans | committed files under tool-owned `.ahm/` | working records: durable, private, out of branch history |
 | Generated indexes | local-only under `.ahm/`, regenerated from records | derived data is never a source of truth |
 | ahm config | committed under `.ahm/` | settings must be identical on every clone and in CI |
 | Procedures, templates, checks | the `ahm` binary | versioned with the tool that interprets them |
@@ -57,9 +57,9 @@ The pairing rule: `ahm context <topic>` says *how* to do work;
 
 The namespace rule behind the table: `.agents/` is for agents to read
 and the project to own; `.ahm/` is for ahm to manage. `.ahm/` carries a
-managed internal `.gitignore` (records ignored, config not), so the
-consumer's root `.gitignore` is never touched. Decided 2026-07-02;
-recorded formally in the ADR 013 revision (task 137).
+managed internal `.gitignore` (generated indexes ignored, source records
+and config not), so the consumer's root `.gitignore` is never touched.
+Decided 2026-07-02; recorded formally in ADR 015 (task 172).
 
 Working records whose outcomes matter get promoted into project docs or
 ADRs; the records themselves are ceremony and stay out of history.
@@ -70,9 +70,7 @@ Stated once, canonically. `ahm` may:
 
 - read git state freely (status, diffs, refs);
 - write workflow files under its own `.ahm/` directory (and, during
-  explicit opt-in migration only, move files out of `.agents/`);
-- write refs under `refs/ahm/*` and fetch/push that namespace to the
-  configured remote, plus the minimal repo config to do so.
+  explicit opt-in migration only, move files out of `.agents/`).
 
 `ahm` never commits, stages, writes the index, moves `HEAD`, mutates
 branches, creates pull requests, or patches project source. Delegation
@@ -81,8 +79,7 @@ its own git operations. Migration commands preview effects and print any
 required user-run git commands rather than executing them.
 
 Commands intended for hooks (`ahm prime` on session start, `ahm docs
-check` on commit) must be fast, offline-tolerant — a failed sync degrades
-to a warning, never a blocked session — and idempotent.
+check` on commit) must be fast, offline-tolerant, and idempotent.
 
 ## Design tests for new work
 
@@ -103,11 +100,10 @@ A change fits this vision when:
 - `ahm` does not implement code changes; it manages the work around them.
 - `ahm` does not own `AGENTS.md` or project documentation content.
 - No per-repo customization of binary-emitted procedures.
-- Sync targets GitHub first; other remotes wait for real demand.
 
 ## Current work embodying this
 
-- ADR 013 + tracker 138: ref-backed record storage (state channel).
+- Tracker 172: committed `.ahm/` workflow record storage (state channel).
 - Tracker 156 (+ task 143): `ahm prime`, delegation commands, the embedded
   task-work review, and `ahm onboard` (bootstrap, state, and procedure
   channels).

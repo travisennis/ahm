@@ -9,7 +9,7 @@ cancellation, and reopening commands. For task file and validation formats, see
 Task commands operate on Markdown task files in the current storage mode:
 
 - `.agents/.tasks/active|completed|cancelled/` in legacy committed-record repositories.
-- `.ahm/tasks/active|completed|cancelled/` after ref-backed migration.
+- `.ahm/tasks/active|completed|cancelled/` after migration.
 
 Task IDs are resolved by exact string match first. If no exact match is found, an exact numeric match is attempted: the pattern and task ID are parsed by numeric value and optional letter suffix, so `1` matches `001` and `1a` matches `001a`. If no exact numeric match exists, numeric prefix matching is used, which can match multiple tasks (e.g., `1` matches both `001` and `001a`). If a prefix matches more than one task, the command lists the matching IDs and fails as ambiguous.
 
@@ -527,10 +527,9 @@ feedback is addressed when review also runs). The commit prompt
 asks the delegated agent to commit the completed task work and make sure the
 task is marked completed before committing. In legacy committed-record
 repositories it asks for both task files and project source files in a single
-commit. In ref-backed record repositories (after `ahm records migrate`) task
-records are gitignored under `.ahm/` and snapshotted to the records ref by
-`ahm` itself, so the prompt instead scopes the commit to project source
-changes and tells the agent not to add or force-add gitignored `.ahm/` files.
+commit. In migrated repositories (after `ahm records migrate`) task
+records are committed project files under `.ahm/`, so the commit prompt
+includes both task records and project source changes in a single commit.
 
 `ahm` does not run `git commit`, choose commit messages, push branches, or open
 pull requests. Commit-message convention is owned by the target project and its

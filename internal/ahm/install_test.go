@@ -100,10 +100,6 @@ func TestReadMetadataPrefersAhmConfig(t *testing.T) {
 	if err := writeConfigMetadata(root, metadata{
 		Version:          "0.2.0",
 		DefaultWorkAgent: "cursor",
-		StoreMode:        "ref",
-		RecordsRef:       "refs/ahm/records",
-		RecordsRemote:    "origin",
-		RecordsLastSync:  "2026-07-06T12:00:00Z",
 		Files:            map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
@@ -120,8 +116,8 @@ func TestReadMetadataPrefersAhmConfig(t *testing.T) {
 		t.Errorf("read wrong metadata: version=%q default=%q", meta.Version, meta.DefaultWorkAgent)
 	}
 	storage := meta.recordsStorage()
-	if storage.Mode != recordStoreModeRef || storage.Ref != defaultRecordsRef || storage.Remote != defaultRecordsRemote || storage.LastSync != "2026-07-06T12:00:00Z" {
-		t.Errorf("storage = %#v", storage)
+	if storage.Mode != recordStoreModeCommitted {
+		t.Errorf("storage mode = %q, want %q", storage.Mode, recordStoreModeCommitted)
 	}
 }
 
@@ -186,8 +182,9 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 		`"enabled": true`,
 		`"future_string": "kept"`,
 		`"default_work_agent": "codex"`,
-		`"store_mode": "ref"`,
+		// Ref fields are now preserved as unknown extra fields.
 		`"records_ref": "refs/ahm/custom"`,
+		`"store_mode": "ref"`,
 	)
 }
 
@@ -307,12 +304,6 @@ func TestRecordsStorageDefaults(t *testing.T) {
 	storage := meta.recordsStorage()
 	if storage.Mode != recordStoreModeCommitted {
 		t.Errorf("mode = %q, want %q", storage.Mode, recordStoreModeCommitted)
-	}
-	if storage.Ref != defaultRecordsRef {
-		t.Errorf("ref = %q, want %q", storage.Ref, defaultRecordsRef)
-	}
-	if storage.Remote != defaultRecordsRemote {
-		t.Errorf("remote = %q, want %q", storage.Remote, defaultRecordsRemote)
 	}
 }
 

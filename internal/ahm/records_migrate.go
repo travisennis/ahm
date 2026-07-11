@@ -127,7 +127,7 @@ func newRecordsMigrateReport(plan recordsMigratePlan, dryRun bool) recordsMigrat
 
 func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, error) {
 	root := a.opts.root
-	if out, err := runGit(ctx, root, []string{"--is-inside-work-tree"}, nil, nil, "rev-parse"); err != nil || strings.TrimSpace(out) != "true" {
+	if out, err := runGit(ctx, root, []string{"--is-inside-work-tree"}, "rev-parse"); err != nil || strings.TrimSpace(out) != "true" {
 		return recordsMigratePlan{}, fmt.Errorf("records migration requires a git work tree at %s", root)
 	}
 	meta, source, err := readMetadataWithSource(root)
@@ -188,11 +188,6 @@ func (a *app) executeRecordsMigratePlan(plan recordsMigratePlan) error {
 		}
 	}
 	if plan.config != migrateActionUnchanged {
-		// Write a clean config without ref fields.
-		plan.meta.StoreMode = ""
-		plan.meta.RecordsRef = ""
-		plan.meta.RecordsRemote = ""
-		plan.meta.RecordsLastSync = ""
 		if err := writeConfigMetadata(root, plan.meta); err != nil {
 			return err
 		}
@@ -435,7 +430,7 @@ func trackedLegacyRecordPaths(ctx context.Context, root string) ([]string, error
 	candidates = append(candidates, legacyMetadataRelPath)
 	var tracked []string
 	for _, candidate := range candidates {
-		out, err := runGit(ctx, root, []string{"-z", "--", candidate}, nil, nil, "ls-files")
+		out, err := runGit(ctx, root, []string{"-z", "--", candidate}, "ls-files")
 		if err != nil {
 			return nil, err
 		}

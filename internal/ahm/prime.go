@@ -26,8 +26,7 @@ type primeReport struct {
 }
 
 type primeRecords struct {
-	Mode   string `json:"mode"`
-	Synced bool   `json:"synced"`
+	Mode string `json:"mode"`
 }
 
 type primePlanSummary struct {
@@ -104,10 +103,10 @@ func (a *app) buildPrimeReport() primeReport {
 
 func (a *app) buildPrimeRecords(meta metadata, metaErr error) primeRecords {
 	if metaErr != nil {
-		return primeRecords{Mode: "committed", Synced: true}
+		return primeRecords{Mode: "committed"}
 	}
 	mode := string(meta.recordsStorage().Mode)
-	return primeRecords{Mode: mode, Synced: true}
+	return primeRecords{Mode: mode}
 }
 
 // primeActivePlans collects active ExecPlans in the current storage mode.

@@ -250,5 +250,5 @@ func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "ok: false", "legacy .agents records; run", "ahm records migrate")
+	assertContainsAll(t, stdout, "ok: false", "legacy record paths remain", "ahm records migrate")
 }
