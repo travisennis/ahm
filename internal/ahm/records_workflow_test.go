@@ -95,89 +95,9 @@ None.
 	return root
 }
 
-func recordsRefPaths(t *testing.T, root string) string {
-	t.Helper()
-	return git(t, root, "ls-tree", "-r", "--name-only", defaultRecordsRef)
-}
-
 func recordsRefCommitCount(t *testing.T, root string) string {
 	t.Helper()
 	return strings.TrimSpace(git(t, root, "rev-list", "--count", defaultRecordsRef))
-}
-
-func TestTaskCreateInRefModeWritesAhmRecordsAndSnapshotsRef(t *testing.T) {
-	root := newRefBackedWorkflowRepo(t)
-	headBefore := strings.TrimSpace(git(t, root, "rev-parse", "HEAD"))
-
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "create", "Ref Mode Task", "--status", "Pending")
-	if code != 0 {
-		t.Fatalf("task create exit code = %d, stderr = %s", code, stderr)
-	}
-	if strings.TrimSpace(stdout) != "002" {
-		t.Fatalf("task create id = %q", stdout)
-	}
-
-	// The record and regenerated indexes live under .ahm/, not .agents/.
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "Ref Mode Task")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"), "Ref Mode Task")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("task create resurrected legacy .agents/.tasks: %v", err)
-	}
-
-	// The mutation refreshed the records ref with source records only.
-	refPaths := recordsRefPaths(t, root)
-	assertContainsAll(t, refPaths, ".ahm/tasks/active/002.md", ".ahm/research/topics/note.md")
-	assertNotContains(t, refPaths, "index.md")
-
-	// Routine mutations never touch project git state.
-	if got := strings.TrimSpace(git(t, root, "rev-parse", "HEAD")); got != headBefore {
-		t.Fatalf("task create moved HEAD from %s to %s", headBefore, got)
-	}
-	if staged := strings.TrimSpace(git(t, root, "diff", "--cached", "--name-only")); staged != "" {
-		t.Fatalf("task create staged changes:\n%s", staged)
-	}
-}
-
-func TestTaskCompleteInRefModeMovesRecordAndSnapshotsRef(t *testing.T) {
-	root := newRefBackedWorkflowRepo(t)
-
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "complete", "001")
-	if code != 0 {
-		t.Fatalf("task complete exit code = %d, stderr = %s", code, stderr)
-	}
-	assertContainsAll(t, stdout, "001 -> Completed")
-
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
-	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("completed task still in active bucket: %v", err)
-	}
-
-	refPaths := recordsRefPaths(t, root)
-	assertContainsAll(t, refPaths, ".ahm/tasks/completed/001.md")
-	assertNotContains(t, refPaths, ".ahm/tasks/active/001.md")
-}
-
-func TestIndexInRefModeSnapshotsHandEditsAndStaysIdempotent(t *testing.T) {
-	root := newRefBackedWorkflowRepo(t)
-	countAfterMigrate := recordsRefCommitCount(t, root)
-
-	// A hand edit to a research record is captured by the next ahm index run.
-	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Ref Note\n\nEdited body.\n")
-	if _, stderr, code := runCLI(t, "--root", root, "index"); code != 0 {
-		t.Fatalf("index exit code = %d, stderr = %s", code, stderr)
-	}
-	countAfterEdit := recordsRefCommitCount(t, root)
-	if countAfterEdit == countAfterMigrate {
-		t.Fatal("index did not snapshot the hand-edited record")
-	}
-
-	// Re-running without record changes reuses the snapshot commit.
-	if _, stderr, code := runCLI(t, "--root", root, "index"); code != 0 {
-		t.Fatalf("second index exit code = %d, stderr = %s", code, stderr)
-	}
-	if got := recordsRefCommitCount(t, root); got != countAfterEdit {
-		t.Fatalf("idempotent index re-run changed records ref commits from %s to %s", countAfterEdit, got)
-	}
 }
 
 func TestDryRunTaskCreateInRefModeWritesNothing(t *testing.T) {

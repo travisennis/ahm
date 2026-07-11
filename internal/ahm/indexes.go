@@ -38,7 +38,6 @@ func (a *app) writeIndexes() error {
 			return err
 		}
 	}
-	a.snapshotRecordsAfterWrite()
 	// Run post-mutation workflow validation to surface findings the
 	// mutation just created or left behind. This uses only the workflow
 	// scope so that markdown-link false positives do not drown out core

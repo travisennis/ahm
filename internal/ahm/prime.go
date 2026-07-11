@@ -1,8 +1,6 @@
 package ahm
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,11 +26,8 @@ type primeReport struct {
 }
 
 type primeRecords struct {
-	Mode     string `json:"mode"`
-	Synced   bool   `json:"synced"`
-	Stale    bool   `json:"stale"`
-	LastSync string `json:"last_sync,omitempty"`
-	Message  string `json:"message,omitempty"`
+	Mode   string `json:"mode"`
+	Synced bool   `json:"synced"`
 }
 
 type primePlanSummary struct {
@@ -58,82 +53,9 @@ type primeTasks struct {
 func (a *app) prime() error {
 	defer a.emitWarnings()
 
-	// 1. Sync records in ref mode (skip with --no-sync)
-	if !a.opts.noSync {
-		a.primeSyncRecords()
-	}
-
-	// 2. Build and emit the report
+	// Build and emit the report
 	report := a.buildPrimeReport()
 	return a.emit(report)
-}
-
-// primeSyncRecords synchronizes workflow records in ref mode.
-// Failures degrade to warnings so the briefing is always shown.
-func (a *app) primeSyncRecords() {
-	meta, err := readMetadata(a.opts.root)
-	if err != nil {
-		return // legacy mode, nothing to sync
-	}
-	cfg := meta.recordsStorage()
-	if cfg.Mode != recordStoreModeRef {
-		return // not ref mode
-	}
-
-	ctx := context.Background()
-
-	// Try to fetch remote and pull if ahead
-	remoteCommit, remoteErr := lsRemoteRecordsRef(ctx, a.opts.root, cfg)
-	if remoteErr != nil && !errors.Is(remoteErr, errGitRefMissing) {
-		a.addWarning("prime: could not check remote records: %v", remoteErr)
-	}
-
-	if remoteErr == nil {
-		localCommit, localErr := resolveGitRef(ctx, a.opts.root, cfg.Ref)
-		if localErr != nil && !errors.Is(localErr, errGitRefMissing) {
-			a.addWarning("prime: could not read local records ref: %v", localErr)
-			return
-		}
-
-		// Pull when remote is ahead or local ref is missing
-		if errors.Is(localErr, errGitRefMissing) || localCommit != remoteCommit {
-			working, workErr := recordsWorkingStatus(ctx, a.opts.root, cfg.Ref)
-			if workErr == nil && working.Clean {
-				trackingRef, fetchErr := fetchRecordsRef(ctx, a.opts.root, cfg)
-				if fetchErr != nil {
-					a.addWarning("prime: fetch failed: %v", fetchErr)
-				} else {
-					cmp, cmpErr := compareRecordsRefs(ctx, a.opts.root, cfg.Ref, trackingRef)
-					if cmpErr == nil && (cmp == recordsRefBehind || cmp == recordsRefEqual) {
-						if err := updateRecordsRef(ctx, a.opts.root, cfg.Ref, remoteCommit); err != nil {
-							a.addWarning("prime: update records ref failed: %v", err)
-						} else if _, err := materializeRecordsRef(ctx, a.opts.root, cfg.Ref); err != nil {
-							a.addWarning("prime: materialization failed: %v", err)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Snapshot local changes
-	if _, err := snapshotRecordsRef(ctx, a.opts.root, cfg, "Snapshot ahm workflow records before session"); err != nil {
-		a.addWarning("prime: records snapshot failed: %v; run 'ahm records status' to inspect", err)
-	}
-
-	// Push local snapshot when remote is reachable
-	if remoteErr == nil {
-		if err := pushRecordsRef(ctx, a.opts.root, cfg); err != nil {
-			a.addWarning("prime: push failed: %v; local records are safe, run 'ahm records push' later", err)
-		} else if err := a.markRecordsSynced(meta); err != nil {
-			a.addWarning("prime: could not update sync timestamp: %v", err)
-		}
-	}
-
-	// Regenerate indexes after sync
-	if err := a.writeIndexes(); err != nil {
-		a.addWarning("prime: index regeneration failed: %v", err)
-	}
 }
 
 func (a *app) buildPrimeReport() primeReport {
@@ -184,42 +106,8 @@ func (a *app) buildPrimeRecords(meta metadata, metaErr error) primeRecords {
 	if metaErr != nil {
 		return primeRecords{Mode: "committed", Synced: true}
 	}
-	cfg := meta.recordsStorage()
-	info := primeRecords{
-		Mode:     string(cfg.Mode),
-		LastSync: meta.RecordsLastSync,
-	}
-	if cfg.Mode != recordStoreModeRef {
-		info.Synced = true
-		return info
-	}
-	ref := cfg.Ref
-	if ref == "" {
-		ref = defaultRecordsRef
-	}
-	if _, err := resolveGitRef(context.Background(), a.opts.root, ref); err != nil {
-		info.Stale = true
-		info.Message = "local records ref is missing; run 'ahm records status'"
-		return info
-	}
-	working, err := recordsWorkingStatus(context.Background(), a.opts.root, ref)
-	if err != nil {
-		info.Stale = true
-		info.Message = fmt.Sprintf("could not check working records: %v", err)
-		return info
-	}
-	if !working.Clean {
-		info.Stale = true
-		info.Message = "local records have unsnapshotted changes; run 'ahm records push'"
-		return info
-	}
-	if info.LastSync == "" {
-		info.Stale = true
-		info.Message = "records have never been synced to remote"
-		return info
-	}
-	info.Synced = true
-	return info
+	mode := string(meta.recordsStorage().Mode)
+	return primeRecords{Mode: mode, Synced: true}
 }
 
 // primeActivePlans collects active ExecPlans in the current storage mode.
@@ -343,19 +231,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 		}
 	}
 
-	// Section 3: Stale/unsynced records state
-	if r.Records.Stale {
-		fmt.Fprintln(w)
-		fmt.Fprintf(w, "# Records: %s\n", r.Records.Message)
-	}
-	if !r.Records.Synced && !r.Records.Stale && r.Records.Mode != "committed" {
-		if r.Records.Message != "" {
-			fmt.Fprintln(w)
-			fmt.Fprintf(w, "# Records: %s\n", r.Records.Message)
-		}
-	}
-
-	// Section 4: In Progress
+	// Section 3: In Progress
 	if len(r.Tasks.InProgress) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "## In Progress")

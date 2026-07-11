@@ -96,11 +96,9 @@ migrated states. Rollback steps are documented in the
 - Supported record mutations in a migrated repository automatically refresh
   the local `refs/ahm/records` snapshot (generated indexes excluded); pushing
   to the remote stays explicit via `ahm records push` or `ahm records sync`.
-- `ahm prime` is the session-start command for agents. In ref-backed
-  repositories it attempts records sync, materializes records, regenerates
-  indexes, validates workflow state, and prints the backlog briefing. Network
-  or remote failures degrade to warnings; `ahm prime --no-sync` skips sync for
-  offline or hook-constrained runs.
+- `ahm prime` is the session-start command for agents. It regenerates
+  indexes, validates workflow state, and prints the backlog briefing without
+  network or custom-ref operations.
 - The `ahm task work` commit handoff prompt scopes delegated commits to
   project source changes in migrated repositories so gitignored `.ahm/`
   records are not swept into project commits.

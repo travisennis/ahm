@@ -1,7 +1,6 @@
 package ahm
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -101,37 +100,6 @@ func TestPrimePlainOutput(t *testing.T) {
 		t.Fatalf("plain output should be compact JSON (single line), got %d lines:\n%s", strings.Count(stdout, "\n"), stdout)
 	}
 	assertContainsAll(t, stdout, `"root":"`+root+`"`, `"ready_total":`)
-}
-
-func TestPrimeNoSyncFlagSkipsRefSyncAndReportsStaleRecords(t *testing.T) {
-	root := newGitRepo(t)
-	writeRefRecordsConfig(t, root)
-	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Ref Task", "Pending", "depends_on: -\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "prime", "--no-sync")
-	if code != 0 {
-		t.Fatalf("prime --no-sync exit code = %d, stderr = %s", code, stderr)
-	}
-	assertContainsAll(t, stdout,
-		"# Records: local records ref is missing; run 'ahm records status'",
-		"001 [Pending] P2 S Ref Task",
-		"## Managed Work Intake",
-		"- Workflow records: tasks `.ahm/tasks/`, research `.ahm/research/`, ExecPlans `.ahm/exec-plans/`",
-	)
-	assertNotContains(t, stdout, ".agents/.tasks/", ".agents/.research/", ".agents/exec-plans/")
-	if _, err := resolveGitRef(testContext(t), root, defaultRecordsRef); !errors.Is(err, errGitRefMissing) {
-		t.Fatalf("prime --no-sync touched records ref: %v", err)
-	}
-
-	stdout, stderr, code = runCLI(t, "--root", root, "--json", "prime", "--no-sync")
-	if code != 0 {
-		t.Fatalf("prime --json --no-sync exit code = %d, stderr = %s", code, stderr)
-	}
-	assertContainsAll(t, stdout,
-		`"mode": "ref"`,
-		`"stale": true`,
-		`"message": "local records ref is missing; run 'ahm records status'"`,
-	)
 }
 
 func TestPrimeReadyCapWithOverflow(t *testing.T) {

@@ -18,7 +18,6 @@ type options struct {
 	text   bool
 	dryRun bool
 	force  bool
-	noSync bool
 	check  []string
 }
 
@@ -186,26 +185,18 @@ Examples:
 		Long: `Print a session briefing with repository state, task backlog,
 and managed-work routing.
 
-In ref-backed record mode, prime synchronizes workflow records
-(fetch/pull from remote when available), materializes them,
-regenerates indexes, and validates workflow state before printing the
-briefing. Sync failures degrade to warnings; the briefing is always
-shown.
-
 The briefing includes:
 - Dirty-worktree warning when the working tree is not clean.
 - Repository root, workflow version, and validation status.
 - In-progress and ready task lists (ready capped at 5).
 - Blocked and open task counts.
 - Active ExecPlans and recent research notes.
-- Stale/unsynced records state in ref mode.
 - Managed-work intake routing table.
 
 Supports --json, --plain, and --text output.
 
 Examples:
   ahm prime
-  ahm prime --no-sync
   ahm --json prime
   ahm --plain prime`,
 		Args: noArgs,
@@ -216,7 +207,6 @@ Examples:
 			return a.prime()
 		},
 	}
-	primeCmd.Flags().BoolVar(&a.opts.noSync, "no-sync", false, "Skip records sync in ref mode (offline/hooks)")
 	root.AddCommand(primeCmd)
 	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
