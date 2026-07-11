@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/travisennis/ahm/internal/templates"
@@ -297,6 +298,9 @@ func (a *app) install(upgrade bool) error {
 	if err != nil {
 		return err
 	}
+	if err := a.ensureWorkflowGitignore(); err != nil {
+		return err
+	}
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
@@ -354,6 +358,28 @@ func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result ma
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// ensureWorkflowGitignore creates the managed .ahm/.gitignore with the
+// standard ignore entries if it does not already exist. It is a no-op in
+// legacy layout (where .agents/ tracks everything under normal Git) and in
+// dry-run mode.
+func (a *app) ensureWorkflowGitignore() error {
+	paths := workflowPathsFor(a.opts.root)
+	if paths.recordsDir != toolRecordsDirName {
+		return nil
+	}
+	if a.opts.dryRun {
+		return nil
+	}
+	gitignorePath := filepath.Join(a.opts.root, filepath.FromSlash(recordsGitignoreRelPath))
+	if _, err := os.Stat(gitignorePath); errors.Is(err, os.ErrNotExist) {
+		content := recordsGitignoreHeader + strings.Join(recordsGitignoreEntries, "\n") + "\n"
+		return writeFileAtomic(gitignorePath, []byte(content), 0o644)
+	} else if err != nil {
+		return err
 	}
 	return nil
 }

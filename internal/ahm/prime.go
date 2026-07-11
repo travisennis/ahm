@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -52,9 +53,55 @@ type primeTasks struct {
 func (a *app) prime() error {
 	defer a.emitWarnings()
 
+	// When workflow metadata is present, prepare the worktree:
+	// ensure directories exist, create the managed gitignore in
+	// migrated layout, and regenerate indexes from source records
+	// so the briefing reflects the current branch state even when
+	// gitignored index files are stale from a previous checkout.
+	// These preparations are skipped when no workflow is installed,
+	// which keeps prime usable for bare git checkouts without
+	// creating untracked files.
+	if _, err := readMetadata(a.opts.root); err == nil {
+		if _, err := a.ensureWorkflowDirs(); err != nil {
+			return err
+		}
+		if err := a.ensureWorkflowGitignore(); err != nil {
+			return err
+		}
+		if err := a.regenerateIndexes(); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		a.addWarning("unreadable workflow metadata: %v", err)
+	}
+
 	// Build and emit the report
 	report := a.buildPrimeReport()
 	return a.emit(report)
+}
+
+// regenerateIndexes recomputes all generated indexes from source records and
+// writes only those that are stale. It is like writeIndexes but does not emit
+// post-mutation findings or trigger its own warning emission, making it safe
+// to call from prime before buildPrimeReport accumulates its own warnings.
+func (a *app) regenerateIndexes() error {
+	a.invalidateTasks()
+	writes, err := a.indexWrites()
+	if err != nil {
+		if writes == nil {
+			return fmt.Errorf("regenerating indexes: %w", err)
+		}
+		// Partial results with errors; use what we got.
+	}
+	for _, path := range sortedKeys(writes) {
+		if !isStaleIndex(path, writes[path]) {
+			continue
+		}
+		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *app) buildPrimeReport() primeReport {
