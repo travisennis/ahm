@@ -375,7 +375,7 @@ Useful flags:
 
 - `--json`: prints structured output with `root`, `workflow`, `git`,
   `tasks` (with `in_progress`, `ready`, `ready_total`, `blocked`, `open`),
-  `records` (with `mode`, `synced`),
+  `records` (with `mode`),
   `plans` (active ExecPlan summaries), `research` (recent research notes),
   and `commands`.
 - `--plain`: prints compact JSON.

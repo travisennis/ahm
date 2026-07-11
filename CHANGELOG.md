@@ -2,6 +2,57 @@
 
 All notable user-facing changes to `ahm` are recorded here.
 
+## Unreleased
+
+### Added
+
+- *(records)* `ahm records migrate` now keeps source records under normal
+  Git tracking in `.ahm/` instead of backing them with private Git refs.
+  Migration moves `.agents/.tasks/`, `.agents/.research/`, and
+  `.agents/exec-plans/` (including attachments and subdirectories) to
+  `.ahm/tasks/`, `.ahm/research/`, and `.ahm/exec-plans/`, installs a
+  managed `.ahm/.gitignore` that ignores only generated indexes and
+  machine-local state, writes committed `.ahm/config.json`, and prints the
+  required `git add`/`git rm --cached` instructions.
+- *(prime)* `ahm prime` now regenerates stale indexes in place and prints
+  a `records` block with `mode` field in `--json` output.
+- *(init/upgrade)* `ahm init` and `ahm upgrade` ensure `.ahm/.gitignore`
+  exists after migration and create missing record directories and
+  generated indexes under `.ahm/` when the repository is migrated.
+
+### Removed
+
+- *(refs)* Ref-backed records commands (`records push`, `records pull`,
+  `records sync`) and associated configuration fields (`store_mode`,
+  `records_ref`, `records_remote`, `records_last_sync`) are removed.
+  Ref-backed mode shipped in no release and has no migrated repositories.
+- *(refs)* `ahm prime` no longer fetches, snapshots, or pushes private
+  `refs/ahm/records`. Session startup is fast, offline, and deterministic.
+- *(refs)* Automatic record snapshots after workflow mutations and the
+  `records_last_sync` metadata field are removed.
+
+### Changed
+
+- *(migration)* `ahm records migrate` no longer creates or updates
+  `refs/ahm/*` refs, seeds remote refs, or writes sync metadata to
+  `.ahm/config.json`. Migration is a committed-only operation.
+  Rollback uses normal Git (`git restore` before commit, `git revert`
+  after) without ref cleanup.
+- *(rollback)* Migration rollback no longer involves a `git rm --cached`
+  undo step or ref restoration. Before commit: `git restore .` and delete
+  `.ahm/`. After commit: `git revert <migration-commit>`.
+- *(doctor)* `ahm records doctor` diagnostics no longer report ref-sync
+  or divergence state.
+
+### Documentation
+
+- ARCHITECTURE.md now describes committed `.ahm/` records under normal Git
+  tracking instead of ref-backed synchronization.
+- The upgrade guide references the `ahm records migrate` command instead of
+  ADR 013.
+- `migrate-issues.md` is preserved as review evidence with resolved-blocker
+  annotations.
+
 ## v1.0.0 - 2026-07-03
 
 ### Added

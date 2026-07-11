@@ -41,6 +41,12 @@ design. They are not a plan to preserve or repair that unreleased mode.
 
 ## Verified Release Blockers
 
+> **Resolution status (2026-07-11):** All six blockers below are resolved
+> by the committed `.ahm/` transition (ADR 015, task 172). Ref-backed
+> synchronization commands and private-ref metadata are removed; source
+> records are now ordinary committed project files under `.ahm/` with normal
+> Git durability, cloning, worktree, merge, and recovery semantics.
+
 ### 1. A linked Git worktree can publish an empty backlog
 
 `ahm prime` snapshots and pushes records from the current worktree. Git
@@ -64,6 +70,10 @@ Relevant code:
 - `internal/ahm/prime.go:119-130`
 - `internal/ahm/records.go:40-156`
 
+> **Resolution:** Impossible in committed mode. Ref sync is removed;
+> linked worktrees carry their committed source records through normal
+> Git checkout. No ahm-owned synchronization machinery exists to lose them.
+
 ### 2. The canonical fresh-clone `prime` flow does not materialize records
 
 When the remote records ref exists and the local ref is missing, the ref
@@ -85,6 +95,10 @@ Relevant code:
 
 - `internal/ahm/prime.go:98-130`
 - `internal/ahm/records.go:254-297`
+
+> **Resolution:** Impossible in committed mode. Source records are
+> ordinary committed project files materialized by `git clone`.
+> No ref comparison or materialization logic exists to fail.
 
 ### 3. `records pull` can discard an unpushed local snapshot
 
@@ -110,6 +124,11 @@ Relevant code:
 - `internal/ahm/records_commands.go:211-266`
 - `internal/ahm/records.go:159-217`
 
+> **Resolution:** Impossible in committed mode. `records pull` is removed;
+> source records are branch-scoped committed files with normal Git merge,
+> conflict, and recovery semantics. No pull, push, or sync command exists
+> to overwrite them.
+
 ### 4. Migration moves files that the records ref never stores
 
 Migration moves every file under the task, research, and ExecPlan roots.
@@ -131,6 +150,11 @@ Relevant code:
 - `internal/ahm/records_migrate.go:244-314`
 - `internal/ahm/records.go:40-103`
 
+> **Resolution:** Fixed in committed mode. Migration moves every source file
+> (including attachments, non-Markdown files, and subdirectories) into
+> `.ahm/` under normal Git tracking. No snapshot format or ref exists to
+> exclude files from durability. Verified by `TestRecordsMigratePreservesAttachments`.
+
 ### 5. Successful synchronization dirties committed configuration
 
 Successful pull, push, sync, and `prime` operations write the current time to
@@ -151,6 +175,10 @@ Relevant code:
 - `internal/ahm/install.go:483-495`
 - `internal/ahm/prime.go:124-130`
 
+> **Resolution:** Impossible in committed mode. `records_last_sync` is
+> removed; successful routine commands leave committed `.ahm/config.json`
+> unchanged. No sync timestamp is written to committed state.
+
 ### 6. Migration does not establish remote durability
 
 Migration seeds only the local records ref. The success message tells the user
@@ -170,7 +198,16 @@ Relevant code:
 - `internal/ahm/records_migrate.go:491-503`
 - `internal/ahm/prime.go:85-130`
 
+> **Resolution:** Impossible in committed mode. Remote durability is
+> provided by normal `git push` of the branch containing the committed
+> `.ahm/` source records. No ref seeding or records push command exists.
+
 ## Major Post-Migration Product and UX Issues
+
+> **Resolution status (2026-07-11):** All UX issues below are resolved
+> by the committed `.ahm/` transition. Source records under normal Git
+> tracking provide standard merge, conflict, clone, worktree, and remote
+> workflows without ahm-owned synchronization.
 
 ### Divergence has no supported resolution workflow
 

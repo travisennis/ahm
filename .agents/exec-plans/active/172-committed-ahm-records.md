@@ -59,7 +59,7 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
     `TestIndexInCommittedModePreservesGitState`, `TestStatusInCommittedModePreservesGitState`,
     `TestBranchCheckoutRegeneratesIndexes`, `TestRecordsMigratePreservesAttachments`,
     `TestRecordsMigrateHandlesDirtySourceRecordContent`, `TestRecordsMigrateWithAttachmentsInDryRun`.
-- [ ] Milestone 7: documentation, rollback guidance, and release notes (task 172i).
+- [x] (2026-07-11) Milestone 7: documentation, rollback guidance, and release notes (task 172i).
 
 ## Surprises & Discoveries
 
