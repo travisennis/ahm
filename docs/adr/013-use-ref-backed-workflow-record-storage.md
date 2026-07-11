@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-06
+status: superseded by ADR-015
+date: 2026-07-11
 decision-makers: Travis Ennis
 consulted: -
 informed: task 138
@@ -157,3 +157,7 @@ team task creation becomes a supported target.
   `refs/ahm/records`, normal clone does not fetch that namespace, explicit
   fetch works, GitHub's refs API lists the ref, and deleting a probe custom ref
   works.
+
+## Supersession
+
+Superseded by [ADR-015](015-use-committed-ahm-workflow-record-storage.md).
