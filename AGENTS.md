@@ -3,13 +3,16 @@
 ## Project
 
 `ahm` is a Go CLI that manages repo-local agent workflow state. Legacy
-repositories store ahm-managed records under `.agents/`; repositories that opt
-into ref-backed records store tasks, research notes, ExecPlans, generated
-indexes, and config under tool-owned `.ahm/`, backed by `refs/ahm/records`.
-Project-owned agent guidance remains under `.agents/`.
+repositories store ahm-managed records under `.agents/`; repositories that
+have run `ahm records migrate` keep tasks, research notes, ExecPlans, and
+config as ordinary committed files under tool-owned `.ahm/`, with generated
+workflow indexes local-only (ignored via the managed `.ahm/.gitignore`).
+Records are branch-scoped and use normal Git checkout, merge, conflict,
+clone, worktree, and recovery behavior; `ahm` performs no ref or network
+operations. Project-owned agent guidance remains under `.agents/`.
 
 Compatibility surfaces: CLI commands, flags, exit codes, output formats,
-`.agents/ahm.json`, `.ahm/config.json`, `refs/ahm/*`, workflow file formats,
+`.agents/ahm.json`, `.ahm/config.json`, workflow file formats,
 generated indexes, embedded templates, atomic writes, root detection,
 validation codes, external agent orchestration, release/version semantics, and
 the guarantee that `ahm` does not patch project source, stage files, move
@@ -17,7 +20,7 @@ the guarantee that `ahm` does not patch project source, stage files, move
 
 ## Operating Loop
 
-0. **Before any work**: run `ahm prime` to sync workflow records, regenerate
+0. **Before any work**: run `ahm prime` to prepare the worktree, regenerate
    indexes, and get the session briefing. This is the canonical session-start
    command for coding agents.
 

@@ -311,7 +311,12 @@ git-index cleanup.
 To roll back a migration:
 
 1. Before committing: run `git restore .` to restore legacy paths, then
-   delete the new `.ahm/` directory.
+   delete the new `.ahm/` directory. Note that migration carries any
+   uncommitted record edits into `.ahm/`; this rollback restores the last
+   committed record content, discarding those edits, so copy them out of
+   `.ahm/` first if you need them. For the same reason, avoid `git clean -fd`
+   between migrating and committing — the moved records are untracked until
+   the printed git cleanup command runs.
 2. After committing: run `git revert <migration commit>` to restore the
    legacy layout.
 

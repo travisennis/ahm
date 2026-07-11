@@ -60,11 +60,27 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
     `TestBranchCheckoutRegeneratesIndexes`, `TestRecordsMigratePreservesAttachments`,
     `TestRecordsMigrateHandlesDirtySourceRecordContent`, `TestRecordsMigrateWithAttachmentsInDryRun`.
 - [x] (2026-07-11) Milestone 7: documentation, rollback guidance, and release notes (task 172i).
+- [x] (2026-07-11) Independent release review verified tracker acceptance
+  end-to-end in a scratch repository; fixed ADR 016 markdown-lint errors and
+  stale ref-backed text in `AGENTS.md`; added the untracked-window/rollback
+  caveat to `docs/references/cli/commands.md`; filed follow-up tasks 175
+  (init default layout) and 176 (dead ref-mode code).
 
 ## Surprises & Discoveries
 
-- None yet. Record observations here with short evidence snippets as
-  implementation proceeds.
+- Milestone 2 as planned claimed "no `git rm --cached` step exists because
+  nothing becomes untracked." That was wrong: because `ahm` never stages,
+  moving record files on disk leaves the new `.ahm/` paths untracked and the
+  legacy paths deleted-in-worktree until the user acts. The implementation
+  therefore keeps a printed cleanup command
+  (`git add .ahm/ && git rm -r --cached <legacy paths>`), and the reference
+  docs describe the untracked window plus a `git clean -fd` warning. The
+  shipped behavior is correct; this plan's Milestone 2 prose was the error.
+- Release review (2026-07-11) found the docs sweep missed the project's own
+  `AGENTS.md`, which still described ref-backed records and listed
+  `refs/ahm/*` as a compatibility surface after 172f removed them. Fixed
+  during review closure. Lesson: self-referential agent guidance is a
+  documentation surface that must be on the milestone checklist explicitly.
 
 ## Decision Log
 
@@ -89,6 +105,35 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
   Date/Author: 2026-07-11, task 172b.
 
 ## Outcomes & Retrospective
+
+(2026-07-11) All seven milestones landed (tasks 172a–172i complete). The
+ref-backed records design is fully removed: no `refs/ahm/*` plumbing, no
+`records status|pull|push|sync` commands, no `store_mode`/`records_ref`/
+`records_remote`/`records_last_sync` metadata, and `ahm prime` is a local,
+offline preparation-and-briefing command. `ahm records migrate` moves legacy
+`.agents/` records (Markdown, attachments, subdirectories) to committed
+`.ahm/` paths, writes `.ahm/config.json`, installs the managed
+`.ahm/.gitignore`, and prints the git cleanup command; it is idempotent,
+resumable, and conflict-safe.
+
+An independent release review verified every tracker-172 acceptance item
+end-to-end in a scratch repository (see Artifacts and Notes) and walked all
+six `migrate-issues.md` blockers: each is now impossible by construction and
+annotated as resolved in that file. `just ci` is green including
+`docs-md-lint` and `goreleaser` release-check after two review fixes (ADR 016
+lint errors; stale ref-backed text in `AGENTS.md`).
+
+Remaining follow-ups, tracked outside this plan: task 175 (decide whether
+fresh `ahm init` should create the committed `.ahm/` layout directly instead
+of legacy `.agents/`) and task 176 (remove dead ref-mode remnants:
+`collectRecordFiles`/`isRecordRelPath` and the vestigial `recordStoreMode`
+enum). Migrating this repository itself remains deliberately out of scope.
+
+Lessons: (1) documentation that ahm ships about itself — especially
+project-owned `AGENTS.md`, which upgrade must not touch — needs an explicit
+checklist entry in any surface-changing plan; (2) when a plan asserts a
+behavioral consequence ("nothing becomes untracked"), verify it against the
+safety boundary (no staging) before writing milestones around it.
 
 ## Context and Orientation
 
@@ -373,10 +418,36 @@ project itself decides to migrate (tracked separately, not by this plan).
 
 ## Artifacts and Notes
 
-Evidence to capture here as milestones land: the dry-run and real transcript
-of a scratch migration, the `git for-each-ref refs/ahm` empty output, a fresh
-clone `prime` briefing, and the add/add conflict transcript from the
-sequential-ID scenario. Keep snippets short and indented.
+Evidence captured during the 2026-07-11 release review, in a scratch legacy
+repository (init → task + research note + `diagram.png` attachment → commit →
+dirty edit to `001.md` → migrate):
+
+    $ ahm records migrate
+    moves: 10
+      .agents/.research/topics/diagram.png -> .ahm/research/topics/diagram.png
+      .agents/.tasks/active/001.md -> .ahm/tasks/active/001.md
+      ...
+    gitignore: create
+    config: create
+    legacy_config: remove
+    git_cleanup: git add .ahm/ && git rm -r --cached .agents/.tasks
+      .agents/.research .agents/exec-plans .agents/ahm.json
+
+    $ git for-each-ref refs/ahm
+    (no output)
+
+The dirty edit survived the move (`grep "dirty edit line"
+.ahm/tasks/active/001.md` matched). After the cleanup command and a commit,
+`git ls-files .ahm/` tracked exactly `.gitignore`, `config.json`, both
+research files, and `001.md` — no generated indexes. `ahm prime` then ran
+clean (worktree unchanged) in the migrated repository, in a fresh `git clone`,
+and in a `git worktree add` checkout; `ahm task create` in the clone produced
+an untracked `.ahm/tasks/active/002.md` and nothing else; `ahm upgrade` and
+`ahm records doctor` (`migration: complete`) left the worktree clean.
+
+The sequential-ID add/add conflict scenario is documented as an accepted
+tradeoff in ADR 015 ("Branch-Scoped Records") rather than reproduced as a
+transcript; no cross-branch allocation exists to test.
 
 Reference chain: ADR 015 (decision), ADR 013 (superseded design),
 `migrate-issues.md` (reproduced failures and rejected repair plan), task 172

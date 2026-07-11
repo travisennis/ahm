@@ -76,7 +76,7 @@ the context-command architecture (ADR 011).
 
 ### Command Surface
 
-```
+```text
 ahm docs check [--diff <range> | --staged] [--strict] [--json|--plain|--text]
 ```
 
@@ -190,4 +190,3 @@ diff mode. Git usage is read-only within the existing safety boundary (the
   decided with task 160d.
 - Alias removal timing is an explicit follow-up, deferred until after 160b
   ships and hook configurations migrate.
-
