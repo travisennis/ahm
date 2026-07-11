@@ -112,7 +112,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			resumeArgs:     cakeResumeArgs,
 			parseSessionID: parseCakeSessionID,
 			reviewArgs: func(prompt, model string) []string {
-				base := []string{"--skills", "preflight", "--output-format", "stream-json"}
+				base := []string{"--output-format", "stream-json"}
 				if model != "" {
 					base = append(base, "--model", model)
 				}

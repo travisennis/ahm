@@ -3118,7 +3118,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 	}{
 		{
 			name: "cake",
-			want: []string{"--skills", "preflight", "--output-format", "stream-json", "Review the changes."},
+			want: []string{"--output-format", "stream-json", "Review the changes."},
 		},
 		{
 			name: "codex",
@@ -3169,6 +3169,14 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		// On the first call (session work), produce valid session JSON.
 		if len(invocations) == 0 {
+			path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			if writeErr := os.WriteFile(path, append(data, []byte("\n## Acceptance Notes\n\n- [x] Updated during implementation.\n")...), 0o644); writeErr != nil {
+				return writeErr
+			}
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_review123","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
 			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
@@ -3205,10 +3213,11 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		t.Error("first invocation should have stdin connected")
 	}
 
-	// Second invocation: review with --skills preflight.
-	if invocations[1].args[0] != "--skills" || invocations[1].args[1] != "preflight" || invocations[1].args[2] != "--output-format" || invocations[1].args[3] != "stream-json" {
+	// Second invocation: review with the embedded procedure in the prompt.
+	if invocations[1].args[0] != "--output-format" || invocations[1].args[1] != "stream-json" {
 		t.Errorf("second invocation args = %#v, want review prefix", invocations[1].args)
 	}
+	assertContainsAll(t, invocations[1].args[len(invocations[1].args)-1], "- [x] Updated during implementation.")
 	// Review invocation should have no stdin (independent run).
 	if invocations[1].hasStdin {
 		t.Error("review invocation should have no stdin")
@@ -3330,7 +3339,7 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--mode" || invocations[1][4] != "ask" || invocations[1][5] != "--trust" {
 		t.Errorf("review args = %#v, want cursor ask-mode review args", invocations[1])
 	}
-	assertContainsAll(t, invocations[1][len(invocations[1])-1], "Run the preflight skill on the current uncommitted changes.")
+	assertContainsAll(t, invocations[1][len(invocations[1])-1], taskWorkReviewPromptMarker, "Task: 001", "Managed-work completion checklist", "git status --short")
 	if len(invocations[2]) < 7 || invocations[2][0] != "-p" || invocations[2][1] != "--output-format" || invocations[2][2] != "stream-json" || invocations[2][3] != "--trust" || invocations[2][4] != "--resume" || invocations[2][5] != "cursor_review123" {
 		t.Errorf("resume args = %#v, want cursor resume args", invocations[2])
 	}

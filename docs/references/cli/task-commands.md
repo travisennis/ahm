@@ -490,11 +490,12 @@ current invocation. This enables follow-up review, revision, and commit steps
 within the same workflow run.
 
 Agents marked **Full orchestration** for Review support independent review
-invocation. Review runs by default after the work session. `ahm` runs the repository-owned preflight
-review workflow (`.agents/skills/preflight/SKILL.md`) against the current
-uncommitted changes, using each agent's normal execution path:
+invocation. Review runs by default after the work session. `ahm` supplies its
+binary-embedded preflight procedure, task identity and acceptance notes, and
+the managed-work completion checklist to an independent reviewer against the
+current uncommitted changes, using each agent's normal execution path:
 
-- `cake`: `cake [--model <name>] --skills preflight --output-format stream-json`
+- `cake`: `cake [--model <name>] --output-format stream-json`
 - `codex`: `codex exec [--model <name>] --dangerously-bypass-approvals-and-sandbox --json`
   with the preflight prompt
 - `cursor`: `cursor-agent -p --output-format stream-json --mode ask --trust`
@@ -502,8 +503,10 @@ uncommitted changes, using each agent's normal execution path:
 - `claude`: `claude -p --verbose --output-format stream-json`
   with the preflight prompt
 
-This means review has consistent semantics across all agents: it runs the
-preflight review workflow. If the review produces actionable feedback, `ahm`
+This means review has consistent semantics across all agents without depending
+on an installed skill file. The embedded procedure scales review passes to the
+change size, asks the reviewer to apply worthwhile fixes, and checks task
+completion hygiene. If the review produces actionable feedback, `ahm`
 resumes the original work session with the feedback and asks the agent to
 address each issue. If the review produces no feedback, the feedback-resume
 step is skipped. If the review command itself fails, the failure is surfaced

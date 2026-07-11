@@ -91,8 +91,8 @@ func TestCaptureScriptUsesReviewPrompt(t *testing.T) {
 	if err != nil {
 		t.Errorf("reading capture script: %v", err)
 	}
-	if !strings.Contains(string(script), taskWorkReviewPrompt) {
-		t.Errorf("scripts/capture-agent-fixtures.sh does not use the runReview prompt %q; update its review_prompt", taskWorkReviewPrompt)
+	if !strings.Contains(string(script), taskWorkReviewPromptMarker) {
+		t.Errorf("scripts/capture-agent-fixtures.sh does not use the review prompt marker %q; update its review_prompt", taskWorkReviewPromptMarker)
 	}
 }
 

@@ -19,7 +19,7 @@ import (
 // executable and args are already built for the implementation agent.
 // reviewExecutable is empty when the review agent is the same as the
 // implementation agent (no separate PATH lookup needed).
-func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args []string, reviewExecutable string, review bool, commit bool, taskID string, timeout time.Duration) error {
+func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args []string, reviewExecutable string, review bool, commit bool, task Task, timeout time.Duration) error {
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
@@ -45,29 +45,91 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 	fmt.Fprintf(a.err, "%s session started: %s\n", roles.implAgent.name, truncatedID(sessionID, 8))
 
 	if review {
+		// The implementation agent may have updated acceptance notes, ExecPlan
+		// metadata, or task status. Re-read after the external process finishes so
+		// the reviewer sees completion state rather than the intake snapshot.
+		a.invalidateTasks()
+		reviewTask, err := a.resolveTask(task.ID)
+		if err != nil {
+			return fmt.Errorf("cannot load task %s for review: %w", task.ID, err)
+		}
 		revExec := reviewExecutable
 		if revExec == "" {
 			revExec = executable
 		}
 		// Pass implAgent and implExecutable for the feedback-resume step so
 		// runReview resumes the implementation session (not the review session).
-		if err := a.runReview(roles.reviewAgent, revExec, roles.implAgent, executable, sessionID, timeout, roles.reviewModel); err != nil {
+		if err := a.runReview(roles.reviewAgent, revExec, roles.implAgent, executable, sessionID, timeout, roles.reviewModel, buildTaskWorkReviewPrompt(reviewTask)); err != nil {
 			return err
 		}
 	}
 	if commit {
-		return a.runCommit(roles.implAgent, executable, sessionID, taskID, timeout)
+		return a.runCommit(roles.implAgent, executable, sessionID, task.ID, timeout)
 	}
 	return nil
 }
 
-// taskWorkReviewPrompt is the prompt runReview sends to every review-capable
-// agent. It asks the agent to run the repo-owned preflight review skill against
-// current uncommitted changes. The fixture capture script
-// (scripts/capture-agent-fixtures.sh) replays the same prompt so the committed
-// review golden reflects a real review run;
-// TestCaptureScriptUsesReviewPrompt keeps the two in sync.
-const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted changes."
+const taskWorkReviewPromptMarker = "Review the current uncommitted changes before task completion."
+
+const taskWorkReviewProcedure = `Determine change size with read-only git commands, including untracked files:
+
+  git diff --stat
+  git status --short
+
+Scale the review to the actual change: XS/S gets one combined pass; M gets two
+sequential passes (rules/documentation conformance, then correctness and source
+of truth); L/XL gets three sequential passes (those two plus overengineering
+and simplification). Read the repository guidance and only relevant task, plan,
+architecture, and design context. Keep each pass focused.
+
+Check repository rules and documentation coverage, then boundary validation,
+canonical models and schemas, failure/resource handling, state transitions,
+and available compiler/linter/test checks. For L/XL, separately remove
+unnecessary abstraction or indirection. Synthesize findings, ignore speculative
+or scope-widening advice, and apply every clearly worthwhile fix. The goal is
+the smallest clear diff that fully satisfies the task. Run focused verification
+after fixes and the repository's documented final verification when required.
+Never commit or push during this review.`
+
+func buildTaskWorkReviewPrompt(task Task) string {
+	acceptance := taskAcceptanceSection(task.Body)
+	if acceptance == "" {
+		acceptance = "(No acceptance section found; flag this as a completion issue.)"
+	}
+	return fmt.Sprintf(`%s
+
+Task: %s — %s
+
+Acceptance notes:
+%s
+
+Review procedure:
+%s
+
+Managed-work completion checklist:
+- Acceptance notes are checked off and match the implemented behavior.
+- The task's exec_plan, when present, is updated or completed.
+- User-visible or durable behavior has the required documentation updates.
+- Generated indexes were not hand-edited; source records and ahm commands own them.
+- Task lifecycle changes use ahm task commands.
+`, taskWorkReviewPromptMarker, task.ID, task.Title, acceptance, taskWorkReviewProcedure)
+}
+
+func taskAcceptanceSection(body string) string {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	start, level := acceptanceSectionStart(lines)
+	if start < 0 {
+		return ""
+	}
+	end := len(lines)
+	for i := start + 1; i < len(lines); i++ {
+		if next := headingLevel(strings.TrimSpace(lines[i])); next > 0 && next <= level {
+			end = i
+			break
+		}
+	}
+	return strings.TrimSpace(strings.Join(lines[start+1:end], "\n"))
+}
 
 // runReview runs an independent review pass using the reviewAgent's review
 // capability, then feeds actionable feedback back into the original work
@@ -75,10 +137,10 @@ const taskWorkReviewPrompt = "Run the preflight skill on the current uncommitted
 // because it resumes the implementation session, not the review session.
 // If the review produces no feedback, the feedback-resume step is skipped.
 // If the review command itself fails, the error is surfaced.
-func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, implAgent taskWorkAgent, implExecutable string, sessionID string, timeout time.Duration, reviewModel string) error {
+func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, implAgent taskWorkAgent, implExecutable string, sessionID string, timeout time.Duration, reviewModel string, prompt string) error {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
-	reviewArgs := reviewAgent.reviewArgs(taskWorkReviewPrompt, reviewModel)
+	reviewArgs := reviewAgent.reviewArgs(prompt, reviewModel)
 
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)

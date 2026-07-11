@@ -119,7 +119,7 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 			return err
 		}
 	}
-	return a.taskWorkWithSession(roles, executable, args, reviewExecutable, review, commit, task.ID, timeout)
+	return a.taskWorkWithSession(roles, executable, args, reviewExecutable, review, commit, task, timeout)
 }
 
 func taskWorkDryRunStatus(status string) string {
