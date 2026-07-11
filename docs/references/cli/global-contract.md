@@ -33,9 +33,9 @@ found, the command fails with an error message that explains how to use
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
-`init`, `upgrade`, and `agents suggestions` are lenient: they can run in any
+`init`, `upgrade`, and `onboard` are lenient: they can run in any
 directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
-refreshes it, and `agents suggestions` only prints advisory text. `prime`,
+refreshes it, and `onboard` only prints the AGENTS.md bootstrap snippet. `prime`,
 `context`, and all other state-aware commands require a managed repository
 (`.git`, `.ahm/config.json`, or `.agents/ahm.json`).
 
@@ -123,8 +123,8 @@ Install and upgrade operations always print grouped text sections such as
 Some task commands use command-specific text output regardless of the output
 mode:
 
-- `agents suggestions` prints advisory agent instructions as Markdown unless
-  `--json` is used.
+- `onboard` prints framed Markdown in text mode, the bare snippet with
+  `--plain`, and a structured snippet field with `--json`.
 - `adr create` prints the created ADR ID.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.

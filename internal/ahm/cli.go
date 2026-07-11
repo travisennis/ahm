@@ -276,7 +276,7 @@ Examples:
 		}
 		return a.writeIndexes()
 	}))
-	root.AddCommand(a.agentsCommand())
+	root.AddCommand(a.onboardCommand())
 	root.AddCommand(a.auditCommand())
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.recordsCommand())
@@ -326,49 +326,6 @@ Examples:
 			return a.context(args[0])
 		},
 	}
-}
-
-func (a *app) agentsCommand() *cobra.Command {
-	var showAll bool
-	agents := &cobra.Command{
-		Use:   "agents",
-		Short: "Show AGENTS.md guidance",
-		Long: `Show AGENTS.md guidance and suggestions.
-
-Examples:
-  ahm agents suggestions
-  ahm agents suggestions --all
-  ahm --json agents suggestions`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
-			}
-			return usageError("agents requires a subcommand\n  ahm agents suggestions")
-		},
-	}
-	suggestions := &cobra.Command{
-		Use:   "suggestions",
-		Short: "Print suggested AGENTS.md additions",
-		Long: `Print advisory AGENTS.md integration instructions.
-
-The suggestions help adapt an existing AGENTS.md to use ahm's managed-work
-intake and ownership boundaries. This command never writes AGENTS.md.
-
-Examples:
-  ahm agents suggestions
-  ahm agents suggestions --all
-  ahm --json agents suggestions`,
-		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRootOrCWD(); err != nil {
-				return err
-			}
-			return a.agentsSuggestions(showAll)
-		},
-	}
-	suggestions.Flags().BoolVar(&showAll, "all", false, "Print all suggestions, including ones that appear present")
-	agents.AddCommand(suggestions)
-	return agents
 }
 
 func (a *app) simpleCommand(use string, short string, long string, run func() error) *cobra.Command {

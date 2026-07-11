@@ -47,7 +47,7 @@ Commands:
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
-- `agents`: print advisory `AGENTS.md` snippets.
+- `onboard`: print the paste-ready `AGENTS.md` bootstrap snippet.
 - `records`: inspect, pull, push, sync, and diagnose ref-backed workflow records.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
@@ -253,9 +253,12 @@ The ownership categories are:
    lifecycle commands.
 
 5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
-   never create, overwrite, or remove `AGENTS.md`. `ahm agents suggestions`
-   prints advisory agent instructions for project-owned `AGENTS.md` but does not modify
-   the file.
+   never create, overwrite, or remove `AGENTS.md`. `ahm onboard` prints a
+   paste-ready bootstrap snippet but does not modify the file.
+
+`doctor` reports the informational finding `agents_prime_missing` when a root
+`AGENTS.md` exists but does not reference `ahm prime`, and suggests running
+`ahm onboard`. Absence of `AGENTS.md` is not a finding.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,

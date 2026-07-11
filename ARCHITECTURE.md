@@ -45,8 +45,8 @@ to an external coding-agent CLI.
 - `internal/ahm/root.go`: repository root discovery.
 - `internal/ahm/context.go`: `context` command briefing and managed-work
   references.
-- `internal/ahm/agents.go`: `agents suggestions` command that reports missing
-  AGENTS.md integration suggestions.
+- `internal/ahm/onboard.go`: `onboard` command that prints the static,
+  paste-ready AGENTS.md bootstrap snippet.
 - `internal/ahm/install.go`: `init`, `upgrade`, metadata, legacy instruction
   removal, and generated index writes.
 - `internal/ahm/status.go`: `status` and `doctor`.

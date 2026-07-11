@@ -251,47 +251,21 @@ ahm adr migrate
 ahm --json adr migrate --dry-run
 ```
 
-### `agents suggestions`
+### `onboard`
 
-Prints advisory integration instructions that a project may use to update an
-existing project-owned `AGENTS.md`. The suggestions are intentionally limited
-to ahm-owned workflow intake and ownership boundaries: how to adapt an existing
-Operating Loop, when to use scoped `ahm context` commands for managed tasks,
-ExecPlans, ADRs, or research before returning to the project's normal workflow
-routing, how to treat generated indexes, and which task or ADR state moves
-should use `ahm` commands.
+Prints the minimal bootstrap and safety snippet maintainers can paste into the
+project-owned `AGENTS.md`. The snippet requires `ahm prime` before work and
+after context compaction, and directs record state changes and generated-index
+updates through ahm. It deliberately omits project operating loops and workflow
+routing. The command never reads or writes `AGENTS.md`.
 
-This command never writes `AGENTS.md`. It exists for repositories where
-`AGENTS.md` already exists or where a maintainer wants a small bridge to
-`ahm context`. The intended workflow is for an agent or maintainer to run the
-command, review the suggestions, and adapt any useful instructions into the
-existing instructions without replacing project-specific guidance.
-
-When a target `AGENTS.md` already has an Operating Loop, the output recommends
-patching that loop so managed-work intake happens before normal workflow
-routing. When a target has workflow routing but no Operating Loop, it
-recommends adding a short loop before the routing section. When a target has
-neither, it recommends adding only the ahm-specific intake and ownership
-sections rather than inventing a full project workflow.
-
-By default, the command reads `AGENTS.md` under the target root when present and
-omits exact suggestion blocks that already appear in the file. The matching is
-lightweight and advisory; projects should still review the output.
-When a suggestion names workflow record or generated index paths, the command
-renders those paths for the repository's active storage mode.
-
-Useful flags:
-
-- `--all`: prints all suggestions, including blocks that appear present.
-- `--json`: prints structured suggestion objects with `id`, `title`, `body`,
-  and `present` fields.
-
-Examples:
+Text mode adds brief paste/import framing. `--plain` prints the bare snippet;
+`--json` returns an object with a `snippet` field.
 
 ```bash
-ahm agents suggestions
-ahm agents suggestions --all
-ahm --json agents suggestions
+ahm onboard
+ahm --plain onboard
+ahm --json onboard
 ```
 
 ### `records migrate`
@@ -758,6 +732,9 @@ The report includes:
 - Whether workflow metadata is installed.
 - Installed and embedded workflow template versions.
 - The same workflow validation report used by `status`.
+- An informational `agents_prime_missing` finding when root `AGENTS.md`
+  exists but does not reference `ahm prime`; `ahm onboard` prints the current
+  bootstrap snippet. Missing `AGENTS.md` is not a finding.
 
 Like `status`, `doctor` exits with code 1 when the validation report contains
 any error, without printing `error:` to stderr.
