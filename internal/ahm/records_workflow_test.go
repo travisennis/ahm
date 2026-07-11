@@ -8,16 +8,16 @@ import (
 	"testing"
 )
 
-// newRefBackedWorkflowRepo builds a legacy committed-record repository with
-// valid workflow records, then opts it into ref-backed storage through the
-// real migration command.
+// newRefBackedWorkflowRepo builds a repository with valid workflow records
+// and opts them into ref-backed storage directly (without using records
+// migrate, which no longer produces ref state). This helper will be removed
+// together with the ref-backed tests in task 172f.
 func newRefBackedWorkflowRepo(t *testing.T) string {
 	t.Helper()
 	root := newGitRepo(t)
-	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
-		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
-	}
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), `---
+
+	// Set up workflow records under .ahm/ paths (migrated layout).
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), `---
 id: 001
 title: First Task
 status: Pending
@@ -37,8 +37,8 @@ TODO.
 
 - [x] Done.
 `)
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "note.md"), "# Ref Note\n\nBody.\n")
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "plan.md"), `# Plan
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Ref Note\n\nBody.\n")
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), `# Plan
 
 ## Progress
 
@@ -54,14 +54,44 @@ None.
 
 ## Outcomes & Retrospective
 `)
+
+	// Write a config with ref mode so the ref-backed commands work.
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "test",
+  "strict_acceptance": false,
+  "store_mode": "ref",
+  "records_ref": "refs/ahm/records",
+  "records_remote": "origin",
+  "files": {}
+}`+"\n")
+
+	// Write a gitignore that ignores source records (old ref-backed layout).
+	writeFile(t, filepath.Join(root, ".ahm", ".gitignore"), `# Managed by ahm. Workflow records and generated indexes stay local-only;
+# config.json remains committed.
+/tasks/
+/research/
+/exec-plans/
+`)
+
+	// Run index to regenerate the indexes.
 	if _, stderr, code := runCLI(t, "--root", root, "index"); code != 0 {
 		t.Fatalf("index exit code = %d, stderr = %s", code, stderr)
 	}
-	git(t, root, "add", "-A")
-	git(t, root, "commit", "-q", "-m", "add workflow records")
-	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {
-		t.Fatalf("records migrate exit code = %d, stderr = %s", code, stderr)
+
+	// Seed refs/ahm/records with the current .ahm/ records.
+	cfg := recordsStorageConfig{
+		Mode:   recordStoreModeRef,
+		Ref:    defaultRecordsRef,
+		Remote: defaultRecordsRemote,
 	}
+	ctx := testContext(t)
+	if _, err := snapshotRecordsRef(ctx, root, cfg, "Seed ref for tests"); err != nil {
+		t.Fatalf("snapshotRecordsRef: %v", err)
+	}
+
+	// Commit the .ahm/ state so the repo has a clean base to work from.
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "add workflow records with ref-backed layout")
 	return root
 }
 

@@ -22,10 +22,6 @@ const (
 	migrateActionRemove    = "remove"
 	migrateActionUnchanged = "unchanged"
 	migrateActionAbsent    = "absent"
-
-	migrateRefActionSeed      = "seed"
-	migrateRefActionSnapshot  = "snapshot"
-	migrateRefActionUnchanged = "unchanged"
 )
 
 // legacyRecordMigrationRoots are the ahm-managed record trees that migration
@@ -38,15 +34,16 @@ var legacyRecordMigrationRoots = []string{
 	".agents/exec-plans",
 }
 
-// recordsGitignoreEntries keep migrated records and generated indexes out of
-// branch history while .ahm/config.json and .ahm/.gitignore stay committed.
+// recordsGitignoreEntries keep generated workflow indexes and machine-local
+// state out of branch history while source records and .ahm/config.json stay
+// committed.
 var recordsGitignoreEntries = []string{
-	"/tasks/",
-	"/research/",
-	"/exec-plans/",
+	"index.md",
+	".lock/",
+	"*.tmp",
 }
 
-const recordsGitignoreHeader = "# Managed by ahm. Workflow records and generated indexes stay local-only;\n# config.json remains committed.\n"
+const recordsGitignoreHeader = "# Managed by ahm. Generated workflow indexes and machine-local state stay local-only;\n# source records and config.json remain committed.\n"
 
 type recordsMigrateMove struct {
 	From string `json:"from"`
@@ -56,27 +53,21 @@ type recordsMigrateMove struct {
 type recordsMigrateReport struct {
 	Action       string               `json:"action"`
 	DryRun       bool                 `json:"dry_run,omitempty"`
-	Ref          string               `json:"ref"`
-	Remote       string               `json:"remote"`
 	Moves        []recordsMigrateMove `json:"moves,omitempty"`
 	Gitignore    string               `json:"gitignore"`
 	Config       string               `json:"config"`
 	LegacyConfig string               `json:"legacy_config"`
-	RefAction    string               `json:"ref_action"`
-	SeedCommit   string               `json:"seed_commit,omitempty"`
 	GitCleanup   string               `json:"git_cleanup,omitempty"`
 	Message      string               `json:"message"`
 }
 
 type recordsMigratePlan struct {
 	meta         metadata
-	cfg          recordsStorageConfig
 	moves        []recordsMigrateMove
 	gitignore    string
 	gitignoreAdd []string
 	config       string
 	legacyConfig string
-	refAction    string
 	tracked      []string
 }
 
@@ -84,8 +75,7 @@ func (p recordsMigratePlan) complete() bool {
 	return len(p.moves) == 0 &&
 		p.gitignore == migrateActionUnchanged &&
 		p.config == migrateActionUnchanged &&
-		p.legacyConfig == migrateActionAbsent &&
-		p.refAction == migrateRefActionUnchanged
+		p.legacyConfig == migrateActionAbsent
 }
 
 func (a *app) recordsMigrate() error {
@@ -116,11 +106,9 @@ func (a *app) recordsMigrate() error {
 	if plan.complete() {
 		return a.emit(report)
 	}
-	seedCommit, err := a.executeRecordsMigratePlan(ctx, plan)
-	if err != nil {
+	if err := a.executeRecordsMigratePlan(plan); err != nil {
 		return err
 	}
-	report.SeedCommit = seedCommit
 	return a.emit(report)
 }
 
@@ -128,13 +116,10 @@ func newRecordsMigrateReport(plan recordsMigratePlan, dryRun bool) recordsMigrat
 	return recordsMigrateReport{
 		Action:       "migrate",
 		DryRun:       dryRun,
-		Ref:          plan.cfg.Ref,
-		Remote:       plan.cfg.Remote,
 		Moves:        plan.moves,
 		Gitignore:    plan.gitignore,
 		Config:       plan.config,
 		LegacyConfig: plan.legacyConfig,
-		RefAction:    plan.refAction,
 		GitCleanup:   legacyRecordsGitCleanupCommand(plan.tracked),
 		Message:      recordsMigrateMessage(plan, dryRun),
 	}
@@ -153,25 +138,18 @@ func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, 
 		return recordsMigratePlan{}, fmt.Errorf("%s: %w", metadataCorruptMessage(err), err)
 	}
 	plan := recordsMigratePlan{meta: meta}
-	plan.meta.StoreMode = string(recordStoreModeRef)
-	if plan.meta.RecordsRef == "" {
-		plan.meta.RecordsRef = defaultRecordsRef
-	}
-	if plan.meta.RecordsRemote == "" {
-		plan.meta.RecordsRemote = defaultRecordsRemote
-	}
-	plan.cfg = plan.meta.recordsStorage()
-	if err := validateRecordsRef(ctx, root, plan.cfg.Ref); err != nil {
-		return recordsMigratePlan{}, err
-	}
 	plan.moves, err = collectRecordsMigrateMoves(root)
 	if err != nil {
 		return recordsMigratePlan{}, err
 	}
+	// Determine config action: create if metadata is still in legacy
+	// location, update if already in .ahm/config.json (to strip any
+	// stale ref-back fields), or unchanged if no moves are needed and
+	// config is already in the right place.
 	switch {
 	case source != configMetadataRelPath:
 		plan.config = migrateActionCreate
-	case meta.recordsStorage().Mode != recordStoreModeRef || meta.RecordsRef == "" || meta.RecordsRemote == "":
+	case len(plan.moves) > 0:
 		plan.config = migrateActionUpdate
 	default:
 		plan.config = migrateActionUnchanged
@@ -187,17 +165,6 @@ func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, 
 	if err != nil {
 		return recordsMigratePlan{}, err
 	}
-	_, refErr := resolveGitRef(ctx, root, plan.cfg.Ref)
-	switch {
-	case errors.Is(refErr, errGitRefMissing):
-		plan.refAction = migrateRefActionSeed
-	case refErr != nil:
-		return recordsMigratePlan{}, refErr
-	case len(plan.moves) > 0:
-		plan.refAction = migrateRefActionSnapshot
-	default:
-		plan.refAction = migrateRefActionUnchanged
-	}
 	plan.tracked, err = trackedLegacyRecordPaths(ctx, root)
 	if err != nil {
 		return recordsMigratePlan{}, err
@@ -205,40 +172,38 @@ func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, 
 	return plan, nil
 }
 
-func (a *app) executeRecordsMigratePlan(ctx context.Context, plan recordsMigratePlan) (string, error) {
+func (a *app) executeRecordsMigratePlan(plan recordsMigratePlan) error {
 	root := a.opts.root
 	for _, move := range plan.moves {
 		if err := moveRecordFile(root, move); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if err := removeEmptyLegacyRecordDirs(root); err != nil {
-		return "", err
+		return err
 	}
 	if plan.gitignore != migrateActionUnchanged {
 		if err := writeRecordsGitignore(root, plan.gitignoreAdd); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if plan.config != migrateActionUnchanged {
+		// Write a clean config without ref fields.
+		plan.meta.StoreMode = ""
+		plan.meta.RecordsRef = ""
+		plan.meta.RecordsRemote = ""
+		plan.meta.RecordsLastSync = ""
 		if err := writeConfigMetadata(root, plan.meta); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if plan.legacyConfig == migrateActionRemove {
 		legacy := filepath.Join(root, filepath.FromSlash(legacyMetadataRelPath))
 		if err := os.Remove(legacy); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", err
+			return err
 		}
 	}
-	if plan.refAction == migrateRefActionUnchanged {
-		return "", nil
-	}
-	snapshot, err := snapshotRecordsRef(ctx, root, plan.cfg, "Migrate ahm workflow records")
-	if err != nil {
-		return "", err
-	}
-	return snapshot.Commit, nil
+	return nil
 }
 
 func collectRecordsMigrateMoves(root string) ([]recordsMigrateMove, error) {
@@ -485,28 +450,27 @@ func legacyRecordsGitCleanupCommand(tracked []string) string {
 	if len(tracked) == 0 {
 		return ""
 	}
-	return "git rm -r --cached " + strings.Join(tracked, " ")
+	return "git add .ahm/ && git rm -r --cached " + strings.Join(tracked, " ")
 }
 
 func recordsMigrateMessage(plan recordsMigratePlan, dryRun bool) string {
 	switch {
 	case dryRun:
-		return "dry run: previewed records migration; no files, metadata, or refs were changed"
+		return "dry run: previewed records migration; no files, metadata, or gitignore were changed"
 	case plan.complete() && len(plan.tracked) > 0:
-		return "records storage is already migrated; run the printed git_cleanup command to untrack legacy record paths, then commit the result"
+		return "records storage is already migrated; run the printed git_cleanup command to finish Git tracking"
 	case plan.complete():
 		return "records storage is already migrated"
 	case len(plan.tracked) > 0:
-		return "migrated workflow records to .ahm/; run the printed git_cleanup command, then commit the result together with .ahm/config.json and .ahm/.gitignore"
+		return "migrated workflow records to .ahm/; review with git status, then run the printed git_cleanup command and commit"
 	default:
-		return "migrated workflow records to .ahm/; commit .ahm/config.json and .ahm/.gitignore to keep the records configuration in the project branch"
+		return "migrated workflow records to .ahm/; review with git status, then commit the new .ahm/ paths"
 	}
 }
 
-// recordsMigrationDiagnostic reports partially migrated ref-backed state:
-// leftover legacy record files, a leftover legacy config, legacy record
-// paths still tracked in the project git index, or legacy dot-prefixed
-// subdirectories under .ahm/ that need migration to non-dot names.
+// recordsMigrationDiagnostic reports incomplete or partially migrated state:
+// leftover legacy record files, a leftover legacy config, or legacy record
+// paths still tracked in the project git index.
 func recordsMigrationDiagnostic(ctx context.Context, root string) (string, bool, error) {
 	var leftovers []string
 	for _, dir := range legacyRecordMigrationRoots {
@@ -583,29 +547,18 @@ func (r recordsMigrateReport) RenderText(w io.Writer) error {
 			return err
 		}
 	}
-	lines := []string{
-		"ref: " + r.Ref,
-		"remote: " + r.Remote,
-		fmt.Sprintf("moves: %d", len(r.Moves)),
-	}
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(w, line); err != nil {
-			return err
-		}
+	if _, err := fmt.Fprintf(w, "moves: %d\n", len(r.Moves)); err != nil {
+		return err
 	}
 	for _, move := range r.Moves {
 		if _, err := fmt.Fprintf(w, "  %s -> %s\n", move.From, move.To); err != nil {
 			return err
 		}
 	}
-	lines = []string{
+	lines := []string{
 		"gitignore: " + r.Gitignore,
 		"config: " + r.Config,
 		"legacy_config: " + r.LegacyConfig,
-		"ref_action: " + r.RefAction,
-	}
-	if r.SeedCommit != "" {
-		lines = append(lines, "seed_commit: "+r.SeedCommit)
 	}
 	lines = append(lines, "git_cleanup: "+emptyAsNone(r.GitCleanup), "message: "+r.Message)
 	for _, line := range lines {

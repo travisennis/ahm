@@ -39,7 +39,12 @@ ref-sync commands, metadata, and plumbing are gone from the binary.
   rather than `recordsStorage().Mode`. The commit prompt is unified; both layouts
   produce the same prompt. Six task-work tests fixed to use correct `.ahm/tasks/`
   paths when config is in `.ahm/config.json`.
-- [ ] Milestone 2: rework `ahm records migrate` to preserve Git tracking (task 172d).
+- [x] (2026-07-11) Milestone 2: rework `ahm records migrate` to preserve Git tracking (task 172d).
+  Removed ref seeding, changed gitignore to ignore only generated indexes and
+  machine-local state, removed ref-action/ref-seed output fields, changed config
+  writing to omit ref fields, updated all migration tests and messages, updated
+  `newRefBackedWorkflowRepo` to construct state directly, updated `recordsDoctor`
+  to handle committed mode, and updated `docs/references/cli/commands.md`.
 - [ ] Milestone 3: remove automatic ref sync from `prime` and mutations (task 172e).
 - [ ] Milestone 4: retire ref-backed records commands and sync metadata (task 172f).
 - [ ] Milestone 5: committed sources versus ignored generated artifacts (task 172g).

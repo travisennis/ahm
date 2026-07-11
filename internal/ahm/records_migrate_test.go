@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-const legacyGitCleanupCommand = "git rm -r --cached .agents/.tasks .agents/.research .agents/exec-plans .agents/ahm.json"
+const legacyGitCleanupCommand = "git add .ahm/ && git rm -r --cached .agents/.tasks .agents/.research .agents/exec-plans .agents/ahm.json"
 
 func newLegacyCommittedRepo(t *testing.T) string {
 	t.Helper()
@@ -48,11 +48,12 @@ func TestRecordsMigrateDryRunPreviewsWithoutWriting(t *testing.T) {
 		"gitignore: create",
 		"config: create",
 		"legacy_config: remove",
-		"ref_action: seed",
 		"git_cleanup: "+legacyGitCleanupCommand,
-		"no files, metadata, or refs were changed",
+		"no files, metadata, or gitignore were changed",
 	)
 	assertNotContains(t, stdout, ".agents/prompt.md")
+	assertNotContains(t, stdout, "ref_action")
+	assertNotContains(t, stdout, "ref:")
 
 	if _, err := os.Stat(filepath.Join(root, ".ahm")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run created .ahm: %v", err)
@@ -62,9 +63,6 @@ func TestRecordsMigrateDryRunPreviewsWithoutWriting(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "001.md")); err != nil {
 		t.Fatalf("dry-run moved task file: %v", err)
-	}
-	if _, err := resolveGitRef(testContext(t), root, defaultRecordsRef); !errors.Is(err, errGitRefMissing) {
-		t.Fatalf("dry-run touched records ref: %v", err)
 	}
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--json", "--dry-run", "records", "migrate")
@@ -80,7 +78,7 @@ func TestRecordsMigrateDryRunPreviewsWithoutWriting(t *testing.T) {
 	}
 }
 
-func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
+func TestRecordsMigrateMovesRecordsAndPrintsGitCleanup(t *testing.T) {
 	root := newLegacyCommittedRepo(t)
 	headBefore := strings.TrimSpace(git(t, root, "rev-parse", "HEAD"))
 
@@ -90,11 +88,12 @@ func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"action: migrate",
-		"ref_action: seed",
-		"seed_commit: ",
 		"git_cleanup: "+legacyGitCleanupCommand,
 		"migrated workflow records to .ahm/",
 	)
+	assertNotContains(t, stdout, "ref_action")
+	assertNotContains(t, stdout, "seed_commit")
+	assertNotContains(t, stdout, "ref:")
 
 	// Records and generated indexes moved to .ahm/; sources are gone.
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task One")
@@ -117,21 +116,21 @@ func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
 
 	// Committed config and internal gitignore are installed.
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"),
-		`"store_mode": "ref"`,
-		`"records_ref": "refs/ahm/records"`,
-		`"records_remote": "origin"`,
 		`"version": "test"`,
+		`"strict_acceptance": false`,
 	)
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".gitignore"), "/tasks/", "/research/", "/exec-plans/")
+	// Config must NOT contain ref-back fields.
+	assertNotContains(t, mustRead(t, filepath.Join(root, ".ahm", "config.json")),
+		"store_mode", "records_ref", "records_remote")
 
-	// The seeded ref holds source records but not generated indexes.
-	seeded := git(t, root, "ls-tree", "-r", "--name-only", defaultRecordsRef)
-	assertContainsAll(t, seeded,
-		".ahm/tasks/active/001.md",
-		".ahm/research/topics/note.md",
-		".ahm/exec-plans/active/plan.md",
+	// Gitignore ignores generated indexes and machine-local state, NOT source records.
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", ".gitignore"),
+		"index.md",
+		".lock/",
+		"*.tmp",
 	)
-	assertNotContains(t, seeded, "index.md", "prompt.md")
+	assertNotContains(t, mustRead(t, filepath.Join(root, ".ahm", ".gitignore")),
+		"/tasks/", "/research/", "/exec-plans/")
 
 	// Migration does not run git rm, stage changes, or move HEAD.
 	if got := strings.TrimSpace(git(t, root, "rev-parse", "HEAD")); got != headBefore {
@@ -141,7 +140,7 @@ func TestRecordsMigrateMovesRecordsSeedsRefAndPrintsGitCleanup(t *testing.T) {
 		t.Fatalf("migration staged changes:\n%s", staged)
 	}
 	if tracked := strings.TrimSpace(git(t, root, "ls-files", "--", ".agents/.tasks")); tracked == "" {
-		t.Fatal("migration untracked legacy records instead of printing the git rm command")
+		t.Fatal("migration untracked legacy records instead of printing the git cleanup command")
 	}
 }
 
@@ -159,9 +158,9 @@ func TestRecordsMigrateIsIdempotentAndReportsGitCleanup(t *testing.T) {
 		"records storage is already migrated",
 		"git_cleanup: "+legacyGitCleanupCommand,
 		"moves: 0",
-		"ref_action: unchanged",
 	)
 
+	// Simulate the user running the git cleanup command.
 	git(t, root, "rm", "-r", "-q", "--cached", ".agents/.tasks", ".agents/.research", ".agents/exec-plans", ".agents/ahm.json")
 	git(t, root, "commit", "-q", "-m", "untrack migrated records")
 
@@ -170,7 +169,7 @@ func TestRecordsMigrateIsIdempotentAndReportsGitCleanup(t *testing.T) {
 		t.Fatalf("third records migrate exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "git_cleanup: none", "records storage is already migrated")
-	assertNotContains(t, stdout, "git rm -r --cached")
+	assertNotContains(t, stdout, "git add .ahm/")
 }
 
 func TestRecordsMigrateResumesPartialStateAndRejectsConflicts(t *testing.T) {
@@ -213,8 +212,6 @@ func TestRecordsMigrateRequiresWorkflowMetadata(t *testing.T) {
 
 func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 	root := newLegacyCommittedRepo(t)
-	remote := newBareRemote(t)
-	git(t, root, "remote", "add", "origin", remote)
 
 	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {
 		t.Fatalf("records migrate failed: %s", stderr)
@@ -225,7 +222,7 @@ func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "ok: false", "project git index still tracks legacy record paths", "git rm -r --cached")
+	assertContainsAll(t, stdout, "ok: false", "project git index still tracks legacy record paths", "git add .ahm/")
 
 	// Leftover legacy record files point back at migration.
 	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "# Straggler\n")
@@ -253,5 +250,5 @@ func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "ok: false", "not ref-backed", "ahm records migrate")
+	assertContainsAll(t, stdout, "ok: false", "legacy .agents records; run", "ahm records migrate")
 }

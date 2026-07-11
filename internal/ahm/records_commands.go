@@ -149,52 +149,10 @@ func (a *app) recordsDoctor() error {
 	}
 	cfg := meta.recordsStorage()
 	report.Checks["mode"] = string(cfg.Mode)
-	if cfg.Mode != recordStoreModeRef {
-		report.OK = false
-		report.Checks["storage"] = "records storage is not ref-backed; run 'ahm records migrate' to opt in"
-		return a.emit(report)
-	}
-	if err := validateRecordsRef(ctx, a.opts.root, cfg.Ref); err != nil {
-		report.OK = false
-		report.Checks["ref"] = err.Error()
-	} else {
-		report.Checks["ref"] = cfg.Ref
-	}
-	remoteOK := false
-	remoteURL, err := recordsRemoteURL(ctx, a.opts.root, cfg.Remote)
-	switch {
-	case err != nil:
-		report.OK = false
-		report.Checks["remote"] = classifyRecordsRemoteError(cfg, err)
-	case !isSupportedRecordsRemoteURL(remoteURL):
-		report.OK = false
-		report.Checks["remote"] = unsupportedRecordsRemoteMessage(cfg.Remote, remoteURL)
-	default:
-		remoteOK = true
-		report.Checks["remote"] = cfg.Remote + " " + remoteURL
-	}
-	if _, err := resolveGitRef(ctx, a.opts.root, cfg.Ref); err != nil {
-		if errors.Is(err, errGitRefMissing) {
-			report.Checks["local_ref"] = "missing"
-		} else {
-			report.OK = false
-			report.Checks["local_ref"] = err.Error()
-		}
-	} else {
-		report.Checks["local_ref"] = "present"
-	}
-	if !remoteOK {
-		report.Checks["remote_ref"] = "skipped"
-	} else if _, err := lsRemoteRecordsRef(ctx, a.opts.root, cfg); err != nil {
-		if errors.Is(err, errGitRefMissing) {
-			report.Checks["remote_ref"] = "missing"
-		} else {
-			report.OK = false
-			report.Checks["remote_ref"] = classifyRecordsRemoteError(cfg, err)
-		}
-	} else {
-		report.Checks["remote_ref"] = "present"
-	}
+
+	// First run the migration diagnostic, which works for both legacy and
+	// committed .ahm layouts. Ref-mode diagnostics follow for repos that
+	// still have the unreleased ref layout (will be removed in 172f).
 	migration, migrationOK, err := recordsMigrationDiagnostic(ctx, a.opts.root)
 	if err != nil {
 		report.OK = false
@@ -204,6 +162,57 @@ func (a *app) recordsDoctor() error {
 			report.OK = false
 		}
 		report.Checks["migration"] = migration
+	}
+
+	if cfg.Mode == recordStoreModeRef {
+		if err := validateRecordsRef(ctx, a.opts.root, cfg.Ref); err != nil {
+			report.OK = false
+			report.Checks["ref"] = err.Error()
+		} else {
+			report.Checks["ref"] = cfg.Ref
+		}
+		remoteOK := false
+		remoteURL, err := recordsRemoteURL(ctx, a.opts.root, cfg.Remote)
+		switch {
+		case err != nil:
+			report.OK = false
+			report.Checks["remote"] = classifyRecordsRemoteError(cfg, err)
+		case !isSupportedRecordsRemoteURL(remoteURL):
+			report.OK = false
+			report.Checks["remote"] = unsupportedRecordsRemoteMessage(cfg.Remote, remoteURL)
+		default:
+			remoteOK = true
+			report.Checks["remote"] = cfg.Remote + " " + remoteURL
+		}
+		if _, err := resolveGitRef(ctx, a.opts.root, cfg.Ref); err != nil {
+			if errors.Is(err, errGitRefMissing) {
+				report.Checks["local_ref"] = "missing"
+			} else {
+				report.OK = false
+				report.Checks["local_ref"] = err.Error()
+			}
+		} else {
+			report.Checks["local_ref"] = "present"
+		}
+		if !remoteOK {
+			report.Checks["remote_ref"] = "skipped"
+		} else if _, err := lsRemoteRecordsRef(ctx, a.opts.root, cfg); err != nil {
+			if errors.Is(err, errGitRefMissing) {
+				report.Checks["remote_ref"] = "missing"
+			} else {
+				report.OK = false
+				report.Checks["remote_ref"] = classifyRecordsRemoteError(cfg, err)
+			}
+		} else {
+			report.Checks["remote_ref"] = "present"
+		}
+	} else {
+		// Non-ref mode: report storage state.
+		if migrationOK {
+			report.Checks["storage"] = "committed .ahm records"
+		} else {
+			report.Checks["storage"] = "legacy .agents records; run 'ahm records migrate' to migrate"
+		}
 	}
 	return a.emit(report)
 }
