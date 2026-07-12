@@ -162,6 +162,9 @@ ahm --json adr show 009-madr-adr-management
 Sets a MADR-profile ADR's `status:` to `accepted`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
 
+Rerunning on an already-`accepted` ADR is idempotent. The command refuses
+ADRs that are `rejected`, `deprecated`, or `superseded by ADR-NNN`.
+
 Example:
 
 ```bash
@@ -172,6 +175,9 @@ ahm adr accept 009
 
 Sets a MADR-profile ADR's `status:` to `rejected`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
+
+Rerunning on an already-`rejected` ADR is idempotent. The command refuses
+ADRs that are `accepted`, `deprecated`, or `superseded by ADR-NNN`.
 
 Example:
 
@@ -184,10 +190,30 @@ ahm adr reject 009
 Sets a MADR-profile ADR's `status:` to `deprecated`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
 
+Rerunning on an already-`deprecated` ADR is idempotent. The command refuses
+ADRs that are `proposed`, `rejected`, or `superseded by ADR-NNN`.
+
 Example:
 
 ```bash
 ahm adr deprecate 009
+```
+
+### `adr propose <id>`
+
+Returns an `accepted` MADR-profile ADR to `proposed` status, updates `date:` to
+today's date, and regenerates indexes. The command rewrites only front matter.
+
+This is a correction command for ADRs that were prematurely accepted before
+review was complete. It is not a general undo: `rejected`, `deprecated`, and
+`superseded by ADR-NNN` ADRs are terminal and refused.
+
+Rerunning on an already-`proposed` ADR is idempotent.
+
+Example:
+
+```bash
+ahm adr propose 009
 ```
 
 ### `adr supersede <old-id> --by <new-id>`
@@ -204,7 +230,9 @@ The old ADR gets:
 The replacement ADR gets a `## More Information` reference back to the
 superseded ADR. Rerunning the same command replaces the managed notes instead
 of duplicating them. The command rejects unknown IDs, self-supersession, and
-attempts to point an already-superseded ADR at a different replacement.
+attempts to point an already-superseded ADR at a different replacement. Only
+`accepted` ADRs can be superseded; `proposed`, `rejected`, and `deprecated`
+ADRs are refused. The replacement ADR must also be `accepted`.
 
 Example:
 

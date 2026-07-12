@@ -71,7 +71,7 @@ Use one of these statuses, set in front matter:
 | `deprecated` | The decision is retained for history but should no longer guide new work. |
 | `superseded by ADR-NNN` | A later ADR replaces this decision entirely. |
 
-Use `ahm adr accept <id>`, `ahm adr reject <id>`, or `ahm adr deprecate <id>` to change an ADR's status. Use `ahm adr supersede <old-id> --by <new-id>` for full supersession.
+Use `ahm adr accept <id>`, `ahm adr reject <id>`, `ahm adr deprecate <id>`, or `ahm adr propose <id>` to change an ADR's status. Use `ahm adr supersede <old-id> --by <new-id>` for full supersession.
 
 When superseding an ADR, keep the old file on disk. The replacement ADR lists the superseded ADR in its `## More Information` section.
 
@@ -132,10 +132,11 @@ All ADR management commands operate on the `docs/adr/` directory and regenerate 
 | `ahm adr create <title> [flags]` | Create a new MADR ADR. Flags: `--status`, `--description`, `--body-file`, `--decision-makers`. |
 | `ahm adr list [--status <value>]` | List ADRs, optionally filtered by status. |
 | `ahm adr show <id>` | Show a single ADR. Accepts `9`, `009`, or `009-madr-slug`. |
-| `ahm adr accept <id>` | Set status to `accepted`. |
-| `ahm adr reject <id>` | Set status to `rejected`. |
-| `ahm adr deprecate <id>` | Set status to `deprecated`. |
-| `ahm adr supersede <old-id> --by <new-id>` | Mark one ADR as superseded by another with bidirectional body references. |
+| `ahm adr accept <id>` | Set status to `accepted`. Only from `proposed`. |
+| `ahm adr reject <id>` | Set status to `rejected`. Only from `proposed`. |
+| `ahm adr deprecate <id>` | Set status to `deprecated`. Only from `accepted`. |
+| `ahm adr propose <id>` | Return status to `proposed`. Only from `accepted`. |
+| `ahm adr supersede <old-id> --by <new-id>` | Mark one ADR as superseded by another with bidirectional body references. Old ADR must be `accepted`; replacement must also be `accepted`. |
 | `ahm adr migrate` | Convert legacy bold-metadata ADRs to the constrained MADR profile (metadata only). |
 
 These commands update only front matter and managed body references (supersession notes). ADR body prose is user-owned and is not rewritten by lifecycle commands.

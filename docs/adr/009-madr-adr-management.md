@@ -77,6 +77,14 @@ the repository's existing ADR location and keeping body prose user-owned.
   hand.
 - Supersession is explicit and bidirectional through
   `ahm adr supersede <old-id> --by <new-id>`.
+- Lifecycle transitions are enforced by `ahm adr` status commands. Each command
+  accepts only its documented source status (plus idempotent same-status
+  reruns). Terminal statuses (`rejected`, `deprecated`, `superseded by ADR-NNN`)
+  cannot be changed by ordinary lifecycle commands; a new ADR and the existing
+  supersession or reference mechanisms serve that purpose.
+- `ahm adr propose <id>` returns an `accepted` ADR to `proposed` status for
+  further review. It is a narrowly scoped correction for premature acceptance,
+  not a general undo. It refuses terminal-status ADRs.
 - Legacy ADR migration is metadata-only. `ahm adr migrate` converts the legacy
   heading and bold metadata lines into constrained MADR front matter, strips the
   consumed legacy metadata, and leaves body sections intact.
@@ -108,12 +116,13 @@ Bad, because legacy ADRs remain visible as validation findings until
 
 ### Confirmation
 
-Implementation tasks 075-081 must cite this ADR and the active feature
+Implementation tasks 075-081 and 173 must cite this ADR and the active feature
 ExecPlan. The feature is complete when `ahm adr create`, `list`, `show`,
-`accept`, `reject`, `deprecate`, `supersede`, and `migrate` operate on the
-constrained MADR profile; `ahm index` generates `docs/adr/index.md`; and
+`accept`, `reject`, `deprecate`, `propose`, `supersede`, and `migrate` operate on the
+constrained MADR profile; `ahm index` generates `docs/adr/index.md`;
 `ahm status` / `ahm doctor` report ADR workflow findings without breaking on
-legacy files.
+legacy files; and lifecycle commands enforce the documented transition matrix
+(including terminal-state refusal).
 
 ## Pros and Cons of the Options
 

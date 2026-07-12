@@ -327,6 +327,10 @@ func TestADRSupersedeErrors(t *testing.T) {
 	writeADRFile(t, root, "003-other-decision.md", "---\nstatus: accepted\ndate: 2026-06-03\n---\n# Other Decision\n\nBody.\n")
 	writeADRFile(t, root, "004-superseded-decision.md", "---\nstatus: superseded by ADR-002\ndate: 2026-06-04\n---\n# Superseded Decision\n\nBody.\n")
 	writeADRFile(t, root, "005-noncanonical-superseded.md", "---\nstatus: Superseded by ADR-002\ndate: 2026-06-05\n---\n# Non-Canonical Superseded\n\nBody.\n")
+	writeADRFile(t, root, "006-proposed-old.md", "---\nstatus: proposed\ndate: 2026-06-06\n---\n# Proposed Old\n\nBody.\n")
+	writeADRFile(t, root, "007-rejected-old.md", "---\nstatus: rejected\ndate: 2026-06-07\n---\n# Rejected Old\n\nBody.\n")
+	writeADRFile(t, root, "008-deprecated-new.md", "---\nstatus: deprecated\ndate: 2026-06-08\n---\n# Deprecated New\n\nBody.\n")
+	writeADRFile(t, root, "009-proposed-new.md", "---\nstatus: proposed\ndate: 2026-06-09\n---\n# Proposed New\n\nBody.\n")
 
 	tests := []struct {
 		name string
@@ -340,6 +344,10 @@ func TestADRSupersedeErrors(t *testing.T) {
 		{name: "self", args: []string{"adr", "supersede", "001", "--by", "001"}, code: 2, want: "cannot supersede an ADR with itself"},
 		{name: "already superseded elsewhere", args: []string{"adr", "supersede", "004", "--by", "003"}, code: 1, want: "ADR 004 is already superseded by ADR-002"},
 		{name: "already superseded non-canonical casing", args: []string{"adr", "supersede", "005", "--by", "003"}, code: 1, want: "ADR 005 is already Superseded by ADR-002"},
+		{name: "supersede from proposed", args: []string{"adr", "supersede", "006", "--by", "002"}, code: 1, want: "ADR 006 is proposed; only accepted ADRs can be superseded"},
+		{name: "supersede from rejected", args: []string{"adr", "supersede", "007", "--by", "002"}, code: 1, want: "ADR 007 is rejected; only accepted ADRs can be superseded"},
+		{name: "replacement is deprecated", args: []string{"adr", "supersede", "001", "--by", "008"}, code: 1, want: "replacement ADR 008 is deprecated; only accepted ADRs can be the replacement"},
+		{name: "replacement is proposed", args: []string{"adr", "supersede", "001", "--by", "009"}, code: 1, want: "replacement ADR 009 is proposed; only accepted ADRs can be the replacement"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -608,6 +616,221 @@ func TestADRCreateParallelAllocatesUniqueIDs(t *testing.T) {
 		assertContainsAll(t, indexContent, fmt.Sprintf("Parallel ADR %d", i+1))
 	}
 }
+func TestADRLifecycleTransitions(t *testing.T) {
+
+	// Each transition group gets a unique ID range to avoid mutation
+	// from earlier subtests leaking into later ones.
+
+	t.Run("accept", func(t *testing.T) {
+		root := t.TempDir()
+		runCLI(t, "--root", root, "init")
+		writeADRFile(t, root, "010-proposed.md", "---\nstatus: proposed\ndate: 2026-06-01\n---\n# Proposed\n\nBody.\n")
+		writeADRFile(t, root, "011-accepted.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# Accepted\n\nBody.\n")
+		writeADRFile(t, root, "012-rejected.md", "---\nstatus: rejected\ndate: 2026-06-03\n---\n# Rejected\n\nBody.\n")
+		writeADRFile(t, root, "013-deprecated.md", "---\nstatus: deprecated\ndate: 2026-06-04\n---\n# Deprecated\n\nBody.\n")
+		writeADRFile(t, root, "014-superseded.md", "---\nstatus: superseded by ADR-011\ndate: 2026-06-05\n---\n# Superseded\n\nBody.\n")
+		writeADRFile(t, root, "015-noncanonical.md", "---\nstatus: Superseded by ADR-011\ndate: 2026-06-06\n---\n# Non-Canonical\n\nBody.\n")
+
+		tests := []struct {
+			name string
+			args []string
+			code int
+			want string
+		}{
+			{name: "from proposed", args: []string{"adr", "accept", "010"}, code: 0, want: "010 -> accepted"},
+			{name: "idempotent", args: []string{"adr", "accept", "011"}, code: 0, want: "011 -> accepted"},
+			{name: "from rejected", args: []string{"adr", "accept", "012"}, code: 1, want: "ADR 012 is rejected; cannot set to accepted"},
+			{name: "from deprecated", args: []string{"adr", "accept", "013"}, code: 1, want: "ADR 013 is deprecated; cannot set to accepted"},
+			{name: "from superseded", args: []string{"adr", "accept", "014"}, code: 1, want: "ADR 014 is superseded by ADR-011; cannot set to accepted"},
+			{name: "from noncanonical superseded", args: []string{"adr", "accept", "015"}, code: 1, want: "ADR 015 is Superseded by ADR-011; cannot set to accepted"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				gotStdout, gotStderr, gotCode := runCLI(t, append([]string{"--root", root}, tt.args...)...)
+				if gotCode != tt.code {
+					t.Errorf("exit code = %d, stdout = %q, stderr = %q", gotCode, gotStdout, gotStderr)
+				}
+				if tt.code == 0 {
+					if !strings.Contains(gotStdout, tt.want) {
+						t.Errorf("stdout = %q, want %q", gotStdout, tt.want)
+					}
+				} else {
+					if !strings.Contains(gotStderr, tt.want) {
+						t.Errorf("stderr = %q, want %q", gotStderr, tt.want)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("reject", func(t *testing.T) {
+		root := t.TempDir()
+		runCLI(t, "--root", root, "init")
+		writeADRFile(t, root, "020-proposed.md", "---\nstatus: proposed\ndate: 2026-06-01\n---\n# Proposed\n\nBody.\n")
+		writeADRFile(t, root, "021-accepted.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# Accepted\n\nBody.\n")
+		writeADRFile(t, root, "022-rejected.md", "---\nstatus: rejected\ndate: 2026-06-03\n---\n# Rejected\n\nBody.\n")
+		writeADRFile(t, root, "023-deprecated.md", "---\nstatus: deprecated\ndate: 2026-06-04\n---\n# Deprecated\n\nBody.\n")
+		writeADRFile(t, root, "024-superseded.md", "---\nstatus: superseded by ADR-021\ndate: 2026-06-05\n---\n# Superseded\n\nBody.\n")
+
+		tests := []struct {
+			name string
+			args []string
+			code int
+			want string
+		}{
+			{name: "from proposed", args: []string{"adr", "reject", "020"}, code: 0, want: "020 -> rejected"},
+			{name: "idempotent", args: []string{"adr", "reject", "022"}, code: 0, want: "022 -> rejected"},
+			{name: "from accepted", args: []string{"adr", "reject", "021"}, code: 1, want: "ADR 021 is accepted; cannot set to rejected"},
+			{name: "from deprecated", args: []string{"adr", "reject", "023"}, code: 1, want: "ADR 023 is deprecated; cannot set to rejected"},
+			{name: "from superseded", args: []string{"adr", "reject", "024"}, code: 1, want: "ADR 024 is superseded by ADR-021; cannot set to rejected"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				gotStdout, gotStderr, gotCode := runCLI(t, append([]string{"--root", root}, tt.args...)...)
+				if gotCode != tt.code {
+					t.Errorf("exit code = %d, stdout = %q, stderr = %q", gotCode, gotStdout, gotStderr)
+				}
+				if tt.code == 0 {
+					if !strings.Contains(gotStdout, tt.want) {
+						t.Errorf("stdout = %q, want %q", gotStdout, tt.want)
+					}
+				} else {
+					if !strings.Contains(gotStderr, tt.want) {
+						t.Errorf("stderr = %q, want %q", gotStderr, tt.want)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("deprecate", func(t *testing.T) {
+		root := t.TempDir()
+		runCLI(t, "--root", root, "init")
+		writeADRFile(t, root, "030-proposed.md", "---\nstatus: proposed\ndate: 2026-06-01\n---\n# Proposed\n\nBody.\n")
+		writeADRFile(t, root, "031-accepted.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# Accepted\n\nBody.\n")
+		writeADRFile(t, root, "032-rejected.md", "---\nstatus: rejected\ndate: 2026-06-03\n---\n# Rejected\n\nBody.\n")
+		writeADRFile(t, root, "033-deprecated.md", "---\nstatus: deprecated\ndate: 2026-06-04\n---\n# Deprecated\n\nBody.\n")
+		writeADRFile(t, root, "034-superseded.md", "---\nstatus: superseded by ADR-031\ndate: 2026-06-05\n---\n# Superseded\n\nBody.\n")
+
+		tests := []struct {
+			name string
+			args []string
+			code int
+			want string
+		}{
+			{name: "from accepted", args: []string{"adr", "deprecate", "031"}, code: 0, want: "031 -> deprecated"},
+			{name: "idempotent", args: []string{"adr", "deprecate", "033"}, code: 0, want: "033 -> deprecated"},
+			{name: "from proposed", args: []string{"adr", "deprecate", "030"}, code: 1, want: "ADR 030 is proposed; cannot set to deprecated"},
+			{name: "from rejected", args: []string{"adr", "deprecate", "032"}, code: 1, want: "ADR 032 is rejected; cannot set to deprecated"},
+			{name: "from superseded", args: []string{"adr", "deprecate", "034"}, code: 1, want: "ADR 034 is superseded by ADR-031; cannot set to deprecated"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				gotStdout, gotStderr, gotCode := runCLI(t, append([]string{"--root", root}, tt.args...)...)
+				if gotCode != tt.code {
+					t.Errorf("exit code = %d, stdout = %q, stderr = %q", gotCode, gotStdout, gotStderr)
+				}
+				if tt.code == 0 {
+					if !strings.Contains(gotStdout, tt.want) {
+						t.Errorf("stdout = %q, want %q", gotStdout, tt.want)
+					}
+				} else {
+					if !strings.Contains(gotStderr, tt.want) {
+						t.Errorf("stderr = %q, want %q", gotStderr, tt.want)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("propose", func(t *testing.T) {
+		root := t.TempDir()
+		runCLI(t, "--root", root, "init")
+		writeADRFile(t, root, "040-proposed.md", "---\nstatus: proposed\ndate: 2026-06-01\n---\n# Proposed\n\nBody.\n")
+		writeADRFile(t, root, "041-accepted.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# Accepted\n\nBody.\n")
+		writeADRFile(t, root, "042-rejected.md", "---\nstatus: rejected\ndate: 2026-06-03\n---\n# Rejected\n\nBody.\n")
+		writeADRFile(t, root, "043-deprecated.md", "---\nstatus: deprecated\ndate: 2026-06-04\n---\n# Deprecated\n\nBody.\n")
+		writeADRFile(t, root, "044-superseded.md", "---\nstatus: superseded by ADR-041\ndate: 2026-06-05\n---\n# Superseded\n\nBody.\n")
+		writeADRFile(t, root, "045-noncanonical.md", "---\nstatus: Superseded by ADR-041\ndate: 2026-06-06\n---\n# Non-Canonical\n\nBody.\n")
+
+		tests := []struct {
+			name string
+			args []string
+			code int
+			want string
+		}{
+			{name: "from accepted", args: []string{"adr", "propose", "041"}, code: 0, want: "041 -> proposed"},
+			{name: "idempotent", args: []string{"adr", "propose", "040"}, code: 0, want: "040 -> proposed"},
+			{name: "from rejected", args: []string{"adr", "propose", "042"}, code: 1, want: "ADR 042 is rejected; cannot set to proposed"},
+			{name: "from deprecated", args: []string{"adr", "propose", "043"}, code: 1, want: "ADR 043 is deprecated; cannot set to proposed"},
+			{name: "from superseded", args: []string{"adr", "propose", "044"}, code: 1, want: "ADR 044 is superseded by ADR-041; cannot set to proposed"},
+			{name: "from noncanonical superseded", args: []string{"adr", "propose", "045"}, code: 1, want: "ADR 045 is Superseded by ADR-041; cannot set to proposed"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				gotStdout, gotStderr, gotCode := runCLI(t, append([]string{"--root", root}, tt.args...)...)
+				if gotCode != tt.code {
+					t.Errorf("exit code = %d, stdout = %q, stderr = %q", gotCode, gotStdout, gotStderr)
+				}
+				if tt.code == 0 {
+					if !strings.Contains(gotStdout, tt.want) {
+						t.Errorf("stdout = %q, want %q", gotStdout, tt.want)
+					}
+				} else {
+					if !strings.Contains(gotStderr, tt.want) {
+						t.Errorf("stderr = %q, want %q", gotStderr, tt.want)
+					}
+				}
+			})
+		}
+	})
+}
+
+func TestADRProposePreservesBodyAndRegeneratesIndex(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	path := filepath.Join(root, "docs", "adr", "001-status-decision.md")
+	body := "# Status Decision\n\n## Context\n\nBody with trailing spaces.  \n\n## More Information\n\n- Keep this.\n"
+	writeADRFile(t, root, "001-status-decision.md", "---\nstatus: accepted\ndate: 2000-01-01\nsource: hand-authored\n---\n"+body)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "propose", "001")
+	if code != 0 {
+		t.Fatalf("propose exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> proposed")
+	content := mustRead(t, path)
+	assertContainsAll(t, content, "status: proposed", "date: ")
+	assertNotContains(t, content, "date: 2000-01-01")
+	if got := bodyAfterRawFrontMatter(t, content); got != body {
+		t.Errorf("body changed\ngot:\n%q\nwant:\n%q", got, body)
+	}
+
+	// Verify index is regenerated
+	indexContent := mustRead(t, filepath.Join(root, "docs", "adr", "index.md"))
+	assertContainsAll(t, indexContent, "001", "proposed")
+}
+
+func TestADRProposeDryRun(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	writeADRFile(t, root, "001-accepted.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Accepted ADR\n\nBody.\n")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "adr", "propose", "001")
+	if code != 0 {
+		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "adr: 001", "status: proposed")
+	content := mustRead(t, filepath.Join(root, "docs", "adr", "001-accepted.md"))
+	assertContainsAll(t, content, "status: accepted")
+	assertNotContains(t, content, "status: proposed")
+}
+
 func TestADRMigrateMissingBoldLines(t *testing.T) {
 	root := t.TempDir()
 	writeADRFile(t, root, "004-nodate.md", "# ADR 004: No Date\n\n**Status:** Accepted\n\n## Context\n\nBody.\n")

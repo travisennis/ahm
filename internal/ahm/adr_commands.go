@@ -12,6 +12,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// adrTransitions defines which source statuses each lifecycle command target
+// accepts. The idempotent case (current status == target status) is always
+// allowed without consulting this table. Terminal statuses (rejected,
+// deprecated, superseded by ADR-NNN) are not listed because they have no valid
+// outgoing transition via lifecycle commands.
+var adrTransitions = map[string][]string{
+	"accepted":   {"proposed"},
+	"rejected":   {"proposed"},
+	"deprecated": {"accepted"},
+	"proposed":   {"accepted"},
+}
+
 func (a *app) adrCommand() *cobra.Command {
 	adr := &cobra.Command{
 		Use:   "adr",
@@ -118,13 +130,17 @@ Examples:
 
 Examples:
   ahm adr deprecate 009`, status: "deprecated"},
+		{use: "propose <id>", short: "Propose an ADR", long: `Propose (return to proposed) an ADR.
+
+Examples:
+  ahm adr propose 009`, status: "proposed"},
 	} {
 		status := spec.status
 		adr.AddCommand(&cobra.Command{
 			Use:   spec.use,
 			Short: spec.short,
 			Long:  spec.long,
-			Args:  exactArgs(1, "adr status command requires an id\n  ahm adr accept|reject|deprecate <id>"),
+			Args:  exactArgs(1, "adr status command requires an id\n  ahm adr accept|reject|deprecate|propose <id>"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
 					return err
@@ -319,6 +335,12 @@ func (a *app) adrSetStatus(id string, status string) error {
 	if err != nil {
 		return err
 	}
+	if adr.Status != status {
+		allowed, ok := adrTransitions[status]
+		if !ok || !containsString(allowed, adr.Status) {
+			return fmt.Errorf("ADR %s is %s; cannot set to %s", adr.ID, adr.Status, status)
+		}
+	}
 	today := time.Now().Format(time.DateOnly)
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"adr": adr.ID, "status": status, "date": today})
@@ -367,6 +389,12 @@ func (a *app) adrSupersede(oldID string, newID string) error {
 	nextStatus := "superseded by ADR-" + newADR.ID
 	if strings.HasPrefix(strings.ToLower(oldADR.Status), "superseded by adr-") && oldADR.Status != nextStatus {
 		return fmt.Errorf("ADR %s is already %s", oldADR.ID, oldADR.Status)
+	}
+	if oldADR.Status != "accepted" && !strings.HasPrefix(strings.ToLower(oldADR.Status), "superseded by adr-") {
+		return fmt.Errorf("ADR %s is %s; only accepted ADRs can be superseded", oldADR.ID, oldADR.Status)
+	}
+	if newADR.Status != "accepted" {
+		return fmt.Errorf("replacement ADR %s is %s; only accepted ADRs can be the replacement", newADR.ID, newADR.Status)
 	}
 	today := time.Now().Format(time.DateOnly)
 	if a.opts.dryRun {
