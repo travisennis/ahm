@@ -4342,6 +4342,166 @@ func TestTaskWorkRoleAgentWithLegacyFallback(t *testing.T) {
 	}
 }
 
+func TestTaskShowSingleID(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	// Create a task to show.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Test Show", "--description", "Body text")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+
+	// Show single ID (text mode).
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "show", "001")
+	if code != 0 {
+		t.Errorf("show exit code = %d, stderr = %q", code, stderr)
+	}
+	assertContainsAll(t, stdout, "title: Test Show", "## Summary", "Body text")
+}
+
+func TestTaskShowSingleIDJSON(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "JSON Show", "--description", "Body json")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+
+	// Show single ID with --json yields a single object, not an array.
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "task", "show", "001")
+	if code != 0 {
+		t.Errorf("show exit code = %d, stderr = %q", code, stderr)
+	}
+	// Should start with "{" not "["
+	if !strings.HasPrefix(strings.TrimSpace(stdout), "{") {
+		t.Errorf("single ID --json should emit object, got:\n%s", stdout)
+	}
+	assertContainsAll(t, stdout, `"id": "001"`, `"title": "JSON Show"`)
+}
+
+func TestTaskShowMultipleIDsText(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	// Create two tasks.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "First", "--description", "Alpha")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create first failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second", "--description", "Beta")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create second failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+
+	// Show both IDs.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "show", "001", "002")
+	if code != 0 {
+		t.Errorf("show exit code = %d, stderr = %q", code, stderr)
+	}
+	// Both titles should be present.
+	assertContainsAll(t, stdout, "title: First", "title: Second")
+	// Separator should appear.
+	if !strings.Contains(stdout, "\n---\n") {
+		t.Errorf("multi-task text should contain separator, got:\n%s", stdout)
+	}
+}
+
+func TestTaskShowMultipleIDsJSON(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Alpha", "--description", "AA")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create first failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Beta", "--description", "BB")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create second failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+
+	// Show both IDs with --json yields an array.
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "task", "show", "001", "002")
+	if code != 0 {
+		t.Errorf("show exit code = %d, stderr = %q", code, stderr)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(stdout), "[") {
+		t.Errorf("multi ID --json should emit array, got:\n%s", stdout)
+	}
+	assertContainsAll(t, stdout, `"id": "001"`, `"id": "002"`)
+}
+
+func TestTaskShowNoArgs(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "show")
+	if code == 0 {
+		t.Errorf("expected non-zero exit code, got 0")
+	}
+	if !strings.Contains(stderr, "task show requires at least one id") {
+		t.Errorf("expected usage error in stderr, got: %s", stderr)
+	}
+}
+
+func TestTaskShowNonExistentID(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "show", "999")
+	if code == 0 {
+		t.Errorf("expected non-zero exit code, got 0")
+	}
+	if !strings.Contains(stderr, `task "999" not found`) {
+		t.Errorf("expected not-found error, got: %s", stderr)
+	}
+}
+
+func TestTaskShowPartialFailure(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init failed: stdout=%q stderr=%q", stdout, stderr)
+	}
+
+	// Create one task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Partial", "--description", "Partial test")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create failed: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+
+	// Show one valid and one invalid ID.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "show", "001", "999")
+	if code == 0 {
+		t.Errorf("expected non-zero exit code for partial failure, got 0")
+	}
+	// Should contain the valid task output.
+	assertContainsAll(t, stdout, "title: Partial")
+	// Should contain the error for the invalid ID.
+	if !strings.Contains(stderr, `task "999" not found`) {
+		t.Errorf("expected not-found error, got: %s", stderr)
+	}
+}
+
 func TestTrimTrailingBlankLines(t *testing.T) {
 	tests := []struct {
 		name  string

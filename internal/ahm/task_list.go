@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -175,19 +176,44 @@ func (a *app) taskNext() error {
 }
 
 func (a *app) taskShow(argv []string) error {
-	task, err := a.resolveTask(argv[0])
-	if err != nil {
-		return err
+	var tasks []Task
+	var errs []error
+	for _, id := range argv {
+		task, err := a.resolveTask(id)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		tasks = append(tasks, task)
 	}
+
 	if a.opts.json {
-		return a.emit(task)
+		switch len(tasks) {
+		case 0:
+			return errors.Join(append([]error{a.emit(nil)}, errs...)...)
+		case 1:
+			return errors.Join(append([]error{a.emit(tasks[0])}, errs...)...)
+		default:
+			return errors.Join(append([]error{a.emit(tasks)}, errs...)...)
+		}
 	}
-	data, err := os.ReadFile(task.Path)
-	if err != nil {
-		return err
+
+	for i, task := range tasks {
+		if i > 0 {
+			fmt.Fprint(a.out, "\n---\n")
+		}
+		data, err := os.ReadFile(task.Path)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		_, err = a.out.Write(data)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 	}
-	_, err = a.out.Write(data)
-	return err
+	return errors.Join(errs...)
 }
 
 func (a *app) printTaskLine(task Task) {

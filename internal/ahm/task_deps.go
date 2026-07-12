@@ -95,6 +95,15 @@ func exactArgs(count int, message string) cobra.PositionalArgs {
 		return nil
 	}
 }
+
+func minimumArgs(min int, message string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) < min {
+			return usageError(message)
+		}
+		return nil
+	}
+}
 func (a *app) taskDepUpdate(argv []string, add bool) error {
 	task, err := a.resolveTask(argv[0])
 	if err != nil {

@@ -135,14 +135,20 @@ Examples:
 		},
 	})
 	task.AddCommand(&cobra.Command{
-		Use:   "show <id>",
-		Short: "Show a task",
-		Long: `Show a task by ID.
+		Use:   "show <id> [<id>...]",
+		Short: "Show one or more tasks",
+		Long: `Show one or more tasks by ID.
+
+With a single ID, prints the raw task file. With multiple IDs, prints each
+file separated by ---. With --json, emits a single object for one task or an
+array for multiple tasks.
 
 Examples:
   ahm task show 001
-  ahm --json task show 001`,
-		Args: exactArgs(1, "task show requires an id\n  ahm task show <id>"),
+  ahm task show 001 002 003
+  ahm --json task show 001
+  ahm --json task show 001 002`,
+		Args: minimumArgs(1, "task show requires at least one id\n  ahm task show <id> [<id>...]"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
 				return err

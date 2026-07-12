@@ -346,18 +346,27 @@ ahm --dry-run task migrate
 ahm task migrate
 ```
 
-### `task show <id>`
+### `task show <id> [<id>...]`
 
-Shows a task.
+Shows one or more tasks by ID.
 
-By default, this prints the raw task Markdown file. With `--json`, it prints the
-parsed task struct with lowercase snake_case keys.
+By default, this prints the raw task Markdown file for each resolved ID. When
+multiple IDs are given, each task file is separated by a `---` line. Unresolved
+IDs produce an error on stderr, but all valid IDs are still printed before the
+command exits non-zero.
 
-Example:
+With `--json`, a single ID emits the parsed task struct with lowercase
+snake_case keys as a single JSON object (backward compatible). Two or more IDs
+emit a JSON array of task objects. When all IDs are unresolved, the JSON output
+is `null` and the command exits non-zero.
+
+Examples:
 
 ```bash
 ahm task show 001
+ahm task show 001 002 003
 ahm --json task show 001
+ahm --json task show 001 002
 ```
 
 ### `task start <id>`
