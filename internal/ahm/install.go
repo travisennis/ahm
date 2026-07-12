@@ -41,11 +41,28 @@ type recordsStorageConfig struct {
 	Mode recordStoreMode
 }
 
+// projectDocsConfig holds optional configuration for ahm docs check.
+// All fields are optional; with zero configuration the static checks run
+// with defaults.
+type projectDocsConfig struct {
+	EntryPointBudget int      `json:"entryPointBudget,omitempty"`
+	Exclude          []string `json:"exclude,omitempty"`
+	DocMap           []struct {
+		Paths []string `json:"paths"`
+		Docs  []string `json:"docs"`
+	} `json:"docMap,omitempty"`
+}
+
+// defaultEntryPointBudget is the line-count budget for root AGENTS.md when
+// projectDocs.entryPointBudget is unset or zero.
+const defaultEntryPointBudget = 150
+
 type metadata struct {
 	Version          string                     `json:"version"`
 	StrictAcceptance bool                       `json:"strict_acceptance"`
 	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
 	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
+	ProjectDocs      *projectDocsConfig         `json:"projectDocs,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
 }
@@ -65,6 +82,7 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 		"strict_acceptance",
 		"default_work_agent",
 		"taskWork",
+		"projectDocs",
 		"files",
 	} {
 		delete(raw, key)
@@ -93,6 +111,11 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if m.TaskWork != nil {
 		if err := writeJSONField(&buf, &first, "taskWork", m.TaskWork); err != nil {
+			return nil, err
+		}
+	}
+	if m.ProjectDocs != nil {
+		if err := writeJSONField(&buf, &first, "projectDocs", m.ProjectDocs); err != nil {
 			return nil, err
 		}
 	}

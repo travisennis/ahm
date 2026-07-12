@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1302,5 +1303,430 @@ func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
 	// The validation should not run during dry-run, so no warnings.
 	if strings.Contains(stderr, "completed task 001") {
 		t.Errorf("dry-run index emitted unexpected warning on stderr:\n%s", stderr)
+	}
+}
+
+// --- New checks added by task 160b ---
+
+func TestValidateProjectDocLinkPortability(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-portable link targets should be caught.
+	writeFile(t, filepath.Join(root, "README.md"),
+		"# Project\n\n"+
+			"- [file link](file:///Users/me/doc.md)\n"+
+			"- [home link](~/docs/guide.md)\n"+
+			"- [abs link](/etc/passwd)\n"+
+			"- [good link](docs/guide.md)\n")
+	writeFile(t, filepath.Join(root, "docs", "guide.md"), "# Guide\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	// Should have 3 non-portable errors.
+	var notPortable int
+	for _, e := range report.Errors {
+		if e.Code == "project_doc_link_not_portable" {
+			notPortable++
+		}
+	}
+	if notPortable != 3 {
+		t.Errorf("expected 3 project_doc_link_not_portable errors, got %d: %#v", notPortable, report.Errors)
+	}
+
+	// The good link (docs/guide.md) should not produce link-missing warnings.
+	// Non-portable links like ~/docs/guide.md may fire both portability and
+	// missing-link findings; that's correct.
+	foundGoodLinkMissing := false
+	for _, w := range report.Warnings {
+		if w.Code == "project_doc_link_missing" && strings.Contains(w.Message, "docs/guide.md") && !strings.Contains(w.Message, "~/") {
+			foundGoodLinkMissing = true
+		}
+	}
+	if foundGoodLinkMissing {
+		t.Errorf("the good link (docs/guide.md) should not be missing: %#v", report.Warnings)
+	}
+}
+
+func TestValidateProjectDocLinkPortabilityIgnoresCodeSpansAndFences(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-portable links inside code spans and fenced blocks must be ignored.
+	writeFile(t, filepath.Join(root, "README.md"),
+		"# Project\n\n"+
+			"See `[example](file:///nope.md)`.\n\n"+
+			"```md\n[fenced](~/fenced.md)\n```\n\n"+
+			"Real [bad](file:///real.md) though.\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	var notPortable int
+	for _, e := range report.Errors {
+		if e.Code == "project_doc_link_not_portable" {
+			notPortable++
+		}
+	}
+	if notPortable != 1 {
+		t.Errorf("expected 1 project_doc_link_not_portable (only real.md), got %d: %#v", notPortable, report.Errors)
+	}
+}
+
+func TestValidateEntryPointBudget(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// AGENTS.md with many lines (over default budget of 150).
+	var lines []string
+	for i := 0; i < 200; i++ {
+		lines = append(lines, fmt.Sprintf("Line %d", i))
+	}
+	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Join(lines, "\n")+"\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	found := false
+	for _, w := range report.Warnings {
+		if w.Code == "entry_point_over_budget" {
+			found = true
+			if !strings.Contains(w.Message, "budget 150") {
+				t.Errorf("expected default budget 150, got: %s", w.Message)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected entry_point_over_budget warning")
+	}
+}
+
+func TestValidateEntryPointBudgetUnderBudget(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// AGENTS.md within budget.
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# AGENTS.md\n\nShort file.\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	for _, w := range report.Warnings {
+		if w.Code == "entry_point_over_budget" {
+			t.Errorf("unexpected entry_point_over_budget: %#v", w)
+		}
+	}
+}
+
+func TestValidateEntryPointBudgetConfig(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set a custom budget of 10 lines.
+	meta, _ := readMetadata(root)
+	meta.ProjectDocs = &projectDocsConfig{EntryPointBudget: 10}
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	// 15-line AGENTS.md.
+	var lines []string
+	for i := 0; i < 15; i++ {
+		lines = append(lines, fmt.Sprintf("Line %d", i))
+	}
+	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Join(lines, "\n")+"\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	found := false
+	for _, w := range report.Warnings {
+		if w.Code == "entry_point_over_budget" {
+			found = true
+			if !strings.Contains(w.Message, "budget 10") {
+				t.Errorf("expected custom budget 10, got: %s", w.Message)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected entry_point_over_budget with custom budget")
+	}
+}
+
+func TestValidateDocIndexCoverage(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// docs/guardrails/ with an index.md but an orphan file.
+	writeFile(t, filepath.Join(root, "docs", "guardrails", "a.md"), "# A\n")
+	writeFile(t, filepath.Join(root, "docs", "guardrails", "orphan.md"), "# Orphan\n")
+	writeFile(t, filepath.Join(root, "docs", "guardrails", "index.md"),
+		"# Guardrails Index\n\n- [A](a.md)\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	foundUnindexed := false
+	for _, w := range report.Warnings {
+		if w.Code == "doc_unindexed" {
+			foundUnindexed = true
+			if !strings.Contains(w.Path, "orphan.md") {
+				t.Errorf("expected orphan.md in doc_unindexed, got path: %s", w.Path)
+			}
+		}
+	}
+	if !foundUnindexed {
+		t.Error("expected doc_unindexed warning for orphan.md")
+	}
+
+	// The design-docs check should NOT be duplicated by doc_unindexed.
+	designDir := filepath.Join(root, "docs", "design-docs")
+	writeFile(t, filepath.Join(designDir, "orphan.md"), "# Orphan\n")
+	writeFile(t, filepath.Join(designDir, "index.md"), "# Design Docs\n")
+
+	report2, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	for _, w := range report2.Warnings {
+		if w.Code == "doc_unindexed" && strings.Contains(w.Path, "design-docs") {
+			t.Errorf("design-docs should not produce doc_unindexed: %#v", w)
+		}
+	}
+}
+
+func TestValidateDocIndexCoverageNoIndex(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// A docs/ subdirectory without index.md should not trigger checks.
+	writeFile(t, filepath.Join(root, "docs", "random", "file.md"), "# File\n")
+
+	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+
+	for _, w := range report.Warnings {
+		if w.Code == "doc_unindexed" {
+			t.Errorf("unexpected doc_unindexed for directory with no index: %#v", w)
+		}
+	}
+}
+
+func TestProjectDocFilesIncludesAgentsAndClaude(t *testing.T) {
+	root := t.TempDir()
+
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Agents\n")
+	writeFile(t, filepath.Join(root, "CLAUDE.md"), "# Claude\n")
+	writeFile(t, filepath.Join(root, "nested", "AGENTS.md"), "# Nested Agents\n")
+
+	files := projectDocFiles(root)
+
+	hasAgents := false
+	hasClaude := false
+	hasNested := false
+	for _, f := range files {
+		if filepath.Base(f) == "AGENTS.md" && filepath.Dir(f) == root {
+			hasAgents = true
+		}
+		if filepath.Base(f) == "CLAUDE.md" {
+			hasClaude = true
+		}
+		if filepath.Base(f) == "AGENTS.md" && filepath.Dir(f) != root {
+			hasNested = true
+		}
+	}
+	if !hasAgents {
+		t.Error("root AGENTS.md not in projectDocFiles")
+	}
+	if !hasClaude {
+		t.Error("CLAUDE.md not in projectDocFiles")
+	}
+	if !hasNested {
+		t.Error("nested AGENTS.md not in projectDocFiles")
+	}
+}
+
+// --- ahm docs check command tests ---
+
+func TestDocsCheckCommandText(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "docs", "check")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "ok") {
+		t.Errorf("expected 'ok' in output, got: %s", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("unexpected stderr: %s", stderr)
+	}
+}
+
+func TestDocsCheckCommandJSON(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, code := runCLI(t, "--root", root, "--json", "docs", "check")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s", code, stdout)
+	}
+	if !strings.Contains(stdout, `"ok"`) {
+		t.Errorf("expected JSON with ok field, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, `"errors"`) {
+		t.Errorf("expected JSON with errors field, got: %s", stdout)
+	}
+}
+
+func TestDocsCheckCommandPlain(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, code := runCLI(t, "--root", root, "--plain", "docs", "check")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s", code, stdout)
+	}
+	if !strings.Contains(stdout, `"ok"`) {
+		t.Errorf("expected compact JSON with ok field, got: %s", stdout)
+	}
+}
+
+func TestDocsCheckCommandErrors(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a non-portable link that should be an error.
+	writeFile(t, filepath.Join(root, "README.md"), "# Readme\n\n[bad](file:///etc/hosts)\n")
+
+	_, _, code := runCLI(t, "--root", root, "docs", "check")
+	if code != 1 {
+		t.Errorf("expected exit code 1 for errors, got %d", code)
+	}
+}
+
+func TestDocsCheckCommandStrict(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Over-budget AGENTS.md produces a warning normally, but --strict
+	// promotes it to an error.
+	var lines []string
+	for i := 0; i < 200; i++ {
+		lines = append(lines, fmt.Sprintf("Line %d", i))
+	}
+	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Join(lines, "\n")+"\n")
+
+	// Without --strict, warnings pass.
+	_, _, code := runCLI(t, "--root", root, "docs", "check")
+	if code != 0 {
+		t.Errorf("expected exit 0 for warnings-only, got %d", code)
+	}
+
+	// With --strict, warnings become errors.
+	_, _, code = runCLI(t, "--root", root, "docs", "check", "--strict")
+	if code != 1 {
+		t.Errorf("expected exit 1 with --strict, got %d", code)
+	}
+}
+
+func TestDeprecationWarningForProjectDocsScope(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// --check project-docs on status should emit deprecation warning.
+	stdout, stderr, code := runCLI(t, "--root", root, "status", "--check", "project-docs")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "--check project-docs is deprecated") {
+		t.Errorf("expected deprecation warning on stderr, got: %s", stderr)
+	}
+
+	// --check project-docs on doctor should emit deprecation warning.
+	stdout, stderr, code = runCLI(t, "--root", root, "doctor", "--check", "project-docs")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "--check project-docs is deprecated") {
+		t.Errorf("expected deprecation warning on stderr, got: %s", stderr)
+	}
+
+	// Regular status/doctor without --check project-docs should NOT emit warning.
+	stdout, stderr, code = runCLI(t, "--root", root, "status")
+	if code != 0 {
+		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if strings.Contains(stderr, "--check project-docs is deprecated") {
+		t.Errorf("unexpected deprecation warning in normal status: %s", stderr)
+	}
+}
+
+func TestDeprecatedProjectDocsScopeStillFunctions(t *testing.T) {
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a broken link that --check project-docs should catch.
+	writeFile(t, filepath.Join(root, "README.md"), "# Readme\n\n[missing](docs/nope.md)\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "status", "--check", "project-docs")
+	// Deprecation warning on stderr.
+	if !strings.Contains(stderr, "deprecated") {
+		t.Errorf("expected deprecation warning, got stderr: %s", stderr)
+	}
+	// The finding should still be reported.
+	if !strings.Contains(stdout, "project_doc_link_missing") {
+		t.Errorf("expected project_doc_link_missing finding, got stdout: %s", stdout)
+	}
+	if code != 0 {
+		t.Errorf("exit code = %d (warnings-only should exit 0), stdout = %s", code, stdout)
 	}
 }

@@ -258,6 +258,10 @@ specific scope. The default (no `--check`) runs the `workflow` and `links`
 validation groups over the managed workflow surface. `project-docs` is opt-in
 and never runs as part of the default scope.
 
+The preferred front door for project documentation validation is
+`ahm docs check` (see [`docs/cli.md`](../cli.md)). It runs the same expanded
+`project-docs` scope with additional checks and a dedicated `--strict` flag.
+
 Supported scopes:
 
 - `workflow` — managed file consistency, task front matter, dependency cycles,
@@ -267,19 +271,22 @@ Supported scopes:
   surface. Link validation is independent of workflow state and can be run
   separately to focus on documentation drift.
 - `project-docs` — opt-in, read-only health checks over a project's own
-  documentation. It discovers common documentation surfaces rather than
-  assuming a fixed layout: root-level `README*`, `CONTRIBUTING*`, `CHANGELOG*`,
-  `ARCHITECTURE*`, and `DESIGN*` Markdown files, plus every Markdown file under
-  `docs/` (covering `docs/adr/`). It reports broken relative Markdown links via
-  `project_doc_link_missing`. When a repository already uses the
+  documentation. **Deprecated:** prefer `ahm docs check`. It discovers common
+  documentation surfaces rather than assuming a fixed layout: root-level
+  `AGENTS.md`, `README*`, `CONTRIBUTING*`, `CHANGELOG*`, `ARCHITECTURE*`, and
+  `DESIGN*` Markdown files, plus `CLAUDE.md`, nested `AGENTS.md` files, and
+  every Markdown file under `docs/` (covering `docs/adr/`). It reports broken
+  relative Markdown links via `project_doc_link_missing`, non-portable link
+  targets via `project_doc_link_not_portable` (errors), entry-point line budget
+  overages via `entry_point_over_budget` (warnings), and generalized index
+  coverage via `doc_unindexed` (warnings). When a repository already uses the
   `docs/design-docs/` convention (a `docs/design-docs/` directory containing an
   `index.md`), this scope also checks that every design-doc Markdown file is
-  represented in the index, emitting `design_doc_unindexed` otherwise. Index
-  entries that point at missing files and broken links inside design-doc files
-  reuse `project_doc_link_missing` rather than a parallel check. `ahm` never
-  creates, rewrites, or formats design-doc indexes. This scope runs only when
-  requested explicitly with `--check project-docs`; it is never part of the
-  default and never calls models or edits source files.
+  represented in the index, emitting `design_doc_unindexed` otherwise. The
+  scope runs only when requested explicitly with `--check project-docs`; it is
+  never part of the default and never calls models or edits source files.
+  Using this scope from `status` or `doctor` prints a deprecation warning
+  naming `ahm docs check`.
 
 Scopes compose: `--check workflow --check links` or `--check workflow,links`
 runs both the workflow and link validators. Passing an unknown scope value is a

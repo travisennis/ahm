@@ -11,11 +11,8 @@ raise, not a call to improvise.
 1. Run `ahm context task`, then `ahm task show <id>` and read the full
    task file INCLUDING comments — comments carry cross-tree constraints
    added after the task was written.
-2. Read docs/VISION.md (short). Then read the ADR your tree hangs off:
-   ADR 013 for the records tree (138–145), ADR 014 for the
-   prime/procedures tree (task 156a), the task-160a ADR for the
-   docs-check tree. If that ADR is not yet accepted, stop — your task
-   should be Blocked.
+2. Read docs/VISION.md (short). Then read the ADR your tree hangs off.
+   If that ADR is not yet accepted, stop — your task should be Blocked.
 3. Classify the implementation under AGENTS.md Workflow Routing and
    load only the routed docs.
 

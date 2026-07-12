@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-07-11
 decision-makers: Travis Ennis
 informed: task 160a

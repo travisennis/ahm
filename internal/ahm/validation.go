@@ -3,6 +3,7 @@ package ahm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -24,6 +25,66 @@ type validationReport struct {
 	// most once. It is scoped to the report so concurrent validation runs
 	// and tests do not share state.
 	execPlanSectionsCache map[string]map[string]execPlanSection
+}
+
+// RenderText implements the textRenderer interface for validationReport.
+func (r validationReport) RenderText(w io.Writer) error {
+	if r.OK && len(r.Errors) == 0 && len(r.Warnings) == 0 && len(r.Info) == 0 {
+		_, err := fmt.Fprintln(w, "ok")
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "ok: %v\n", r.OK); err != nil {
+		return err
+	}
+	if len(r.Errors) > 0 {
+		if _, err := fmt.Fprintln(w, "errors:"); err != nil {
+			return err
+		}
+		for _, e := range r.Errors {
+			if e.Path != "" {
+				if _, err := fmt.Fprintf(w, "  - %s: %s (%s)\n", e.Code, e.Message, e.Path); err != nil {
+					return err
+				}
+			} else {
+				if _, err := fmt.Fprintf(w, "  - %s: %s\n", e.Code, e.Message); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if len(r.Warnings) > 0 {
+		if _, err := fmt.Fprintln(w, "warnings:"); err != nil {
+			return err
+		}
+		for _, wrn := range r.Warnings {
+			if wrn.Path != "" {
+				if _, err := fmt.Fprintf(w, "  - %s: %s (%s)\n", wrn.Code, wrn.Message, wrn.Path); err != nil {
+					return err
+				}
+			} else {
+				if _, err := fmt.Fprintf(w, "  - %s: %s\n", wrn.Code, wrn.Message); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if len(r.Info) > 0 {
+		if _, err := fmt.Fprintln(w, "info:"); err != nil {
+			return err
+		}
+		for _, i := range r.Info {
+			if i.Path != "" {
+				if _, err := fmt.Fprintf(w, "  - %s: %s (%s)\n", i.Code, i.Message, i.Path); err != nil {
+					return err
+				}
+			} else {
+				if _, err := fmt.Fprintf(w, "  - %s: %s\n", i.Code, i.Message); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 type validationFinding struct {
@@ -698,17 +759,24 @@ func validateMarkdownFileLinksWithCodes(root string, path string, report *valida
 // projectDocPrefixes lists common root-level project documentation filename
 // prefixes, matched case-insensitively. These are broad conventions, not this
 // repository's specific layout.
-var projectDocPrefixes = []string{"README", "CONTRIBUTING", "CHANGELOG", "ARCHITECTURE", "DESIGN"}
+var projectDocPrefixes = []string{"AGENTS", "README", "CONTRIBUTING", "CHANGELOG", "ARCHITECTURE", "DESIGN"}
 
 // validateProjectDocs runs opt-in, read-only structural checks over a project's
 // own documentation surface. It discovers common documentation files rather
-// than requiring any specific layout and currently reports broken relative
-// Markdown links. It never runs as part of the default validation scope.
+// than requiring any specific layout. It reports broken relative links,
+// non-portable link targets, entry-point line budget overages, and generalized
+// doc index coverage. It never runs as part of the default validation scope.
 func validateProjectDocs(root string, report *validationReport) {
+	meta, metaErr := readMetadata(root)
 	for _, path := range projectDocFiles(root) {
 		validateMarkdownFileLinksWithCodes(root, path, report, "project_doc_link_missing", "project_doc_link_check_failed")
+		validateProjectDocLinkPortability(root, path, report)
 	}
 	validateDesignDocIndex(root, report)
+	validateDocIndexCoverage(root, report)
+	if metaErr == nil {
+		validateEntryPointBudget(root, meta.ProjectDocs, report)
+	}
 }
 
 // validateDesignDocIndex runs only when a repository already uses the
@@ -783,10 +851,185 @@ func designDocIndexTargets(designDir string, indexData []byte) map[string]bool {
 	return targets
 }
 
+// linkPortabilityProblemPatterns matches link targets that are not portable
+// across machines: file:// URIs, absolute filesystem paths (Unix and Windows),
+// and home-directory paths (~/).
+var linkPortabilityProblemPatterns = []struct {
+	pattern *regexp.Regexp
+	desc    string
+}{
+	{regexp.MustCompile(`^file://`), "file:// URI"},
+	{regexp.MustCompile(`^~/`), "home-directory path (~/)"},
+	{regexp.MustCompile(`^/[^/]`), "absolute filesystem path"},
+	{regexp.MustCompile(`^[A-Za-z]:[\\/]`), "absolute Windows path"},
+}
+
+// isNonPortableLinkTarget reports whether a link target is non-portable
+// (file:// URI, absolute path, or home-directory path). It returns the
+// human-readable description of the problem or an empty string.
+func isNonPortableLinkTarget(target string) string {
+	for _, p := range linkPortabilityProblemPatterns {
+		if p.pattern.MatchString(target) {
+			return p.desc
+		}
+	}
+	return ""
+}
+
+// shouldSkipMarkdownLinkForPortability returns true for link targets that
+// are portable (not file://, not absolute, not home-directory) and should
+// be skipped by the standard link check. This is like shouldSkipMarkdownLink
+// but does not skip the portability-problem targets.
+func shouldSkipMarkdownLinkForPortability(target string) bool {
+	if target == "" || strings.HasPrefix(target, "#") {
+		return true
+	}
+	if strings.HasPrefix(target, "mailto:") {
+		return true
+	}
+	// Skip URLs with non-file:// schemes.
+	if markdownLinkSchemePattern.MatchString(target) && !strings.HasPrefix(target, "file://") {
+		return true
+	}
+	return false
+}
+
+// validateProjectDocLinkPortability checks every Markdown link target in a
+// single file for non-portable references: file:// URIs, absolute filesystem
+// paths, and home-directory paths.
+func validateProjectDocLinkPortability(root string, path string, report *validationReport) {
+	data, err := readWorkflowFile(path)
+	if err != nil {
+		return
+	}
+	inFence := false
+	for lineNo, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
+			target := strings.TrimSpace(match[1])
+			if shouldSkipMarkdownLinkForPortability(target) {
+				continue
+			}
+			if desc := isNonPortableLinkTarget(target); desc != "" {
+				report.addError("project_doc_link_not_portable", fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1),
+					fmt.Sprintf("non-portable Markdown link target (%s): %s", desc, target))
+			}
+		}
+	}
+}
+
+// validateEntryPointBudget checks that the root AGENTS.md does not exceed the
+// configured line-count budget. CLAUDE.md is skipped when it is a symlink or
+// a bare @AGENTS.md import. The default budget is defaultEntryPointBudget (150).
+func validateEntryPointBudget(root string, cfg *projectDocsConfig, report *validationReport) {
+	budget := defaultEntryPointBudget
+	if cfg != nil && cfg.EntryPointBudget > 0 {
+		budget = cfg.EntryPointBudget
+	}
+
+	agentsPath := filepath.Join(root, "AGENTS.md")
+	data, err := os.ReadFile(agentsPath) // #nosec G304 -- project-root path
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			report.addWarning("entry_point_check_failed", "AGENTS.md", err.Error())
+		}
+		return
+	}
+	lineCount := len(strings.Split(string(data), "\n"))
+	if lineCount > budget {
+		report.addWarning("entry_point_over_budget", "AGENTS.md",
+			fmt.Sprintf("AGENTS.md is %d lines (budget %d)", lineCount, budget))
+	}
+}
+
+// validateDocIndexCoverage generalizes the design-doc index coverage check to
+// any docs/ subdirectory that contains an index.md. Every sibling .md file must
+// be represented in the index. design_doc_unindexed keeps its code for
+// compatibility; the design-docs directory is excluded from the generalized
+// check to avoid duplicate findings.
+func validateDocIndexCoverage(root string, report *validationReport) {
+	docsDir := filepath.Join(root, "docs")
+	entries, err := os.ReadDir(docsDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// design-docs already has its own check (design_doc_unindexed).
+		if entry.Name() == "design-docs" {
+			continue
+		}
+		subDir := filepath.Join(docsDir, entry.Name())
+		indexPath := filepath.Join(subDir, "index.md")
+		indexData, err := readWorkflowFile(indexPath)
+		if err != nil {
+			// No index.md means this directory doesn't use the convention.
+			continue
+		}
+		indexed := docIndexTargets(subDir, indexData)
+		cleanIndex := filepath.Clean(indexPath)
+
+		var files []string
+		_ = filepath.WalkDir(subDir, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+				return nil
+			}
+			clean := filepath.Clean(path)
+			if clean == cleanIndex {
+				return nil
+			}
+			files = append(files, clean)
+			return nil
+		})
+		sort.Strings(files)
+		for _, path := range files {
+			if !indexed[path] {
+				report.addWarning("doc_unindexed", relPath(root, path),
+					fmt.Sprintf("Markdown file is not represented in %s/index.md", relPath(root, subDir)))
+			}
+		}
+	}
+}
+
+// docIndexTargets collects the cleaned absolute paths of relative Markdown
+// links found in a doc index file, resolved relative to the index directory.
+func docIndexTargets(dir string, indexData []byte) map[string]bool {
+	targets := map[string]bool{}
+	inFence := false
+	for _, line := range strings.Split(string(indexData), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
+			target := normalizeMarkdownLinkTarget(match[1])
+			if target == "" || shouldSkipMarkdownLink(target) {
+				continue
+			}
+			resolved := filepath.Clean(filepath.Join(dir, filepath.FromSlash(target)))
+			targets[resolved] = true
+		}
+	}
+	return targets
+}
+
 // projectDocFiles discovers common project documentation Markdown files: root
-// level docs matching projectDocPrefixes and every Markdown file under docs/
-// (which covers docs/adr/ and similar). Results are deduplicated and sorted for
-// deterministic output.
+// level docs matching projectDocPrefixes, CLAUDE.md, every Markdown file under
+// docs/ (which covers docs/adr/ and similar), and nested AGENTS.md files.
+// Results are deduplicated and sorted for deterministic output.
 func projectDocFiles(root string) []string {
 	seen := map[string]bool{}
 	var paths []string
@@ -807,12 +1050,41 @@ func projectDocFiles(root string) []string {
 			}
 		}
 	}
+	// Always include CLAUDE.md if it exists as a regular file (not a symlink
+	// or bare import). Symlinks and @AGENTS.md imports are skipped by the
+	// entry-point budget check, but link-portability still scans CLAUDE.md
+	// when it contains real content.
+	claudePath := filepath.Join(root, "CLAUDE.md")
+	if stat, err := os.Lstat(claudePath); err == nil && stat.Mode().IsRegular() {
+		add(claudePath)
+	}
 	docsDir := filepath.Join(root, "docs")
 	_ = filepath.WalkDir(docsDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			return nil
 		}
 		add(path)
+		return nil
+	})
+	// Walk the repo for nested AGENTS.md files (depth-limited to avoid
+	// scanning vendor, node_modules, etc.).
+	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == ".git" || name == ".agents" || name == ".ahm" || name == "vendor" || name == "node_modules" {
+				return fs.SkipDir
+			}
+			if strings.HasPrefix(name, ".") {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if entry.Name() == "AGENTS.md" && path != filepath.Join(root, "AGENTS.md") {
+			add(path)
+		}
 		return nil
 	})
 	sort.Strings(paths)

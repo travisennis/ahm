@@ -9,7 +9,7 @@ they need.
 - [Global contract](references/cli/global-contract.md): usage, root selection,
   global flags, output modes, and exit codes.
 - [Commands](references/cli/commands.md): non-task commands including onboard,
-  audit, ADR, install, upgrade, status, doctor, and index behavior.
+  audit, ADR, docs check, install, upgrade, status, doctor, and index behavior.
 - [Task commands](references/cli/task-commands.md): task lifecycle,
   backlog grooming, dependencies, delegation, completion, cancellation, and
   reopening.

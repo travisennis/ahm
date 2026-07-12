@@ -431,6 +431,56 @@ ahm context task
 ahm --json context adr
 ```
 
+### `docs check [--strict]`
+
+Runs read-only structural checks over the project documentation surface.
+
+Reports:
+
+- Broken relative Markdown links (`project_doc_link_missing`).
+- Non-portable link targets including `file://` URIs, absolute filesystem
+  paths, and home-directory paths (`project_doc_link_not_portable`).
+- Entry-point line budget overages on root `AGENTS.md`
+  (`entry_point_over_budget`).
+- Generalized doc index coverage in any `docs/` subdirectory that contains
+  an `index.md` (`doc_unindexed`).
+- Design-doc index coverage (`design_doc_unindexed`, for compatibility).
+
+Exit 0 when clean or warnings-only; exit 1 on error-severity findings.
+`--strict` promotes warnings to errors for CI use. The command never calls
+models and never edits files.
+
+The scanned surface includes root-level common documentation markers
+(`AGENTS.md`, `README*`, `CONTRIBUTING*`, `CHANGELOG*`, `ARCHITECTURE*`,
+`DESIGN*`), `CLAUDE.md`, nested `AGENTS.md` files, and every Markdown file
+under `docs/`.
+
+`projectDocs` configuration is read from the repository config file
+(`.agents/ahm.json` or committed `.ahm/config.json`):
+
+- `entryPointBudget` (default 150): line-count budget for root `AGENTS.md`.
+- `exclude`: globs that exclude paths from the scanned surface.
+- `docMap`: path globs → docs to review (used by diff mode).
+
+All keys are optional; zero configuration runs static checks with defaults.
+
+Useful flags:
+
+- `--strict`: promotes warnings to errors, for CI use.
+- `--json` or `--plain`: structured output.
+
+Examples:
+
+```bash
+ahm docs check
+ahm docs check --strict
+ahm --json docs check
+ahm --plain docs check
+```
+
+The deprecated `--check project-docs` scope on `status` and `doctor` still
+functions but prints a deprecation warning naming `ahm docs check`.
+
 ### `init`
 
 Installs the managed `.agents` workflow into the target root.
