@@ -638,12 +638,34 @@ func replaceGroomSection(body, role, content string) (string, error) {
 	}
 	replacement := strings.TrimSpace(content)
 	if start < 0 {
+		// Section not found; insert before ## Comments if present so Comments
+		// always remains the final section.
+		if commentsIdx := groomCommentsIndex(lines); commentsIdx >= 0 {
+			newLines := append([]string{}, lines[:commentsIdx]...)
+			newLines = append(newLines, "", "## "+groomCanonicalHeadings[role], "", replacement, "")
+			newLines = append(newLines, lines[commentsIdx:]...)
+			return strings.TrimSpace(strings.Join(newLines, "\n")), nil
+		}
 		return strings.TrimSpace(body) + "\n\n## " + groomCanonicalHeadings[role] + "\n\n" + replacement, nil
 	}
 	newLines := append([]string{}, lines[:start+1]...)
 	newLines = append(newLines, "", replacement, "")
 	newLines = append(newLines, lines[end:]...)
 	return strings.TrimSpace(strings.Join(newLines, "\n")), nil
+}
+
+// groomCommentsIndex returns the line index of the ## Comments heading in
+// lines, or -1 if not found. The heading must be level 2 and match
+// "Comments" case-insensitively.
+func groomCommentsIndex(lines []string) int {
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		level := headingLevel(trimmed)
+		if level == 2 && strings.EqualFold(strings.TrimSpace(trimmed[level:]), "Comments") {
+			return i
+		}
+	}
+	return -1
 }
 
 func groomSectionContent(body, role string) (string, bool, error) {
