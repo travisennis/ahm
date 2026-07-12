@@ -960,6 +960,14 @@ func validateDocIndexCoverage(root string, report *validationReport) {
 	if err != nil {
 		return
 	}
+
+	// Build set of tool-managed file paths to skip (scaffold files like
+	// READMEs are not project docs and should not trigger doc_unindexed).
+	managedPaths := make(map[string]bool)
+	for _, f := range templates.Files() {
+		managedPaths[filepath.Clean(filepath.Join(root, f.Target))] = true
+	}
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -984,7 +992,7 @@ func validateDocIndexCoverage(root string, report *validationReport) {
 				return nil
 			}
 			clean := filepath.Clean(path)
-			if clean == cleanIndex {
+			if clean == cleanIndex || managedPaths[clean] {
 				return nil
 			}
 			files = append(files, clean)

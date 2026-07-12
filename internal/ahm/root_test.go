@@ -233,7 +233,7 @@ func TestInitSucceedsOutsideManagedRepository(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
+	assertContainsAll(t, stdout, "metadata:", "  .ahm/config.json", "indexes:")
 	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
 }
 
@@ -266,7 +266,7 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "metadata:", "indexes:")
 
-	// status now succeeds because .agents/ahm.json exists
+	// status now succeeds because .ahm/config.json exists
 	stdout, stderr, code = runCLIFromDir(t, root, "status")
 	if code != 0 {
 		t.Errorf("status exit code = %d, stderr = %s", code, stderr)

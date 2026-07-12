@@ -19,6 +19,12 @@ All notable user-facing changes to `ahm` are recorded here.
 - *(init/upgrade)* `ahm init` and `ahm upgrade` ensure `.ahm/.gitignore`
   exists after migration and create missing record directories and
   generated indexes under `.ahm/` when the repository is migrated.
+- *(init)* Fresh `ahm init` (no prior workflow metadata) now creates the
+  committed `.ahm/` layout directly: `.ahm/config.json`, scaffold READMEs
+  under `.ahm/tasks/`, `.ahm/research/`, and `docs/adr/`, and workflow
+  directories under `.ahm/`. Legacy `.agents/ahm.json` is no longer
+  created for new installs. Repositories with existing `.agents/ahm.json`
+  metadata are unaffected.
 
 ### Removed
 

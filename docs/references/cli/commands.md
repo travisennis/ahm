@@ -511,22 +511,29 @@ functions but prints a deprecation warning naming `ahm docs check`.
 
 ### `init`
 
-Installs the managed `.agents` workflow into the target root.
+Installs the managed `.ahm` workflow into the target root.
 
 `init` creates missing workflow directories, metadata, and generated indexes.
-Canonical agent instructions are exposed through `ahm context`, not copied into
-consumer repositories. `init` does not create or overwrite `AGENTS.md`.
+On fresh installs (no prior workflow metadata), creates the committed `.ahm/`
+layout directly: `.ahm/config.json`, workflow directories under `.ahm/`,
+and scaffold README files under `.ahm/tasks/`, `.ahm/research/`, and
+`docs/adr/`. Canonical agent instructions are exposed through
+`ahm context`, not copied into consumer repositories.
+`init` does not create or overwrite `AGENTS.md`.
 
-Writes in legacy committed-record repositories:
+On repositories with existing `.agents/ahm.json` metadata, `init` preserves
+the existing layout. After a repository has migrated (`ahm records migrate`),
+`init` and `upgrade` create missing record directories and generated indexes
+under `.ahm/` and read or write committed `.ahm/config.json`.
 
-- `.agents/ahm.json` metadata.
-- Generated index files under `.agents/.tasks/`, `.agents/.research/`,
-  `.agents/exec-plans/`, and `docs/adr/index.md`.
-- Workflow directories under `.agents/` and `docs/adr/`.
+Writes in .ahm layout:
 
-After a repository has migrated, `init` and `upgrade`
-create missing record directories and generated indexes under `.ahm/` and read
-or write committed `.ahm/config.json` instead of `.agents/ahm.json`.
+- `.ahm/config.json` metadata.
+- Generated index files under `.ahm/tasks/`, `.ahm/research/`,
+  `.ahm/exec-plans/`, and `docs/adr/index.md`.
+- Workflow directories under `.ahm/` and `docs/adr/`.
+- Scaffold README files (`.ahm/tasks/README.md`,
+  `.ahm/research/README.md`, `docs/adr/README.md`).
 
 Useful flags:
 
@@ -546,8 +553,8 @@ ahm --dry-run init
 
 Updates managed workflow state for the embedded template version.
 
-`upgrade` compares `.agents/ahm.json` hashes with managed files in the target
-root. Previously managed workflow instruction files that still match their
+`upgrade` compares the installed workflow metadata (`.ahm/config.json`
+or legacy `.agents/ahm.json`) with managed files in the target root. Previously managed workflow instruction files that still match their
 recorded managed hash are removed because canonical guidance and procedures now
 come from scoped contexts, delegation commands, and the embedded task-work
 review. This includes the three formerly managed procedure-skill files. Locally

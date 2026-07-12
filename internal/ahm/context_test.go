@@ -47,11 +47,11 @@ func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 		"# Task Workflow",
 		"## Choosing Work",
 		"## Creating Tasks",
-		"Tasks live under `.agents/.tasks/` in this repository.",
-		"The task index at `.agents/.tasks/index.md`",
-		"`\"strict_acceptance\": true` in `.agents/ahm.json`",
+		"Tasks live under `.ahm/tasks/` in this repository.",
+		"The task index at `.ahm/tasks/index.md`",
+		"`\"strict_acceptance\": true` in `.ahm/config.json`",
 	)
-	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".ahm/tasks")
+	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".agents/")
 }
 
 func TestScopedContextPrintsMigratedInstructionPaths(t *testing.T) {
@@ -145,21 +145,23 @@ func TestScopedContextJSONOutput(t *testing.T) {
 		`"id": "task-workflow"`,
 		`# Task Workflow`,
 		`## Choosing Work`,
-		`.agents/.tasks/index.md`,
+		`.ahm/tasks/index.md`,
 		`"commands":`,
 		`"ahm task show \u003cid\u003e"`,
 	)
-	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, ".ahm/tasks")
+	assertNotContains(t, stdout, `"root"`, `"workflow"`, `"git"`, ".agents/")
 }
 
 func TestPrimeReportsValidationFindings(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Missing Dependency", "Pending", "depends_on: 999\n")
+
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Missing Dependency", "Pending", "depends_on: 999\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
@@ -193,13 +195,15 @@ func TestPrimeWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) 
 
 func TestPrimeWarningsOnlyValidationDisplay(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	setupAhmRepo(t, root)
+	// A Completed task in the active bucket yields a warning with no errors.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bucket Mismatch", "Completed", "")
+
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
 		t.Fatal(err)
 	}
-	// A Completed task in the active bucket yields a warning with no errors.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bucket Mismatch", "Completed", "")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {

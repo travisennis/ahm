@@ -33,13 +33,9 @@ func newCommittedModeRepoWithMultipleTasks(t *testing.T, taskCount int) string {
 
 func TestPrimePrintsSessionBriefing(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Current Work", "In Progress", "depends_on: -\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Ready Work", "Pending", "depends_on: -\n")
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Current Work", "In Progress", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Ready Work", "Pending", "depends_on: -\n")
 	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
 	if err := indexer.writeIndexes(); err != nil {
 		t.Fatal(err)
@@ -65,7 +61,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"- ADR work → `ahm context adr`",
 		"- Research notes → `ahm context research`",
 		"- Documentation work → `ahm context docs`",
-		"- Workflow records: tasks `.agents/.tasks/`, research `.agents/.research/`, ExecPlans `.agents/exec-plans/`",
+		"- Workflow records: tasks `.ahm/tasks/`, research `.ahm/research/`, ExecPlans `.ahm/exec-plans/`",
 		"ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).",
 		"Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.",
 		"## Useful Commands",
@@ -104,12 +100,8 @@ func TestPrimeJSONOutput(t *testing.T) {
 
 func TestPrimePlainOutput(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Test Task", "Pending", "depends_on: -\n")
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Test Task", "Pending", "depends_on: -\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--plain", "prime")
 	if code != 0 {
@@ -124,15 +116,11 @@ func TestPrimePlainOutput(t *testing.T) {
 
 func TestPrimeReadyCapWithOverflow(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 	// Create 7 ready tasks — only 5 should display with overflow pointer
 	for i := 1; i <= 7; i++ {
 		id := fmt.Sprintf("%03d", i)
-		writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", id+".md"), id, "Ready Task "+id, "Pending", "P2", "depends_on: -\n")
+		writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", id+".md"), id, "Ready Task "+id, "Pending", "P2", "depends_on: -\n")
 	}
 	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
 	if err := indexer.writeIndexes(); err != nil {
@@ -252,12 +240,8 @@ func TestPrimeNoWrites(t *testing.T) {
 
 func TestPrimeReportsValidationFindingsWithoutFailing(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Missing Dependency", "Pending", "depends_on: 999\n")
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Missing Dependency", "Pending", "depends_on: 999\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
@@ -273,13 +257,9 @@ func TestPrimeReportsValidationFindingsWithoutFailing(t *testing.T) {
 
 func TestPrimeShowsReadyOnlyWhenTasksExist(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 	// Only a non-ready task (Completed)
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Done Work", "Completed", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Done Work", "Completed", "depends_on: -\n")
 	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
 	if err := indexer.writeIndexes(); err != nil {
 		t.Fatal(err)
@@ -294,13 +274,9 @@ func TestPrimeShowsReadyOnlyWhenTasksExist(t *testing.T) {
 
 func TestPrimeShowsInProgressOnlyWhenTasksExist(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 	// Only ready tasks, no in-progress
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Ready Work", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Ready Work", "Pending", "depends_on: -\n")
 	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
 	if err := indexer.writeIndexes(); err != nil {
 		t.Fatal(err)

@@ -63,10 +63,11 @@ func (a *app) prime() error {
 	// creating untracked files.
 	if _, err := readMetadata(a.opts.root); err == nil {
 		if !a.opts.dryRun {
-			if _, err := a.ensureWorkflowDirs(); err != nil {
+			paths := workflowPathsFor(a.opts.root)
+			if _, err := a.ensureWorkflowDirs(paths.recordsDir); err != nil {
 				return err
 			}
-			if err := a.ensureWorkflowGitignore(); err != nil {
+			if err := a.ensureWorkflowGitignore(paths.recordsDir); err != nil {
 				return err
 			}
 			if err := a.regenerateIndexes(); err != nil {

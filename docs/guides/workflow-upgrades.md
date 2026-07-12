@@ -8,11 +8,8 @@ repository, rebuild `ahm`, and run:
 ahm upgrade
 ```
 
-The upgrade process compares the installed metadata in `.agents/ahm.json` with
-the target repository files. Repositories that have already migrated (`ahm
-records migrate`) use `.ahm/config.json` as the committed config file;
-when that file exists, `ahm upgrade` reads and writes it instead of the legacy
-`.agents/ahm.json`.
+The upgrade process compares the installed metadata (in `.ahm/config.json`
+or legacy `.agents/ahm.json`) with the target repository files.
 
 - Missing workflow directories, metadata, and generated indexes are created.
 - Legacy instruction files that still match the previous managed hash are
@@ -50,6 +47,17 @@ embedded managed-file set changed. Fresh installs no longer create
 audits through `ahm audit`, and task-work review uses a binary-embedded
 preflight procedure. `ahm onboard` replaces the removed `ahm agents`
 suggestions group.
+
+## .ahm-first init (2026-07-12)
+
+`internal/templates.Version` advanced from `0.5.0` to `0.6.0` because
+`managedFiles` in `templates.go` was populated with `.ahm/` scaffold targets.
+Fresh `ahm init` (no prior workflow metadata) now creates the committed
+`.ahm/` layout directly: `.ahm/config.json`, scaffold READMEs under
+`.ahm/tasks/`, `.ahm/research/`, and `docs/adr/`, and workflow directories
+under `.ahm/`. Legacy `.agents/ahm.json` is no longer created for new
+installs. Repositories with existing `.agents/ahm.json` are unaffected;
+`upgrade` continues to preserve the existing layout.
 
 On upgrade, pristine hash-owned copies of the former preflight,
 grooming-backlog, and finding-improvements procedure files are removed along

@@ -7,7 +7,7 @@ Use `ahm task next`, `ahm task ready`, `ahm task list`,
 Use `ahm task create`, `ahm task accept`, `ahm task start`,
 `ahm task complete`, and `ahm task cancel` for normal lifecycle changes.
 
-The generated `.agents/.tasks/index.md` file is a read-only dashboard and
+The generated `{{.TasksIndex}}` file is a read-only dashboard and
 fallback reference. Do not edit generated indexes by hand.
 
 If `ahm` is unavailable, create non-completed task files in `active/`, move

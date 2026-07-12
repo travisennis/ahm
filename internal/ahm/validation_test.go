@@ -13,14 +13,10 @@ import (
 
 func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Write a valid task with CRLF.
-	path := filepath.Join(root, ".agents", ".tasks", "active", "097.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "097.md")
 	content := "---\r\n" +
 		"id: 097\r\n" +
 		"title: Validate CRLF\r\n" +
@@ -48,14 +44,10 @@ func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
 
 func TestStatusReportsValidationFindings(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Pending", "depends_on: 999\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle A", "Pending", "depends_on: 003\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle B", "Pending", "depends_on: 002\n")
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Task", "Pending", "depends_on: 999\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle A", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Cycle B", "Pending", "depends_on: 002\n")
 
 	var out strings.Builder
 
@@ -83,8 +75,8 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Active Task", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Active Task", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -124,12 +116,8 @@ func TestValidationReportsBlockedDepsComplete(t *testing.T) {
 
 func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: []\n")
+	setupAhmRepo(t, root)
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: []\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -151,14 +139,17 @@ func TestDoctorReportsMalformedTaskEnums(t *testing.T) {
 
 func TestDoctorReportsCompletedTaskAcceptanceFindings(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 	writeCompletedTaskBody(t, root, "001", "Missing Acceptance", "## Summary\n\nDone.\n")
 	writeCompletedTaskBody(t, root, "002", "Placeholder Acceptance", "## Acceptance Notes\n\n- [ ] TODO\n")
 	writeCompletedTaskBody(t, root, "003", "Unchecked Acceptance", "## Acceptance Criteria\n\n* [ ] Verify it\n")
+
+	// Generate indexes so doctor doesn't report missing-index errors.
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -257,9 +248,9 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: []\n")
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "new-note.md"), "# New Note\n\nThis should make the research index stale.\n")
-	if err := os.Remove(filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md")); err != nil {
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: []\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "new-note.md"), "# New Note\n\nThis should make the research index stale.\n")
+	if err := os.Remove(filepath.Join(root, ".ahm", "tasks", "cancelled", "index.md")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -271,11 +262,11 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 	got := out.String()
 	assertContainsAll(t, got,
 		`"code": "task_bucket_mismatch"`,
-		`completed task should be in .agents/.tasks/completed`,
+		`completed task should be in .ahm/tasks/completed`,
 		`"code": "generated_index_missing"`,
-		`"path": ".agents/.tasks/cancelled/index.md"`,
+		`"path": ".ahm/tasks/cancelled/index.md"`,
 		`"code": "generated_index_stale"`,
-		`"path": ".agents/.research/index.md"`,
+		`"path": ".ahm/research/index.md"`,
 	)
 }
 
@@ -286,7 +277,7 @@ func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "---\n"+
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "---\n"+
 		"id: 001\n"+
 		"title: Plan Still Active\n"+
 		"status: Completed\n"+
@@ -298,7 +289,7 @@ func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
 		"---\n"+
 		"# Plan Still Active\n\n"+
 		"## Summary\n\nDone.\n")
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"), "# Rollout\n\n## Outcomes & Retrospective\n\n")
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"), "# Rollout\n\n## Outcomes & Retrospective\n\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -307,7 +298,7 @@ func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
 	}
 	assertContainsAll(t, out.String(),
 		`"code": "task_completed_exec_plan_active"`,
-		`completed task 001 references active ExecPlan .agents/exec-plans/active/rollout.md`,
+		`completed task 001 references active ExecPlan .ahm/exec-plans/active/rollout.md`,
 	)
 }
 
@@ -318,7 +309,7 @@ func TestStatusReportsCompletedTaskReferencingIncompleteCompletedExecPlan(t *tes
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "---\n"+
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "---\n"+
 		"id: 001\n"+
 		"title: Plan Incomplete\n"+
 		"status: Completed\n"+
@@ -330,7 +321,7 @@ func TestStatusReportsCompletedTaskReferencingIncompleteCompletedExecPlan(t *tes
 		"---\n"+
 		"# Plan Incomplete\n\n"+
 		"## Summary\n\nDone.\n")
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "completed", "rollout.md"), "# Rollout\n\n"+
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "completed", "rollout.md"), "# Rollout\n\n"+
 		"## Progress\n\n- [x] Do it.\n\n"+
 		"## Surprises & Discoveries\n\nNone.\n\n"+
 		"## Decision Log\n\n- Chose this.\n\n"+
@@ -438,16 +429,19 @@ func TestValidateExecPlansReportsLifecycleFindings(t *testing.T) {
 
 func TestDoctorJSONReportsExecPlanInfoWithoutFailing(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "orphan.md"), "# Orphan\n\n"+
+	setupAhmRepo(t, root)
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "orphan.md"), "# Orphan\n\n"+
 		"## Progress\n\n- [ ] Do it.\n\n"+
 		"## Surprises & Discoveries\n\nNone yet.\n\n"+
 		"## Decision Log\n\n- Chose this.\n\n"+
 		"## Outcomes & Retrospective\n\n")
+
+	// Generate indexes so doctor doesn't report missing-index errors.
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -652,7 +646,7 @@ func hasFinding(findings []validationFinding, code string) bool {
 
 func writeCompletedTaskBody(t *testing.T, root string, id string, title string, body string) {
 	t.Helper()
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", id+".md"), "---\n"+
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", id+".md"), "---\n"+
 		"id: "+id+"\n"+
 		"title: "+title+"\n"+
 		"status: Completed\n"+
@@ -668,15 +662,11 @@ func writeCompletedTaskBody(t *testing.T, root string, id string, title string, 
 
 func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 	// Add a broken link that would trigger markdown_link_missing.
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
 	// Add a workflow issue.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only workflow checks.
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeWorkflow})
@@ -1069,14 +1059,10 @@ func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 func TestValidateReportsCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
 	// Init first to create valid workflow.
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Corrupt the metadata file.
-	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	metaPath := filepath.Join(root, ".ahm", "config.json")
 	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1151,14 +1137,10 @@ func TestValidateReportsMissingMetadata(t *testing.T) {
 
 func TestPostMutation_TaskCompleteReferencesActiveExecPlan(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Create a task with exec_plan referencing an active plan.
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"),
 		"---\n"+
 			"id: 001\n"+
 			"title: Needs ExecPlan Move\n"+
@@ -1174,7 +1156,7 @@ func TestPostMutation_TaskCompleteReferencesActiveExecPlan(t *testing.T) {
 			"## Acceptance Notes\n\n- [x] All done.\n")
 
 	// Create an active ExecPlan that the task references.
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
 		"# Rollout\n\n## Outcomes & Retrospective\n\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "complete", "001")
@@ -1189,14 +1171,10 @@ func TestPostMutation_TaskCompleteReferencesActiveExecPlan(t *testing.T) {
 
 func TestPostMutation_IndexDetectsExecPlanDrift(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Create a completed task that still references an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
 		"---\n"+
 			"id: 001\n"+
 			"title: Done But Plan Active\n"+
@@ -1211,7 +1189,7 @@ func TestPostMutation_IndexDetectsExecPlanDrift(t *testing.T) {
 			"## Summary\n\nDone.\n")
 
 	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
 		"# Rollout\n\n## Outcomes & Retrospective\n\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "index")
@@ -1226,14 +1204,10 @@ func TestPostMutation_IndexDetectsExecPlanDrift(t *testing.T) {
 
 func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Create a completed task referencing an active ExecPlan (workflow finding).
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
 		"---\n"+
 			"id: 001\n"+
 			"title: Done But Plan Active\n"+
@@ -1248,11 +1222,11 @@ func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
 			"## Summary\n\nDone.\n")
 
 	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
 		"# Rollout\n\n## Outcomes & Retrospective\n\n")
 
 	// Create a broken markdown link that would trigger markdown_link_missing.
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "links.md"),
 		"# Links\n\n[missing](missing.md)\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "index")
@@ -1271,14 +1245,10 @@ func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
 
 func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
 	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
+	setupAhmRepo(t, root)
 
 	// Create a completed task that still references an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
 		"---\n"+
 			"id: 001\n"+
 			"title: Done But Plan Active\n"+
@@ -1293,7 +1263,7 @@ func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
 			"## Summary\n\nDone.\n")
 
 	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "rollout.md"),
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
 		"# Rollout\n\n## Outcomes & Retrospective\n\n")
 
 	stdout, stderr, code := runCLI(t, "--dry-run", "--root", root, "index")

@@ -262,15 +262,24 @@ func scopedContextInstruction(scope string, root string) (contextInstruction, er
 
 func instructionPathsFor(root string) instructionRenderPaths {
 	paths := workflowPathsFor(root)
-	tasksRel := paths.tasksRel()
-	researchRel := paths.researchRel()
-	execPlansRel := paths.execPlansRel("")
+	return pathsForWorkflowPaths(paths)
+}
+
+func instructionPathsForRecordsDir(root string, recordsDir string) instructionRenderPaths {
+	wp := workflowPaths{root: root, recordsDir: recordsDir}
+	return pathsForWorkflowPaths(wp)
+}
+
+func pathsForWorkflowPaths(wp workflowPaths) instructionRenderPaths {
+	tasksRel := wp.tasksRel()
+	researchRel := wp.researchRel()
+	execPlansRel := wp.execPlansRel("")
 	configPath := legacyMetadataRelPath
-	if paths.recordsDir == toolRecordsDirName {
+	if wp.recordsDir == toolRecordsDirName {
 		configPath = configMetadataRelPath
 	}
 	return instructionRenderPaths{
-		RecordsDir:              slashDir(paths.recordsDir),
+		RecordsDir:              slashDir(wp.recordsDir),
 		TasksDir:                slashDir(tasksRel),
 		TasksActiveDir:          slashDir(tasksRel + "/active"),
 		TasksCompletedDir:       slashDir(tasksRel + "/completed"),
@@ -282,10 +291,10 @@ func instructionPathsFor(root string) instructionRenderPaths {
 		ResearchDir:             slashDir(researchRel),
 		ResearchIndex:           researchRel + "/index.md",
 		ExecPlansDir:            slashDir(execPlansRel),
-		ExecPlansActiveDir:      slashDir(paths.execPlansRel("active")),
-		ExecPlansCompletedDir:   slashDir(paths.execPlansRel("completed")),
-		ExecPlansActiveIndex:    paths.execPlansRel("active") + "/index.md",
-		ExecPlansCompletedIndex: paths.execPlansRel("completed") + "/index.md",
+		ExecPlansActiveDir:      slashDir(wp.execPlansRel("active")),
+		ExecPlansCompletedDir:   slashDir(wp.execPlansRel("completed")),
+		ExecPlansActiveIndex:    wp.execPlansRel("active") + "/index.md",
+		ExecPlansCompletedIndex: wp.execPlansRel("completed") + "/index.md",
 		ConfigPath:              configPath,
 	}
 }
@@ -306,8 +315,11 @@ func renderInstructionTemplate(name string, body string, values instructionRende
 	return rendered.String(), nil
 }
 
-func renderWorkflowTemplate(root string, name string, content []byte) ([]byte, error) {
-	rendered, err := renderInstructionTemplate(name, string(content), instructionPathsFor(root))
+// renderWorkflowTemplateFor is like renderWorkflowTemplate but uses the
+// given recordsDir to compute paths instead of detecting from the filesystem.
+func renderWorkflowTemplateFor(root string, name string, content []byte, recordsDir string) ([]byte, error) {
+	paths := instructionPathsForRecordsDir(root, recordsDir)
+	rendered, err := renderInstructionTemplate(name, string(content), paths)
 	if err != nil {
 		return nil, err
 	}

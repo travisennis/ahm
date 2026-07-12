@@ -78,6 +78,63 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
+// setupAhmRepo creates minimal .ahm/ workflow state (the modern layout)
+// in root. Creates .ahm/config.json with the current template version
+// and the full directory structure.
+func setupAhmRepo(t *testing.T, root string) {
+	t.Helper()
+	for _, dir := range []string{
+		".ahm/tasks/active",
+		".ahm/tasks/completed",
+		".ahm/tasks/cancelled",
+		".ahm/research/inbox",
+		".ahm/research/investigations",
+		".ahm/research/sources",
+		".ahm/research/topics",
+		".ahm/research/archived",
+		".ahm/exec-plans/active",
+		".ahm/exec-plans/completed",
+		"docs/adr",
+	} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, ".ahm", "config.json"), []byte(`{"version":"`+templates.Version+`"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// initAndCreateLegacyMetadata creates minimal legacy .agents/ workflow state
+// so tests expecting the legacy .agents/ layout can function.
+func initAndCreateLegacyMetadata(t *testing.T, root string) {
+	t.Helper()
+	metaDir := filepath.Join(root, ".agents")
+	for _, dir := range []string{
+		".agents/.tasks",
+		".agents/.tasks/active",
+		".agents/.tasks/completed",
+		".agents/.tasks/cancelled",
+		".agents/.research",
+		".agents/.research/inbox",
+		".agents/.research/investigations",
+		".agents/.research/sources",
+		".agents/.research/topics",
+		".agents/.research/archived",
+		".agents/exec-plans",
+		".agents/exec-plans/active",
+		".agents/exec-plans/completed",
+		"docs/adr",
+	} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte(`{"version":"`+templates.Version+`"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func templateBytes(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := fs.ReadFile(templates.FS, path)

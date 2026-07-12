@@ -39,9 +39,24 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 	}
 }
 
-func TestManagedFilesAreEmpty(t *testing.T) {
-	if files := Files(); len(files) != 0 {
-		t.Fatalf("managed files = %#v, want none", files)
+func TestManagedFilesContainScaffoldTargets(t *testing.T) {
+	files := Files()
+	if len(files) == 0 {
+		t.Fatal("managed files should contain at least one scaffold target")
+	}
+	// Verify the .ahm/ scaffold targets are present.
+	targets := make(map[string]bool)
+	for _, f := range files {
+		targets[f.Target] = true
+	}
+	for _, want := range []string{
+		".ahm/tasks/README.md",
+		".ahm/research/README.md",
+		"docs/adr/README.md",
+	} {
+		if !targets[want] {
+			t.Errorf("missing managed file target %q", want)
+		}
 	}
 }
 

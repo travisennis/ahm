@@ -112,7 +112,7 @@ func TestCLIIntegrationExitCodes(t *testing.T) {
 	assertIntegrationCode(t, result, 2)
 	assertContainsAll(t, result.stderr, `unknown command "boguscmd"`)
 
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "999.md"), "---\nid: 999\n---\n# Broken\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "999.md"), "---\nid: 999\n---\n# Broken\n")
 	result = runBuiltCLI(t, root)
 	assertIntegrationCode(t, result, 1)
 	assertContainsAll(t, result.stdout, `"ok": false`, `"code": "task_missing_field"`)
@@ -128,14 +128,14 @@ func TestCLIIntegrationTaskLifecycle(t *testing.T) {
 	if strings.TrimSpace(result.stdout) != "001" {
 		t.Fatalf("task create stdout = %q, want 001", result.stdout)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"),
 		"title: Integration Task",
 		"status: Open",
 		"priority: P1",
 		"effort: M",
 		"Created through subprocess",
 	)
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"), "Integration Task")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"), "Integration Task")
 
 	result = runBuiltCLI(t, root, "task", "list")
 	assertIntegrationCode(t, result, 0)
@@ -156,8 +156,8 @@ func TestCLIIntegrationTaskLifecycle(t *testing.T) {
 	result = runBuiltCLI(t, root, "task", "complete", "001")
 	assertIntegrationCode(t, result, 0)
 	assertContainsAll(t, result.stdout, "001 -> Completed")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "index.md"), "Completed: 1")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"), "Completed: 1")
 }
 
 func TestCLIIntegrationOutputModes(t *testing.T) {
@@ -207,7 +207,7 @@ func TestCLIIntegrationDryRunDoesNotMutate(t *testing.T) {
 	result = runBuiltCLI(t, root, "--dry-run", "task", "create", "Preview Task")
 	assertIntegrationCode(t, result, 0)
 	assertContainsAll(t, result.stdout, "create:", "id: 001")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run task create wrote active task: %v", err)
 	}
 
@@ -217,16 +217,16 @@ func TestCLIIntegrationDryRunDoesNotMutate(t *testing.T) {
 	result = runBuiltCLI(t, root, "--dry-run", "task", "complete", "001")
 	assertIntegrationCode(t, result, 0)
 	assertContainsAll(t, result.stdout, "move:", "status: Completed")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !errors.Is(err, os.ErrNotExist) {
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run task complete wrote completed task: %v", err)
 	}
 
 	result = runBuiltCLI(t, root, "--dry-run", "task", "cancel", "001", "--reason", "Superseded")
 	assertIntegrationCode(t, result, 0)
 	assertContainsAll(t, result.stdout, "move:", "status: Cancelled", "reason: Superseded")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !errors.Is(err, os.ErrNotExist) {
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run task cancel wrote cancelled task: %v", err)
 	}
 }

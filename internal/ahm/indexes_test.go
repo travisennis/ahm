@@ -163,17 +163,14 @@ func TestCollectMarkdownDocsUsesHeadingFallbackAndIgnoresIndex(t *testing.T) {
 
 func TestMainIndexRegeneratesResearchAndExecPlanIndexes(t *testing.T) {
 	root := t.TempDir()
-	stdout, stderr, code := runCLI(t, "--root", root, "init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
+	initAndCreateLegacyMetadata(t, root)
 	writeFile(t, filepath.Join(root, ".agents", ".research", "investigations", "cli-indexes.md"), "# CLI Indexes\n\nFindings.\n")
 	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "generate-indexes.md"), "# Generate Indexes\n\nPlan.\n")
 	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "completed", "old-plan.md"), "# Old Plan\n\nDone.\n")
 	writeADRFile(t, root, "009-madr-adr-management.md", "---\nstatus: accepted\ndate: 2026-06-14\n---\n# MADR ADR Management\n\nBody.\n")
 	writeFile(t, filepath.Join(root, ".agents", ".research", "index.md"), "stale\n")
 
-	stdout, stderr, code = runCLI(t, "--root", root, "index")
+	stdout, stderr, code := runCLI(t, "--root", root, "index")
 	if code != 0 {
 		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -214,14 +211,11 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install workflow scaffold.
-	stdout, stderr, code := cli("init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
+	// Install legacy workflow scaffold.
+	initAndCreateLegacyMetadata(t, root)
 
 	// Create a task so indexes are non-trivial.
-	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
+	stdout, stderr, code := cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
 	if code != 0 {
 		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -303,12 +297,9 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install workflow scaffold and create a task.
-	stdout, stderr, code := cli("init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	stdout, stderr, code = cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
+	// Install legacy workflow scaffold and create a task.
+	initAndCreateLegacyMetadata(t, root)
+	stdout, stderr, code := cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
 	if code != 0 {
 		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -367,14 +358,11 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install workflow scaffold.
-	stdout, stderr, code := cli("init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
+	// Install legacy workflow scaffold.
+	initAndCreateLegacyMetadata(t, root)
 
 	// Create a valid task so there's at least one parsed task.
-	stdout, stderr, code = cli("task", "create", "Valid Task")
+	stdout, stderr, code := cli("task", "create", "Valid Task")
 	if code != 0 {
 		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
@@ -409,10 +397,12 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install workflow scaffold.
-	stdout, stderr, code := cli("init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	// Install legacy workflow scaffold.
+	initAndCreateLegacyMetadata(t, root)
+
+	// Create an initial generated index so we can check it survives.
+	if _, _, code := cli("index"); code != 0 {
+		t.Errorf("index exit code = %d", code)
 	}
 
 	// Replace one of the task directories with a regular file so
@@ -426,7 +416,7 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 	}
 
 	// Run index — should fail because tasks cannot be collected at all.
-	stdout, stderr, code = cli("index")
+	stdout, stderr, code := cli("index")
 	if code == 0 {
 		t.Errorf("index with unreadable task dir should exit non-zero, got stdout=%s, stderr=%s", stdout, stderr)
 	}

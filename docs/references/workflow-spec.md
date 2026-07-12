@@ -42,7 +42,10 @@ Global flags:
 Commands:
 
 - `context`: print live repository briefing or managed-work reference.
-- `init`: install the managed `.agents` workflow state.
+- `init`: install the managed `.ahm` workflow state. On fresh installs
+  (no prior workflow metadata), creates the committed `.ahm/` layout
+  directly. On repositories with existing `.agents/ahm.json` metadata, the
+  existing layout is preserved.
 - `upgrade`: update managed workflow state for the embedded template version.
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
@@ -91,11 +94,14 @@ file hashes for any legacy managed templates, and repository-scoped workflow
 settings. This metadata lets future versions remove or migrate files that have
 not been locally changed while preserving user edits.
 
-`ahm` also recognizes committed `.ahm/config.json` as the next configuration
-home. When `.ahm/config.json` exists, metadata reads prefer it over the legacy
-`.agents/ahm.json`; when it does not exist, legacy behavior is unchanged.
-Fresh `init` and ordinary `upgrade` still write `.agents/ahm.json` until an
-explicit migration creates `.ahm/config.json`.
+`ahm` reads workflow metadata from committed `.ahm/config.json` when it
+is present, falling back to legacy `.agents/ahm.json` otherwise. Fresh
+`ahm init` (no prior metadata) creates `.ahm/config.json` and the
+committed `.ahm/` layout directly. When `.agents/ahm.json` already
+represents the repository, `init` respects the existing layout.
+
+After an explicit migration creates `.ahm/config.json`, metadata reads
+prefer it over the legacy `.agents/ahm.json`.
 
 Example:
 

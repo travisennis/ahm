@@ -193,9 +193,6 @@ var obsoleteManagedFiles = []obsoleteManagedFile{
 		Target: ".agents/.research/README.md",
 	},
 	{
-		Target: "docs/adr/README.md",
-	},
-	{
 		Target:    ".agents/skills/deslop/SKILL.md",
 		EmptyDirs: []string{".agents/skills/deslop"},
 	},
@@ -220,6 +217,7 @@ func (a *app) install(upgrade bool) error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("corrupt workflow metadata %s: %w", metadataErrorPath(err), err)
 	}
+	hasExistingMeta := err == nil
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
 	}
@@ -228,6 +226,16 @@ func (a *app) install(upgrade bool) error {
 			delete(meta.Files, target)
 		}
 	}
+
+	// Fresh init with no prior metadata creates the committed .ahm/ layout
+	// directly. When existing metadata is present (either .agents/ahm.json or
+	// .ahm/config.json), preserve the existing layout. Upgrade always preserves
+	// the existing layout.
+	recordsDir := toolRecordsDirName // default for fresh init
+	if upgrade || hasExistingMeta {
+		recordsDir = workflowPathsFor(root).recordsDir
+	}
+
 	result := map[string][]string{
 		"created":   {},
 		"updated":   {},
@@ -243,7 +251,7 @@ func (a *app) install(upgrade bool) error {
 		if err != nil {
 			return err
 		}
-		content, err = renderWorkflowTemplate(root, item.Source, content)
+		content, err = renderWorkflowTemplateFor(root, item.Source, content, recordsDir)
 		if err != nil {
 			return err
 		}
@@ -303,17 +311,23 @@ func (a *app) install(upgrade bool) error {
 			result["conflicts"] = append(result["conflicts"], item.Target)
 		}
 	}
-	dirs, err := a.ensureWorkflowDirs()
+	dirs, err := a.ensureWorkflowDirs(recordsDir)
 	if err != nil {
 		return err
 	}
-	if err := a.ensureWorkflowGitignore(); err != nil {
+	if err := a.ensureWorkflowGitignore(recordsDir); err != nil {
 		return err
 	}
 	if a.opts.dryRun {
 		result["directories"] = dirs
 	}
-	result["metadata"] = []string{metadataWriteRelPath(root)}
+	metaRelPath := metadataWriteRelPath(root)
+	// Fresh init with no prior metadata writes .ahm/config.json.
+	// When existing metadata is present, preserve the existing path.
+	if !upgrade && !hasExistingMeta {
+		metaRelPath = configMetadataRelPath
+	}
+	result["metadata"] = []string{metaRelPath}
 	indexes, err := a.indexWriteTargets()
 	if err != nil {
 		return err
@@ -321,8 +335,16 @@ func (a *app) install(upgrade bool) error {
 	result["indexes"] = indexes
 	if !a.opts.dryRun {
 		meta.Version = templates.Version
-		if err := writeMetadata(root, meta); err != nil {
-			return err
+		// Fresh init with no prior metadata writes .ahm/config.json.
+		// When existing metadata is present, preserve the existing path.
+		if upgrade || hasExistingMeta {
+			if err := writeMetadata(root, meta); err != nil {
+				return err
+			}
+		} else {
+			if err := writeConfigMetadata(root, meta); err != nil {
+				return err
+			}
 		}
 		if err := a.writeIndexes(); err != nil {
 			return err
@@ -375,9 +397,8 @@ func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result ma
 // standard ignore entries if it does not already exist. It is a no-op in
 // legacy layout (where .agents/ tracks everything under normal Git) and in
 // dry-run mode.
-func (a *app) ensureWorkflowGitignore() error {
-	paths := workflowPathsFor(a.opts.root)
-	if paths.recordsDir != toolRecordsDirName {
+func (a *app) ensureWorkflowGitignore(recordsDir string) error {
+	if recordsDir != toolRecordsDirName {
 		return nil
 	}
 	if a.opts.dryRun {
@@ -393,8 +414,8 @@ func (a *app) ensureWorkflowGitignore() error {
 	return nil
 }
 
-func (a *app) ensureWorkflowDirs() ([]string, error) {
-	paths := workflowPathsFor(a.opts.root)
+func (a *app) ensureWorkflowDirs(recordsDir string) ([]string, error) {
+	paths := workflowPaths{root: a.opts.root, recordsDir: recordsDir}
 	dirs := []string{
 		paths.tasksRel() + "/active",
 		paths.tasksRel() + "/completed",
