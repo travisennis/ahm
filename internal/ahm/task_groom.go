@@ -25,21 +25,48 @@ type groomResult struct {
 }
 
 type groomVerdict struct {
-	Task       string   `json:"task"`
-	Action     string   `json:"action"`
-	Comment    string   `json:"comment"`
-	AddDeps    []string `json:"add_deps"`
-	RemoveDeps []string `json:"remove_deps"`
-	Labels     []string `json:"labels"`
+	Task       string         `json:"task"`
+	Action     string         `json:"action"`
+	Comment    string         `json:"comment"`
+	AddDeps    []string       `json:"add_deps"`
+	RemoveDeps []string       `json:"remove_deps"`
+	Labels     []string       `json:"labels"`
+	Revision   *groomRevision `json:"revision,omitempty"`
+}
+
+type groomRevision struct {
+	Priority string                 `json:"priority"`
+	Effort   string                 `json:"effort"`
+	Sections []groomSectionRevision `json:"sections"`
+}
+
+type groomSectionRevision struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 type groomChange struct {
-	Task        string   `json:"task"`
-	Action      string   `json:"action"`
-	Commented   bool     `json:"commented"`
-	AddedDeps   []string `json:"added_deps,omitempty"`
-	RemovedDeps []string `json:"removed_deps,omitempty"`
-	Labels      []string `json:"labels,omitempty"`
+	Task        string               `json:"task"`
+	Action      string               `json:"action"`
+	Commented   bool                 `json:"commented"`
+	AddedDeps   []string             `json:"added_deps,omitempty"`
+	RemovedDeps []string             `json:"removed_deps,omitempty"`
+	Labels      []string             `json:"labels,omitempty"`
+	Priority    *groomValueChange    `json:"priority,omitempty"`
+	Effort      *groomValueChange    `json:"effort,omitempty"`
+	Sections    []groomSectionChange `json:"sections,omitempty"`
+}
+
+type groomValueChange struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
+
+type groomSectionChange struct {
+	Role     string `json:"role"`
+	Before   string `json:"before"`
+	After    string `json:"after"`
+	Inserted bool   `json:"inserted"`
 }
 
 type groomSummary struct {
@@ -66,14 +93,27 @@ func (s groomSummary) RenderText(w io.Writer) error {
 		if len(change.Labels) > 0 {
 			fmt.Fprintf(w, ", labels %s", strings.Join(change.Labels, ","))
 		}
+		if change.Priority != nil {
+			fmt.Fprintf(w, ", priority %s", change.Priority.After)
+		}
+		if change.Effort != nil {
+			fmt.Fprintf(w, ", effort %s", change.Effort.After)
+		}
+		if len(change.Sections) > 0 {
+			roles := make([]string, len(change.Sections))
+			for i := range change.Sections {
+				roles[i] = change.Sections[i].Role
+			}
+			fmt.Fprintf(w, ", revised %s", strings.Join(roles, ","))
+		}
 		fmt.Fprintln(w)
 	}
 	return nil
 }
 
-const groomResultSchema = `{"type":"object","additionalProperties":false,"required":["verdicts"],"properties":{"verdicts":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["task","action","comment","add_deps","remove_deps","labels"],"properties":{"task":{"type":"string"},"action":{"type":"string","enum":["accept","comment"]},"comment":{"type":"string"},"add_deps":{"type":"array","items":{"type":"string"}},"remove_deps":{"type":"array","items":{"type":"string"}},"labels":{"type":"array","items":{"type":"string"}}}}}}}`
+const groomResultSchema = `{"type":"object","additionalProperties":false,"required":["verdicts"],"properties":{"verdicts":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["task","action","comment","add_deps","remove_deps","labels","revision"],"properties":{"task":{"type":"string"},"action":{"type":"string","enum":["accept","comment","revise"]},"comment":{"type":"string"},"add_deps":{"type":"array","items":{"type":"string"}},"remove_deps":{"type":"array","items":{"type":"string"}},"labels":{"type":"array","items":{"type":"string"}},"revision":{"type":["object","null"],"additionalProperties":false,"required":["priority","effort","sections"],"properties":{"priority":{"type":"string","enum":["","P0","P1","P2","P3","P4"]},"effort":{"type":"string","enum":["","XS","S","M","L","XL"]},"sections":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["role","content"],"properties":{"role":{"type":"string","enum":["problem","relevant_files","fix_direction","acceptance_notes"]},"content":{"type":"string"}}}}}}}}}}}`
 
-const groomProcedure = `Act as a backlog groomer. Inspect the listed task files and repository code as needed before judging readiness. Every Open task must either be ready to accept or receive a precise comment explaining what remains. Review Blocked tasks for stale or incorrect dependencies. Verify priority, effort, type and area labels, dependency accuracy, decision completeness, relevant paths, and actionable acceptance notes. Never edit files, cancel tasks, or run ahm mutation commands; ahm alone applies your structured verdicts. A cancel recommendation must be an action=comment verdict. Return only JSON matching the supplied schema.`
+const groomProcedure = `Act as a backlog groomer. Inspect the listed task files and repository code as needed before judging readiness. Every Open task must either be ready to accept, receive an objective structured revision, or receive a precise comment explaining what remains. Review Blocked tasks for stale or incorrect dependencies. Verify priority, effort, type and area labels, dependency accuracy, decision completeness, relevant paths, and actionable acceptance notes. Use action=accept when the task is ready after applying the optional revision; if the revision resolves the final gap, you must accept rather than revise. Use action=revise only when a concrete blocker or human decision remains after the revision, and name that remaining issue in the required comment. Set revision=null when no revision is needed. Revisions may change only priority, effort, and the closed section roles problem, relevant_files, fix_direction, and acceptance_notes. Supply complete replacement section content. Never edit files, change protected metadata, cancel tasks, or run ahm mutation commands; ahm alone validates and applies your structured verdicts. A blocked task, cancel recommendation, or question requiring human judgment must use action=comment. Return only JSON matching the supplied schema.`
 
 func (a *app) taskGroom(parsed taskGroomArgs) error {
 	defer a.emitWarnings()
@@ -118,11 +158,29 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	if err != nil {
 		return fmt.Errorf("invalid groom result; no changes applied (raw output preserved below): %w\n%s", err, out.String())
 	}
-	validated, err := validateGroomResult(result, targets, tasks)
+	_, err = validateGroomResult(result, targets, tasks)
 	if err != nil {
 		return fmt.Errorf("invalid groom result; no changes applied (raw output preserved below): %w\n%s", err, out.String())
 	}
-	summary, err := a.applyGroomVerdicts(validated, tasks, roles.implAgent.name)
+	release, err := acquireWorkflowLock(a.opts.root, "task-mutate")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = release() }()
+	a.invalidateTasks()
+	current, err := a.getTasks()
+	if err != nil {
+		return fmt.Errorf("cannot apply groom result after task state changed: %w", err)
+	}
+	currentTargets, err := groomTargets(current, parsed.id)
+	if err != nil {
+		return err
+	}
+	validated, err := validateGroomResult(result, currentTargets, current)
+	if err != nil {
+		return fmt.Errorf("groom targets changed before apply; no changes applied: %w", err)
+	}
+	summary, err := a.applyGroomVerdicts(validated, current, roles.implAgent.name)
 	if err != nil {
 		return err
 	}
@@ -285,6 +343,20 @@ func decodeGroomJSON(data []byte) (groomResult, error) {
 				return groomResult{}, fmt.Errorf("verdict %d missing required field %s", i+1, field)
 			}
 		}
+		if revisionData, ok := verdict["revision"]; ok {
+			if bytes.Equal(bytes.TrimSpace(revisionData), []byte("null")) {
+				continue
+			}
+			var revision map[string]json.RawMessage
+			if err := json.Unmarshal(revisionData, &revision); err != nil {
+				return groomResult{}, fmt.Errorf("verdict %d has invalid revision", i+1)
+			}
+			for _, field := range []string{"priority", "effort", "sections"} {
+				if _, ok := revision[field]; !ok {
+					return groomResult{}, fmt.Errorf("verdict %d revision missing required field %s", i+1, field)
+				}
+			}
+		}
 	}
 	return result, nil
 }
@@ -311,7 +383,7 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 			return nil, fmt.Errorf("duplicate verdict for task %s", verdict.Task)
 		}
 		seen[verdict.Task] = true
-		if verdict.Action != "accept" && verdict.Action != "comment" {
+		if verdict.Action != "accept" && verdict.Action != "comment" && verdict.Action != "revise" {
 			return nil, fmt.Errorf("task %s has invalid action %q", verdict.Task, verdict.Action)
 		}
 		if verdict.Action == "accept" && task.Status != "Open" {
@@ -319,6 +391,18 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 		}
 		if verdict.Action == "comment" && strings.TrimSpace(verdict.Comment) == "" {
 			return nil, fmt.Errorf("task %s comment action requires a comment", verdict.Task)
+		}
+		if verdict.Action == "revise" && verdict.Revision == nil {
+			return nil, fmt.Errorf("task %s revise action requires a revision", verdict.Task)
+		}
+		if verdict.Action == "revise" && strings.TrimSpace(verdict.Comment) == "" {
+			return nil, fmt.Errorf("task %s revise action requires a comment explaining what remains", verdict.Task)
+		}
+		if verdict.Action == "comment" && verdict.Revision != nil {
+			return nil, fmt.Errorf("task %s comment action cannot include a revision", verdict.Task)
+		}
+		if err := validateGroomRevision(verdict.Task, verdict.Revision); err != nil {
+			return nil, err
 		}
 		for _, dep := range append(append([]string{}, verdict.AddDeps...), verdict.RemoveDeps...) {
 			if !allIDs[dep] || dep == verdict.Task {
@@ -355,6 +439,26 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 			modified[i].DependsOn = modified[i].DependsOn[:0]
 			for dep := range deps {
 				modified[i].DependsOn = append(modified[i].DependsOn, dep)
+			}
+			if len(verdict.Labels) > 0 {
+				modified[i].Labels = strings.Join(verdict.Labels, ", ")
+			}
+			if err := applyGroomRevision(&modified[i], verdict.Revision); err != nil {
+				return nil, fmt.Errorf("task %s revision: %w", verdict.Task, err)
+			}
+			if verdict.Action == "accept" {
+				modified[i].Status = "Pending"
+				if verdict.Revision != nil {
+					if err := validateRevisedTaskReadiness(modified[i]); err != nil {
+						return nil, fmt.Errorf("task %s revised task is not ready: %w", verdict.Task, err)
+					}
+				}
+			}
+			if verdict.Revision != nil {
+				rendered := renderTask(modified[i])
+				if _, err := parseTaskFromData([]byte(rendered), modified[i].Path, modified[i].Bucket); err != nil {
+					return nil, fmt.Errorf("task %s revised task is invalid: %w", verdict.Task, err)
+				}
 			}
 		}
 	}
@@ -399,6 +503,26 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 			task.Labels = strings.Join(verdict.Labels, ", ")
 			change.Labels = verdict.Labels
 		}
+		if verdict.Revision != nil {
+			if verdict.Revision.Priority != "" {
+				change.Priority = &groomValueChange{Before: task.Priority, After: verdict.Revision.Priority}
+				task.Priority = verdict.Revision.Priority
+			}
+			if verdict.Revision.Effort != "" {
+				change.Effort = &groomValueChange{Before: task.Effort, After: verdict.Revision.Effort}
+				task.Effort = verdict.Revision.Effort
+			}
+			for _, section := range verdict.Revision.Sections {
+				before, found, err := groomSectionContent(task.Body, section.Role)
+				if err != nil {
+					return groomSummary{}, err
+				}
+				change.Sections = append(change.Sections, groomSectionChange{Role: section.Role, Before: before, After: strings.TrimSpace(section.Content), Inserted: !found})
+			}
+			if err := applyGroomRevision(&task, &groomRevision{Sections: verdict.Revision.Sections}); err != nil {
+				return groomSummary{}, err
+			}
+		}
 		if strings.TrimSpace(verdict.Comment) != "" {
 			task.Body = appendComment(task.Body, formatComment(now, "", strings.TrimSpace(verdict.Comment)))
 			change.Commented = true
@@ -425,6 +549,150 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 		}
 	}
 	return summary, nil
+}
+
+var groomSectionHeadings = map[string][]string{
+	"problem":          {"problem", "summary", "description"},
+	"relevant_files":   {"relevant files", "relevant paths", "files"},
+	"fix_direction":    {"fix direction", "implementation notes", "approach"},
+	"acceptance_notes": {"acceptance notes", "acceptance criteria", "acceptance"},
+}
+
+var groomCanonicalHeadings = map[string]string{
+	"problem": "Problem", "relevant_files": "Relevant Files",
+	"fix_direction": "Fix Direction", "acceptance_notes": "Acceptance Notes",
+}
+
+func validateGroomRevision(taskID string, revision *groomRevision) error {
+	if revision == nil {
+		return nil
+	}
+	if revision.Priority != "" && !containsString(priorityOrder(), revision.Priority) {
+		return fmt.Errorf("task %s revision has invalid priority %q", taskID, revision.Priority)
+	}
+	if revision.Effort != "" && !containsString(effortOrder(), revision.Effort) {
+		return fmt.Errorf("task %s revision has invalid effort %q", taskID, revision.Effort)
+	}
+	seen := map[string]bool{}
+	for _, section := range revision.Sections {
+		if _, ok := groomSectionHeadings[section.Role]; !ok {
+			return fmt.Errorf("task %s revision has invalid section role %q", taskID, section.Role)
+		}
+		if seen[section.Role] {
+			return fmt.Errorf("task %s revision duplicates section role %s", taskID, section.Role)
+		}
+		seen[section.Role] = true
+		if strings.TrimSpace(section.Content) == "" {
+			return fmt.Errorf("task %s revision section %s is empty", taskID, section.Role)
+		}
+	}
+	if revision.Priority == "" && revision.Effort == "" && len(revision.Sections) == 0 {
+		return fmt.Errorf("task %s revision is empty", taskID)
+	}
+	return nil
+}
+
+func applyGroomRevision(task *Task, revision *groomRevision) error {
+	if revision == nil {
+		return nil
+	}
+	if revision.Priority != "" {
+		task.Priority = revision.Priority
+	}
+	if revision.Effort != "" {
+		task.Effort = revision.Effort
+	}
+	for _, section := range revision.Sections {
+		body, err := replaceGroomSection(task.Body, section.Role, section.Content)
+		if err != nil {
+			return err
+		}
+		task.Body = body
+	}
+	return nil
+}
+
+func replaceGroomSection(body, role, content string) (string, error) {
+	aliases := groomSectionHeadings[role]
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	start, end, matches := -1, len(lines), 0
+	for i, line := range lines {
+		level := headingLevel(line)
+		if level != 2 && level != 3 {
+			continue
+		}
+		heading := strings.ToLower(strings.TrimSpace(strings.TrimSpace(line)[level:]))
+		if containsString(aliases, heading) {
+			matches++
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		if start >= 0 && end == len(lines) && level <= headingLevel(lines[start]) {
+			end = i
+		}
+	}
+	if matches > 1 {
+		return "", fmt.Errorf("ambiguous %s sections", role)
+	}
+	replacement := strings.TrimSpace(content)
+	if start < 0 {
+		return strings.TrimSpace(body) + "\n\n## " + groomCanonicalHeadings[role] + "\n\n" + replacement, nil
+	}
+	newLines := append([]string{}, lines[:start+1]...)
+	newLines = append(newLines, "", replacement, "")
+	newLines = append(newLines, lines[end:]...)
+	return strings.TrimSpace(strings.Join(newLines, "\n")), nil
+}
+
+func groomSectionContent(body, role string) (string, bool, error) {
+	aliases := groomSectionHeadings[role]
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	start, end, matches := -1, len(lines), 0
+	for i, line := range lines {
+		level := headingLevel(line)
+		if level != 2 && level != 3 {
+			continue
+		}
+		heading := strings.ToLower(strings.TrimSpace(strings.TrimSpace(line)[level:]))
+		if containsString(aliases, heading) {
+			matches++
+			start = i
+			continue
+		}
+		if start >= 0 && end == len(lines) && level <= headingLevel(lines[start]) {
+			end = i
+		}
+	}
+	if matches > 1 {
+		return "", false, fmt.Errorf("ambiguous %s sections", role)
+	}
+	if start < 0 {
+		return "", false, nil
+	}
+	return strings.TrimSpace(strings.Join(lines[start+1:end], "\n")), true, nil
+}
+
+func validateRevisedTaskReadiness(task Task) error {
+	labels := taskLabelSet(task)
+	hasType, hasArea := false, false
+	for label := range labels {
+		hasType = hasType || strings.HasPrefix(label, "type:")
+		hasArea = hasArea || strings.HasPrefix(label, "area:")
+	}
+	if !hasType || !hasArea {
+		return fmt.Errorf("type and area labels are required")
+	}
+	for _, finding := range parseAcceptanceNotes([]byte(task.Body)) {
+		if finding == taskAcceptanceMissing || finding == taskAcceptancePlaceholder {
+			return fmt.Errorf("actionable acceptance notes are required")
+		}
+	}
+	if (task.Effort == "L" || task.Effort == "XL") && (task.ExecPlan == "" || task.ExecPlan == "-") {
+		return fmt.Errorf("effort %s requires an ExecPlan", task.Effort)
+	}
+	return nil
 }
 
 func taskIDs(tasks []Task) []string {

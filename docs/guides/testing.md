@@ -49,12 +49,19 @@ just smoke-agents
 ```
 
 Runs `TestAgentSmoke` (`internal/ahm/task_work_smoke_test.go`) with
-`AHM_AGENT_SMOKE=1`. The test drives each installed session-capable agent
+`AHM_AGENT_SMOKE=1`, followed by `TestTaskGroomAgentSmoke`
+(`internal/ahm/task_groom_smoke_test.go`). The first test drives each installed session-capable agent
 through the real `ahm task work` path in a throwaway repository
 with a do-nothing task: one work session plus one resume per agent, which
 exercises session capture and `resumeArgs` against a real session ID. Agents
-not on PATH are skipped per-subtest, and without the environment variable the
-test skips entirely, so `just ci` is unaffected.
+not on PATH or unavailable because of a reported provider account limit are
+skipped per-subtest.
+
+The grooming smoke creates a concrete Open task with unknown front matter, an
+unrelated historical section, and TODO acceptance notes. It runs the real
+`ahm task groom 001 --agent <name>` path and requires a structured body
+revision, preserved protected content, and final Pending status. Without the
+environment variable both live tests skip, so `just ci` is unaffected.
 
 Cost expectation: a few real LLM calls per installed agent (typically under
 a minute total). Run it after any change listed in the checklist above.

@@ -71,7 +71,7 @@ capture-agent-fixtures:
 # `ahm task work` (a few real LLM calls per agent; costs money). Run after
 # changing agent arg builders, parsers, or orchestration; not part of `ci`.
 smoke-agents:
-    AHM_AGENT_SMOKE=1 go test ./internal/ahm -run TestAgentSmoke -v -count=1 -timeout 30m
+	AHM_AGENT_SMOKE=1 go test ./internal/ahm -run 'Test(Agent|TaskGroomAgent)Smoke' -v -count=1 -timeout 30m
 
 quick:
     go test ./...

@@ -69,6 +69,79 @@ func TestTaskGroomAppliesValidatedCakeStreamVerdict(t *testing.T) {
 	assertContainsAll(t, string(data), "status: Pending", "Ready.")
 }
 
+func TestTaskGroomAppliesStructuredRevisionAndAccepts(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := `---
+id: 001
+title: Improve grooming
+status: Open
+priority: P3
+effort: S
+labels: type:task, area:tasks
+exec_plan: -
+depends_on: -
+provenance: audit
+---
+# Improve grooming
+
+## Problem
+
+Too vague.
+
+## Historical Notes
+
+Preserve this text.
+
+## Acceptance Notes
+
+- [ ] TODO
+
+## Comments
+
+- Existing comment.
+`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"accept","comment":"Repaired from repository evidence.","add_deps":[],"remove_deps":[],"labels":["type:task","area:tasks"],"revision":{"priority":"P2","effort":"M","sections":[{"role":"problem","content":"The groom command cannot repair objective gaps."},{"role":"relevant_files","content":"- internal/ahm/task_groom.go"},{"role":"acceptance_notes","content":"- [ ] Structured revisions are applied safely."}]}}]}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001: accept", "priority P2", "effort M", "revised problem,relevant_files,acceptance_notes")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, string(data), "status: Pending", "priority: P2", "effort: M", "provenance: audit", "## Historical Notes", "Preserve this text.", "- Existing comment.", "## Relevant Files", "Structured revisions are applied safely.")
+}
+
+func TestTaskGroomRejectsInvalidRevisionBatchWithoutWrites(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Status: "Open", Priority: "P2", Effort: "S", Labels: "type:task, area:tasks", Body: "## Acceptance Notes\n\n- [ ] Ready"},
+		{ID: "002", Status: "Open", Priority: "P2", Effort: "S", Labels: "type:task, area:tasks", Body: "## Acceptance Notes\n\n- [ ] Ready"},
+	}
+	result := groomResult{Verdicts: []groomVerdict{
+		{Task: "001", Action: "revise", Comment: "Still needs review.", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}, Revision: &groomRevision{Sections: []groomSectionRevision{{Role: "problem", Content: "Concrete problem."}}}},
+		{Task: "002", Action: "revise", Comment: "Still needs review.", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}, Revision: &groomRevision{Sections: []groomSectionRevision{{Role: "problem", Content: ""}}}},
+	}}
+	if _, err := validateGroomResult(result, tasks, tasks); err == nil || !strings.Contains(err.Error(), "section problem is empty") {
+		t.Fatalf("invalid revision error = %v", err)
+	}
+	if tasks[0].Body != "## Acceptance Notes\n\n- [ ] Ready" {
+		t.Fatal("validation mutated the first task before rejecting the batch")
+	}
+}
+
 func TestDelegatedResultArgsCakeWritesAndCleansSchema(t *testing.T) {
 	agent, err := parseTaskWorkAgent("cake")
 	if err != nil {

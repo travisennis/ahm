@@ -273,6 +273,10 @@ should add an ExecPlan before implementation.
 
 ## More Information
 
+- ADR 017 partially supersedes this decision's grooming write-authority
+  boundary by allowing ahm to apply validated, section-level task revisions;
+  the delegation, schema, cancellation, and workflow-record safety decisions
+  here remain accepted.
 - Resolves ADR 011's explicit deferral of the managed-skills decision.
 - Coordinates with ADR 013 by defining the initial read-only `ahm prime`
   command; ADR 013 still owns the later records sync behavior layered onto the

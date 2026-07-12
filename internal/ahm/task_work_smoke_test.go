@@ -47,6 +47,9 @@ func TestAgentSmoke(t *testing.T) {
 			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name)
 			t.Logf("%s stderr evidence:\n%s", agent.executable, liveSmokeStderrEvidence(stderr))
 			if code != 0 {
+				if reason := liveAgentUnavailable(stdout + "\n" + stderr); reason != "" {
+					t.Skipf("%s unavailable: %s", agent.executable, reason)
+				}
 				t.Errorf("task work exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 			}
 			assertContainsAll(t, stderr, "session started:")
@@ -55,6 +58,15 @@ func TestAgentSmoke(t *testing.T) {
 				"could not capture session ID")
 		})
 	}
+}
+
+func liveAgentUnavailable(output string) string {
+	for _, reason := range []string{"Credit balance is too low", "hit your usage limit"} {
+		if strings.Contains(output, reason) {
+			return reason
+		}
+	}
+	return ""
 }
 
 func liveSmokeStderrEvidence(stderr string) string {

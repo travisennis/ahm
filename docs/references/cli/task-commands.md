@@ -437,10 +437,19 @@ exactly that task is included. Only Open tasks can be accepted.
 
 The prompt includes task state, dependency values, paths for inspection, the
 repository's current label vocabulary, and the result schema. The delegated
-agent may return `accept` or `comment` verdicts plus dependency and label
-corrections. Ahm validates the entire result before writing anything, then
-owns every status, comment, dependency, label, timestamp, and index write.
-The command never cancels a task; cancellation recommendations are comments.
+agent may return `accept`, `revise`, or `comment` verdicts plus dependency and
+label corrections. A revision may change priority, effort, and complete
+contents of the Problem, Relevant Files, Fix Direction, or Acceptance Notes
+section roles. `revise` keeps the current status and requires a comment stating
+what remains; `accept` may apply a revision and move an Open task to Pending
+after readiness validation. Blocked tasks use `comment`.
+
+Ahm validates and renders the entire result batch before writing, then takes
+the workflow mutation lock and owns every task, status, comment, dependency,
+label, timestamp, and index write. Task identity, title, linkage/provenance
+fields, unknown front matter, comments, and body sections outside the revision
+remain protected. The command never cancels a task; cancellation
+recommendations are comments.
 For Cake, ahm supplies the schema through Cake's native `--output-schema`
 constraint while retaining the `stream-json` transport.
 
@@ -449,6 +458,9 @@ configuration, then `default_work_agent`, then cake. `--model` overrides the
 configured implementation model. `--timeout` limits the external process.
 `--dry-run` prints the complete prompt and schema without delegation or writes.
 Text, `--plain`, and `--json` summaries are rendered from the same result.
+Human output names revised metadata and section roles. JSON additionally
+includes before/after metadata and section content and whether a section was
+inserted.
 
 Invalid, missing, duplicated, or out-of-scope verdicts fail before mutation,
 print the preserved raw agent output for inspection, and exit nonzero.

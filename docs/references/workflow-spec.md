@@ -176,6 +176,16 @@ dependencies, and blocked tasks that do not depend on the completed task, are
 left unchanged. `--dry-run` reports the completion move and dependent unblock
 changes without writing task files or indexes.
 
+`ahm task groom` may apply schema-constrained structured revisions returned by
+its delegated agent. The revision surface is limited to priority, effort,
+labels, dependencies, and the Problem, Relevant Files, Fix Direction, and
+Acceptance Notes section roles. Ahm preserves task identity, title, linkage and
+provenance metadata, unknown front-matter fields, comments, and all other body
+sections. It validates and renders the complete result batch before taking the
+task mutation lock or writing; invalid delegated output leaves every task and
+index unchanged. ADR 017 defines the authority, preservation, readiness, and
+observability contract.
+
 `ahm task create` allocates task IDs under a repository-local workflow lock.
 The lock is held while the command computes the next numeric ID (or child ID),
 writes the new task file, and regenerates indexes, so concurrent creates in the
