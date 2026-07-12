@@ -150,12 +150,11 @@ func (a *app) buildPrimeReport() primeReport {
 	}
 }
 
-func (a *app) buildPrimeRecords(meta metadata, metaErr error) primeRecords {
+func (a *app) buildPrimeRecords(_ metadata, metaErr error) primeRecords {
 	if metaErr != nil {
 		return primeRecords{Mode: "committed"}
 	}
-	mode := string(meta.recordsStorage().Mode)
-	return primeRecords{Mode: mode}
+	return primeRecords{Mode: "committed"}
 }
 
 // primeActivePlans collects active ExecPlans in the current storage mode.

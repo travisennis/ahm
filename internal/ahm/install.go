@@ -28,18 +28,10 @@ type taskWorkConfig struct {
 	Review         *taskWorkRoleConfig `json:"review,omitempty"`
 }
 
-type recordStoreMode string
-
 const (
-	recordStoreModeCommitted recordStoreMode = "committed"
-
 	legacyMetadataRelPath = ".agents/ahm.json"
 	configMetadataRelPath = ".ahm/config.json"
 )
-
-type recordsStorageConfig struct {
-	Mode recordStoreMode
-}
 
 // projectDocsConfig holds optional configuration for ahm docs check.
 // All fields are optional; with zero configuration the static checks run
@@ -161,12 +153,6 @@ func sortedMetadataKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func (m metadata) recordsStorage() recordsStorageConfig {
-	return recordsStorageConfig{
-		Mode: recordStoreModeCommitted,
-	}
 }
 
 type metadataReadError struct {

@@ -64,14 +64,13 @@ Examples:
 func (a *app) recordsDoctor() error {
 	ctx := context.Background()
 	report := recordsDoctorReport{OK: true, Checks: map[string]string{}}
-	meta, err := readMetadata(a.opts.root)
+	_, err := readMetadata(a.opts.root)
 	if err != nil {
 		report.OK = false
 		report.Checks["metadata"] = metadataErrorPath(err) + ": " + err.Error()
 		return a.emit(report)
 	}
-	cfg := meta.recordsStorage()
-	report.Checks["mode"] = string(cfg.Mode)
+	report.Checks["mode"] = "committed"
 
 	migration, migrationOK, err := recordsMigrationDiagnostic(ctx, a.opts.root)
 	if err != nil {

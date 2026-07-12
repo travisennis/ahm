@@ -115,10 +115,6 @@ func TestReadMetadataPrefersAhmConfig(t *testing.T) {
 	if meta.Version != "0.2.0" || meta.DefaultWorkAgent != "cursor" {
 		t.Errorf("read wrong metadata: version=%q default=%q", meta.Version, meta.DefaultWorkAgent)
 	}
-	storage := meta.recordsStorage()
-	if storage.Mode != recordStoreModeCommitted {
-		t.Errorf("storage mode = %q, want %q", storage.Mode, recordStoreModeCommitted)
-	}
 }
 
 func TestWriteMetadataUsesAhmConfigWhenPresent(t *testing.T) {
@@ -297,14 +293,6 @@ func TestTaskWorkRoleConfigRoundTripPreservesUnknownFields(t *testing.T) {
 		`"model": "gpt-5-codex"`,
 	)
 	assertContainsAll(t, got, `"review":`)
-}
-
-func TestRecordsStorageDefaults(t *testing.T) {
-	meta := metadata{}
-	storage := meta.recordsStorage()
-	if storage.Mode != recordStoreModeCommitted {
-		t.Errorf("mode = %q, want %q", storage.Mode, recordStoreModeCommitted)
-	}
 }
 
 func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
