@@ -219,6 +219,58 @@ func TestTaskGroomRejectsIncompleteBatchAndDependencyCycle(t *testing.T) {
 	}
 }
 
+func TestReplaceGroomSectionInsertsBeforeComments(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		role     string
+		content  string
+		wantLast string
+	}{
+		{
+			name:     "inserts_before_existing_comments",
+			body:     "## Problem\n\nSomething.\n\n## Comments\n\n- Old comment.\n",
+			role:     "relevant_files",
+			content:  "- main.go",
+			wantLast: "## Comments",
+		},
+		{
+			name:     "appends_when_no_comments",
+			body:     "## Problem\n\nSomething.\n",
+			role:     "acceptance_notes",
+			content:  "- [ ] Test\n",
+			wantLast: "## Acceptance Notes",
+		},
+		{
+			name:     "inserts_before_comments_only",
+			body:     "## Comments\n\nComment.\n",
+			role:     "problem",
+			content:  "The problem.\n",
+			wantLast: "## Comments",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := replaceGroomSection(tt.body, tt.role, tt.content)
+			if err != nil {
+				t.Fatalf("replaceGroomSection() error = %v", err)
+			}
+			// Verify no error and the last section heading is what we expect.
+			lines := strings.Split(got, "\n")
+			lastHeading := ""
+			for _, line := range lines {
+				level := headingLevel(line)
+				if level == 2 {
+					lastHeading = strings.TrimSpace(line)
+				}
+			}
+			if lastHeading != tt.wantLast {
+				t.Errorf("last h2 heading = %q, want %q\nbody:\n%s", lastHeading, tt.wantLast, got)
+			}
+		})
+	}
+}
+
 func TestParseGroomResultRejectsMissingAndUnknownFields(t *testing.T) {
 	for _, raw := range []string{
 		`{"verdicts":[{"task":"001","action":"comment","comment":"x","add_deps":[],"remove_deps":[]}]}`,
