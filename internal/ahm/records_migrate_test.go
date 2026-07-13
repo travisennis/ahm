@@ -144,6 +144,72 @@ func TestRecordsMigrateMovesRecordsAndPrintsGitCleanup(t *testing.T) {
 	}
 }
 
+func TestRecordsMigrateRelinquishesFormerManagedSkills(t *testing.T) {
+	root := newLegacyCommittedRepo(t)
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task One", "Pending", "depends_on: -\n")
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range projectOwnedProcedureSkills {
+		content := "managed " + target + "\n"
+		writeFile(t, filepath.Join(root, filepath.FromSlash(target)), content)
+		meta.Files[target] = hashBytes([]byte(content))
+	}
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {
+		t.Fatalf("records migrate exit code = %d, stderr = %s", code, stderr)
+	}
+
+	migrated, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range projectOwnedProcedureSkills {
+		assertFileContainsAll(t, filepath.Join(root, filepath.FromSlash(target)), "managed "+target)
+		if _, ok := migrated.Files[target]; ok {
+			t.Errorf("project-owned skill %s should not remain in migrated metadata", target)
+		}
+	}
+
+	// Re-running migration repairs configs written by older ahm versions that
+	// carried the stale ownership hashes into .ahm/config.json.
+	for _, target := range projectOwnedProcedureSkills {
+		migrated.Files[target] = "stale-managed-hash"
+	}
+	if err := writeMetadata(root, migrated); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := runCLI(t, "--root", root, "records", "migrate")
+	if code != 0 {
+		t.Fatalf("repeated records migrate exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "config: update")
+	migrated, err = readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range projectOwnedProcedureSkills {
+		if _, ok := migrated.Files[target]; ok {
+			t.Errorf("stale project-owned skill %s should be removed from migrated metadata", target)
+		}
+		assertFileContainsAll(t, filepath.Join(root, filepath.FromSlash(target)), "managed "+target)
+	}
+
+	// A later forced upgrade must not reclaim or remove the project-owned files.
+	stdout, stderr, code = runCLI(t, "--root", root, "--force", "upgrade")
+	if code != 0 {
+		t.Fatalf("forced upgrade exit code = %d, stderr = %s", code, stderr)
+	}
+	for _, target := range projectOwnedProcedureSkills {
+		assertNotContains(t, stdout, target)
+		assertFileContainsAll(t, filepath.Join(root, filepath.FromSlash(target)), "managed "+target)
+	}
+}
+
 func TestRecordsMigrateIsIdempotentAndReportsGitCleanup(t *testing.T) {
 	root := newLegacyCommittedRepo(t)
 	if _, stderr, code := runCLI(t, "--root", root, "records", "migrate"); code != 0 {

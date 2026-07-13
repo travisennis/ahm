@@ -7,6 +7,13 @@ decision-makers: Travis Ennis
 
 ## Revision Note
 
+Revised on 2026-07-13 to clarify the ownership handoff for existing copies of
+the three former managed skills. Ahm leaves those files in place, discards
+their old managed-file hashes during init, upgrade, or records migration, and
+never inspects, reports, overwrites, or removes them. This replaces the
+initial implementation's upgrade-time cleanup behavior without changing the
+binary-owned command procedures described below.
+
 Revised on 2026-07-07, before implementation of the procedure surfaces began.
 As first accepted, this ADR exposed the three skill procedures as live scoped
 contexts (`ahm context groom`, `ahm context improve`, `ahm context preflight`).

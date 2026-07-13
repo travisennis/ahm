@@ -137,6 +137,7 @@ func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, 
 		}
 		return recordsMigratePlan{}, fmt.Errorf("%s: %w", metadataCorruptMessage(err), err)
 	}
+	relinquishedSkills := relinquishProjectOwnedProcedureSkills(&meta)
 	plan := recordsMigratePlan{meta: meta}
 	plan.moves, err = collectRecordsMigrateMoves(root)
 	if err != nil {
@@ -149,7 +150,7 @@ func (a *app) buildRecordsMigratePlan(ctx context.Context) (recordsMigratePlan, 
 	switch {
 	case source != configMetadataRelPath:
 		plan.config = migrateActionCreate
-	case len(plan.moves) > 0:
+	case len(plan.moves) > 0 || relinquishedSkills:
 		plan.config = migrateActionUpdate
 	default:
 		plan.config = migrateActionUnchanged

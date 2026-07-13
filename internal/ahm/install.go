@@ -173,6 +173,26 @@ type obsoleteManagedFile struct {
 	EmptyDirs []string
 }
 
+// projectOwnedProcedureSkills were installed by older ahm versions, but now
+// belong entirely to the project. Commands may discard stale ownership hashes
+// for these paths, but must never inspect, report, overwrite, or remove them.
+var projectOwnedProcedureSkills = []string{
+	".agents/skills/preflight/SKILL.md",
+	".agents/skills/grooming-backlog/SKILL.md",
+	".agents/skills/finding-improvements/SKILL.md",
+}
+
+func relinquishProjectOwnedProcedureSkills(meta *metadata) bool {
+	changed := false
+	for _, target := range projectOwnedProcedureSkills {
+		if _, ok := meta.Files[target]; ok {
+			delete(meta.Files, target)
+			changed = true
+		}
+	}
+	return changed
+}
+
 var obsoleteManagedFiles = []obsoleteManagedFile{
 	{
 		Target: ".agents/TASKS.md",
@@ -196,18 +216,6 @@ var obsoleteManagedFiles = []obsoleteManagedFile{
 		Target:    ".agents/skills/deslop/SKILL.md",
 		EmptyDirs: []string{".agents/skills/deslop"},
 	},
-	{
-		Target:    ".agents/skills/preflight/SKILL.md",
-		EmptyDirs: []string{".agents/skills/preflight", ".agents/skills"},
-	},
-	{
-		Target:    ".agents/skills/grooming-backlog/SKILL.md",
-		EmptyDirs: []string{".agents/skills/grooming-backlog", ".agents/skills"},
-	},
-	{
-		Target:    ".agents/skills/finding-improvements/SKILL.md",
-		EmptyDirs: []string{".agents/skills/finding-improvements", ".agents/skills"},
-	},
 }
 
 func (a *app) install(upgrade bool) error {
@@ -221,6 +229,7 @@ func (a *app) install(upgrade bool) error {
 	if meta.Files == nil {
 		meta.Files = map[string]string{}
 	}
+	relinquishProjectOwnedProcedureSkills(&meta)
 	if !a.opts.dryRun {
 		for _, target := range generatedIndexTargets() {
 			delete(meta.Files, target)

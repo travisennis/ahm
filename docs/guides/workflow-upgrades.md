@@ -14,8 +14,9 @@ or legacy `.agents/ahm.json`) with the target repository files.
 - Missing workflow directories, metadata, and generated indexes are created.
 - Legacy instruction files that still match the previous managed hash are
   removed because managed-work references now come from scoped `ahm context`.
-- Former managed procedure skills are removed when their recorded hashes prove
-  ownership; locally edited copies remain conflicts unless `--force` is used.
+- Former preflight, grooming-backlog, and finding-improvements procedure skills
+  are left in place as project-owned files. Any old ownership hashes are
+  discarded; ahm no longer inspects, reports, overwrites, or removes them.
 - Files with local modifications are preserved and reported as conflicts.
 - `AGENTS.md` is project-owned. `ahm` never creates, overwrites, or removes it,
   even with `--force`.
@@ -36,8 +37,8 @@ conflict until resolved by deleting the local copy, restoring the recorded
 content, or running with `--force`.
 
 Use `--dry-run` to preview changes. Use `--force` only when old local
-instruction or procedure files should be removed even though they no longer
-match their recorded managed hash.
+instruction files should be removed even though they no longer match their
+recorded managed hash.
 
 ## Command-Based Procedures (2026-07-11)
 
@@ -59,11 +60,10 @@ under `.ahm/`. Legacy `.agents/ahm.json` is no longer created for new
 installs. Repositories with existing `.agents/ahm.json` are unaffected;
 `upgrade` continues to preserve the existing layout.
 
-On upgrade, pristine hash-owned copies of the former preflight,
-grooming-backlog, and finding-improvements procedure files are removed along
-with empty directories. Locally edited copies are reported as conflicts and
-remain in place unless the maintainer previews and runs `ahm --force upgrade`.
-`AGENTS.md` remains project-owned and is never modified.
+The former preflight, grooming-backlog, and finding-improvements procedure
+files remain in place as project-owned content. Init, upgrade, and records
+migration discard their old managed hashes, and even a forced upgrade does not
+inspect or remove them. `AGENTS.md` remains project-owned and is never modified.
 
 The dated entries below are release history and describe behavior at those
 versions. References there to installed skills or `ahm agents suggestions` are
@@ -78,7 +78,10 @@ installs internal `.ahm/.gitignore` entries, converts
 `.agents/ahm.json` into committed `.ahm/config.json`, and prints the
 `git rm -r --cached` command for the user to run instead of untracking
 project-owned records itself. It never touches project-owned `.agents/`
-content such as `.agents/prompt.md` or `AGENTS.md`. The migration is a
+content such as `.agents/prompt.md`, `.agents/skills/`, or `AGENTS.md`.
+Migration also discards any old ownership hashes for the former preflight,
+grooming-backlog, and finding-improvements skills so later ahm commands leave
+them entirely project-owned. The migration is a
 separate command, `ahm records migrate`; routine `ahm upgrade` never
 performs it, and repositories keep the current committed-record behavior
 until they opt in.

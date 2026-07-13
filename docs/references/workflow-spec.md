@@ -244,10 +244,14 @@ The ownership categories are:
    removes previously managed copies when metadata proves ownership; locally
    modified copies are preserved as conflicts unless `--force` is used.
 
-3. **Obsolete managed instruction/procedure files** — older releases copied
-   workflow guides and procedure skills into repositories. `upgrade` removes
-   pristine hash-owned copies and reports locally edited copies as conflicts;
-   `--force` removes those obsolete copies. Fresh installs create none.
+3. **Obsolete managed instruction files** — older releases copied workflow
+   guides into repositories. `upgrade` removes pristine hash-owned copies and
+   reports locally edited copies as conflicts; `--force` removes those
+   obsolete copies. The former preflight, grooming-backlog, and
+   finding-improvements skill files are project-owned: ahm leaves them in
+   place, discards any old ownership hashes during init, upgrade, or records
+   migration, and never inspects, reports, overwrites, or removes them. Fresh
+   installs create none.
 
 4. **Workflow source records** — task files, research notes, and ExecPlans live
    under `.agents/` in legacy committed-record repositories and under

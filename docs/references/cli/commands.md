@@ -322,6 +322,10 @@ Migration never touches project-owned `.agents/` content such as
 `HEAD`, create branch commits, stage files, write the project index, or
 create or update any `refs/ahm/*` ref.
 
+The former preflight, grooming-backlog, and finding-improvements skill files
+remain in place. Migration removes their old entries from managed-file
+metadata, after which ahm never inspects, reports, overwrites, or removes them.
+
 After migration, workflow commands operate on the `.ahm/` paths: task,
 research, ExecPlan, index, validation, and install behavior reads and writes
 source records and generated indexes under `.ahm/`. Source records are
@@ -557,9 +561,11 @@ Updates managed workflow state for the embedded template version.
 or legacy `.agents/ahm.json`) with managed files in the target root. Previously managed workflow instruction files that still match their
 recorded managed hash are removed because canonical guidance and procedures now
 come from scoped contexts, delegation commands, and the embedded task-work
-review. This includes the three formerly managed procedure-skill files. Locally
-modified obsolete files are preserved and reported as conflicts unless
-`--force` is used. Generated indexes are regenerated.
+review. Locally modified obsolete instruction files are preserved and reported
+as conflicts unless `--force` is used. The former preflight, grooming-backlog,
+and finding-improvements skill files are left in place and removed from
+managed-file metadata; ahm no longer manages them. Generated indexes are
+regenerated.
 
 The metadata `version` field always advances to the embedded template version,
 even when conflicts exist. This means a partial upgrade (some files conflicted,
@@ -571,8 +577,8 @@ correctly identify already-updated files.
 Useful flags:
 
 - `--dry-run`: previews all supported writes.
-- `--force`: removes locally modified former instruction and procedure files.
-  This does not apply to `AGENTS.md`.
+- `--force`: removes locally modified former instruction files. This does not
+  apply to `AGENTS.md` or the three project-owned procedure skill files.
 - `--json` or `--plain`: changes the emitted upgrade summary format.
 
 Example:
