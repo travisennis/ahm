@@ -23,7 +23,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	}
 
 	// Write a task with CRLF line endings.
-	path := filepath.Join(root, ".agents", ".tasks", "active", "098.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "098.md")
 	content := "---\r\n" +
 		"id: 098\r\n" +
 		"title: CRLF Completer\r\n" +
@@ -47,7 +47,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	}
 
 	// Verify the task was moved to completed and parsed correctly.
-	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "098.md")
+	completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "098.md")
 	if _, err := os.Stat(completedPath); err != nil {
 		t.Errorf("completed task not found: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 	if code != 0 || strings.TrimSpace(stdout) != "001" {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	assertContainsAll(t, content,
 		"title: Smoke task",
 		"priority: P1",
@@ -123,11 +123,11 @@ func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
 		t.Errorf("parallel task IDs = %v, want %v", got, want)
 	}
 	for _, id := range want {
-		if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", id+".md")); err != nil {
+		if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", id+".md")); err != nil {
 			t.Errorf("task %s not written: %v", id, err)
 		}
 	}
-	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	indexContent := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"))
 	for i := 0; i < creates; i++ {
 		assertContainsAll(t, indexContent, fmt.Sprintf("Parallel Task %d", i+1))
 	}
@@ -174,7 +174,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 	case <-time.After(25 * time.Millisecond):
 	}
 
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Existing Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Existing Task", "Pending", "")
 	if err := release(); err != nil {
 		t.Error(err)
 	}
@@ -190,7 +190,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 	if strings.TrimSpace(out.String()) != "002" {
 		t.Errorf("create stdout = %q, want 002", out.String())
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "title: Created After Lock")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "title: Created After Lock")
 }
 
 func TestTaskCreateBodyFile(t *testing.T) {
@@ -212,7 +212,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	// Front matter and ID allocation unchanged.
 	assertContainsAll(t, content,
 		"id: 001",
@@ -233,7 +233,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 	assertNotContains(t, content, "## Summary\n\nTODO.")
 
 	// Index regenerated to include the new task.
-	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	indexContent := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"))
 	assertContainsAll(t, indexContent, "Body File Task")
 }
 
@@ -263,7 +263,7 @@ func TestTaskCreateBodyFileFromStdin(t *testing.T) {
 		t.Errorf("create stdout = %q, want 001", out.String())
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	assertContainsAll(t, content, "# Stdin Body Task", "Piped via stdin.")
 	assertNotContains(t, content, "## Summary\n\nTODO.")
 }
@@ -337,7 +337,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 
 	// Should have exactly one H1 heading (from renderTask).
 	// Count occurrences of "# Dedup Test" in the file.
@@ -369,7 +369,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	h1Count := strings.Count(content, "# Lead Blanks")
 	if h1Count != 1 {
 		t.Errorf("expected exactly 1 H1 %q, got %d:\n%s", "# Lead Blanks", h1Count, content)
@@ -397,7 +397,7 @@ func TestTaskCreateBodyFilePreservesDifferentH1(t *testing.T) {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	// Both H1s should exist: the generated one from renderTask and the one from the body.
 	// This is intentional — the body's H1 is different content, not a duplicate.
 	assertContainsAll(t, content, "# My Title", "# Different Header", "## Problem", "Body.")
@@ -511,7 +511,7 @@ func TestTaskCreateSubtask(t *testing.T) {
 	}
 
 	// Verify the child file exists with correct parent front matter.
-	childPath := filepath.Join(root, ".agents", ".tasks", "active", "001a.md")
+	childPath := filepath.Join(root, ".ahm", "tasks", "active", "001a.md")
 	content := mustRead(t, childPath)
 	assertContainsAll(t, content, "id: 001a", "parent: 001", "title: Child A")
 
@@ -522,7 +522,7 @@ func TestTaskCreateSubtask(t *testing.T) {
 	}
 
 	// Index should include both children.
-	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	indexContent := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"))
 	assertContainsAll(t, indexContent, "Parent Task", "Child A", "Child B")
 }
 
@@ -640,7 +640,7 @@ func TestTaskCreateTopLevelUnchangedWithParentFlag(t *testing.T) {
 		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
 	}
 
-	content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	assertNotContains(t, content, "parent:")
 }
 
@@ -1515,7 +1515,7 @@ func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
 	}
 
 	// Write a malformed task file in active/.
-	malformed := filepath.Join(root, ".agents", ".tasks", "active", "bad.md")
+	malformed := filepath.Join(root, ".ahm", "tasks", "active", "bad.md")
 	if err := os.WriteFile(malformed, []byte("---\ninvalid : key\n---\n# Bad\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1553,7 +1553,7 @@ func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
 		t.Errorf("expected post-mutation validation warning about missing front matter:\n%s", got)
 	}
 	// Verify the created task exists.
-	createdPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	createdPath := filepath.Join(root, ".ahm", "tasks", "active", "002.md")
 	if _, err := os.Stat(createdPath); err != nil {
 		t.Errorf("created task not found: %v", err)
 	}
@@ -1582,7 +1582,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Errorf("dep add exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 depends_on: 001")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: 001")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "depends_on: 001")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "blocked")
 	if code != 0 {
@@ -1601,7 +1601,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Errorf("complete exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Completed")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "ready")
 	if code != 0 {
@@ -1614,7 +1614,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Errorf("reopen exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "tree", "002")
 	if code != 0 {
@@ -1627,7 +1627,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Errorf("dep remove exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 depends_on: -")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "depends_on: -")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "depends_on: -")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "next")
 	if code != 0 {
@@ -1640,7 +1640,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 		t.Errorf("cancel exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "002 -> Cancelled")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "status: Cancelled", "## Cancellation Reason", "No longer needed")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "002.md"), "status: Cancelled", "## Cancellation Reason", "No longer needed")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "list", "--status", "cancelled")
 	if code != 0 {
@@ -1852,8 +1852,8 @@ func TestTaskCancelRequiresReason(t *testing.T) {
 		t.Errorf("expected cancel without reason to fail, stdout = %s, stderr = %s", stdout, stderr)
 	}
 	assertContainsAll(t, stderr, "task cancel requires --reason")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
 		t.Error("cancelled file should not exist after missing reason failure")
 	}
 }
@@ -1892,7 +1892,7 @@ func TestTaskCancelPersistsReason(t *testing.T) {
 		t.Errorf("cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Cancelled")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md"),
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md"),
 		"status: Cancelled",
 		"## Cancellation Reason\n\nSuperseded by 002",
 	)
@@ -1913,11 +1913,11 @@ func TestTaskCancelDryRunShowsReasonWithoutWriting(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run cancel exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/cancelled/001.md", "status: Cancelled", "reason: Superseded")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
+	assertContainsAll(t, stdout, "move: ", ".ahm/tasks/cancelled/001.md", "status: Cancelled", "reason: Superseded")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md")); !os.IsNotExist(err) {
 		t.Error("cancelled file should not exist after dry-run cancellation")
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
 }
 
 func TestTaskCancelWarnsForSeededAcceptanceTODO(t *testing.T) {
@@ -2023,12 +2023,12 @@ func TestTaskCompleteDryRunPreservesPreviewWithAcceptanceWarning(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/completed/001.md", "status: Completed")
+	assertContainsAll(t, stdout, "move: ", ".ahm/tasks/completed/001.md", "status: Completed")
 	assertContainsAll(t, stderr, "warning: task 001 acceptance notes still contain the TODO placeholder")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")); !os.IsNotExist(err) {
 		t.Error("completed file should not exist after dry-run completion")
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
 }
 
 func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
@@ -3630,7 +3630,7 @@ func TestTaskAcceptMovesOpenToPending(t *testing.T) {
 	if code != 0 {
 		t.Errorf("create exit code = %d, stderr = %s", code, stderr)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
 
 	// Accept it.
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "accept", "001")
@@ -3638,7 +3638,7 @@ func TestTaskAcceptMovesOpenToPending(t *testing.T) {
 		t.Errorf("accept exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "001 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 }
 
 func TestTaskAcceptDryRunPreviews(t *testing.T) {
@@ -3657,9 +3657,9 @@ func TestTaskAcceptDryRunPreviews(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run accept exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "move: ", ".agents/.tasks/active/001.md", "status: Pending")
+	assertContainsAll(t, stdout, "move: ", ".ahm/tasks/active/001.md", "status: Pending")
 	// File should remain Open after dry-run.
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
 }
 
 func TestTaskAcceptFromBlocked(t *testing.T) {
@@ -3766,7 +3766,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
 
 	release, err := acquireWorkflowLock(root, "task-mutate")
 	if err != nil {
@@ -3813,7 +3813,7 @@ func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	}
 
 	// Corrupt the metadata file.
-	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	metaPath := filepath.Join(root, ".ahm", "config.json")
 	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -3824,7 +3824,7 @@ func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	if code != 0 {
 		t.Errorf("complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "strict acceptance disabled")
+	assertContainsAll(t, stderr, "corrupt workflow metadata .ahm/config.json", "strict acceptance disabled")
 	assertContainsAll(t, stdout, "001 -> Completed")
 }
 
@@ -3845,10 +3845,10 @@ func TestTaskWorkWarnsOnCorruptMetadata(t *testing.T) {
 	}
 
 	// Create a task.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Workable", "Pending", "")
 
 	// Corrupt the metadata file.
-	metaPath := filepath.Join(root, ".agents", "ahm.json")
+	metaPath := filepath.Join(root, ".ahm", "config.json")
 	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -3865,7 +3865,7 @@ func TestTaskWorkWarnsOnCorruptMetadata(t *testing.T) {
 	if code != 0 {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, "corrupt workflow metadata .agents/ahm.json", "using default agent")
+	assertContainsAll(t, stderr, "corrupt workflow metadata .ahm/config.json", "using default agent")
 	// Falls back to cake.
 	if captured.executable != "/stub/cake" {
 		t.Errorf("executable = %q, want /stub/cake", captured.executable)
@@ -3973,7 +3973,7 @@ func TestTaskCommentCLI(t *testing.T) {
 		if strings.TrimSpace(stdout) != "001" {
 			t.Errorf("stdout = %q, want %q", stdout, "001")
 		}
-		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 		assertContainsAll(t, content, "## Comments", "Found the root cause")
 	})
 
@@ -3982,14 +3982,14 @@ func TestTaskCommentCLI(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("second comment exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
-		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 		assertContainsAll(t, content, "_Travis_: Second observation")
 		// Both comments should be present.
 		assertContainsAll(t, content, "Found the root cause")
 	})
 
 	t.Run("dry-run does not mutate", func(t *testing.T) {
-		contentBefore := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		contentBefore := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 
 		stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "comment", "001", "Dry run comment")
 		if code != 0 {
@@ -3997,7 +3997,7 @@ func TestTaskCommentCLI(t *testing.T) {
 		}
 		assertContainsAll(t, stdout, "001")
 
-		contentAfter := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		contentAfter := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 		if contentBefore != contentAfter {
 			t.Errorf("dry-run modified task file")
 		}
@@ -4022,7 +4022,7 @@ func TestTaskCommentCLI(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("comment on completed task exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 		}
-		content := mustRead(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+		content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"))
 		assertContainsAll(t, content, "Post-completion note")
 	})
 

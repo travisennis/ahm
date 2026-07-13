@@ -173,7 +173,7 @@ func TestParseTask_CRLF(t *testing.T) {
 	}
 
 	// Write a task file with CRLF line endings.
-	path := filepath.Join(root, ".agents", ".tasks", "active", "099.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "099.md")
 	content := "---\r\n" +
 		"id: 099\r\n" +
 		"title: CRLF Task\r\n" +

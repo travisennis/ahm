@@ -17,13 +17,14 @@ type workflowPaths struct {
 }
 
 // workflowPathsFor derives the record paths for root from workflow metadata.
-// Missing or unreadable metadata preserves legacy committed-record paths.
 // The records directory is determined by which config file anchors the
 // repository: .ahm/config.json selects the migrated layout (.ahm/ paths);
 // .agents/ahm.json (or absent metadata) selects the legacy layout (.agents/ paths).
+// A present-but-unreadable .ahm/config.json still selects the migrated layout
+// so corrupt metadata degrades to warnings instead of hiding records.
 func workflowPathsFor(root string) workflowPaths {
 	recordsDir := legacyRecordsDirName
-	if _, source, err := readMetadataWithSource(root); err == nil && source == configMetadataRelPath {
+	if _, source, _ := readMetadataWithSource(root); source == configMetadataRelPath {
 		recordsDir = toolRecordsDirName
 	}
 	return workflowPaths{root: root, recordsDir: recordsDir}

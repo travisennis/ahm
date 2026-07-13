@@ -53,7 +53,7 @@ func TestTaskMigrateDryRunReportsLegacyFrontMatterFixes(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	content := "---\n" +
 		"id: 001\n" +
 		"title: Legacy Task\n" +
@@ -76,7 +76,7 @@ func TestTaskMigrateDryRunReportsLegacyFrontMatterFixes(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"migrations:",
-		"  .agents/.tasks/active/001.md:",
+		"  .ahm/tasks/active/001.md:",
 		"    - add labels",
 		"    - set priority placeholder to P3",
 		"    - normalize effort to XL",
@@ -102,7 +102,7 @@ func TestTaskMigrateWritesMechanicalFixes(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	content := "---\n" +
 		"id: 001\n" +
 		"title: Legacy Task\n" +

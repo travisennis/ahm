@@ -287,8 +287,8 @@ func TestMainDependencyCyclesIntegration(t *testing.T) {
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "cycles")
 	if code != 0 {
