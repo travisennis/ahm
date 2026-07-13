@@ -47,7 +47,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 	if review {
 		// The implementation agent may have updated acceptance notes, ExecPlan
 		// metadata, or task status. Re-read after the external process finishes so
-		// the reviewer sees completion state rather than the intake snapshot.
+		// the reviewer sees the review-ready state rather than the intake snapshot.
 		a.invalidateTasks()
 		reviewTask, err := a.resolveTask(task.ID)
 		if err != nil {
@@ -57,10 +57,39 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 		if revExec == "" {
 			revExec = executable
 		}
-		// Pass implAgent and implExecutable for the feedback-resume step so
-		// runReview resumes the implementation session (not the review session).
-		if err := a.runReview(roles.reviewAgent, revExec, roles.implAgent, executable, sessionID, timeout, roles.reviewModel, buildTaskWorkReviewPrompt(reviewTask)); err != nil {
+
+		// Run independent review and capture feedback.
+		feedback, err := a.runReview(roles.reviewAgent, revExec, sessionID, timeout, roles.reviewModel, buildTaskWorkReviewPrompt(reviewTask))
+		if err != nil {
 			return err
+		}
+
+		// Finalization: resume the implementation session to address feedback
+		// (when present) and finalize the task.
+		finalizationPrompt := buildFinalizationPrompt(task.ID, feedback)
+		finalizeArgs := roles.implAgent.resumeArgs(sessionID, finalizationPrompt)
+		if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, finalizeArgs, a.in, a.out, a.err); err != nil {
+			return fmt.Errorf("finalization failed: %w", err)
+		}
+
+		// Reload task and validate it was properly completed.
+		a.invalidateTasks()
+		finalizedTask, err := a.resolveTask(task.ID)
+		if err != nil {
+			return fmt.Errorf("cannot load task %s after finalization: %w", task.ID, err)
+		}
+		if finalizedTask.Status != "Completed" {
+			return fmt.Errorf("task %s was not marked completed after finalization; status is %s", task.ID, finalizedTask.Status)
+		}
+		findings := parseAcceptanceNotes([]byte(finalizedTask.Body))
+		for _, finding := range findings {
+			a.addWarning("%s", finding.message(task.ID))
+		}
+		if len(findings) > 0 {
+			meta, metaErr := readMetadata(a.opts.root)
+			if metaErr == nil && meta.StrictAcceptance {
+				return fmt.Errorf("task %s finalization failed: acceptance notes are incomplete under strict acceptance policy", task.ID)
+			}
 		}
 	}
 	if commit {
@@ -69,7 +98,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 	return nil
 }
 
-const taskWorkReviewPromptMarker = "Review the current uncommitted changes before task completion."
+const taskWorkReviewPromptMarker = "Review the current uncommitted changes."
 
 const taskWorkReviewProcedure = `Determine change size with read-only git commands, including untracked files:
 
@@ -132,12 +161,13 @@ func taskAcceptanceSection(body string) string {
 }
 
 // runReview runs an independent review pass using the reviewAgent's review
-// capability, then feeds actionable feedback back into the original work
-// session. The feedback-resume step uses the implAgent (and implExecutable)
-// because it resumes the implementation session, not the review session.
-// If the review produces no feedback, the feedback-resume step is skipped.
+// capability and returns the parsed feedback string. It does not resume the
+// implementation session; the caller (taskWorkWithSession) handles finalization
+// via a separate resume with the feedback incorporated.
+// If the review produces no feedback or feedback cannot be parsed, the returned
+// string is empty.
 // If the review command itself fails, the error is surfaced.
-func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, implAgent taskWorkAgent, implExecutable string, sessionID string, timeout time.Duration, reviewModel string, prompt string) error {
+func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, sessionID string, timeout time.Duration, reviewModel string, prompt string) (string, error) {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
 	reviewArgs := reviewAgent.reviewArgs(prompt, reviewModel)
@@ -146,26 +176,43 @@ func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, impl
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
 
 	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, reviewExecutable, reviewArgs, nil, reviewOut, a.err); err != nil {
-		return fmt.Errorf("review failed: %w", err)
+		return "", fmt.Errorf("review failed: %w", err)
 	}
 
 	feedback, parseErr := reviewAgent.parseReviewFeedback(reviewBuf.Bytes())
 	if parseErr != nil {
 		a.addWarning("could not parse review feedback from %s output: %v", reviewAgent.name, parseErr)
-		return nil
+		return "", nil
 	}
 
 	feedback = strings.TrimSpace(feedback)
 	if feedback == "" {
-		fmt.Fprintln(a.err, "No review feedback to address, skipping feedback step.")
-		return nil
+		fmt.Fprintln(a.err, "No review feedback to address, proceeding to finalization.")
+		return "", nil
 	}
 
-	fmt.Fprintf(a.err, "Review produced feedback, applying to session %s...\n", truncatedID(sessionID, 8))
-	resumePrompt := fmt.Sprintf("Please address the following review feedback:\n\n%s", feedback)
-	// Resume the implementation session, not the review session.
-	resumeArgs := implAgent.resumeArgs(sessionID, resumePrompt)
-	return taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, implExecutable, resumeArgs, a.in, a.out, a.err)
+	fmt.Fprintf(a.err, "Review produced feedback for session %s.\n", truncatedID(sessionID, 8))
+	return feedback, nil
+}
+
+// buildFinalizationPrompt returns a prompt that resumes the implementation
+// session to finalize the task after review. When feedback is non-empty, the
+// prompt asks the agent to address the feedback first, then verify, update
+// Acceptance Notes, and complete the task. When feedback is empty, the prompt
+// asks the agent to verify and complete the task directly.
+func buildFinalizationPrompt(taskID string, feedback string) string {
+	if feedback == "" {
+		return fmt.Sprintf(`Finalize task %s.
+
+The review found no issues to address. Verify the implementation meets the Acceptance Notes, run any remaining verification, update the task Acceptance Notes to reflect the verified state, and mark the task complete with ahm. Do not commit or push.`, taskID)
+	}
+	return fmt.Sprintf(`Finalize task %s.
+
+Address the following review feedback:
+
+%s
+
+After addressing the feedback, verify the implementation meets the Acceptance Notes, run any remaining verification, update the task Acceptance Notes to reflect the verified state, and mark the task complete with ahm. Do not commit or push.`, taskID, feedback)
 }
 
 // runCommit resumes the agent session with a commit handoff prompt. The

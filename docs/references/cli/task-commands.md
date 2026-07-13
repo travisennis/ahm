@@ -529,13 +529,30 @@ current uncommitted changes, using each agent's normal execution path:
 This means review has consistent semantics across all agents without depending
 on an installed skill file. The embedded procedure scales review passes to the
 change size, asks the reviewer to apply worthwhile fixes, and checks task
-completion hygiene. If the review produces actionable feedback, `ahm`
-resumes the original work session with the feedback and asks the agent to
-address each issue. If the review produces no feedback, the feedback-resume
-step is skipped. If the review command itself fails, the failure is surfaced
-and the command exits with a non-zero code.
+completion hygiene. If the review produces actionable feedback, it is captured
+for the finalization step. If the review command itself fails, the failure is
+surfaced and the command exits with a non-zero code.
 
-When `--no-review` is passed, no review orchestration runs.
+After review, `ahm` runs an explicit **finalization** phase regardless of
+whether the review found issues:
+
+- **No findings**: the implementation session is resumed with a prompt to
+  verify the work, update Acceptance Notes, and mark the task complete with
+  `ahm task complete`.
+- **Findings**: the implementation session is resumed with a combined prompt
+  that first asks the agent to address each finding, then to verify, update
+  Acceptance Notes, and complete the task.
+
+After the finalization resume, `ahm` reloads the task file from disk and
+validates that it was marked `Completed`. If the task is not `Completed`,
+`ahm` returns a clear error and does not proceed to commit. If acceptance
+notes have unsatisfied items and `strict_acceptance` is configured in
+`.ahm/config.json` after migration, or legacy `.agents/ahm.json`, `ahm`
+returns a finalization error and does not proceed to commit.
+
+When `--no-review` is passed, no review or finalization orchestration runs.
+The initial prompt instead tells the agent to complete the task directly
+during the work session.
 
 Codex is run with `--dangerously-bypass-approvals-and-sandbox` for
 non-interactive task work. This is intentionally broad: it avoids sandbox and
@@ -556,7 +573,10 @@ includes both task records and project source changes in a single commit.
 
 `ahm` does not run `git commit`, choose commit messages, push branches, or open
 pull requests. Commit-message convention is owned by the target project and its
-hooks. Pass `--no-commit` to skip the commit handoff.
+hooks. When review is enabled, `ahm` validates the task is `Completed` with
+satisfactory acceptance state before running the commit handoff; if validation
+fails, the error is returned and the commit handoff does not run. Pass
+`--no-commit` to skip the commit handoff entirely.
 
 Agent and model selection precedence for each phase is:
 
@@ -576,9 +596,13 @@ the delegated agent to run `ahm context task`, then run `ahm task show <id>`
 to inspect the task before making changes. `ahm` does
 not pass provider credentials, choose models, complete tasks, run git commands,
 push branches, or open pull requests. With review and commit enabled by default,
-`ahm` orchestrates follow-up prompts unless opted out with `--no-review` / `--no-commit`,
-but the review, completion, and commit actions
-are performed by the delegated agent.
+`ahm` orchestrates a two-phase workflow: first a review-ready implementation
+(the prompt tells the agent to leave the task `In Progress`, not to complete it),
+then independent review, then a finalization resume that asks the agent to
+address feedback, verify, update Acceptance Notes, and mark the task complete.
+With `--no-review`, the prompt tells the agent to complete the task directly
+during the work session. In both cases, the review, completion, and commit
+actions are performed by the delegated agent.
 
 When the file `.agents/prompt.md` exists in the repository root, its content
 is appended to the built work prompt under a `## Project Instructions` heading.
@@ -589,7 +613,7 @@ migration, or legacy `.agents/ahm.json` before migration;
 a missing or unreadable file is silently ignored — the feature is opt-in
 by file presence.
 
-Each phase (work session, review, feedback resume, and commit handoff) has an
+Each phase (work session, review, finalization, and commit handoff) has an
 independent timeout. If the delegated agent exceeds the timeout for the current
 phase, the subprocess is killed and `ahm` exits with a non-zero code.
 

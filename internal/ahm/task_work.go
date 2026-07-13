@@ -71,18 +71,20 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		return err
 	}
 
-	prompt := a.buildTaskWorkPrompt(task, parsed.noProjectPrompt)
-	executable, err := taskWorkLookPath(roles.implAgent.executable)
-	if err != nil {
-		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, roles.implAgent.name, roles.implAgent.executable)
-	}
-	args := roles.implAgent.args(prompt, roles.implModel)
 	review := !parsed.noReview
 	commit := !parsed.noCommit
 	timeout := parsed.timeout
 	if timeout <= 0 {
 		timeout = taskWorkDefaultTimeout
 	}
+
+	prompt := a.buildTaskWorkPrompt(task, parsed.noProjectPrompt, review)
+
+	executable, err := taskWorkLookPath(roles.implAgent.executable)
+	if err != nil {
+		return fmt.Errorf("cannot work task %s with %s: executable %q not found on PATH", task.ID, roles.implAgent.name, roles.implAgent.executable)
+	}
+	args := roles.implAgent.args(prompt, roles.implModel)
 
 	// Validate review executable when review will run.
 	var reviewExecutable string
@@ -155,13 +157,19 @@ func (a *app) ensureTaskDependenciesComplete(task Task) error {
 	return nil
 }
 
-func (a *app) buildTaskWorkPrompt(task Task, noProjectPrompt bool) string {
+func (a *app) buildTaskWorkPrompt(task Task, noProjectPrompt bool, review bool) string {
+	var completion string
+	if review {
+		completion = "Fill the task Acceptance Notes when the work is done and run the required verification, but do NOT mark the task complete yet \u2014 leave it In Progress for independent review. After review resolves, you will receive a finalization prompt to complete the task."
+	} else {
+		completion = "Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied."
+	}
 	prompt := fmt.Sprintf(`Work on task %s.
 
 Before making changes, run ahm context task to load the task workflow reference, then run ahm task show %s to inspect the task.
 
-Use the repository task workflow. Keep changes scoped to the task. Fill the task Acceptance Notes when the work is done, run the required verification, and mark the task complete with ahm when acceptance is satisfied. Do not commit or push unless the user explicitly asked for that.
-`, task.ID, task.ID)
+Use the repository task workflow. Keep changes scoped to the task. %s Do not commit or push unless the user explicitly asked for that.
+`, task.ID, task.ID, completion)
 
 	if noProjectPrompt {
 		return prompt

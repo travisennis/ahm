@@ -51,9 +51,11 @@ just smoke-agents
 Runs `TestAgentSmoke` (`internal/ahm/task_work_smoke_test.go`) with
 `AHM_AGENT_SMOKE=1`, followed by `TestTaskGroomAgentSmoke`
 (`internal/ahm/task_groom_smoke_test.go`). The first test drives each installed session-capable agent
-through the real `ahm task work` path in a throwaway repository
-with a do-nothing task: one work session plus one resume per agent, which
-exercises session capture and `resumeArgs` against a real session ID. Agents
+through the real `ahm task work --no-commit` path in a throwaway repository
+with a do-nothing task: an implementation session, independent review, and a
+finalization resume that completes the task. This exercises session capture,
+review orchestration, `resumeArgs`, and the post-finalization lifecycle gate
+against real agent sessions without creating commits. Agents
 not on PATH or unavailable because of a reported provider account limit are
 skipped per-subtest.
 

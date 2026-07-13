@@ -5,6 +5,32 @@ import (
 	"testing"
 )
 
+func TestBuildTaskWorkPromptReviewAwareCompletion(t *testing.T) {
+	// Verifies acceptance criteria about the initial implementation prompt:
+	// when review is enabled the prompt defers completion to the finalization
+	// phase; when review is disabled the prompt instructs direct completion.
+	task := Task{ID: "001", Title: "Bug fix"}
+	app := &app{}
+
+	reviewPrompt := app.buildTaskWorkPrompt(task, true /*noProjectPrompt*/, true /*review*/)
+	noReviewPrompt := app.buildTaskWorkPrompt(task, true, false)
+
+	// Review path must defer completion to the finalization handoff.
+	assertContainsAll(t, reviewPrompt,
+		"do NOT mark the task complete yet",
+		"In Progress for independent review",
+		"finalization prompt to complete the task")
+	assertNotContains(t, reviewPrompt, "mark the task complete with ahm")
+
+	// No-review path must instruct direct agent-driven completion.
+	assertContainsAll(t, noReviewPrompt, "mark the task complete with ahm when acceptance is satisfied")
+	assertNotContains(t, noReviewPrompt, "do NOT mark the task complete yet")
+
+	// Both paths keep the no-commit/no-push boundary.
+	assertContainsAll(t, reviewPrompt, "Do not commit or push")
+	assertContainsAll(t, noReviewPrompt, "Do not commit or push")
+}
+
 func TestBuildTaskWorkReviewPromptIncludesProcedureAndTaskContext(t *testing.T) {
 	task := Task{ID: "156e", Title: "Embed review", Body: `## Problem
 

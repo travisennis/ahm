@@ -3167,8 +3167,9 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 	}
 	var invocations []invocation
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		// On the first call (session work), produce valid session JSON.
-		if len(invocations) == 0 {
+		switch len(invocations) {
+		case 0:
+			// Session work: write acceptance notes, produce session ID.
 			path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
 			data, readErr := os.ReadFile(path)
 			if readErr != nil {
@@ -3181,17 +3182,20 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
 			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
 			return err
-		}
-		// On the second call (review), produce review feedback JSON.
-		if len(invocations) == 1 {
+		case 1:
+			// Review: produce review feedback.
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Found 2 style issues and 1 missing test."}`)
 			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
 			return err
+		default:
+			// Finalization resume: agent addresses feedback and completes the task.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Feedback addressed and task completed."}`)
+			if err != nil {
+				return err
+			}
+			invocations = append(invocations, invocation{root, executable, args, stdin != nil})
+			return completeTaskOnDisk(root, "001")
 		}
-		// On the third call (resume with feedback), return success.
-		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Addressed feedback."}`)
-		invocations = append(invocations, invocation{root, executable, args, stdin != nil})
-		return err
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
@@ -3199,9 +3203,9 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		t.Errorf("task work with review exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
-	// Should have 3 invocations: session work, review, resume.
+	// Should have 3 invocations: session work, review, finalization.
 	if len(invocations) != 3 {
-		t.Errorf("expected 3 invocations (session, review, resume), got %d", len(invocations))
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", len(invocations))
 	}
 
 	// First invocation: session work with --output-format stream-json.
@@ -3223,22 +3227,23 @@ func TestTaskWorkReviewOrchestration(t *testing.T) {
 		t.Error("review invocation should have no stdin")
 	}
 
-	// Third invocation: resume with the session ID.
+	// Third invocation: finalization resume with the session ID.
 	if len(invocations[2].args) < 4 || invocations[2].args[0] != "--resume" || invocations[2].args[1] != "sess_review123" {
 		t.Errorf("third invocation args = %#v, want resume prefix with session ID", invocations[2].args)
 	}
-	// Resume should contain the feedback in the prompt.
+	// Resume should contain both the feedback and finalization instructions.
 	lastArg := invocations[2].args[len(invocations[2].args)-1]
 	if !strings.Contains(lastArg, "Found 2 style issues and 1 missing test.") {
 		t.Errorf("resume prompt should contain review feedback, got %q", lastArg)
 	}
+	assertContainsAll(t, lastArg, "Finalize task 001.")
 
 	// Review status messages should appear on stderr.
 	assertContainsAll(t, stderr, "--- Running review ---")
-	assertContainsAll(t, stderr, "Review produced feedback, applying to session")
+	assertContainsAll(t, stderr, "Review produced feedback for session")
 
-	// Task should be marked In Progress.
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	// Task should be Completed after finalization.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
@@ -3251,15 +3256,20 @@ func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
 	var invocationCount int
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
-		if invocationCount == 1 {
+		switch invocationCount {
+		case 1:
 			// Session work.
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_empty","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
+		case 2:
+			// Review produces empty feedback.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
+			return err
+		default:
+			// Finalization resume: agent marks task completed.
+			return completeTaskOnDisk(root, "001")
 		}
-		// Review produces empty feedback.
-		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
-		return err
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
@@ -3267,13 +3277,13 @@ func TestTaskWorkReviewEmptyFeedback(t *testing.T) {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
-	// Should have exactly 2 invocations: session work and review (no resume).
-	if invocationCount != 2 {
-		t.Errorf("expected 2 invocations (session, review), got %d", invocationCount)
+	// Should have 3 invocations: session work, review, finalization resume.
+	if invocationCount != 3 {
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", invocationCount)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
-	assertContainsAll(t, stderr, "No review feedback to address, skipping feedback step.")
+	assertContainsAll(t, stderr, "No review feedback to address, proceeding to finalization.")
 }
 
 func TestTaskWorkReviewFails(t *testing.T) {
@@ -3304,6 +3314,174 @@ func TestTaskWorkReviewFails(t *testing.T) {
 	assertContainsAll(t, stderr, "review command exited with status 1")
 }
 
+func TestTaskWorkFailedFinalization(t *testing.T) {
+	// When the finalization resume succeeds but the agent does NOT mark the
+	// task completed, ahm must return a clear error instead of proceeding.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Failed Finalization", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		switch invocationCount {
+		case 1:
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_failfinal","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+			return err
+		case 2:
+			// Review produces empty feedback (no findings).
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
+			return err
+		default:
+			// Finalization resume succeeds but does NOT mark the task completed.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done but not completed."}`)
+			return err
+		}
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code == 0 {
+		t.Error("expected task work to fail when finalization does not complete the task")
+	}
+
+	assertContainsAll(t, stderr, "task 001 was not marked completed after finalization")
+	assertContainsAll(t, stderr, "status is In Progress")
+}
+
+func TestTaskWorkFinalizationCommitGating(t *testing.T) {
+	// When finalization fails (task not completed), commit handoff must NOT run.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Commit Gate", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var prompts []string
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		prompts = append(prompts, args[len(args)-1])
+		switch len(prompts) {
+		case 1:
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_gate","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+			return err
+		case 2:
+			// Review produces empty feedback.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
+			return err
+		default:
+			// Finalization resume succeeds but does NOT complete the task.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done but not completed."}`)
+			return err
+		}
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001")
+	if code == 0 {
+		t.Error("expected task work to fail when finalization does not complete the task")
+	}
+
+	// Should not reach commit handoff.
+	assertNotContains(t, stderr, "--- Running commit handoff ---")
+	assertContainsAll(t, stderr, "task 001 was not marked completed after finalization")
+	// Should have only 3 invocations (session, review, finalization), not 4 (no commit).
+	if len(prompts) != 3 {
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d; commit should not have run", len(prompts))
+	}
+}
+
+func TestTaskWorkFinalizationStrictAcceptanceErrorWithoutCommit(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Strict Finalization", "Pending", "")
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.StrictAcceptance = true
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		switch invocationCount {
+		case 1:
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_strict","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+			return err
+		case 2:
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
+			return err
+		default:
+			return completeTaskOnDisk(root, "001")
+		}
+	})
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code == 0 {
+		t.Error("expected strict acceptance to reject incomplete finalization")
+	}
+	assertContainsAll(t, stderr, "task 001 finalization failed", "acceptance notes are incomplete under strict acceptance policy")
+	assertNotContains(t, stderr, "use --no-commit")
+	if invocationCount != 3 {
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", invocationCount)
+	}
+}
+
+func TestTaskWorkPrematureCompletionBeforeReview(t *testing.T) {
+	// When the implementation agent marks the task Completed during its session
+	// (before review), the flow should still work: review checks the already-
+	// completed task, finalization runs (agent sees task already completed),
+	// and validation passes because the task IS completed.
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Premature Complete", "Pending", "")
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		return "/stub/cake", nil
+	})
+
+	var invocationCount int
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		invocationCount++
+		switch invocationCount {
+		case 1:
+			// Implementation session: agent writes a completed task (prematurely).
+			if err := completeTaskOnDisk(root, "001"); err != nil {
+				return err
+			}
+			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_premature","task_id":"tsk_xyz"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
+			return err
+		case 2:
+			// Review produces empty feedback (task already completed).
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`)
+			return err
+		default:
+			// Finalization resume: task already completed, this is a no-op.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Task already completed."}`)
+			return err
+		}
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code != 0 {
+		t.Errorf("premature completion should not cause an error, got exit code %d: %s", code, stderr)
+	}
+
+	assertContainsAll(t, stderr, "--- Running review ---")
+	// Task should be in the completed bucket.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
+}
+
 func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cursor Review", "Pending", "")
@@ -3323,8 +3501,8 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Fix the Cursor review finding.","is_error":false,"session_id":"cursor_review456"}`)
 			return err
 		default:
-			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Feedback addressed.","is_error":false,"session_id":"cursor_review123"}`)
-			return err
+			// Finalization resume: agent completes the task.
+			return completeTaskOnDisk(root, "001")
 		}
 	})
 
@@ -3334,23 +3512,24 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 	}
 
 	if len(invocations) != 3 {
-		t.Errorf("expected 3 invocations (session, review, resume), got %d", len(invocations))
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", len(invocations))
 	}
 	if len(invocations[1]) < 7 || invocations[1][0] != "-p" || invocations[1][1] != "--output-format" || invocations[1][2] != "stream-json" || invocations[1][3] != "--mode" || invocations[1][4] != "ask" || invocations[1][5] != "--trust" {
 		t.Errorf("review args = %#v, want cursor ask-mode review args", invocations[1])
 	}
 	assertContainsAll(t, invocations[1][len(invocations[1])-1], taskWorkReviewPromptMarker, "Task: 001", "Managed-work completion checklist", "git status --short")
+	// Finalization resume should use cursor resume arg shape (same as impl agent).
 	if len(invocations[2]) < 7 || invocations[2][0] != "-p" || invocations[2][1] != "--output-format" || invocations[2][2] != "stream-json" || invocations[2][3] != "--trust" || invocations[2][4] != "--resume" || invocations[2][5] != "cursor_review123" {
-		t.Errorf("resume args = %#v, want cursor resume args", invocations[2])
+		t.Errorf("finalization resume args = %#v, want cursor resume args with session ID", invocations[2])
 	}
-	assertContainsAll(t, invocations[2][len(invocations[2])-1], "Please address the following review feedback", "Fix the Cursor review finding.")
-	assertContainsAll(t, stderr, "--- Running review ---", "Review produced feedback, applying to session")
+	assertContainsAll(t, invocations[2][len(invocations[2])-1], "Finalize task 001.", "Address the following review feedback", "Fix the Cursor review finding.")
+	assertContainsAll(t, stderr, "--- Running review ---", "Review produced feedback for session")
 }
 
 func TestTaskWorkReviewParseError(t *testing.T) {
 	// When the review command succeeds but produces non-JSON output,
-	// the tolerant parser treats it as empty feedback and skips the
-	// feedback-resume step (graceful degradation).
+	// the tolerant parser treats it as empty feedback and proceeds to
+	// finalization (graceful degradation).
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Review Output", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
@@ -3360,15 +3539,20 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 	var invocationCount int
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocationCount++
-		if invocationCount == 1 {
+		switch invocationCount {
+		case 1:
 			// Session work succeeds.
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_parse","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
+		case 2:
+			// Review produces non-JSON output (tolerated, treated as empty feedback).
+			_, err := fmt.Fprint(stdout, `not valid json`)
+			return err
+		default:
+			// Finalization resume: agent completes the task.
+			return completeTaskOnDisk(root, "001")
 		}
-		// Review produces non-JSON output (tolerated, treated as empty feedback).
-		_, err := fmt.Fprint(stdout, `not valid json`)
-		return err
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
@@ -3376,13 +3560,13 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
-	// Should have 2 invocations: session work and review (no resume after empty feedback).
-	if invocationCount != 2 {
-		t.Errorf("expected 2 invocations (session, review), got %d", invocationCount)
+	// Should have 3 invocations: session work, review, finalization resume.
+	if invocationCount != 3 {
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", invocationCount)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
-	assertContainsAll(t, stderr, "No review feedback to address, skipping feedback step.")
+	assertContainsAll(t, stderr, "No review feedback to address, proceeding to finalization.")
 }
 
 func TestTaskWorkReviewWithNoReview(t *testing.T) {
@@ -3515,8 +3699,12 @@ func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Fix the docs."}`)
 			return err
 		case 3:
-			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Feedback addressed."}`)
-			return err
+			// Finalization resume: agent completes the task.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Feedback addressed and task completed."}`)
+			if err != nil {
+				return err
+			}
+			return completeTaskOnDisk(root, "001")
 		default:
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Committed."}`)
 			return err
@@ -3528,9 +3716,9 @@ func TestTaskWorkCommitWithReviewRunsLast(t *testing.T) {
 		t.Errorf("task work with default review+commit exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	if len(prompts) != 4 {
-		t.Errorf("expected 4 invocations (session, review, feedback, commit), got %d", len(prompts))
+		t.Errorf("expected 4 invocations (session, review, finalization, commit), got %d", len(prompts))
 	}
-	assertContainsAll(t, prompts[2], "Please address the following review feedback", "Fix the docs.")
+	assertContainsAll(t, prompts[2], "Finalize task 001.", "Address the following review feedback", "Fix the docs.")
 	assertContainsAll(t, prompts[3], "Commit the completed work for task 001")
 	assertContainsAll(t, stderr, "--- Running review ---", "--- Running commit handoff ---")
 }
@@ -3692,6 +3880,37 @@ func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, s
 	t.Helper()
 	extra := "depends_on: " + deps + "\n"
 	writeTaskFile(t, path, id, title, status, extra)
+}
+
+// completeTaskOnDisk marks a task as Completed directly on disk, simulating
+// what the delegated agent does via ahm task complete during finalization.
+// It works for both legacy (.agents/) and migrated (.ahm/) layouts.
+func completeTaskOnDisk(root string, id string) error { //nolint:unparam // id varies across tests but many use "001"
+	// Try legacy layout first.
+	activePath := filepath.Join(root, ".agents", ".tasks", "active", id+".md")
+	data, err := os.ReadFile(activePath)
+	if err != nil {
+		// Try migrated layout.
+		activePath = filepath.Join(root, ".ahm", "tasks", "active", id+".md")
+		data, err = os.ReadFile(activePath)
+		if err != nil {
+			return fmt.Errorf("task %s not found in active bucket: %w", id, err)
+		}
+	}
+	content := string(data)
+	completedPath := strings.Replace(activePath, "/active/", "/completed/", 1)
+	if err := os.MkdirAll(filepath.Dir(completedPath), 0o755); err != nil {
+		return err
+	}
+	// Compute completed dir from active dir.
+	completed := strings.ReplaceAll(content, "status: In Progress", "status: Completed")
+	if completed == content {
+		completed = strings.ReplaceAll(content, "status: Pending", "status: Completed")
+	}
+	if err := os.WriteFile(completedPath, []byte(completed), 0o644); err != nil {
+		return err
+	}
+	return os.Remove(activePath)
 }
 
 func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
@@ -4158,23 +4377,27 @@ func TestTaskWorkResolvesRoleAgents(t *testing.T) {
 	}
 	var invocations []invocation
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		// First call (session work, codex): produce valid codex session JSON.
-		if len(invocations) == 0 {
+		switch len(invocations) {
+		case 0:
+			// Session work (codex): produce valid codex session JSON.
 			fmt.Fprintln(stdout, `{"type":"thread.started","thread_id":"sess_role123"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"Work done."}}`)
 			invocations = append(invocations, invocation{executable, args})
 			return err
-		}
-		// Second call (review, claude): produce claude review feedback.
-		if len(invocations) == 1 {
+		case 1:
+			// Review (claude): produce review feedback.
 			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Review findings."}`)
 			invocations = append(invocations, invocation{executable, args})
 			return err
+		default:
+			// Finalization resume (codex): complete the task.
+			_, err := fmt.Fprint(stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"Addressed and completed."}}`)
+			if err != nil {
+				return err
+			}
+			invocations = append(invocations, invocation{executable, args})
+			return completeTaskOnDisk(root, "001")
 		}
-		// Third call (resume with feedback, codex): return success.
-		_, err := fmt.Fprint(stdout, `{"type":"item.completed","item":{"type":"agent_message","text":"Addressed."}}`)
-		invocations = append(invocations, invocation{executable, args})
-		return err
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
@@ -4182,7 +4405,7 @@ func TestTaskWorkResolvesRoleAgents(t *testing.T) {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 
-	// Should have 3 invocations: session work, review, resume.
+	// Should have 3 invocations: session work, review, finalization.
 	if len(invocations) != 3 {
 		t.Fatalf("expected 3 invocations, got %d", len(invocations))
 	}
@@ -4308,24 +4531,33 @@ func TestTaskWorkRoleAgentWithLegacyFallback(t *testing.T) {
 	}
 	var invocations []invocation
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		if len(invocations) == 0 {
+		switch len(invocations) {
+		case 0:
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_fallback","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
 			invocations = append(invocations, invocation{executable})
 			return err
+		case 1:
+			// Review should use same agent (cake) since no review config.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Reviewed."}`)
+			invocations = append(invocations, invocation{executable})
+			return err
+		default:
+			// Finalization resume: complete the task.
+			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Addressed and completed."}`)
+			if err != nil {
+				return err
+			}
+			invocations = append(invocations, invocation{executable})
+			return completeTaskOnDisk(root, "001")
 		}
-		// Review should use same agent (cake) since no review config.
-		// Cake review feedback: task_complete with result produces feedback.
-		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Reviewed."}`)
-		invocations = append(invocations, invocation{executable})
-		return err
 	})
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
-	// Expect 3 invocations: session work, review, resume with feedback.
+	// Expect 3 invocations: session work, review, finalization.
 	if len(invocations) != 3 {
 		t.Fatalf("expected 3 invocations, got %d", len(invocations))
 	}

@@ -34,7 +34,7 @@ resume_prompt="Reply with the single word: done. Do not use any tools or read an
 # Must match the stable marker at the start of the prompt runReview sends; the
 # capture exercises the external output contract, while focused Go tests cover
 # the full task-specific prompt. TestCaptureScriptUsesReviewPrompt guards drift.
-review_prompt="Review the current uncommitted changes before task completion."
+review_prompt="Review the current uncommitted changes."
 
 scrub() {
   # /private covers macOS, where mktemp paths resolve through /private/var.

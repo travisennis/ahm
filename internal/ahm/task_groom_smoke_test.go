@@ -40,7 +40,7 @@ func TestTaskGroomAgentSmoke(t *testing.T) {
 				}
 				t.Fatalf("task groom exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 			}
-			data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+			data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,7 +64,7 @@ func setupGroomSmokeRepo(t *testing.T) string {
 	if stdout, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
 		t.Fatalf("ahm init exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), `---
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), `---
 id: 001
 title: Verify unknown task metadata preservation
 status: Open

@@ -44,7 +44,7 @@ func TestAgentSmoke(t *testing.T) {
 
 			root := setupSmokeRepo(t)
 			// Verifies session capture and agent args against a real session ID.
-			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name)
+			stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", name, "--no-commit")
 			t.Logf("%s stderr evidence:\n%s", agent.executable, liveSmokeStderrEvidence(stderr))
 			if code != 0 {
 				if reason := liveAgentUnavailable(stdout + "\n" + stderr); reason != "" {
@@ -98,7 +98,7 @@ func setupSmokeRepo(t *testing.T) string {
 	if stdout, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
 		t.Errorf("ahm init exit code = %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), `---
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), `---
 id: 001
 title: Agent smoke no-op task
 status: Pending
@@ -111,11 +111,14 @@ exec_plan: -
 
 ## Summary
 
-This is an automated smoke test of the agent harness. There is no work to do.
-Do not create, modify, or delete any files. Do not run any commands. For this
-prompt and every follow-up prompt in this session, including requests to
-review, complete, verify, or commit the task, reply with the single word:
-done.
+This is an automated smoke test of the agent harness. There is no source work
+to do. During the initial work phase, do not create, modify, or delete files,
+do not run commands, leave this task In Progress, and reply with the single
+word: done.
+
+Only when a follow-up prompt begins with "Finalize task 001", run the command
+ahm task complete 001, then reply with the single word: done. Do not commit or
+push.
 
 ## Acceptance Notes
 
