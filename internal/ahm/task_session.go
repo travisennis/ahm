@@ -27,19 +27,24 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 		return err
 	}
 	sessionID, parseErr := roles.implAgent.parseSessionID(stdoutBuf.Bytes())
+	// A session ID is required whenever a later phase must resume the
+	// implementation session (review finalization or commit handoff). When
+	// neither review nor commit runs, the session ID is informational only
+	// and direct-completion validation happens from the work session output.
+	needsResume := review || commit
 	if parseErr != nil {
-		if commit {
-			return fmt.Errorf("cannot run commit handoff: could not capture session ID from %s output: %w", roles.implAgent.name, parseErr)
+		if needsResume {
+			return fmt.Errorf("cannot resume session for task %s: could not capture session ID from %s output: %w", task.ID, roles.implAgent.name, parseErr)
 		}
 		a.addWarning("could not capture session ID from %s output: %v", roles.implAgent.name, parseErr)
-		return nil
+		return a.validateTaskCompletion(task, "work session")
 	}
 	if sessionID == "" {
-		if commit {
-			return fmt.Errorf("cannot run commit handoff: no session ID returned by %s", roles.implAgent.name)
+		if needsResume {
+			return fmt.Errorf("cannot resume session for task %s: no session ID returned by %s", task.ID, roles.implAgent.name)
 		}
 		a.addWarning("no session ID returned by %s", roles.implAgent.name)
-		return nil
+		return a.validateTaskCompletion(task, "work session")
 	}
 
 	fmt.Fprintf(a.err, "%s session started: %s\n", roles.implAgent.name, truncatedID(sessionID, 8))
@@ -58,7 +63,10 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 			revExec = executable
 		}
 
-		// Run independent review and capture feedback.
+		// Run independent review and capture feedback. A parse failure from
+		// review output is a malformed-provider condition, not a no-findings
+		// review, and must surface as a review failure rather than silently
+		// advancing to finalization.
 		feedback, err := a.runReview(roles.reviewAgent, revExec, sessionID, timeout, roles.reviewModel, buildTaskWorkReviewPrompt(reviewTask))
 		if err != nil {
 			return err
@@ -73,27 +81,50 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 		}
 
 		// Reload task and validate it was properly completed.
-		a.invalidateTasks()
-		finalizedTask, err := a.resolveTask(task.ID)
-		if err != nil {
-			return fmt.Errorf("cannot load task %s after finalization: %w", task.ID, err)
+		if err := a.validateTaskCompletion(task, "finalization"); err != nil {
+			return err
 		}
-		if finalizedTask.Status != "Completed" {
-			return fmt.Errorf("task %s was not marked completed after finalization; status is %s", task.ID, finalizedTask.Status)
-		}
-		findings := parseAcceptanceNotes([]byte(finalizedTask.Body))
-		for _, finding := range findings {
-			a.addWarning("%s", finding.message(task.ID))
-		}
-		if len(findings) > 0 {
-			meta, metaErr := readMetadata(a.opts.root)
-			if metaErr == nil && meta.StrictAcceptance {
-				return fmt.Errorf("task %s finalization failed: acceptance notes are incomplete under strict acceptance policy", task.ID)
-			}
+	} else {
+		// With --no-review, the work-session prompt asks the agent to
+		// complete the task directly. Reload and verify that the documented
+		// final status was reached before any commit handoff runs.
+		if err := a.validateTaskCompletion(task, "work session"); err != nil {
+			return err
 		}
 	}
 	if commit {
 		return a.runCommit(roles.implAgent, executable, sessionID, task.ID, timeout)
+	}
+	return nil
+}
+
+// validateTaskCompletion reloads the task from disk and verifies that the
+// delegated workflow reached the Completed status. Unsatisfied acceptance
+// notes are surfaced as warnings; under the repository-wide strict_acceptance
+// policy (see ADR 005) they return a fatal error. The phase label
+// ("finalization" or "work session") is included in error messages so
+// callers can distinguish which orchestration step failed. The existing
+// strict/non-strict acceptance policy is preserved unchanged here; child
+// task 189g decides whether delegated work should enforce a stronger
+// default.
+func (a *app) validateTaskCompletion(task Task, phase string) error {
+	a.invalidateTasks()
+	current, err := a.resolveTask(task.ID)
+	if err != nil {
+		return fmt.Errorf("cannot load task %s after %s: %w", task.ID, phase, err)
+	}
+	if current.Status != "Completed" {
+		return fmt.Errorf("task %s was not marked completed after %s; status is %s", task.ID, phase, current.Status)
+	}
+	findings := parseAcceptanceNotes([]byte(current.Body))
+	for _, finding := range findings {
+		a.addWarning("%s", finding.message(task.ID))
+	}
+	if len(findings) > 0 {
+		meta, metaErr := readMetadata(a.opts.root)
+		if metaErr == nil && meta.StrictAcceptance {
+			return fmt.Errorf("task %s %s failed: acceptance notes are incomplete under strict acceptance policy", task.ID, phase)
+		}
 	}
 	return nil
 }
@@ -164,9 +195,10 @@ func taskAcceptanceSection(body string) string {
 // capability and returns the parsed feedback string. It does not resume the
 // implementation session; the caller (taskWorkWithSession) handles finalization
 // via a separate resume with the feedback incorporated.
-// If the review produces no feedback or feedback cannot be parsed, the returned
-// string is empty.
-// If the review command itself fails, the error is surfaced.
+// A review feedback parse failure (malformed-provider output) is returned as an
+// error so it can be distinguished from a valid no-findings review and cannot
+// silently advance finalization. If the review command itself fails, that
+// error is surfaced.
 func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, sessionID string, timeout time.Duration, reviewModel string, prompt string) (string, error) {
 	fmt.Fprintln(a.err, "--- Running review ---")
 
@@ -181,8 +213,7 @@ func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, sess
 
 	feedback, parseErr := reviewAgent.parseReviewFeedback(reviewBuf.Bytes())
 	if parseErr != nil {
-		a.addWarning("could not parse review feedback from %s output: %v", reviewAgent.name, parseErr)
-		return "", nil
+		return "", fmt.Errorf("could not parse review feedback from %s output: %w", reviewAgent.name, parseErr)
 	}
 
 	feedback = strings.TrimSpace(feedback)

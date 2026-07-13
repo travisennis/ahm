@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -2086,11 +2087,30 @@ func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	var captured taskWorkCapture
-	stubTaskWorkRunner(t, captured.runner)
+	var markedInProgress bool
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		// At runner-invocation time markTaskInProgress has already run, so the
+		// task should be in the active bucket with status: In Progress.
+		activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+		data, readErr := os.ReadFile(activePath)
+		if readErr != nil {
+			return fmt.Errorf("active task not found at runner time: %w", readErr)
+		}
+		if strings.Contains(string(data), "status: In Progress") {
+			markedInProgress = true
+		}
+		captured.root = root
+		captured.executable = executable
+		captured.args = append([]string(nil), args...)
+		return completeTaskOnDisk(root, "001")
+	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
 	if code != 0 {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !markedInProgress {
+		t.Error("task should have been marked In Progress by markTaskInProgress before the runner ran")
 	}
 	if captured.root != root {
 		t.Errorf("runner root = %q, want %q", captured.root, root)
@@ -2102,7 +2122,8 @@ func TestTaskWorkDefaultsToCakeAndMarksPendingInProgress(t *testing.T) {
 		t.Errorf("cake args = %#v", captured.args)
 	}
 	assertContainsAll(t, captured.args[2], "Work on task 001.", "ahm task show 001", "Do not commit or push")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	// After direct completion the task should be Completed in the completed bucket.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
@@ -2127,6 +2148,10 @@ func TestTaskWorkAgentConfigAndFlagPrecedence(t *testing.T) {
 	if configured.executable != "/stub/codex" || len(configured.args) != 4 || configured.args[0] != "exec" || configured.args[1] != "--dangerously-bypass-approvals-and-sandbox" || configured.args[2] != "--json" {
 		t.Errorf("configured invocation executable=%q args=%#v", configured.executable, configured.args)
 	}
+	if err := os.Remove(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Configured Task", "In Progress", "")
 
 	var flagged taskWorkCapture
 	stubTaskWorkRunner(t, flagged.runner)
@@ -2232,7 +2257,7 @@ func TestTaskWorkTimeoutValidDuration(t *testing.T) {
 	if captured.executable != "/stub/cake" {
 		t.Errorf("runner executable = %q, want /stub/cake", captured.executable)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestTaskWorkTimeoutDryRunPreview(t *testing.T) {
@@ -2428,24 +2453,35 @@ func TestTaskWorkRepairsBucketForPendingTaskInWrongBucket(t *testing.T) {
 		return "/stub/" + executable, nil
 	})
 	var captured taskWorkCapture
-	stubTaskWorkRunner(t, captured.runner)
+	var oldRemoved, activeInProgressAtRunnerTime bool
+	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+		// markTaskInProgress runs before the invocation: the misplaced
+		// completed-bucket file should now be gone and the active file written.
+		if _, err := os.Stat(oldPath); errors.Is(err, os.ErrNotExist) {
+			oldRemoved = true
+		}
+		activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+		if data, err := os.ReadFile(activePath); err == nil && bytes.Contains(data, []byte("status: In Progress")) {
+			activeInProgressAtRunnerTime = true
+		}
+		captured.root = root
+		captured.executable = executable
+		captured.args = append([]string(nil), args...)
+		return completeTaskOnDisk(root, "001")
+	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
 	if code != 0 {
 		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-
-	// Task should be in active bucket now.
-	activePath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
-	if _, err := os.Stat(activePath); err != nil {
-		t.Errorf("active task not found after work: %v", err)
+	if !oldRemoved {
+		t.Error("old completed-bucket file should be removed after repair")
 	}
-	assertFileContainsAll(t, activePath, "status: In Progress")
-
-	// Old file should be removed.
-	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Errorf("old file should be removed, err = %v", err)
+	if !activeInProgressAtRunnerTime {
+		t.Error("task should have been moved to active and marked In Progress before the runner ran")
 	}
+	// After direct completion the repaired task should be Completed in the completed bucket.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestTaskWorkDryRunOnBucketMismatch(t *testing.T) {
@@ -2610,7 +2646,10 @@ func (c *taskWorkCapture) runner(ctx context.Context, root string, executable st
 	c.root = root
 	c.executable = executable
 	c.args = append([]string(nil), args...)
-	return nil
+	// Completing the task on disk mirrors the contracted --no-review path:
+	// the work-session prompt asks the agent to mark the task complete, and
+	// ahm now validates that final status before returning success.
+	return completeTaskOnDisk(root, "001")
 }
 
 func stubTaskWorkLookPath(t *testing.T, fn func(string) (string, error)) {
@@ -2645,7 +2684,7 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 		fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_abc123","task_id":"tsk_xyz"}`)
 		fmt.Fprintln(stdout, `{"type":"message","role":"assistant","content":"Working..."}`)
 		fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work completed.","session_id":"sess_abc123"}`)
-		return nil
+		return completeTaskOnDisk(root, "001")
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
@@ -2658,8 +2697,8 @@ func TestTaskWorkCakeSessionCapture(t *testing.T) {
 	// The session warning should not appear.
 	assertNotContains(t, stderr, "could not capture session ID")
 	assertNotContains(t, stderr, "no session ID returned")
-	// Task should be marked In Progress.
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	// Task should be Completed after direct completion.
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestTaskWorkCakeSessionParseInvalidJSON(t *testing.T) {
@@ -2675,10 +2714,14 @@ func TestTaskWorkCakeSessionParseInvalidJSON(t *testing.T) {
 	})
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
-	if code != 0 {
-		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	if code == 0 {
+		t.Errorf("expected nonzero exit when work session does not complete the task, got code %d: stdout=%s stderr=%s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
+	// The session warning should still appear; the command degrades to
+	// direct-completion validation which fails because the task was not
+	// marked Completed.
+	assertContainsAll(t, stderr, "warning: could not capture session ID from cake output")
+	assertContainsAll(t, stderr, "task 001 was not marked completed after work session")
 }
 
 func TestTaskWorkCakeSessionMissingID(t *testing.T) {
@@ -2694,8 +2737,54 @@ func TestTaskWorkCakeSessionMissingID(t *testing.T) {
 		return nil
 	})
 
-	_, stderr, _ := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-review", "--no-commit")
+	if code == 0 {
+		t.Error("expected nonzero exit when work session does not complete the task")
+	}
 	assertContainsAll(t, stderr, "warning: no session ID returned by cake")
+	assertContainsAll(t, stderr, "task 001 was not marked completed after work session")
+}
+
+func TestTaskWorkReviewRequiresParseableSession(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		flags     []string
+		output    string
+		wantError string
+	}{
+		{name: "review only missing", flags: []string{"--no-commit"}, output: `{"type":"task_complete","result":"Work."}`, wantError: "no session ID returned by cake"},
+		{name: "review only malformed", flags: []string{"--no-commit"}, output: `not json`, wantError: "could not capture session ID from cake output"},
+		{name: "review and commit missing", output: `{"type":"task_complete","result":"Work."}`, wantError: "no session ID returned by cake"},
+		{name: "review and commit malformed", output: `not json`, wantError: "could not capture session ID from cake output"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Session Required", "Pending", "")
+			stubTaskWorkLookPath(t, func(executable string) (string, error) {
+				return "/stub/cake", nil
+			})
+			var invocationCount int
+			stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+				invocationCount++
+				if invocationCount > 1 {
+					t.Error("review, finalization, and commit must not run without a resumable session")
+				}
+				_, err := fmt.Fprint(stdout, tt.output)
+				return err
+			})
+
+			args := []string{"--root", root, "task", "work", "001"}
+			args = append(args, tt.flags...)
+			_, stderr, code := runCLI(t, args...)
+			if code == 0 {
+				t.Error("expected missing or malformed required session to fail")
+			}
+			assertContainsAll(t, stderr, "cannot resume session for task 001", tt.wantError)
+			if invocationCount != 1 {
+				t.Errorf("invocations = %d, want 1", invocationCount)
+			}
+		})
+	}
 }
 
 func TestCakeSessionIDParsing(t *testing.T) {
@@ -2716,7 +2805,7 @@ func TestCakeSessionIDParsing(t *testing.T) {
 {"type":"task_complete","subtype":"success","is_error":false,"result":"done","duration_ms":1000,"turn_count":2,"tool_call_count":1,"session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}`, wantID: "0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b"},
 		{name: "empty session", output: `{"type":"task_start","session_id":""}`, wantID: ""},
 		{name: "non-task_start", output: `{"type":"message","role":"assistant","content":"ok"}`, wantID: ""},
-		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: "", wantError: true},
 		{name: "empty output", output: ``, wantID: ""},
 		{name: "no type field", output: `{"session_id":"sess_xyz"}`, wantID: ""},
 		{name: "legacy event key ignored", output: `{"event":"task_start","session_id":"sess_xyz"}`, wantID: ""},
@@ -2794,20 +2883,27 @@ func TestClaudeResumeArgs(t *testing.T) {
 
 func TestParseCodexSessionID(t *testing.T) {
 	tests := []struct {
-		name   string
-		output string
-		wantID string
+		name      string
+		output    string
+		wantID    string
+		wantError bool
 	}{
 		{name: "thread.started", output: `{"type":"thread.started","thread_id":"thread_abc123"}`, wantID: "thread_abc123"},
 		{name: "multiple events", output: "{\"type\":\"turn.started\"}\n{\"type\":\"thread.started\",\"thread_id\":\"thread_xyz\"}", wantID: "thread_xyz"},
 		{name: "no thread.started", output: `{"type":"turn.started"}`, wantID: ""},
 		{name: "empty thread_id", output: `{"type":"thread.started","thread_id":""}`, wantID: ""},
-		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: "", wantError: true},
 		{name: "empty output", output: ``, wantID: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseCodexSessionID([]byte(tt.output))
+			if tt.wantError {
+				if !errors.Is(err, errSessionOutputUnparseable) {
+					t.Errorf("error = %v, want errSessionOutputUnparseable", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -2823,6 +2919,7 @@ func TestParseCodexReviewFeedback(t *testing.T) {
 		name       string
 		output     string
 		wantResult string
+		wantError  bool
 	}{
 		{
 			name: "single agent_message",
@@ -2843,34 +2940,38 @@ func TestParseCodexReviewFeedback(t *testing.T) {
 		},
 		{
 			name:       "non-agent_message item",
-			output:     `{"type":"item.completed","item":{"id":"item_0","type":"tool_call"}}`,
+			output:     "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"tool_call\"}}\n{\"type\":\"turn.completed\"}",
 			wantResult: "",
 		},
 		{
 			name:       "no text field",
-			output:     `{"type":"item.completed","item":{"id":"item_0","type":"agent_message"}}`,
+			output:     "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\"}}\n{\"type\":\"turn.completed\"}",
 			wantResult: "",
 		},
 		{
 			name:       "empty output",
 			output:     ``,
 			wantResult: "",
+			wantError:  true,
 		},
 		{
 			name:       "non-JSON line",
 			output:     `not json`,
 			wantResult: "",
+			wantError:  true,
 		},
-		{
-			name: "no relevant events",
-			output: `{"type":"thread.started","thread_id":"thr_abc"}
-{"type":"turn.completed"}`,
-			wantResult: "",
-		},
+		{name: "truncated before completion", output: `{"type":"thread.started","thread_id":"thr_abc"}`, wantResult: "", wantError: true},
+		{name: "completed with no feedback", output: `{"type":"turn.completed"}`, wantResult: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseCodexReviewFeedback([]byte(tt.output))
+			if tt.wantError {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -2883,8 +2984,8 @@ func TestParseCodexReviewFeedback(t *testing.T) {
 
 func TestParseCodexReviewFeedbackEmpty(t *testing.T) {
 	feedback, err := parseCodexReviewFeedback([]byte(""))
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, errReviewOutputUnparseable) {
+		t.Errorf("error = %v, want errReviewOutputUnparseable", err)
 	}
 	if feedback != "" {
 		t.Errorf("feedback = %q, want empty", feedback)
@@ -2893,21 +2994,28 @@ func TestParseCodexReviewFeedbackEmpty(t *testing.T) {
 
 func TestParseCursorSessionID(t *testing.T) {
 	tests := []struct {
-		name   string
-		output string
-		wantID string
+		name      string
+		output    string
+		wantID    string
+		wantError bool
 	}{
 		{name: "system init", output: `{"type":"system","subtype":"init","session_id":"cursor_sess_123"}`, wantID: "cursor_sess_123"},
 		{name: "multiple events", output: "{\"type\":\"user\",\"message\":{\"role\":\"user\"}}\n{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"cursor_sess_456\"}\n{\"type\":\"result\",\"result\":\"ok\",\"session_id\":\"cursor_sess_456\"}", wantID: "cursor_sess_456"},
 		{name: "result session ignored", output: `{"type":"result","result":"ok","session_id":"cursor_sess_result"}`, wantID: ""},
 		{name: "wrong subtype", output: `{"type":"system","subtype":"other","session_id":"cursor_sess_wrong"}`, wantID: ""},
 		{name: "empty session", output: `{"type":"system","subtype":"init","session_id":""}`, wantID: ""},
-		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: "", wantError: true},
 		{name: "empty output", output: ``, wantID: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseCursorSessionID([]byte(tt.output))
+			if tt.wantError {
+				if !errors.Is(err, errSessionOutputUnparseable) {
+					t.Errorf("error = %v, want errSessionOutputUnparseable", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -2923,17 +3031,24 @@ func TestParseCursorReviewFeedback(t *testing.T) {
 		name       string
 		output     string
 		wantResult string
+		wantError  bool
 	}{
 		{name: "result event", output: `{"type":"result","result":"Found 1 issue.","is_error":false,"session_id":"cursor_sess"}`, wantResult: "Found 1 issue."},
 		{name: "last result wins", output: "{\"type\":\"result\",\"result\":\"First\"}\n{\"type\":\"result\",\"result\":\"Final\"}", wantResult: "Final"},
 		{name: "empty result", output: `{"type":"result","result":""}`, wantResult: ""},
-		{name: "no result event", output: `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, wantResult: ""},
-		{name: "non-JSON line", output: `not json`, wantResult: ""},
-		{name: "empty output", output: ``, wantResult: ""},
+		{name: "no result event", output: `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, wantResult: "", wantError: true},
+		{name: "non-JSON line", output: `not json`, wantResult: "", wantError: true},
+		{name: "empty output", output: ``, wantResult: "", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseCursorReviewFeedback([]byte(tt.output))
+			if tt.wantError {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -2957,33 +3072,43 @@ func TestTaskWorkCursorSessionCapture(t *testing.T) {
 		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_sess_abc123"}`)
 		fmt.Fprintln(stdout, `{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}`)
 		fmt.Fprint(stdout, `{"type":"result","result":"Work completed.","is_error":false,"session_id":"cursor_sess_abc123"}`)
-		return nil
+		return completeTaskOnDisk(root, "001")
 	})
 
-	_, stderr, _ := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--no-review", "--no-commit")
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("expected exit 0 when work session completes the task, got %d: %s", code, stderr)
+	}
 	assertContainsAll(t, stderr, "cursor session started: cursor_s")
 	assertNotContains(t, stderr, "could not capture session ID")
 	assertNotContains(t, stderr, "no session ID returned")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestParseClaudeSessionID(t *testing.T) {
 	tests := []struct {
-		name   string
-		output string
-		wantID string
+		name      string
+		output    string
+		wantID    string
+		wantError bool
 	}{
 		{name: "system init", output: `{"type":"system","subtype":"init","session_id":"claude_sess_123"}`, wantID: "claude_sess_123"},
 		{name: "multiple events", output: "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"claude_sess_456\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\"}}\n{\"type\":\"result\",\"result\":\"ok\",\"session_id\":\"claude_sess_456\"}", wantID: "claude_sess_456"},
 		{name: "result session ignored", output: `{"type":"result","result":"ok","session_id":"claude_sess_result"}`, wantID: ""},
 		{name: "wrong subtype", output: `{"type":"system","subtype":"other","session_id":"claude_sess_wrong"}`, wantID: ""},
 		{name: "empty session", output: `{"type":"system","subtype":"init","session_id":""}`, wantID: ""},
-		{name: "non-JSON line", output: `not json`, wantID: ""},
+		{name: "non-JSON line", output: `not json`, wantID: "", wantError: true},
 		{name: "empty output", output: ``, wantID: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := parseClaudeSessionID([]byte(tt.output))
+			if tt.wantError {
+				if !errors.Is(err, errSessionOutputUnparseable) {
+					t.Errorf("error = %v, want errSessionOutputUnparseable", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -2999,17 +3124,24 @@ func TestParseClaudeReviewFeedback(t *testing.T) {
 		name       string
 		output     string
 		wantResult string
+		wantError  bool
 	}{
 		{name: "result event", output: `{"type":"result","subtype":"success","result":"Found 1 issue.","is_error":false,"session_id":"claude_sess"}`, wantResult: "Found 1 issue."},
 		{name: "last result wins", output: "{\"type\":\"result\",\"result\":\"First\"}\n{\"type\":\"result\",\"result\":\"Final\"}", wantResult: "Final"},
 		{name: "empty result", output: `{"type":"result","result":""}`, wantResult: ""},
-		{name: "no result event", output: `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, wantResult: ""},
-		{name: "non-JSON line", output: `not json`, wantResult: ""},
-		{name: "empty output", output: ``, wantResult: ""},
+		{name: "no result event", output: `{"type":"assistant","message":{"content":[{"type":"text","text":"ok"}]}}`, wantResult: "", wantError: true},
+		{name: "non-JSON line", output: `not json`, wantResult: "", wantError: true},
+		{name: "empty output", output: ``, wantResult: "", wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseClaudeReviewFeedback([]byte(tt.output))
+			if tt.wantError {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -3063,14 +3195,17 @@ func TestTaskWorkClaudeSessionCapture(t *testing.T) {
 		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"claude_sess_abc123"}`)
 		fmt.Fprintln(stdout, `{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}`)
 		fmt.Fprint(stdout, `{"type":"result","subtype":"success","result":"Work completed.","is_error":false,"session_id":"claude_sess_abc123"}`)
-		return nil
+		return completeTaskOnDisk(root, "001")
 	})
 
-	_, stderr, _ := runCLI(t, "--root", root, "task", "work", "001", "--agent", "claude", "--no-review", "--no-commit")
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "claude", "--no-review", "--no-commit")
+	if code != 0 {
+		t.Errorf("expected exit 0 when work session completes the task, got %d: %s", code, stderr)
+	}
 	assertContainsAll(t, stderr, "claude session started: claude_s")
 	assertNotContains(t, stderr, "could not capture session ID")
 	assertNotContains(t, stderr, "no session ID returned")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: In Progress")
+	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
 }
 
 func TestParseCakeReviewFeedback(t *testing.T) {
@@ -3086,9 +3221,9 @@ func TestParseCakeReviewFeedback(t *testing.T) {
 {"type":"task_complete","subtype":"success","is_error":false,"result":"Found 2 issues.","duration_ms":1000,"turn_count":2,"tool_call_count":1,"session_id":"0d7a4f9e-8b3c-4f21-9d5a-1c2b3e4f5a6b","task_id":"550e8400-e29b-41d4-a716-446655440001","usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}`, wantResult: "Found 2 issues."},
 		{name: "empty result", output: `{"type":"task_complete","subtype":"success","is_error":false,"result":""}`, wantResult: ""},
 		{name: "result omitted", output: `{"type":"task_complete","subtype":"success","is_error":false,"duration_ms":1000,"turn_count":1,"tool_call_count":0,"session_id":"sess_abc","task_id":"tsk_1","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}`, wantResult: ""},
-		{name: "no task_complete", output: `{"type":"message","role":"assistant","content":"ok"}`, wantResult: ""},
-		{name: "non-JSON line", output: `not json`, wantResult: ""},
-		{name: "empty output", output: ``, wantResult: ""},
+		{name: "no task_complete", output: `{"type":"message","role":"assistant","content":"ok"}`, wantResult: "", wantError: true},
+		{name: "non-JSON line", output: `not json`, wantResult: "", wantError: true},
+		{name: "empty output", output: ``, wantResult: "", wantError: true},
 		{name: "last task_complete wins", output: `{"type":"task_complete","subtype":"success","is_error":false,"result":"First"}
 {"type":"task_complete","subtype":"success","is_error":false,"result":"Final"}`, wantResult: "Final"},
 	}
@@ -3527,9 +3662,10 @@ func TestTaskWorkCursorReviewOrchestration(t *testing.T) {
 }
 
 func TestTaskWorkReviewParseError(t *testing.T) {
-	// When the review command succeeds but produces non-JSON output,
-	// the tolerant parser treats it as empty feedback and proceeds to
-	// finalization (graceful degradation).
+	// When the review command succeeds but produces completely non-JSON
+	// output, the parser now treats that as a malformed-provider condition
+	// rather than empty feedback, and the command must fail instead of
+	// silently advancing to finalization.
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Review Output", "Pending", "")
 	stubTaskWorkLookPath(t, func(executable string) (string, error) {
@@ -3546,27 +3682,29 @@ func TestTaskWorkReviewParseError(t *testing.T) {
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
 			return err
 		case 2:
-			// Review produces non-JSON output (tolerated, treated as empty feedback).
+			// Review produces non-JSON output (malformed provider).
 			_, err := fmt.Fprint(stdout, `not valid json`)
 			return err
 		default:
-			// Finalization resume: agent completes the task.
-			return completeTaskOnDisk(root, "001")
+			t.Error("finalization should not run when review feedback parse fails")
+			return nil
 		}
 	})
 
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
-	if code != 0 {
-		t.Errorf("task work exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--no-commit")
+	if code == 0 {
+		t.Error("expected task work to fail when review feedback cannot be parsed")
 	}
 
-	// Should have 3 invocations: session work, review, finalization resume.
-	if invocationCount != 3 {
-		t.Errorf("expected 3 invocations (session, review, finalization), got %d", invocationCount)
+	// Should have 2 invocations: session work, review (no finalization).
+	if invocationCount != 2 {
+		t.Errorf("expected 2 invocations (session, review), got %d", invocationCount)
 	}
 
 	assertContainsAll(t, stderr, "--- Running review ---")
-	assertContainsAll(t, stderr, "No review feedback to address, proceeding to finalization.")
+	assertContainsAll(t, stderr, "could not parse review feedback from cake output")
+	assertNotContains(t, stderr, "No review feedback to address")
+	assertNotContains(t, stderr, "--- Running commit handoff ---")
 }
 
 func TestTaskWorkReviewWithNoReview(t *testing.T) {
@@ -3583,7 +3721,10 @@ func TestTaskWorkReviewWithNoReview(t *testing.T) {
 		if invocationCount == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_noreview","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Done."}`)
-			return err
+			if err != nil {
+				return err
+			}
+			return completeTaskOnDisk(root, "001")
 		}
 		return nil
 	})
@@ -3615,7 +3756,10 @@ func TestTaskWorkCursorCommitHandoff(t *testing.T) {
 		if len(invocations) == 1 {
 			fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_commit123"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Work done.","is_error":false,"session_id":"cursor_commit123"}`)
-			return err
+			if err != nil {
+				return err
+			}
+			return completeTaskOnDisk(root, "001")
 		}
 		_, err := fmt.Fprint(stdout, `{"type":"result","result":"Committed task.","is_error":false,"session_id":"cursor_commit123"}`)
 		return err
@@ -3653,7 +3797,10 @@ func TestTaskWorkCommitHandoff(t *testing.T) {
 		if len(invocations) == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_commit123","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work done."}`)
-			return err
+			if err != nil {
+				return err
+			}
+			return completeTaskOnDisk(root, "001")
 		}
 		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Committed."}`)
 		return err
@@ -3736,7 +3883,10 @@ func TestTaskWorkCommitFails(t *testing.T) {
 		if invocationCount == 1 {
 			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_failcommit","task_id":"tsk_xyz"}`)
 			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
-			return err
+			if err != nil {
+				return err
+			}
+			return completeTaskOnDisk(root, "001")
 		}
 		return fmt.Errorf("exit status 1")
 	})
@@ -3770,7 +3920,7 @@ func TestTaskWorkCommitMissingSessionFails(t *testing.T) {
 	if code == 0 {
 		t.Error("expected task work to fail when commit handoff lacks a session ID")
 	}
-	assertContainsAll(t, stderr, "cannot run commit handoff: no session ID returned by cake")
+	assertContainsAll(t, stderr, "cannot resume session for task 001", "no session ID returned by cake")
 }
 
 func TestTaskWorkCommitDryRun(t *testing.T) {
@@ -4453,14 +4603,21 @@ func TestTaskWorkRoleAgentFlagOverridesAll(t *testing.T) {
 	var invocations int
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 		invocations++
-		if invocations == 1 {
-			fmt.Fprintln(stdout, `{"type":"task_start","session_id":"sess_flag123","task_id":"tsk_xyz"}`)
-			_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Work."}`)
+		switch invocations {
+		case 1:
+			// Session work (cursor): emit a valid cursor init session event
+			// so ahm can capture the session ID for review/finalization resume.
+			fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"cursor_sess_flag123"}`)
+			_, err := fmt.Fprint(stdout, `{"type":"result","result":"Work."}`)
 			return err
+		case 2:
+			// Review with same agent (cursor). Produces empty feedback.
+			_, err := fmt.Fprint(stdout, `{"type":"result","result":""}`)
+			return err
+		default:
+			// Finalization resume: agent completes the task.
+			return completeTaskOnDisk(root, "001")
 		}
-		// Review with same agent.
-		_, err := fmt.Fprint(stdout, `{"type":"task_complete","subtype":"success","is_error":false,"result":"Reviewed."}`)
-		return err
 	})
 
 	_, stderr, code := runCLI(t, "--root", root, "task", "work", "001", "--agent", "cursor", "--no-commit")
@@ -4468,8 +4625,11 @@ func TestTaskWorkRoleAgentFlagOverridesAll(t *testing.T) {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
 	// With --agent=cursor, both impl and review should use cursor. No separate
-	// review executable lookup needed, so only the two invocations should occur.
-	// The runner doesn't distinguish executable, but the test verifies no crash.
+	// review executable lookup needed, so only the three expected invocations
+	// (session, review, finalization) should occur.
+	if invocations != 3 {
+		t.Errorf("expected 3 invocations (session, review, finalization), got %d", invocations)
+	}
 }
 
 func TestTaskWorkRoleAgentsDryRunPreview(t *testing.T) {

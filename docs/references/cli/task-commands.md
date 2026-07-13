@@ -530,8 +530,11 @@ This means review has consistent semantics across all agents without depending
 on an installed skill file. The embedded procedure scales review passes to the
 change size, asks the reviewer to apply worthwhile fixes, and checks task
 completion hygiene. If the review produces actionable feedback, it is captured
-for the finalization step. If the review command itself fails, the failure is
-surfaced and the command exits with a non-zero code.
+for the finalization step. A provider completion event with empty feedback is a
+valid no-findings review. Empty output, invalid JSON, or output without the
+provider's completion event is a malformed-provider failure; `ahm` exits
+non-zero and does not run finalization or commit. A non-zero review subprocess
+exit is also surfaced as a review failure.
 
 After review, `ahm` runs an explicit **finalization** phase regardless of
 whether the review found issues:
@@ -552,7 +555,17 @@ returns a finalization error and does not proceed to commit.
 
 When `--no-review` is passed, no review or finalization orchestration runs.
 The initial prompt instead tells the agent to complete the task directly
-during the work session.
+during the work session. After that session, `ahm` reloads the task and requires
+status `Completed` before returning success or starting commit handoff. As with
+reviewed finalization, unsatisfied acceptance notes remain warnings unless the
+repository enables `strict_acceptance`, in which case they are fatal.
+
+Session capture is mandatory whenever review finalization or commit handoff
+will need to resume the implementation session. Missing or unparseable session
+output in those paths is an incomplete orchestration failure and exits
+non-zero. With both `--no-review` and `--no-commit`, no resume is needed, so a
+missing session ID is reported as a warning; the command can still succeed only
+if the direct work session marked the task `Completed`.
 
 Codex is run with `--dangerously-bypass-approvals-and-sandbox` for
 non-interactive task work. This is intentionally broad: it avoids sandbox and
@@ -573,10 +586,11 @@ includes both task records and project source changes in a single commit.
 
 `ahm` does not run `git commit`, choose commit messages, push branches, or open
 pull requests. Commit-message convention is owned by the target project and its
-hooks. When review is enabled, `ahm` validates the task is `Completed` with
-satisfactory acceptance state before running the commit handoff; if validation
-fails, the error is returned and the commit handoff does not run. Pass
-`--no-commit` to skip the commit handoff entirely.
+hooks. Before commit handoff, `ahm` validates the task is `Completed` with
+satisfactory acceptance state, whether completion came from reviewed
+finalization or a `--no-review` work session. If validation fails, the error is
+returned and the commit handoff does not run. Pass `--no-commit` to skip the
+commit handoff entirely.
 
 Agent and model selection precedence for each phase is:
 

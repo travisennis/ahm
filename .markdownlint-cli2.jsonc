@@ -12,7 +12,7 @@
     "**/*.md"
   ],
   "ignores": [
-    "**/.agents/**",
+    "**/.ahm/**",
     "**/.git/**",
     "**/node_modules",
     "**/testdata/**"
