@@ -61,6 +61,8 @@ task to an external coding-agent CLI.
   record paths (`.agents` for legacy committed records, `.ahm` after migration).
 - `internal/ahm/records.go`: internal workflow record plumbing for
   selecting `.ahm/` source records.
+- `internal/ahm/git.go`: shared environment isolation for ahm-owned Git
+  subprocesses.
 - `internal/ahm/records_commands.go`: `records migrate` and `records doctor`
   command surface for migration and diagnostics.
 - `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
@@ -119,6 +121,9 @@ task to an external coding-agent CLI.
   file that `init`, `upgrade`, or `--force` can create, replace, or remove.
 - Validation is read-only. It reports workflow and documentation drift without
   mutating files.
+- Ahm-owned Git subprocesses use an explicit repository root and ignore
+  inherited Git repository-location variables that could redirect metadata,
+  the worktree, or the index. ADR 018 defines this boundary.
 - Command handlers should stay thin: parse args, validate boundaries, delegate
   to focused helpers, then emit output.
 - File-format parsers should validate at the boundary and return explicit

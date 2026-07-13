@@ -40,9 +40,24 @@ func git(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	cmdArgs := append([]string{"-C", root}, args...)
 	cmd := exec.Command("git", cmdArgs...) // #nosec G204 // tests run git with explicit test arguments in a temp repo.
+	cmd.Env = cleanGitEnvironment()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return string(out)
+}
+
+func TestGitCommandsIgnoreInheritedRepositoryLocationEnvironment(t *testing.T) {
+	root := newGitRepo(t)
+	bogus := filepath.Join(t.TempDir(), "host-repository")
+	for _, name := range gitRepositoryEnvironment {
+		t.Setenv(name, bogus)
+	}
+
+	git(t, root, "status", "--short")
+	info := readGitContext(root)
+	if !info.Available || info.Error != "" {
+		t.Fatalf("readGitContext() = %#v, want available Git context without error", info)
+	}
 }

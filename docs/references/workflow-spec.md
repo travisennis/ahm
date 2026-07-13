@@ -94,6 +94,13 @@ file hashes for any legacy managed templates, and repository-scoped workflow
 settings. This metadata lets future versions remove or migrate files that have
 not been locally changed while preserving user edits.
 
+When `ahm` invokes Git, it scopes the command to the detected repository root
+and removes inherited `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+`GIT_OBJECT_DIRECTORY`, and `GIT_COMMON_DIR` values from the subprocess
+environment. This prevents Git hooks or parent processes from redirecting
+ahm-owned Git operations to another repository's metadata, worktree, or index.
+See ADR 018.
+
 `ahm` reads workflow metadata from committed `.ahm/config.json` when it
 is present, falling back to legacy `.agents/ahm.json` otherwise. Fresh
 `ahm init` (no prior metadata) creates `.ahm/config.json` and the

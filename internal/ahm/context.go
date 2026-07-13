@@ -349,6 +349,7 @@ func readGitContext(root string) contextGit {
 		return contextGit{Available: false, Error: "git executable not found"}
 	}
 	cmd := exec.Command("git", "-C", root, "status", "--short", "--branch") // #nosec G204 // read-only git status scoped to the detected repository root
+	cmd.Env = cleanGitEnvironment()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

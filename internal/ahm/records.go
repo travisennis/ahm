@@ -16,6 +16,7 @@ func runGit(ctx context.Context, root string, args []string, subcommand string) 
 func runGitBytes(ctx context.Context, root string, args []string, subcommand string) ([]byte, error) {
 	gitArgs := append([]string{"-C", root, subcommand}, args...)
 	cmd := exec.CommandContext(ctx, "git", gitArgs...) // #nosec G204 // git subcommands and args are constructed by internal records helpers.
+	cmd.Env = cleanGitEnvironment()
 	cmd.Stdin = nil
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

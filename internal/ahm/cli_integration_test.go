@@ -16,6 +16,13 @@ import (
 var cliIntegrationBinary string
 
 func TestMain(m *testing.M) {
+	for _, name := range gitRepositoryEnvironment {
+		if err := os.Unsetenv(name); err != nil {
+			fmt.Fprintf(os.Stderr, "unset %s: %v\n", name, err)
+			os.Exit(1)
+		}
+	}
+
 	dir, err := os.MkdirTemp("", "ahm-cli-integration-*")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create integration temp dir: %v\n", err)
