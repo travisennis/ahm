@@ -328,7 +328,7 @@ func (a *app) install(upgrade bool) error {
 		metaRelPath = configMetadataRelPath
 	}
 	result["metadata"] = []string{metaRelPath}
-	indexes, err := a.indexWriteTargets()
+	indexes, err := a.indexWriteTargetsFor(workflowPaths{root: root, recordsDir: recordsDir})
 	if err != nil {
 		return err
 	}

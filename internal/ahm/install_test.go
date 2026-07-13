@@ -364,6 +364,10 @@ func TestInstallDryRunDoesNotMutateMetadata(t *testing.T) {
 	for _, want := range []string{
 		"metadata:",
 		"  .agents/ahm.json",
+		"indexes:",
+		"  .agents/.tasks/index.md",
+		"  .agents/.research/index.md",
+		"  .agents/exec-plans/active/index.md",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("dry-run output missing %q:\n%s", want, got)
@@ -381,9 +385,15 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		"metadata:",
 		"  .ahm/config.json",
 		"indexes:",
+		"  .ahm/tasks/index.md",
+		"  .ahm/tasks/active/index.md",
+		"  .ahm/research/index.md",
+		"  .ahm/exec-plans/active/index.md",
+		"  .ahm/exec-plans/completed/index.md",
 		"  docs/adr/index.md",
 	)
 	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
+	assertNotContains(t, stdout, ".agents/.tasks", ".agents/.research", ".agents/exec-plans")
 
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"),
 		`"version": "`+templates.Version+`"`,

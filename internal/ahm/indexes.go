@@ -58,19 +58,6 @@ func isStaleIndex(path string, want string) bool {
 	return string(data) != want
 }
 
-func (a *app) indexWriteTargets() ([]string, error) {
-	writes, err := a.indexWrites()
-	if err != nil {
-		return nil, err
-	}
-	paths := sortedKeys(writes)
-	targets := make([]string, 0, len(paths))
-	for _, path := range paths {
-		targets = append(targets, relPath(a.opts.root, path))
-	}
-	return targets, nil
-}
-
 func (a *app) indexWrites() (map[string]string, error) {
 	tasks, err := a.getTasks()
 	if err != nil {
@@ -82,11 +69,33 @@ func (a *app) indexWrites() (map[string]string, error) {
 	return indexWritesFor(a.opts.root, tasks)
 }
 
+func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
+	tasks, err := a.getTasks()
+	if err != nil {
+		if tasks == nil {
+			return nil, err
+		}
+		a.addWarning("some task files could not be parsed and were skipped: %s", err)
+	}
+	writes, err := indexWritesForPaths(a.opts.root, tasks, paths)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]string, 0, len(writes))
+	for _, path := range sortedKeys(writes) {
+		targets = append(targets, relPath(a.opts.root, path))
+	}
+	return targets, nil
+}
+
 // indexWritesFor is the package-level counterpart of app.indexWrites that
 // accepts already-parsed tasks. It is used by both the index-writing and
 // validation paths to avoid re-parsing the task tree.
 func indexWritesFor(root string, tasks []Task) (map[string]string, error) {
-	paths := workflowPathsFor(root)
+	return indexWritesForPaths(root, tasks, workflowPathsFor(root))
+}
+
+func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[string]string, error) {
 	research, err := collectMarkdownDocs(root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
