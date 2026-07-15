@@ -40,6 +40,19 @@ Use `--dry-run` to preview changes. Use `--force` only when old local
 instruction files should be removed even though they no longer match their
 recorded managed hash.
 
+## Concise Task Workflow Reference (2026-07-15)
+
+`internal/templates.Version` advanced from `0.6.0` to `0.6.1` because the
+embedded task workflow reference changed. `ahm context task` now focuses on
+task decisions and a single end-to-end working procedure while leaving task
+front matter, body scaffolding, exact flags, and lifecycle mechanics to the
+`ahm task ...` commands that own them.
+
+The procedure applies to tasks with and without ExecPlans. ExecPlan completion
+is an explicit conditional step instead of the only fully ordered completion
+path. Task storage, file formats, lifecycle semantics, and CLI behavior are
+unchanged.
+
 ## Command-Based Procedures (2026-07-11)
 
 `internal/templates.Version` advanced from `0.4.6` to `0.5.0` because the

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
+func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 	cases := []struct {
 		path string
 		want string
@@ -17,7 +17,7 @@ func TestWorkflowTemplatesKeepScaffoldDetail(t *testing.T) {
 		},
 		{
 			path: "workflow/TASKS.md",
-			want: "## Choosing Work",
+			want: "Follow this procedure for every implementation task",
 		},
 		{
 			path: "workflow/RESEARCH.md",

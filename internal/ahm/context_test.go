@@ -45,10 +45,11 @@ func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"# Task Workflow",
-		"## Choosing Work",
-		"## Creating Tasks",
-		"Tasks live under `.ahm/tasks/` in this repository.",
-		"The task index at `.ahm/tasks/index.md`",
+		"## Choose And Inspect Work",
+		"## Create And Triage Tasks",
+		"## Work A Task",
+		"Task source records live under `.ahm/tasks/`",
+		"`.ahm/tasks/index.md` and its linked indexes",
 		"`\"strict_acceptance\": true` in `.ahm/config.json`",
 	)
 	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".agents/")
@@ -63,8 +64,8 @@ func TestScopedContextPrintsMigratedInstructionPaths(t *testing.T) {
 		t.Fatalf("context task exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"Tasks live under `.ahm/tasks/` in this repository.",
-		"The task index at `.ahm/tasks/index.md`",
+		"Task source records live under `.ahm/tasks/`",
+		"`.ahm/tasks/index.md` and its linked indexes",
 		"`\"strict_acceptance\": true` in `.ahm/config.json`",
 	)
 	assertNotContains(t, stdout,
@@ -144,7 +145,7 @@ func TestScopedContextJSONOutput(t *testing.T) {
 		`"instructions":`,
 		`"id": "task-workflow"`,
 		`# Task Workflow`,
-		`## Choosing Work`,
+		`## Work A Task`,
 		`.ahm/tasks/index.md`,
 		`"commands":`,
 		`"ahm task show \u003cid\u003e"`,
