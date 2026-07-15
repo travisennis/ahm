@@ -98,10 +98,10 @@ task to an external coding-agent CLI.
 - `internal/ahm/lock.go`: repository-local workflow locks for serialized
   cross-process mutations.
 - `internal/ahm/write.go`: atomic writes and stale temp cleanup.
-- `internal/templates/templates.go`: embedded template registry and template
+- `internal/templates/templates.go`: embedded workflow filesystem and template
   version.
-- `internal/templates/workflow/`: canonical workflow templates installed into
-  target repositories.
+- `internal/templates/workflow/`: canonical workflow references embedded for
+  scoped `ahm context` output and binary-owned procedures.
 - `internal/version/version.go`: binary version injected by release builds.
 
 ## Architectural Invariants
@@ -139,5 +139,5 @@ task to an external coding-agent CLI.
   `docs/references/workflow-spec.md`.
 - Upgrade and version behavior: `docs/guides/workflow-upgrades.md`.
 - Agent integration smoke checks: `docs/guides/testing.md`.
-- ADR workflow and decision history: `docs/adr/README.md` and `docs/adr/`.
+- ADR workflow: `ahm context adr`; decision history: `docs/adr/`.
 - Contributor commands and handoff expectations: `CONTRIBUTING.md`.

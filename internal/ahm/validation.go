@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 type validationReport struct {
@@ -171,42 +169,15 @@ func (a *app) emitPostMutationFindings() {
 }
 
 func validateManagedFiles(root string, report *validationReport) []Task {
-	meta, metaErr := readMetadata(root)
+	_, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
 			report.addError("metadata_missing", metadataErrorPath(metaErr), "workflow metadata is missing")
 		} else {
 			report.addError("metadata_corrupt", metadataErrorPath(metaErr), fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
-	} else {
-		for _, item := range templates.Files() {
-			validateManagedFile(root, meta, item, report)
-		}
 	}
 	return validateTaskFiles(root, report)
-}
-
-func validateManagedFile(root string, meta metadata, item templates.File, report *validationReport) {
-	if item.CreateOnly {
-		return
-	}
-	data, err := readWorkflowFile(filepath.Join(root, item.Target))
-	if errors.Is(err, os.ErrNotExist) {
-		report.addError("managed_file_missing", item.Target, "managed workflow file is missing")
-		return
-	}
-	if err != nil {
-		report.addError("managed_file_unreadable", item.Target, err.Error())
-		return
-	}
-	expected := meta.Files[item.Target]
-	if expected == "" {
-		report.addWarning("managed_file_untracked", item.Target, "managed workflow file is not recorded in metadata; run 'ahm init' to adopt")
-		return
-	}
-	if hashBytes(data) != expected {
-		report.addWarning("managed_file_modified", item.Target, "managed workflow file hash differs from metadata")
-	}
 }
 
 func validateTaskFiles(root string, report *validationReport) []Task {
@@ -693,15 +664,6 @@ func workflowMarkdownFiles(root string) []string {
 			paths = append(paths, clean)
 		}
 	}
-	for _, item := range templates.Files() {
-		if item.CreateOnly {
-			continue
-		}
-		target := filepath.Join(root, item.Target)
-		if stat, err := os.Stat(target); err == nil && !stat.IsDir() && strings.HasSuffix(target, ".md") {
-			add(target)
-		}
-	}
 	walkRoots := []string{filepath.Join(root, legacyRecordsDirName)}
 	if recordsDir := workflowPathsFor(root).recordsDir; recordsDir != legacyRecordsDirName {
 		walkRoots = append(walkRoots, filepath.Join(root, recordsDir))
@@ -960,12 +922,9 @@ func validateDocIndexCoverage(root string, report *validationReport) {
 	if err != nil {
 		return
 	}
-
-	// Build set of tool-managed file paths to skip (scaffold files like
-	// READMEs are not project docs and should not trigger doc_unindexed).
-	managedPaths := make(map[string]bool)
-	for _, f := range templates.Files() {
-		managedPaths[filepath.Clean(filepath.Join(root, f.Target))] = true
+	preservedScaffolds := make(map[string]bool, len(preservedScaffoldFiles))
+	for _, target := range preservedScaffoldFiles {
+		preservedScaffolds[filepath.Clean(filepath.Join(root, target))] = true
 	}
 
 	for _, entry := range entries {
@@ -992,7 +951,7 @@ func validateDocIndexCoverage(root string, report *validationReport) {
 				return nil
 			}
 			clean := filepath.Clean(path)
-			if clean == cleanIndex || managedPaths[clean] {
+			if clean == cleanIndex || preservedScaffolds[clean] {
 				return nil
 			}
 			files = append(files, clean)

@@ -121,7 +121,8 @@ behavior, setup, security, or compatibility.
   `docs/references/workflow-spec.md` or `docs/guides/workflow-upgrades.md`.
 - Implementation moves require `ARCHITECTURE.md` updates when the module map or
   boundary descriptions change.
-- ADR lifecycle and format changes must stay aligned with `docs/adr/README.md`.
+- ADR lifecycle and format changes must stay aligned with the embedded
+  `ahm context adr` reference in `internal/templates/workflow/ADR.md`.
 
 Before auditing or changing docs, run `ahm context docs`.
 

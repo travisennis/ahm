@@ -520,9 +520,8 @@ Installs the managed `.ahm` workflow into the target root.
 `init` creates missing workflow directories, metadata, and generated indexes.
 On fresh installs (no prior workflow metadata), creates the committed `.ahm/`
 layout directly: `.ahm/config.json`, workflow directories under `.ahm/`,
-and scaffold README files under `.ahm/tasks/`, `.ahm/research/`, and
-`docs/adr/`. Canonical agent instructions are exposed through
-`ahm context`, not copied into consumer repositories.
+and generated indexes. Canonical agent instructions are exposed through
+`ahm context`, not copied into consumer repositories as README files.
 `init` does not create or overwrite `AGENTS.md`.
 
 On repositories with existing `.agents/ahm.json` metadata, `init` preserves
@@ -536,8 +535,6 @@ Writes in .ahm layout:
 - Generated index files under `.ahm/tasks/`, `.ahm/research/`,
   `.ahm/exec-plans/`, and `docs/adr/index.md`.
 - Workflow directories under `.ahm/` and `docs/adr/`.
-- Scaffold README files (`.ahm/tasks/README.md`,
-  `.ahm/research/README.md`, `docs/adr/README.md`).
 
 Useful flags:
 

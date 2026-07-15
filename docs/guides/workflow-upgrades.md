@@ -22,9 +22,10 @@ or legacy `.agents/ahm.json`) with the target repository files.
   even with `--force`.
 - Generated indexes are regenerated.
 - User-owned task files, research notes, and ExecPlans are not overwritten.
-- Locally customized legacy instruction files (`.agents/TASKS.md`,
-  `docs/adr/README.md`, etc.) are preserved and reported as conflicts unless
-  `--force` is used.
+- Locally customized legacy instruction files such as `.agents/TASKS.md` are
+  preserved and reported as conflicts unless `--force` is used.
+- Existing task, research, and ADR README scaffold files are preserved and
+  relinquished from metadata ownership; even `--force` does not remove them.
 
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
@@ -39,6 +40,20 @@ content, or running with `--force`.
 Use `--dry-run` to preview changes. Use `--force` only when old local
 instruction files should be removed even though they no longer match their
 recorded managed hash.
+
+## Context-Only Workflow References (2026-07-15)
+
+`internal/templates.Version` advanced from `0.6.1` to `0.6.2`. Fresh installs
+no longer create `.ahm/tasks/README.md`, `.ahm/research/README.md`, or
+`docs/adr/README.md`. Task, research, and ADR guidance remains available from
+`ahm context task`, `ahm context research`, and `ahm context adr` respectively.
+The embedded ADR context source was renamed from `workflow/adr-README.md` to
+`workflow/ADR.md` to reflect that it is command output rather than a copied
+README template.
+
+Existing README files are preserved. The `0.6.0` scaffold files were
+create-only and had no ownership hashes, so `ahm upgrade` cannot safely remove
+or overwrite consumer copies.
 
 ## Concise Task Workflow Reference (2026-07-15)
 

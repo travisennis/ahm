@@ -1452,12 +1452,16 @@ func TestValidateDocIndexCoverage(t *testing.T) {
 	writeFile(t, filepath.Join(root, "docs", "guardrails", "orphan.md"), "# Orphan\n")
 	writeFile(t, filepath.Join(root, "docs", "guardrails", "index.md"),
 		"# Guardrails Index\n\n- [A](a.md)\n")
+	writeFile(t, filepath.Join(root, "docs", "adr", "README.md"), "# Preserved ADR Guide\n")
 
 	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
 
 	foundUnindexed := false
 	for _, w := range report.Warnings {
 		if w.Code == "doc_unindexed" {
+			if strings.Contains(w.Path, "docs/adr/README.md") {
+				t.Errorf("preserved ADR scaffold should not produce doc_unindexed: %#v", w)
+			}
 			foundUnindexed = true
 			if !strings.Contains(w.Path, "orphan.md") {
 				t.Errorf("expected orphan.md in doc_unindexed, got path: %s", w.Path)

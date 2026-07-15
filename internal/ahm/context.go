@@ -236,7 +236,7 @@ func scopedContextInstruction(scope string, root string) (contextInstruction, er
 		source string
 	}{
 		"task":     {id: "task-workflow", title: "Task Workflow", source: "workflow/TASKS.md"},
-		"adr":      {id: "adr-workflow", title: "ADR Workflow", source: "workflow/adr-README.md"},
+		"adr":      {id: "adr-workflow", title: "ADR Workflow", source: "workflow/ADR.md"},
 		"research": {id: "research-workflow", title: "Research Workflow", source: "workflow/RESEARCH.md"},
 		"plan":     {id: "exec-plan-workflow", title: "ExecPlan Workflow", source: "workflow/PLANS.md"},
 		"docs":     {id: "docs-workflow", title: "Documentation Workflow", source: "workflow/DOCS.md"},
@@ -263,11 +263,6 @@ func scopedContextInstruction(scope string, root string) (contextInstruction, er
 func instructionPathsFor(root string) instructionRenderPaths {
 	paths := workflowPathsFor(root)
 	return pathsForWorkflowPaths(paths)
-}
-
-func instructionPathsForRecordsDir(root string, recordsDir string) instructionRenderPaths {
-	wp := workflowPaths{root: root, recordsDir: recordsDir}
-	return pathsForWorkflowPaths(wp)
 }
 
 func pathsForWorkflowPaths(wp workflowPaths) instructionRenderPaths {
@@ -313,17 +308,6 @@ func renderInstructionTemplate(name string, body string, values instructionRende
 		return "", err
 	}
 	return rendered.String(), nil
-}
-
-// renderWorkflowTemplateFor is like renderWorkflowTemplate but uses the
-// given recordsDir to compute paths instead of detecting from the filesystem.
-func renderWorkflowTemplateFor(root string, name string, content []byte, recordsDir string) ([]byte, error) {
-	paths := instructionPathsForRecordsDir(root, recordsDir)
-	rendered, err := renderInstructionTemplate(name, string(content), paths)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(rendered), nil
 }
 
 func contextCommands(scope string) []string {

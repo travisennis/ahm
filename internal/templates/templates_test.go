@@ -27,6 +27,10 @@ func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 			path: "workflow/DOCS.md",
 			want: "Treat the repository's existing docs as the source",
 		},
+		{
+			path: "workflow/ADR.md",
+			want: "# Architecture Decision Records",
+		},
 	}
 	for _, tc := range cases {
 		data, err := fs.ReadFile(FS, tc.path)
@@ -35,27 +39,6 @@ func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 		}
 		if !strings.Contains(string(data), tc.want) {
 			t.Fatalf("%s does not contain %q", tc.path, tc.want)
-		}
-	}
-}
-
-func TestManagedFilesContainScaffoldTargets(t *testing.T) {
-	files := Files()
-	if len(files) == 0 {
-		t.Fatal("managed files should contain at least one scaffold target")
-	}
-	// Verify the .ahm/ scaffold targets are present.
-	targets := make(map[string]bool)
-	for _, f := range files {
-		targets[f.Target] = true
-	}
-	for _, want := range []string{
-		".ahm/tasks/README.md",
-		".ahm/research/README.md",
-		"docs/adr/README.md",
-	} {
-		if !targets[want] {
-			t.Errorf("missing managed file target %q", want)
 		}
 	}
 }

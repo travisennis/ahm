@@ -240,9 +240,13 @@ The ownership categories are:
    `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
    Scoped commands such as `ahm context task` expose the
    full embedded reference document for that workflow, with record and index
-   paths rendered for the repository's active storage mode. `ahm upgrade`
-   removes previously managed copies when metadata proves ownership; locally
-   modified copies are preserved as conflicts unless `--force` is used.
+   paths rendered for the repository's active storage mode. Existing
+   `.ahm/tasks/README.md`, `.ahm/research/README.md`, and
+   `docs/adr/README.md` scaffold copies from older releases are preserved and
+   relinquished from metadata ownership; `ahm upgrade` does not remove them.
+   Other previously managed instruction copies are removed when metadata
+   proves ownership; locally modified copies are preserved as conflicts unless
+   `--force` is used.
 
 3. **Obsolete managed instruction files** — older releases copied workflow
    guides into repositories. `upgrade` removes pristine hash-owned copies and

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -182,15 +181,31 @@ var projectOwnedProcedureSkills = []string{
 	".agents/skills/finding-improvements/SKILL.md",
 }
 
-func relinquishProjectOwnedProcedureSkills(meta *metadata) bool {
+// preservedScaffoldFiles are no longer created or managed. Existing consumer
+// copies are preserved while any stale metadata ownership is relinquished.
+var preservedScaffoldFiles = []string{
+	".ahm/tasks/README.md",
+	".ahm/research/README.md",
+	"docs/adr/README.md",
+}
+
+func relinquishMetadataOwnership(meta *metadata, targets []string) bool {
 	changed := false
-	for _, target := range projectOwnedProcedureSkills {
+	for _, target := range targets {
 		if _, ok := meta.Files[target]; ok {
 			delete(meta.Files, target)
 			changed = true
 		}
 	}
 	return changed
+}
+
+func relinquishProjectOwnedProcedureSkills(meta *metadata) bool {
+	return relinquishMetadataOwnership(meta, projectOwnedProcedureSkills)
+}
+
+func relinquishPreservedScaffoldFiles(meta *metadata) bool {
+	return relinquishMetadataOwnership(meta, preservedScaffoldFiles)
 }
 
 var obsoleteManagedFiles = []obsoleteManagedFile{
@@ -230,6 +245,7 @@ func (a *app) install(upgrade bool) error {
 		meta.Files = map[string]string{}
 	}
 	relinquishProjectOwnedProcedureSkills(&meta)
+	relinquishPreservedScaffoldFiles(&meta)
 	if !a.opts.dryRun {
 		for _, target := range generatedIndexTargets() {
 			delete(meta.Files, target)
@@ -254,71 +270,6 @@ func (a *app) install(upgrade bool) error {
 	}
 	if err := a.removeObsoleteManagedFiles(upgrade, &meta, result); err != nil {
 		return err
-	}
-	for _, item := range templates.Files() {
-		content, err := fs.ReadFile(templates.FS, item.Source)
-		if err != nil {
-			return err
-		}
-		content, err = renderWorkflowTemplateFor(root, item.Source, content, recordsDir)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(root, item.Target)
-		hash := hashBytes(content)
-		existing, readErr := readWorkflowFile(target)
-		switch {
-		case errors.Is(readErr, os.ErrNotExist):
-			result["created"] = append(result["created"], item.Target)
-			if !a.opts.dryRun {
-				if err := writeFileAtomic(target, content, 0o644); err != nil {
-					return err
-				}
-			}
-			if !a.opts.dryRun {
-				if item.CreateOnly {
-					delete(meta.Files, item.Target)
-				} else {
-					meta.Files[item.Target] = hash
-				}
-			}
-		case readErr != nil:
-			return readErr
-		case item.CreateOnly:
-			result["skipped"] = append(result["skipped"], item.Target)
-			if !a.opts.dryRun {
-				delete(meta.Files, item.Target)
-			}
-		case !a.opts.force && meta.Files[item.Target] == "":
-			// File exists but is not tracked in metadata. Auto-adopt when
-			// content matches the template; otherwise report as a conflict.
-			if hashBytes(existing) == hash {
-				result["adopted"] = append(result["adopted"], item.Target)
-				if !a.opts.dryRun {
-					meta.Files[item.Target] = hash
-				}
-			} else {
-				result["conflicts"] = append(result["conflicts"], item.Target)
-			}
-		case !upgrade && !a.opts.force:
-			result["skipped"] = append(result["skipped"], item.Target)
-		case a.opts.force || meta.Files[item.Target] == hashBytes(existing):
-			if string(existing) != string(content) {
-				result["updated"] = append(result["updated"], item.Target)
-				if !a.opts.dryRun {
-					if err := writeFileAtomic(target, content, 0o644); err != nil {
-						return err
-					}
-				}
-			} else {
-				result["skipped"] = append(result["skipped"], item.Target)
-			}
-			if !a.opts.dryRun {
-				meta.Files[item.Target] = hash
-			}
-		default:
-			result["conflicts"] = append(result["conflicts"], item.Target)
-		}
 	}
 	dirs, err := a.ensureWorkflowDirs(recordsDir)
 	if err != nil {

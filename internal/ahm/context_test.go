@@ -85,6 +85,11 @@ func TestScopedContextsRenderStorageModePaths(t *testing.T) {
 		not   []string
 	}{
 		{
+			scope: "adr",
+			want:  []string{"# Architecture Decision Records", "## ahm adr Commands", "`ahm adr create <title>`"},
+			not:   []string{"# ADR Workflow"},
+		},
+		{
 			scope: "research",
 			want:  []string{"`ahm context research`", "`.ahm/research/index.md`", "Research lives under `.ahm/research/`"},
 			not:   []string{".agents/.research/", "or\n`.ahm/research/index.md`"},
