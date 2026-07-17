@@ -2,9 +2,9 @@ package ahm
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 )
@@ -23,7 +23,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 	var stdoutBuf bytes.Buffer
 	// Write captured output to both the user's terminal and the buffer.
 	out := io.MultiWriter(a.out, &stdoutBuf)
-	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, args, a.in, out, a.err); err != nil {
+	if err := taskWorkRunCommand(taskWorkRunContext(timeout, roles.implAgent.envFilter(os.Environ())), a.opts.root, executable, args, a.in, out, a.err); err != nil {
 		return err
 	}
 	sessionID, parseErr := roles.implAgent.parseSessionID(stdoutBuf.Bytes())
@@ -76,7 +76,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 		// (when present) and finalize the task.
 		finalizationPrompt := buildFinalizationPrompt(task.ID, feedback)
 		finalizeArgs := roles.implAgent.resumeArgs(sessionID, finalizationPrompt)
-		if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, finalizeArgs, a.in, a.out, a.err); err != nil {
+		if err := taskWorkRunCommand(taskWorkRunContext(timeout, roles.implAgent.envFilter(os.Environ())), a.opts.root, executable, finalizeArgs, a.in, a.out, a.err); err != nil {
 			return fmt.Errorf("finalization failed: %w", err)
 		}
 
@@ -207,7 +207,7 @@ func (a *app) runReview(reviewAgent taskWorkAgent, reviewExecutable string, sess
 	var reviewBuf bytes.Buffer
 	reviewOut := io.MultiWriter(a.out, &reviewBuf)
 
-	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, reviewExecutable, reviewArgs, nil, reviewOut, a.err); err != nil {
+	if err := taskWorkRunCommand(taskWorkRunContext(timeout, reviewAgent.envFilter(os.Environ())), a.opts.root, reviewExecutable, reviewArgs, nil, reviewOut, a.err); err != nil {
 		return "", fmt.Errorf("review failed: %w", err)
 	}
 
@@ -252,7 +252,7 @@ func (a *app) runCommit(agent taskWorkAgent, executable, sessionID, taskID strin
 	fmt.Fprintln(a.err, "--- Running commit handoff ---")
 	prompt := a.buildTaskWorkCommitPrompt(taskID)
 	resumeArgs := agent.resumeArgs(sessionID, prompt)
-	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), timeout), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
+	if err := taskWorkRunCommand(taskWorkRunContext(timeout, agent.envFilter(os.Environ())), a.opts.root, executable, resumeArgs, a.in, a.out, a.err); err != nil {
 		return fmt.Errorf("commit handoff failed: %w", err)
 	}
 	return nil

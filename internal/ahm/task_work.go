@@ -18,9 +18,11 @@ import (
 // this for a single invocation.
 var taskWorkDefaultTimeout = 30 * time.Minute
 
-// Unexported context key for threading the task work timeout through
-// to runTaskWorkCommand without changing the taskWorkRunnerFunc signature.
+// Unexported context keys for threading the task work timeout and filtered
+// environment through to runTaskWorkCommand without changing the
+// taskWorkRunnerFunc signature.
 type taskWorkTimeoutKey struct{}
+type taskWorkEnvKey struct{}
 
 func withTaskWorkTimeout(ctx context.Context, d time.Duration) context.Context {
 	return context.WithValue(ctx, taskWorkTimeoutKey{}, d)
@@ -33,8 +35,32 @@ func taskWorkTimeoutFromContext(ctx context.Context) time.Duration {
 	return taskWorkDefaultTimeout
 }
 
+// withTaskWorkEnv threads a filtered environment through to runTaskWorkCommand.
+// A nil env is stored as an untyped nil so taskWorkEnvFromContext treats it as
+// "not set" and the child process inherits the parent environment.
+func withTaskWorkEnv(ctx context.Context, env []string) context.Context {
+	return context.WithValue(ctx, taskWorkEnvKey{}, env)
+}
+
+// taskWorkEnvFromContext returns the filtered environment from ctx, or nil if
+// no filter was provided.
+func taskWorkEnvFromContext(ctx context.Context) []string {
+	if env, ok := ctx.Value(taskWorkEnvKey{}).([]string); ok {
+		return env
+	}
+	return nil
+}
+
+// taskWorkRunContext returns a context carrying both the timeout and the
+// filtered environment for a delegated agent run. A nil env means the child
+// process should inherit the parent environment unchanged.
+func taskWorkRunContext(timeout time.Duration, env []string) context.Context {
+	return withTaskWorkEnv(withTaskWorkTimeout(context.Background(), timeout), env)
+}
+
 // taskWorkRunnerFunc is the signature for running an external agent command.
-// The context carries the deadline or cancellation signal.
+// The context carries the deadline, cancellation signal, and optional filtered
+// environment.
 type taskWorkRunnerFunc func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error
 
 var (
@@ -223,5 +249,32 @@ func runTaskWorkCommand(ctx context.Context, root string, executable string, arg
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	if env := taskWorkEnvFromContext(ctx); env != nil {
+		cmd.Env = env
+	}
 	return cmd.Run()
+}
+
+// filterBlockedEnv returns a copy of env with any entries whose name matches
+// one of the blocked names removed. The comparison is case-insensitive so it
+// catches variables like Anthropic_API_KEY.
+func filterBlockedEnv(env, blocked []string) []string {
+	clean := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		if isBlockedEnv(name, blocked) {
+			continue
+		}
+		clean = append(clean, entry)
+	}
+	return clean
+}
+
+func isBlockedEnv(name string, blocked []string) bool {
+	for _, b := range blocked {
+		if strings.EqualFold(name, b) {
+			return true
+		}
+	}
+	return false
 }

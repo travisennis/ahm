@@ -24,6 +24,17 @@ type taskWorkAgent struct {
 	parseSessionID      func([]byte) (string, error)
 	reviewArgs          func(string, string) []string // prompt, model
 	parseReviewFeedback func([]byte) (string, error)
+	blockedEnvVars      []string // environment variables stripped before spawning the agent
+}
+
+// envFilter returns a copy of env with this agent's blockedEnvVars removed.
+// When there are no blocked variables it returns nil so callers inherit the
+// parent environment unchanged.
+func (a taskWorkAgent) envFilter(env []string) []string {
+	if len(a.blockedEnvVars) == 0 {
+		return nil
+	}
+	return filterBlockedEnv(env, a.blockedEnvVars)
 }
 
 // resolveTaskWorkRoles resolves agents and models for the implementation and
@@ -191,6 +202,7 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 				return append(base, prompt)
 			},
 			parseReviewFeedback: parseClaudeReviewFeedback,
+			blockedEnvVars:      []string{"ANTHROPIC_API_KEY"},
 		}, nil
 	default:
 		return taskWorkAgent{}, usageError(fmt.Sprintf("unsupported task work agent %q (supported: cake, claude, codex, cursor)", value))

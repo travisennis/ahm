@@ -2,7 +2,6 @@ package ahm
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -146,7 +145,7 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	}
 	defer cleanup()
 	var out bytes.Buffer
-	if err := taskWorkRunCommand(withTaskWorkTimeout(context.Background(), parsed.timeout), a.opts.root, executable, args, nil, &out, a.err); err != nil {
+	if err := taskWorkRunCommand(taskWorkRunContext(parsed.timeout, roles.implAgent.envFilter(os.Environ())), a.opts.root, executable, args, nil, &out, a.err); err != nil {
 		return fmt.Errorf("groom delegation failed (raw output preserved below): %w\n%s", err, out.String())
 	}
 	if roles.implAgent.parseSessionID != nil {

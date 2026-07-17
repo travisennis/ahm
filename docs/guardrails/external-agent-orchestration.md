@@ -13,6 +13,9 @@ golden transcripts, and live agent smoke tests.
 - JSONL or text output parsing for session IDs and review feedback.
 - Resume semantics for review, completion, and commit handoff.
 - Golden transcript fixture layout and provenance sidecars.
+- Environment variables passed to each agent child process. Per-agent
+  `blockedEnvVars` strip selected variables (e.g., `ANTHROPIC_API_KEY` for
+  `claude`) while preserving the rest of the parent environment.
 
 ## Required Checks
 
