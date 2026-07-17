@@ -4170,6 +4170,70 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	}
 }
 
+func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
+	saveLockTimeout(t)
+	workflowLockTimeout = 2 * time.Second
+	workflowLockRetryDelay = time.Millisecond
+
+	root := t.TempDir()
+	var installOut strings.Builder
+	installer := app{opts: options{root: root}, out: &installOut}
+	if err := installer.install(false); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Original Title", "Pending", "")
+
+	release, err := acquireWorkflowLock(root, "task-mutate")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldHook := taskStatusPreLockHook
+	preLock := make(chan struct{})
+	taskStatusPreLockHook = func() { close(preLock) }
+	defer func() { taskStatusPreLockHook = oldHook }()
+
+	done := make(chan error, 1)
+	var out strings.Builder
+	go func() {
+		a := app{opts: options{root: root, force: true}, out: &out}
+		done <- a.taskStatus([]string{"001"}, "Completed")
+	}()
+
+	select {
+	case <-preLock:
+	case <-time.After(2 * time.Second):
+		t.Fatal("task status did not reach pre-lock hook")
+	}
+
+	// Simulate a concurrent update that landed after the goroutine resolved the
+	// task but before it could acquire the mutation lock.
+	activePath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
+	content := mustRead(t, activePath)
+	updated := strings.Replace(content, "Original Title", "Updated Title", 1)
+	if err := os.WriteFile(activePath, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := release(); err != nil {
+		t.Error(err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("task complete returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("task complete did not finish after workflow lock was released")
+	}
+
+	// The completed task must preserve the concurrent update, proving that the
+	// status transition re-resolved the target under the lock.
+	completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
+	assertFileContainsAll(t, completedPath, "title: Updated Title", "# Updated Title")
+}
+
 func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")

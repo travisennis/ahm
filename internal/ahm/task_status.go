@@ -28,13 +28,21 @@ func bucketForStatus(status string) string {
 	}
 }
 
+// taskStatusPreLockHook is called in taskStatusWithArgs after the initial
+// task resolution and before the mutation lock is acquired. It is used by
+// tests to establish a deterministic ordering with concurrent updates.
+var taskStatusPreLockHook = func() {}
+
 func (a *app) taskStatus(argv []string, status string) error {
 	return a.taskStatusWithArgs(taskStatusArgs{ids: argv, status: status})
 }
 
 func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
-	task, err := a.resolveTask(parsed.ids[0])
-	if err != nil {
+	// Resolve the task early so we can report "not found" before trying to
+	// acquire the mutation lock. Parse warnings are deferred to the fresh
+	// resolution under the lock so they are emitted only once.
+	tasks, _ := a.getTasks()
+	if _, err := resolveTaskFromTasks(parsed.ids[0], tasks); err != nil {
 		return err
 	}
 	cancelReason := strings.TrimSpace(parsed.reason)
@@ -42,13 +50,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		return usageError("task cancel requires --reason\n  ahm task cancel <id> --reason <text>")
 	}
 
-	// True no-op: status and bucket both match. Cancellation still rewrites the
-	// task so the required reason can be inserted or replaced.
-	expectedBucket := bucketForStatus(parsed.status)
-	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" {
-		fmt.Fprintf(a.out, "%s already %s\n", task.ID, parsed.status)
-		return nil
-	}
+	taskStatusPreLockHook()
 
 	if !a.opts.dryRun {
 		release, err := acquireWorkflowLock(a.opts.root, "task-mutate")
@@ -60,19 +62,30 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 				fmt.Fprintln(a.err, err)
 			}
 		}()
-		return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+	}
+
+	// Re-resolve from fresh on-disk state (under the lock when mutating) so
+	// that any concurrent updates that landed before lock acquisition are
+	// preserved instead of overwritten by a pre-lock Task value.
+	a.invalidateTasks()
+	task, err := a.resolveTask(parsed.ids[0])
+	if err != nil {
+		return err
 	}
 	return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
 }
 
 func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelReason string) error {
 	defer a.emitWarnings()
-	// Invalidate the task cache so the locked section reads fresh state from
-	// disk. resolveTask outside the lock may have populated the cache before
-	// the lock was acquired, and concurrent completions may have changed the
-	// on-disk state since then.
-	a.invalidateTasks()
 	status := parsed.status
+
+	// True no-op: status and bucket both match. Cancellation still rewrites the
+	// task so the required reason can be inserted or replaced.
+	expectedBucket := bucketForStatus(parsed.status)
+	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" {
+		fmt.Fprintf(a.out, "%s already %s\n", task.ID, parsed.status)
+		return nil
+	}
 
 	var allTasks []Task
 	var allTasksLoaded bool
