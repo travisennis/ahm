@@ -219,7 +219,8 @@ func parseCursorReviewFeedback(output []byte) (string, error) {
 }
 
 // claudeStreamEvent represents a single JSONL event in Claude Code's
-// stream-json output (claude -p --verbose --output-format stream-json).
+// stream-json output (claude -p --verbose --output-format stream-json
+// --dangerously-skip-permissions).
 type claudeStreamEvent struct {
 	Type      string `json:"type"`
 	Subtype   string `json:"subtype,omitempty"`
@@ -254,7 +255,7 @@ func parseClaudeSessionID(output []byte) (string, error) {
 // claudeResumeArgs constructs the arguments to resume a Claude Code session
 // with a follow-up prompt.
 func claudeResumeArgs(sessionID, prompt string) []string {
-	return []string{"-p", "--verbose", "--resume", sessionID, "--output-format", "stream-json", prompt}
+	return []string{"-p", "--verbose", "--resume", sessionID, "--output-format", "stream-json", claudeSkipPermissionsFlag, prompt}
 }
 
 // parseClaudeReviewFeedback parses Claude Code stream-json output and returns

@@ -65,6 +65,14 @@ non-interactive automation posture: it avoids sandbox and approval deadlocks
 while allowing Codex to edit files, run verification that writes outside the
 repository cache, complete tasks, and perform the optional commit handoff.
 
+For Claude Code specifically, `ahm` invokes `claude -p` for the work, review,
+and resume phases with `--dangerously-skip-permissions`. Claude Code denies
+mutating `Bash` and `Edit` operations by default in print mode because there is
+no interactive approval prompt; the flag pre-approves those tools for the
+non-interactive session. Like the Codex bypass, this is a broad automation
+posture and should only be used in repositories where that tradeoff is
+acceptable.
+
 With `--review` (removed in task 118; review now runs by default), `ahm` runs an independent review pass using the
 repository-owned preflight review workflow through the selected delegated agent
 and feeds actionable feedback back into the original work session. Review

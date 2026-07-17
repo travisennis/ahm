@@ -14,7 +14,10 @@ type taskWorkRoles struct {
 	reviewModel string
 }
 
-const codexBypassApprovalsAndSandboxFlag = "--dangerously-bypass-approvals-and-sandbox"
+const (
+	codexBypassApprovalsAndSandboxFlag = "--dangerously-bypass-approvals-and-sandbox"
+	claudeSkipPermissionsFlag          = "--dangerously-skip-permissions"
+)
 
 type taskWorkAgent struct {
 	name                string
@@ -184,9 +187,9 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			name:       "claude",
 			executable: "claude",
 			args: func(prompt, model string) []string {
-				base := []string{"-p", "--verbose", "--output-format", "stream-json"}
+				base := []string{"-p", "--verbose", "--output-format", "stream-json", claudeSkipPermissionsFlag}
 				if model != "" {
-					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json"}, prompt)
+					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json", claudeSkipPermissionsFlag}, prompt)
 					return base
 				}
 				return append(base, prompt)
@@ -194,9 +197,9 @@ func parseTaskWorkAgent(value string) (taskWorkAgent, error) {
 			resumeArgs:     claudeResumeArgs,
 			parseSessionID: parseClaudeSessionID,
 			reviewArgs: func(prompt, model string) []string {
-				base := []string{"-p", "--verbose", "--output-format", "stream-json"}
+				base := []string{"-p", "--verbose", "--output-format", "stream-json", claudeSkipPermissionsFlag}
 				if model != "" {
-					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json"}, prompt)
+					base = append([]string{"-p", "--model", model, "--verbose", "--output-format", "stream-json", claudeSkipPermissionsFlag}, prompt)
 					return base
 				}
 				return append(base, prompt)

@@ -28,6 +28,22 @@ golden transcripts, and live agent smoke tests.
 - Tasks labeled `area:agent` and `risk:external-service` need live-run evidence
   in Acceptance Notes before completion.
 
+## Agent-Specific Permission Notes
+
+- `codex` is invoked with `--dangerously-bypass-approvals-and-sandbox` so it can
+  edit files, run verification, and complete tasks without interactive approval
+  prompts in non-interactive mode.
+- `claude` is invoked with `--dangerously-skip-permissions` in print mode (`-p`)
+  for the work, review, and resume phases. This is required because Claude Code
+  denies all mutating `Bash` and `Edit` tool operations by default when no
+  interactive approval prompt is available. The flag must be repeated on every
+  invocation; permission mode is per-process and is not inherited by `--resume`.
+- `cursor` is invoked with `--trust` so the cursor-agent CLI can operate without
+  per-action approval prompts.
+
+`cake` does not require an explicit permission flag; it manages its own
+non-interactive policy via the `cake` CLI configuration.
+
 ## Common Failure Modes
 
 - Fixtures matching the parser's invented schema instead of the real CLI.

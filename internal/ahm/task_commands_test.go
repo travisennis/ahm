@@ -2348,7 +2348,7 @@ func TestTaskWorkModelWithAllAgents(t *testing.T) {
 		{name: "cake", agentFlag: "cake", executable: "cake", modelName: "claude-sonnet-4", wantPrefix: []string{"--output-format", "stream-json", "--model", "claude-sonnet-4"}},
 		{name: "codex", agentFlag: "codex", executable: "codex", modelName: "o3-mini", wantPrefix: []string{"exec", "--model", "o3-mini", "--dangerously-bypass-approvals-and-sandbox", "--json"}},
 		{name: "cursor", agentFlag: "cursor", executable: "cursor-agent", modelName: "gpt-4o", wantPrefix: []string{"-p", "--model", "gpt-4o", "--output-format", "stream-json", "--trust"}},
-		{name: "claude", agentFlag: "claude", executable: "claude", modelName: "sonnet", wantPrefix: []string{"-p", "--model", "sonnet", "--verbose", "--output-format", "stream-json"}},
+		{name: "claude", agentFlag: "claude", executable: "claude", modelName: "sonnet", wantPrefix: []string{"-p", "--model", "sonnet", "--verbose", "--output-format", "stream-json", "--dangerously-skip-permissions"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -2578,7 +2578,7 @@ func TestTaskWorkAgentInvocations(t *testing.T) {
 		{name: "cake", executable: "cake", prefix: []string{"--output-format", "stream-json"}},
 		{name: "codex", executable: "codex", prefix: []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "--json"}},
 		{name: "cursor", executable: "cursor-agent", prefix: []string{"-p", "--output-format", "stream-json", "--trust"}},
-		{name: "claude", executable: "claude", prefix: []string{"-p", "--verbose", "--output-format", "stream-json"}},
+		{name: "claude", executable: "claude", prefix: []string{"-p", "--verbose", "--output-format", "stream-json", "--dangerously-skip-permissions"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			agent, err := parseTaskWorkAgent(tt.name)
@@ -2870,7 +2870,7 @@ func TestCursorResumeArgs(t *testing.T) {
 
 func TestClaudeResumeArgs(t *testing.T) {
 	args := claudeResumeArgs("sess_abc", "Continue working")
-	want := []string{"-p", "--verbose", "--resume", "sess_abc", "--output-format", "stream-json", "Continue working"}
+	want := []string{"-p", "--verbose", "--resume", "sess_abc", "--output-format", "stream-json", "--dangerously-skip-permissions", "Continue working"}
 	if len(args) != len(want) {
 		t.Errorf("args = %#v, want %#v", args, want)
 	}
@@ -3174,6 +3174,7 @@ func TestTaskWorkClaudeDryRunPreviewsStreamJSONArgs(t *testing.T) {
 		"task: 001",
 		"-p",
 		"--verbose",
+		"--dangerously-skip-permissions",
 		"stream-json",
 		"prompt: Work on task 001.",
 		"review: true",
@@ -3189,7 +3190,7 @@ func TestTaskWorkClaudeSessionCapture(t *testing.T) {
 		return "/stub/claude", nil
 	})
 	stubTaskWorkRunner(t, func(ctx context.Context, root string, executable string, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-		if len(args) < 5 || args[0] != "-p" || args[1] != "--verbose" || args[2] != "--output-format" || args[3] != "stream-json" {
+		if len(args) < 6 || args[0] != "-p" || args[1] != "--verbose" || args[2] != "--output-format" || args[3] != "stream-json" || args[4] != "--dangerously-skip-permissions" {
 			t.Errorf("unexpected claude args = %#v", args)
 		}
 		fmt.Fprintln(stdout, `{"type":"system","subtype":"init","session_id":"claude_sess_abc123"}`)
@@ -3265,7 +3266,7 @@ func TestTaskWorkReviewArgs(t *testing.T) {
 		},
 		{
 			name: "claude",
-			want: []string{"-p", "--verbose", "--output-format", "stream-json", "Review the changes."},
+			want: []string{"-p", "--verbose", "--output-format", "stream-json", "--dangerously-skip-permissions", "Review the changes."},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
