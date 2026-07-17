@@ -41,38 +41,6 @@ the guarantee that `ahm` does not patch project source, stage files, move
 When this file conflicts with a specialized workflow doc for that workflow,
 the specialized doc wins.
 
-## Managed Work With `ahm`
-
-`ahm` is for understanding and managing higher-order workflow records. It is
-not the implementation route. Use it first when the user asks about a managed
-work item, then return to Workflow Routing and choose the route for the actual
-change.
-
-Run `ahm prime` at session start for live state and routing. Then use these
-entry points:
-
-- Tasks: run `ahm context task`, inspect the relevant task with `ahm task show <id>`
-  (which prints the task file contents), and open the task file directly only when
-  `ahm` is unavailable or when manually editing the task record.
-- ExecPlans: run `ahm context plan` when the request or task calls for an
-  ExecPlan.
-- ADRs: run `ahm context adr` when the request or task calls for an ADR.
-- Research: run `ahm context research` and use the generated research index in
-  the current storage mode (`.agents/.research/index.md` or
-  `.ahm/research/index.md`) as the map when asked to create, update,
-  organize, or use research.
-- Backlog grooming: run `ahm task groom [<id>]`; ahm delegates judgment and
-  applies structured task-record changes.
-- Improvement audit: run `ahm audit`; findings become Open tasks with
-  `source:audit` provenance.
-- Finished task-work review: `ahm task work` carries the binary-embedded
-  preflight procedure; there is no installed skill or separate command.
-
-After `ahm` intake, re-classify the discovered work under Workflow Routing.
-For example, a task about CLI flags still uses the CLI routing docs; a task
-about atomic writes still uses the Safety routing docs; a task about templates
-or workflow formats still uses the Workflow State routing docs.
-
 ## Workflow Routing
 
 ### CLI, User Output, And Exit Behavior
@@ -140,6 +108,18 @@ When deciding what build, test, lint, verification, or commit-prep commands to
 run, consult [`CONTRIBUTING.md`](CONTRIBUTING.md). It is the canonical source
 for the command catalog, verification expectations, and project-specific
 command pitfalls.
+
+### Managed Work Intake With `ahm`
+
+`ahm` is for understanding and managing higher-order workflow records. It is not the implementation route. Use it first when the user asks about a managed work item, then return to Workflow Routing and choose the route for the actual change.
+
+Always run `ahm prime` before starting work on a managed-work item (task, ExecPlan, ADR, or research note), and re-run it after context compaction. It reports workflow state, in-progress and ready tasks, validation warnings, and which scoped `ahm context <scope>` command covers the work at hand. Work done without it often conflicts with tracked in-progress work.
+
+After `ahm` intake, re-classify the discovered work under Workflow Routing. For example, a task about CLI flags still uses the CLI route; a task about sandbox policy still uses the sandboxing route; a task about prompt, skill, or hook behavior still uses the prompts, skills, and hooks route.
+
+After completing a task, do preflight checks on your work to make sure it is ready to be committed.
+
+Never hand-edit generated task, research, ExecPlan, or ADR indexes. Update the source records and run the appropriate `ahm` command. Use `ahm task` commands for task state moves and `ahm adr` commands for ADR lifecycle changes.
 
 ## Repository Rules
 
