@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestWriteFileAtomic_WritesContentCorrectly(t *testing.T) {
@@ -135,6 +137,12 @@ func TestWriteFileAtomic_StaleTmpCleanedByCleanupStaleTemps(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Age the .tmp file so cleanupStaleTemps considers it stale.
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(stalePath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
 	// cleanupStaleTemps must remove the stale .tmp.
 	if err := cleanupStaleTemps(dir); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
@@ -185,6 +193,15 @@ func TestCleanupStaleTemps(t *testing.T) {
 	// where the rename succeeded but the .tmp wasn't cleaned up).
 	staleTmp := filepath.Join(taskDir, "001.md.tmp")
 	if err := os.WriteFile(staleTmp, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Age the stale .tmp files so cleanupStaleTemps considers them stale.
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(orphanTmp, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(staleTmp, past, past); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,6 +256,17 @@ func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Age both .tmp files so cleanupStaleTemps considers them stale. The stuck
+	// file must be old enough to be eligible for removal; that eligibility is
+	// what triggers the permission-denied failure below.
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(stuckTmp, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(removableTmp, past, past); err != nil {
+		t.Fatal(err)
+	}
+
 	// Make the locked directory read-only so its .tmp cannot be removed.
 	if err := os.Chmod(lockedDir, 0o555); err != nil {
 		t.Fatal(err)
@@ -269,6 +297,110 @@ func TestCleanupStaleTemps_NoAgentsDir(t *testing.T) {
 	// No .agents directory — should not error.
 	if err := cleanupStaleTemps(dir); err != nil {
 		t.Errorf("cleanupStaleTemps on dir without .agents: %v", err)
+	}
+}
+
+func TestCleanupStaleTemps_SkipsFreshTemp(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".agents")
+	freshTmp := filepath.Join(agentsDir, "fresh.md.tmp")
+
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(freshTmp, []byte("fresh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The fresh .tmp file must be preserved.
+	if err := cleanupStaleTemps(dir); err != nil {
+		t.Errorf("cleanupStaleTemps: %v", err)
+	}
+	if _, err := os.Stat(freshTmp); err != nil {
+		t.Errorf("fresh .tmp file was removed: %v", err)
+	}
+}
+
+func TestCleanupStaleTemps_RemovesOldOrphanTemp(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".agents")
+	orphanTmp := filepath.Join(agentsDir, "orphan.md.tmp")
+
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(orphanTmp, []byte("orphan"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Age the orphan .tmp file so cleanupStaleTemps considers it stale.
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(orphanTmp, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cleanupStaleTemps(dir); err != nil {
+		t.Errorf("cleanupStaleTemps: %v", err)
+	}
+	if _, err := os.Stat(orphanTmp); !os.IsNotExist(err) {
+		t.Errorf("old orphan .tmp file was not removed")
+	}
+}
+
+func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".agents")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var activeTmp string
+	ready := make(chan struct{})
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		f, err := os.CreateTemp(agentsDir, "active.md.*.tmp")
+		if err != nil {
+			t.Errorf("create active temp: %v", err)
+			close(ready)
+			return
+		}
+		activeTmp = f.Name()
+		close(ready)
+		<-done
+		_ = f.Close()
+	}()
+
+	<-ready
+	if activeTmp == "" {
+		t.Fatal("active temp path was not set")
+	}
+
+	// Run cleanup while the goroutine still holds the temp file open.
+	if err := cleanupStaleTemps(dir); err != nil {
+		t.Errorf("cleanupStaleTemps: %v", err)
+	}
+	close(done)
+	wg.Wait()
+
+	// The active temp file must still exist because it is fresh.
+	if _, err := os.Stat(activeTmp); err != nil {
+		t.Errorf("active .tmp file was removed during an active write: %v", err)
+	}
+
+	// Once the writer is finished, the file should still be removable after
+	// aging it past the threshold.
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(activeTmp, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanupStaleTemps(dir); err != nil {
+		t.Errorf("cleanupStaleTemps after aging: %v", err)
+	}
+	if _, err := os.Stat(activeTmp); !os.IsNotExist(err) {
+		t.Errorf("aged .tmp file was not removed after the active writer finished")
 	}
 }
 

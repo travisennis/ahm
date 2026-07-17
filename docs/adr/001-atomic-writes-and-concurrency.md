@@ -41,7 +41,9 @@ The helper guarantees:
 - **Stale `.tmp` cleanup**: On write failure, the unique `.tmp` file from that
   attempt is cleaned up. A broader stale-`.tmp` scan runs opportunistically at
   the start of `init`, `upgrade`, and `index` commands to clean up orphaned
-  temp files left by a previous crash.
+  temp files left by a previous crash. The scan only removes `.tmp` files that
+  are older than a conservative threshold (currently five minutes) so that
+  temp files from an active writer are never reaped.
 
 ### Advisory locking (deferred)
 
@@ -73,8 +75,12 @@ path is reserved for that future use.
 - Routing every managed write through one function makes it trivial to add
   locking later if needed.
 - The stale-`.tmp` cleanup is conservative: it only removes files matching
-  `*.tmp` that (a) end with `.tmp`, (b) have a corresponding non-`.tmp` path
-  that exists, (c) are regular files, and (d) are within `.agents/`.
+  `*.tmp` that (a) are within the workflow state directories, (b) are older
+  than `cleanupStaleTempMaxAge` (five minutes), (c) can be inspected without
+  stat errors, and (d) are regular files. The age threshold prevents a cleanup
+  scan from deleting a temp file that another `ahm` process is currently
+  writing, which would cause that process's atomic rename to fail with
+  `ENOENT`.
 - Deferring locking avoids Windows-compatibility complexity and keeps the
   change focused on the highest-impact safety improvement.
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // writeFileAtomic writes data to the specified path atomically.
@@ -98,11 +99,17 @@ func fsyncDir(path string) error {
 	return err
 }
 
+// cleanupStaleTempMaxAge is the minimum age a .tmp file must reach before
+// cleanupStaleTemps considers it safely stale. This protects temp files from
+// concurrent atomic writes that are still in progress: a temp file created by
+// an active writer will have a recent modification time and will be skipped.
+var cleanupStaleTempMaxAge = 5 * time.Minute
+
 // cleanupStaleTemps scans the workflow state directories inside root
-// (.agents and, for migrated repositories, .ahm) for orphaned .tmp files —
-// files ending in ".tmp" whose corresponding non-.tmp path does not exist or
-// is not a regular file. Such files can be left behind by a crash during an
-// atomic write.
+// (.agents and, for migrated repositories, .ahm) for orphaned .tmp files left
+// behind by a crash during an atomic write. Only .tmp files whose modification
+// time is older than cleanupStaleTempMaxAge are removed, so temp files from an
+// active writer are never reaped.
 //
 // Only regular files under the scanned directories are considered; files in
 // subdirectories like .git/ are not scanned.
@@ -134,6 +141,7 @@ func cleanupStaleTempsIn(stateDir string, removeFailures *[]string) error {
 		return nil
 	}
 
+	cutoff := time.Now().Add(-cleanupStaleTempMaxAge)
 	return filepath.WalkDir(stateDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -149,6 +157,19 @@ func cleanupStaleTempsIn(stateDir string, removeFailures *[]string) error {
 		// symlink-TOC-TOU attacks (gosec G122).
 		cleanPath := filepath.Clean(path)
 		if !strings.HasPrefix(cleanPath, filepath.Clean(stateDir)) {
+			return nil
+		}
+
+		// Only remove temps old enough to be confidently stale. Stat errors
+		// are handled conservatively: if we cannot inspect the file, leave it.
+		info, statErr := os.Stat(cleanPath)
+		if statErr != nil {
+			if os.IsNotExist(statErr) {
+				return nil
+			}
+			return nil
+		}
+		if info.ModTime().After(cutoff) {
 			return nil
 		}
 
