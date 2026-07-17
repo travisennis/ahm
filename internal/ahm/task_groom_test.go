@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -278,6 +279,105 @@ func TestParseGroomResultRejectsMissingAndUnknownFields(t *testing.T) {
 	} {
 		if _, err := parseGroomResult([]byte(raw)); err == nil {
 			t.Fatalf("parseGroomResult(%s) succeeded", raw)
+		}
+	}
+}
+
+func TestValidateGroomResultNoAliasing(t *testing.T) {
+	fullCap := func(deps ...string) []string {
+		s := make([]string, len(deps))
+		copy(s, deps)
+		return s
+	}
+	spareCap := func(deps ...string) []string {
+		s := make([]string, 0, len(deps)+3)
+		return append(s, deps...)
+	}
+
+	tasks := []Task{
+		{ID: "001", Status: "Open", Labels: "type:task", DependsOn: fullCap("002", "003")},
+		{ID: "002", Status: "Open", Labels: "type:task", DependsOn: spareCap("004")},
+		{ID: "003", Status: "Pending", Labels: "type:task"},
+		{ID: "004", Status: "Pending", Labels: "type:task"},
+	}
+
+	before := make([][]string, len(tasks))
+	for i := range tasks {
+		before[i] = append([]string(nil), tasks[i].DependsOn...)
+	}
+
+	result := groomResult{Verdicts: []groomVerdict{
+		{Task: "001", Action: "accept", Comment: "Ready.", AddDeps: []string{"004"}, RemoveDeps: []string{"002"}, Labels: []string{}},
+		{Task: "002", Action: "comment", Comment: "Still blocked.", AddDeps: []string{}, RemoveDeps: []string{"004"}, Labels: []string{}},
+		{Task: "003", Action: "comment", Comment: "OK.", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}},
+		{Task: "004", Action: "comment", Comment: "OK.", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}},
+	}}
+
+	for run := 0; run < 50; run++ {
+		if _, err := validateGroomResult(result, tasks, tasks); err != nil {
+			t.Fatalf("run %d: validateGroomResult error = %v", run, err)
+		}
+		for i := range tasks {
+			if !slices.Equal(tasks[i].DependsOn, before[i]) {
+				t.Fatalf("run %d: task %s DependsOn mutated: got %v, want %v", run, tasks[i].ID, tasks[i].DependsOn, before[i])
+			}
+		}
+	}
+}
+
+func TestApplyGroomVerdictsNoAliasing(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First", "Open", "002,003")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Second", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Third", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Fourth", "Pending", "")
+
+	a := &app{opts: options{root: root}, out: io.Discard, err: io.Discard}
+	verdicts := []groomVerdict{
+		{Task: "001", Action: "accept", Comment: "Ready.", AddDeps: []string{"004"}, RemoveDeps: []string{"002"}, Labels: []string{}},
+	}
+
+	for run := 0; run < 10; run++ {
+		tasks, err := a.getTasks()
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := make([][]string, len(tasks))
+		for i := range tasks {
+			before[i] = append([]string(nil), tasks[i].DependsOn...)
+		}
+
+		summary, err := a.applyGroomVerdicts(verdicts, tasks, "test")
+		if err != nil {
+			t.Fatalf("run %d: applyGroomVerdicts error = %v", run, err)
+		}
+		if len(summary.Changes) != 1 {
+			t.Fatalf("run %d: changes = %d, want 1", run, len(summary.Changes))
+		}
+		change := summary.Changes[0]
+		if !slices.Equal(change.AddedDeps, []string{"004"}) {
+			t.Errorf("run %d: AddedDeps = %v, want [004]", run, change.AddedDeps)
+		}
+		if !slices.Equal(change.RemovedDeps, []string{"002"}) {
+			t.Errorf("run %d: RemovedDeps = %v, want [002]", run, change.RemovedDeps)
+		}
+
+		for i := range tasks {
+			if !slices.Equal(tasks[i].DependsOn, before[i]) {
+				t.Fatalf("run %d: task %s DependsOn mutated: got %v, want %v", run, tasks[i].ID, tasks[i].DependsOn, before[i])
+			}
+		}
+
+		data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertContainsAll(t, string(data), "depends_on: 003, 004", "status: Pending")
+
+		// Reset the file for the next deterministic run.
+		if run < 9 {
+			writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First", "Open", "002,003")
+			a.invalidateTasks()
 		}
 	}
 }

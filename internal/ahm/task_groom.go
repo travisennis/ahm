@@ -360,6 +360,31 @@ func decodeGroomJSON(data []byte) (groomResult, error) {
 	return result, nil
 }
 
+// buildGroomDependsOn returns a new dependency slice containing the existing
+// dependencies plus addDeps minus removeDeps, sorted deterministically. It
+// never mutates the input slice or its backing array.
+func buildGroomDependsOn(existing []string, addDeps, removeDeps []string) []string {
+	deps := make(map[string]bool, len(existing)+len(addDeps))
+	for _, dep := range existing {
+		deps[dep] = true
+	}
+	for _, dep := range removeDeps {
+		delete(deps, dep)
+	}
+	for _, dep := range addDeps {
+		deps[dep] = true
+	}
+	if len(deps) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(deps))
+	for dep := range deps {
+		result = append(result, dep)
+	}
+	sort.Slice(result, func(i, j int) bool { return taskLess(result[i], result[j]) })
+	return result
+}
+
 func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdict, error) {
 	targetByID := map[string]Task{}
 	allIDs, vocabulary := map[string]bool{}, map[string]bool{}
@@ -419,26 +444,19 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 			return nil, fmt.Errorf("missing verdict for task %s", task.ID)
 		}
 	}
-	modified := append([]Task(nil), all...)
+	modified := make([]Task, len(all))
+	copy(modified, all)
+	for i := range modified {
+		if modified[i].DependsOn != nil {
+			modified[i].DependsOn = append([]string(nil), modified[i].DependsOn...)
+		}
+	}
 	for i := range modified {
 		for _, verdict := range result.Verdicts {
 			if modified[i].ID != verdict.Task {
 				continue
 			}
-			deps := map[string]bool{}
-			for _, dep := range modified[i].DependsOn {
-				deps[dep] = true
-			}
-			for _, dep := range verdict.RemoveDeps {
-				delete(deps, dep)
-			}
-			for _, dep := range verdict.AddDeps {
-				deps[dep] = true
-			}
-			modified[i].DependsOn = modified[i].DependsOn[:0]
-			for dep := range deps {
-				modified[i].DependsOn = append(modified[i].DependsOn, dep)
-			}
+			modified[i].DependsOn = buildGroomDependsOn(modified[i].DependsOn, verdict.AddDeps, verdict.RemoveDeps)
 			if len(verdict.Labels) > 0 {
 				modified[i].Labels = strings.Join(verdict.Labels, ", ")
 			}
@@ -493,11 +511,7 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 				change.AddedDeps = append(change.AddedDeps, dep)
 			}
 		}
-		task.DependsOn = task.DependsOn[:0]
-		for dep := range deps {
-			task.DependsOn = append(task.DependsOn, dep)
-		}
-		sort.Slice(task.DependsOn, func(i, j int) bool { return taskLess(task.DependsOn[i], task.DependsOn[j]) })
+		task.DependsOn = buildGroomDependsOn(task.DependsOn, verdict.AddDeps, verdict.RemoveDeps)
 		if len(verdict.Labels) > 0 {
 			task.Labels = strings.Join(verdict.Labels, ", ")
 			change.Labels = verdict.Labels
