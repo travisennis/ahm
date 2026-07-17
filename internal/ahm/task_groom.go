@@ -161,29 +161,26 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	if err != nil {
 		return fmt.Errorf("invalid groom result; no changes applied (raw output preserved below): %w\n%s", err, out.String())
 	}
-	release, err := acquireWorkflowLock(a.opts.root, "task-mutate")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = release() }()
-	a.invalidateTasks()
-	current, err := a.getTasks()
-	if err != nil {
-		return fmt.Errorf("cannot apply groom result after task state changed: %w", err)
-	}
-	currentTargets, err := groomTargets(current, parsed.id)
-	if err != nil {
-		return err
-	}
-	validated, err := validateGroomResult(result, currentTargets, current)
-	if err != nil {
-		return fmt.Errorf("groom targets changed before apply; no changes applied: %w", err)
-	}
-	summary, err := a.applyGroomVerdicts(validated, current, roles.implAgent.name)
-	if err != nil {
-		return err
-	}
-	return a.emit(summary)
+	return a.withWorkflowRecordLock(true, func() error {
+		a.invalidateTasks()
+		current, err := a.getTasks()
+		if err != nil {
+			return fmt.Errorf("cannot apply groom result after task state changed: %w", err)
+		}
+		currentTargets, err := groomTargets(current, parsed.id)
+		if err != nil {
+			return err
+		}
+		validated, err := validateGroomResult(result, currentTargets, current)
+		if err != nil {
+			return fmt.Errorf("groom targets changed before apply; no changes applied: %w", err)
+		}
+		summary, err := a.applyGroomVerdicts(validated, current, roles.implAgent.name)
+		if err != nil {
+			return err
+		}
+		return a.emit(summary)
+	})
 }
 
 func groomTargets(tasks []Task, id string) ([]Task, error) {

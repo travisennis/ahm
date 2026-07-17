@@ -33,43 +33,42 @@ var adrFullSupersessionPattern = regexp.MustCompile(`(?i)^Superseded\s*$`)
 var adrPartialSupersessionPattern = regexp.MustCompile(`(?i)^Accepted,\s*superseded\s+in\s+part\s+by\s+ADR\s*-?\s*([0-9]{3})\s*$`)
 
 func (a *app) adrMigrate() error {
-	paths, err := adrFilePaths(a.opts.root)
+	defer a.emitWarnings()
+
+	if a.opts.dryRun || a.opts.json || a.opts.plain {
+		return a.adrMigratePreview()
+	}
+	return a.withWorkflowRecordLock(true, func() error {
+		return a.adrMigrateLocked()
+	})
+}
+
+func (a *app) adrMigratePreview() error {
+	migrations, _, err := a.adrMigrateCompute()
 	if err != nil {
 		return err
-	}
-	var migrations []adrMigration
-	writes := map[string]string{}
-	for _, path := range paths {
-		data, err := readWorkflowFile(path)
-		if err != nil {
-			return err
-		}
-		next, changes := migrateLegacyADR(string(data), path)
-		if len(changes) == 0 {
-			continue
-		}
-		rel := relPath(a.opts.root, path)
-		migrations = append(migrations, adrMigration{Path: rel, Changes: changes})
-		if next != string(data) {
-			writes[path] = next
-		}
 	}
 	if a.opts.json || a.opts.plain {
 		return a.emit(map[string]any{"migrations": migrations})
 	}
-	if a.opts.dryRun {
-		if len(migrations) == 0 {
-			fmt.Fprintln(a.out, "No ADR migrations found")
-			return nil
-		}
-		fmt.Fprintln(a.out, "migrations:")
-		for _, migration := range migrations {
-			fmt.Fprintf(a.out, "  %s:\n", migration.Path)
-			for _, change := range migration.Changes {
-				fmt.Fprintf(a.out, "    - %s\n", change)
-			}
-		}
+	if len(migrations) == 0 {
+		fmt.Fprintln(a.out, "No ADR migrations found")
 		return nil
+	}
+	fmt.Fprintln(a.out, "migrations:")
+	for _, migration := range migrations {
+		fmt.Fprintf(a.out, "  %s:\n", migration.Path)
+		for _, change := range migration.Changes {
+			fmt.Fprintf(a.out, "    - %s\n", change)
+		}
+	}
+	return nil
+}
+
+func (a *app) adrMigrateLocked() error {
+	_, writes, err := a.adrMigrateCompute()
+	if err != nil {
+		return err
 	}
 	for _, path := range sortedKeys(writes) {
 		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
@@ -83,6 +82,31 @@ func (a *app) adrMigrate() error {
 	}
 	fmt.Fprintf(a.out, "migrated %d ADR files\n", len(writes))
 	return nil
+}
+
+func (a *app) adrMigrateCompute() ([]adrMigration, map[string]string, error) {
+	paths, err := adrFilePaths(a.opts.root)
+	if err != nil {
+		return nil, nil, err
+	}
+	var migrations []adrMigration
+	writes := map[string]string{}
+	for _, path := range paths {
+		data, err := readWorkflowFile(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		next, changes := migrateLegacyADR(string(data), path)
+		if len(changes) == 0 {
+			continue
+		}
+		rel := relPath(a.opts.root, path)
+		migrations = append(migrations, adrMigration{Path: rel, Changes: changes})
+		if next != string(data) {
+			writes[path] = next
+		}
+	}
+	return migrations, writes, nil
 }
 
 // migrateLegacyADR converts a legacy ADR (H1 + bold Status/Date) to MADR front

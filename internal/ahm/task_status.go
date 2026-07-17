@@ -52,27 +52,17 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 
 	taskStatusPreLockHook()
 
-	if !a.opts.dryRun {
-		release, err := acquireWorkflowLock(a.opts.root, "task-mutate")
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		// Re-resolve from fresh on-disk state (under the lock when mutating) so
+		// that any concurrent updates that landed before lock acquisition are
+		// preserved instead of overwritten by a pre-lock Task value.
+		a.invalidateTasks()
+		task, err := a.resolveTask(parsed.ids[0])
 		if err != nil {
 			return err
 		}
-		defer func() {
-			if err := release(); err != nil {
-				fmt.Fprintln(a.err, err)
-			}
-		}()
-	}
-
-	// Re-resolve from fresh on-disk state (under the lock when mutating) so
-	// that any concurrent updates that landed before lock acquisition are
-	// preserved instead of overwritten by a pre-lock Task value.
-	a.invalidateTasks()
-	task, err := a.resolveTask(parsed.ids[0])
-	if err != nil {
-		return err
-	}
-	return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+		return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+	})
 }
 
 func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelReason string) error {

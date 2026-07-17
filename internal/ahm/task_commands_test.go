@@ -151,7 +151,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	release, err := acquireWorkflowLock(root, "task-create")
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4138,7 +4138,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
 
-	release, err := acquireWorkflowLock(root, "task-mutate")
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4183,7 +4183,7 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Original Title", "Pending", "")
 
-	release, err := acquireWorkflowLock(root, "task-mutate")
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4232,6 +4232,83 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	// status transition re-resolved the target under the lock.
 	completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
 	assertFileContainsAll(t, completedPath, "title: Updated Title", "# Updated Title")
+}
+
+func TestTaskCommentAndCompleteSerialized(t *testing.T) {
+	saveLockTimeout(t)
+	workflowLockTimeout = 5 * time.Second
+	workflowLockRetryDelay = time.Millisecond
+
+	for i := 0; i < 10; i++ {
+		root := t.TempDir()
+		var installOut strings.Builder
+		installer := app{opts: options{root: root}, out: &installOut}
+		if err := installer.install(false); err != nil {
+			t.Fatal(err)
+		}
+
+		var createOut strings.Builder
+		creator := app{opts: options{root: root}, out: &createOut}
+		if err := creator.taskCreateParsed(taskCreateArgs{
+			title:    "Race Task",
+			priority: "P2",
+			effort:   "S",
+			status:   "Open",
+		}); err != nil {
+			t.Fatalf("create failed: %v", err)
+		}
+
+		var wg sync.WaitGroup
+		errc := make(chan error, 2)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			a := app{opts: options{root: root, force: true}, out: io.Discard}
+			errc <- a.taskStatus([]string{"001"}, "Completed")
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			a := app{opts: options{root: root}, out: io.Discard}
+			errc <- a.taskComment(taskCommentArgs{id: "001", text: "concurrent note"})
+		}()
+
+		wg.Wait()
+		close(errc)
+		for err := range errc {
+			if err != nil {
+				t.Fatalf("iteration %d: concurrent command failed: %v", i, err)
+			}
+		}
+
+		activePath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
+		completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
+		_, err := os.Stat(activePath)
+		activeExists := !os.IsNotExist(err)
+		_, err = os.Stat(completedPath)
+		completedExists := !os.IsNotExist(err)
+
+		if activeExists && completedExists {
+			t.Fatalf("iteration %d: duplicate active and completed 001.md", i)
+		}
+		if !activeExists && !completedExists {
+			t.Fatalf("iteration %d: 001.md missing from both buckets", i)
+		}
+
+		finalPath := activePath
+		if completedExists {
+			finalPath = completedPath
+		}
+		content := mustRead(t, finalPath)
+		if !strings.Contains(content, "concurrent note") {
+			t.Fatalf("iteration %d: comment missing from final task:\n%s", i, content)
+		}
+		if completedExists && !strings.Contains(content, "status: Completed") {
+			t.Fatalf("iteration %d: completed file missing status: Completed", i)
+		}
+	}
 }
 
 func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {

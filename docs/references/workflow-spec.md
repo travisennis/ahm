@@ -195,22 +195,18 @@ labels, dependencies, and the Problem, Relevant Files, Fix Direction, and
 Acceptance Notes section roles. Ahm preserves task identity, title, linkage and
 provenance metadata, unknown front-matter fields, comments, and all other body
 sections. It validates and renders the complete result batch before taking the
-task mutation lock or writing; invalid delegated output leaves every task and
+workflow record lock or writing; invalid delegated output leaves every task and
 index unchanged. ADR 017 defines the authority, preservation, readiness, and
 observability contract.
 
-`ahm task create` allocates task IDs under a repository-local workflow lock.
-The lock is held while the command computes the next numeric ID (or child ID),
-writes the new task file, and regenerates indexes, so concurrent creates in the
-same repository receive distinct IDs and the final generated indexes include all
-created tasks. `--dry-run` does not take the lock because it does not write
-workflow state.
-
-`ahm adr create` similarly serializes ID allocation under the repository-local
-workflow lock (`.agents/.lock/adr-create`, or `.ahm/.lock/adr-create` in
-migrated repositories). The lock is held while ADRs are collected, the
-next numeric ID is computed, the new ADR file is written, and indexes are
-regenerated. `--dry-run` does not take the lock.
+All workflow record mutations (`ahm task` lifecycle and metadata commands,
+`ahm adr` lifecycle commands, `ahm task groom`, `ahm records migrate`, and
+`ahm task|adr migrate`) serialize on a single repository-local workflow record
+lock. The lock lives under `.agents/.lock/workflow-records` or
+`.ahm/.lock/workflow-records` depending on the repository's storage mode. It is
+held across the full read-compute-write sequence for each command, including ID
+allocation, file writes, and index regeneration. `--dry-run` and read-only
+preview paths do not take the lock and do not write workflow state.
 
 When the `--parent <id>` flag is provided, `ahm task create` allocates the next
 available lettered child ID under that parent (`137a`, `137b`, ..., `137z`) and
@@ -448,11 +444,10 @@ rename is indistinguishable from a successful write. Stale `.tmp` files left
 by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
 and `index` commands.
 
-`ahm task create` and `ahm adr create` each use a repository-local lock under
-`.agents/.lock/` or `.ahm/.lock/` to serialize ID
-allocation and index regeneration across concurrent invocations. Other managed
-write paths rely on atomic rename semantics unless their read-compute-write
-behavior needs a narrower lock.
+All workflow record mutations share a single repository-local lock under
+`.agents/.lock/workflow-records` or `.ahm/.lock/workflow-records` to serialize
+read-compute-write sequences across concurrent `ahm` invocations. Dry-run and
+read-only preview paths do not take the lock.
 
 ### Generated Index Write Semantics
 

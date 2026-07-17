@@ -143,7 +143,20 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 		return a.emit(preview)
 	}
 	if task.Status == "Pending" {
-		if err := a.markTaskInProgress(task); err != nil {
+		if err := a.withWorkflowRecordLock(true, func() error {
+			a.invalidateTasks()
+			current, err := a.resolveTask(parsed.id)
+			if err != nil {
+				return err
+			}
+			if current.Status != "Pending" {
+				return fmt.Errorf("cannot work task %s: status changed to %s", current.ID, current.Status)
+			}
+			if err := a.ensureTaskDependenciesComplete(current); err != nil {
+				return err
+			}
+			return a.markTaskInProgressLocked(current)
+		}); err != nil {
 			return err
 		}
 	}
@@ -226,7 +239,7 @@ Use the repository task workflow. Keep changes scoped to the task. %s Do not com
 	return prompt
 }
 
-func (a *app) markTaskInProgress(task Task) error {
+func (a *app) markTaskInProgressLocked(task Task) error {
 	task.Status = "In Progress"
 	task.Updated = time.Now().Format(time.RFC3339)
 	target := workflowPathsFor(a.opts.root).taskFile("active", task.ID)

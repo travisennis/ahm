@@ -105,6 +105,15 @@ func minimumArgs(min int, message string) cobra.PositionalArgs {
 	}
 }
 func (a *app) taskDepUpdate(argv []string, add bool) error {
+	defer a.emitWarnings()
+
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		return a.taskDepUpdateLocked(argv, add)
+	})
+}
+
+func (a *app) taskDepUpdateLocked(argv []string, add bool) error {
+	a.invalidateTasks()
 	task, err := a.resolveTask(argv[0])
 	if err != nil {
 		return err

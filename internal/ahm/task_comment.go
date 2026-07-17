@@ -75,7 +75,15 @@ func (a *app) taskComment(parsed taskCommentArgs) error {
 		return usageError("comment text cannot be empty")
 	}
 
-	// Resolve the task across all buckets (active, completed, cancelled).
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		return a.taskCommentLocked(parsed, text)
+	})
+}
+
+func (a *app) taskCommentLocked(parsed taskCommentArgs, text string) error {
+	// Re-resolve the task from fresh on-disk state under the lock so we write
+	// to the current bucket/path, not a stale location.
+	a.invalidateTasks()
 	tasks, err := a.getTasks()
 	if err != nil {
 		a.addWarning("some task files could not be parsed and were skipped")

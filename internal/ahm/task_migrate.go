@@ -12,43 +12,42 @@ type taskMigration struct {
 }
 
 func (a *app) taskMigrate() error {
-	paths, err := taskMarkdownPaths(a.opts.root)
+	defer a.emitWarnings()
+
+	if a.opts.dryRun || a.opts.json || a.opts.plain {
+		return a.taskMigratePreview()
+	}
+	return a.withWorkflowRecordLock(true, func() error {
+		return a.taskMigrateLocked()
+	})
+}
+
+func (a *app) taskMigratePreview() error {
+	migrations, _, err := a.taskMigrateCompute()
 	if err != nil {
 		return err
-	}
-	var migrations []taskMigration
-	writes := map[string]string{}
-	for _, path := range paths {
-		data, err := readWorkflowFile(path)
-		if err != nil {
-			return err
-		}
-		next, changes := migrateTaskFrontMatter(string(data))
-		if len(changes) == 0 {
-			continue
-		}
-		rel := relPath(a.opts.root, path)
-		migrations = append(migrations, taskMigration{Path: rel, Changes: changes})
-		if next != string(data) {
-			writes[path] = next
-		}
 	}
 	if a.opts.json || a.opts.plain {
 		return a.emit(map[string]any{"migrations": migrations})
 	}
-	if a.opts.dryRun {
-		if len(migrations) == 0 {
-			fmt.Fprintln(a.out, "No task migrations found")
-			return nil
-		}
-		fmt.Fprintln(a.out, "migrations:")
-		for _, migration := range migrations {
-			fmt.Fprintf(a.out, "  %s:\n", migration.Path)
-			for _, change := range migration.Changes {
-				fmt.Fprintf(a.out, "    - %s\n", change)
-			}
-		}
+	if len(migrations) == 0 {
+		fmt.Fprintln(a.out, "No task migrations found")
 		return nil
+	}
+	fmt.Fprintln(a.out, "migrations:")
+	for _, migration := range migrations {
+		fmt.Fprintf(a.out, "  %s:\n", migration.Path)
+		for _, change := range migration.Changes {
+			fmt.Fprintf(a.out, "    - %s\n", change)
+		}
+	}
+	return nil
+}
+
+func (a *app) taskMigrateLocked() error {
+	_, writes, err := a.taskMigrateCompute()
+	if err != nil {
+		return err
 	}
 	for _, path := range sortedKeys(writes) {
 		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
@@ -62,6 +61,31 @@ func (a *app) taskMigrate() error {
 	}
 	fmt.Fprintf(a.out, "migrated %d task files\n", len(writes))
 	return nil
+}
+
+func (a *app) taskMigrateCompute() ([]taskMigration, map[string]string, error) {
+	paths, err := taskMarkdownPaths(a.opts.root)
+	if err != nil {
+		return nil, nil, err
+	}
+	var migrations []taskMigration
+	writes := map[string]string{}
+	for _, path := range paths {
+		data, err := readWorkflowFile(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		next, changes := migrateTaskFrontMatter(string(data))
+		if len(changes) == 0 {
+			continue
+		}
+		rel := relPath(a.opts.root, path)
+		migrations = append(migrations, taskMigration{Path: rel, Changes: changes})
+		if next != string(data) {
+			writes[path] = next
+		}
+	}
+	return migrations, writes, nil
 }
 
 func taskMarkdownPaths(root string) ([]string, error) {

@@ -231,19 +231,9 @@ func (a *app) adrCreateParsed(parsed adrCreateArgs) error {
 		return err
 	}
 	body = stripHeading(body, parsed.title)
-	if !a.opts.dryRun {
-		release, err := acquireWorkflowLock(a.opts.root, "adr-create")
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := release(); err != nil {
-				fmt.Fprintln(a.err, err)
-			}
-		}()
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
 		return a.adrCreateParsedLocked(parsed, body)
-	}
-	return a.adrCreateParsedLocked(parsed, body)
+	})
 }
 
 func (a *app) adrCreateParsedLocked(parsed adrCreateArgs, body string) error {
@@ -331,6 +321,13 @@ func (a *app) adrShow(id string) error {
 
 func (a *app) adrSetStatus(id string, status string) error {
 	defer a.emitWarnings()
+
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		return a.adrSetStatusLocked(id, status)
+	})
+}
+
+func (a *app) adrSetStatusLocked(id string, status string) error {
 	adr, err := a.resolveMutableADR(id)
 	if err != nil {
 		return err
@@ -360,6 +357,13 @@ func (a *app) adrSetStatus(id string, status string) error {
 
 func (a *app) adrSupersede(oldID string, newID string) error {
 	defer a.emitWarnings()
+
+	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		return a.adrSupersedeLocked(oldID, newID)
+	})
+}
+
+func (a *app) adrSupersedeLocked(oldID string, newID string) error {
 	newID = strings.TrimSpace(newID)
 	if newID == "" {
 		return usageError("adr supersede requires --by\n  ahm adr supersede <old-id> --by <new-id>")

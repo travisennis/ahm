@@ -419,7 +419,7 @@ func readMetadata(root string) (metadata, error) {
 func readMetadataWithSource(root string) (metadata, string, error) {
 	var meta metadata
 	relPath := metadataReadRelPath(root)
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relPath))) // #nosec G304 // path constructed from project root, not user input
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relPath))) // #nosec G304,G703 // path constructed from project root, not user input
 	if err != nil {
 		return meta, relPath, metadataReadError{RelPath: relPath, Err: err}
 	}
