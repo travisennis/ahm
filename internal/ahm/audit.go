@@ -241,7 +241,7 @@ func validateAuditResult(result auditResult, tasks []Task) error {
 	}
 	for i, f := range result.Findings {
 		n := i + 1
-		if strings.TrimSpace(f.Title) == "" || strings.ContainsAny(f.Title, "\r\n") {
+		if strings.TrimSpace(f.Title) == "" || strings.ContainsAny(f.Title, "\r\n") || strings.TrimSpace(f.Title) != f.Title {
 			return fmt.Errorf("finding %d has invalid title", n)
 		}
 		if titles[strings.ToLower(strings.TrimSpace(f.Title))] {

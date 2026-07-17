@@ -101,6 +101,10 @@ ahm task create "Add release workflow" --priority P1
 ahm task create Add release workflow --priority P1
 ```
 
+The title and `--labels` value must not contain leading or trailing whitespace,
+newlines, or carriage returns. An empty `--labels` value is canonicalized to the
+`-` sentinel.
+
 Command flags:
 
 | Flag | Description |

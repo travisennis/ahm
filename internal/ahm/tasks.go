@@ -189,11 +189,20 @@ func parseFrontMatterLine(line string) (string, string, bool, error) {
 	if strings.ContainsAny(key, " :") {
 		return "", "", false, fmt.Errorf("invalid front matter key %q", key)
 	}
-	value = unquoteFrontMatterScalar(value)
-	if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
-		return "", "", false, fmt.Errorf("unsupported block scalar in front matter field %q", key)
+	value = strings.TrimSpace(value)
+	// Only unquoted values that look like block scalars are rejected; a quoted
+	// value such as "| block" is intentionally escaped and must round-trip.
+	if !isDoubleQuoted(value) {
+		if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
+			return "", "", false, fmt.Errorf("unsupported block scalar in front matter field %q", key)
+		}
 	}
+	value = unquoteFrontMatterScalar(value)
 	return key, value, true, nil
+}
+
+func isDoubleQuoted(value string) bool {
+	return strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2
 }
 
 func frontMatterValue(line string) string {
@@ -206,11 +215,74 @@ func frontMatterValue(line string) string {
 
 func unquoteFrontMatterScalar(value string) string {
 	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2 {
-		value = value[1 : len(value)-1]
-		value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "\"") || !strings.HasSuffix(value, "\"") || len(value) < 2 {
+		return value
 	}
-	return value
+	value = value[1 : len(value)-1]
+	value = strings.TrimSpace(value)
+	var b strings.Builder
+	b.Grow(len(value))
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '\\' && i+1 < len(value) && value[i+1] == '"' {
+			b.WriteByte('"')
+			i++
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// renderFrontMatterScalar renders a single-line front-matter value so that
+// parseFrontMatterLine can read it back exactly. Newlines are collapsed to
+// spaces, leading/trailing whitespace is trimmed, and values that would be
+// misinterpreted by the minimal grammar are wrapped in double quotes. Inside
+// quoted values, double quotes are escaped as \" so that values beginning with
+// a quote can round-trip. Backslashes are left literal except when they precede
+// an escaped quote, which the parser unescapes back to a quote.
+func renderFrontMatterScalar(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", " ")
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "\r", " ")
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "\"\""
+	}
+	if !needsFrontMatterQuoting(value) {
+		return value
+	}
+	var b strings.Builder
+	b.Grow(len(value) + 2)
+	b.WriteByte('"')
+	for i := 0; i < len(value); i++ {
+		if value[i] == '"' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(value[i])
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// needsFrontMatterQuoting reports whether a trimmed, non-empty scalar must be
+// quoted to survive the minimal front-matter parser unchanged.
+func needsFrontMatterQuoting(value string) bool {
+	if value == "" {
+		return true
+	}
+	if strings.TrimSpace(value) != value {
+		return true
+	}
+	switch value[0] {
+	case '#', '|', '>', '"':
+		return true
+	case '-':
+		if len(value) >= 2 && value[1] == ' ' {
+			return true
+		}
+	}
+	return false
 }
 
 // metaExtra returns the subset of meta keys that are not known task fields.
@@ -369,28 +441,28 @@ func taskCounts(tasks []Task) map[string]int {
 func renderTask(task Task) string {
 	var b strings.Builder
 	fmt.Fprintln(&b, "---")
-	fmt.Fprintf(&b, "id: %s\n", task.ID)
-	fmt.Fprintf(&b, "title: %s\n", strings.ReplaceAll(strings.ReplaceAll(task.Title, "\r\n", " "), "\n", " "))
-	fmt.Fprintf(&b, "status: %s\n", task.Status)
-	fmt.Fprintf(&b, "priority: %s\n", task.Priority)
-	fmt.Fprintf(&b, "effort: %s\n", task.Effort)
-	fmt.Fprintf(&b, "labels: %s\n", strings.ReplaceAll(strings.ReplaceAll(task.Labels, "\r\n", " "), "\n", " "))
-	fmt.Fprintf(&b, "exec_plan: %s\n", task.ExecPlan)
-	fmt.Fprintf(&b, "depends_on: %s\n", formatList(task.DependsOn))
+	fmt.Fprintf(&b, "id: %s\n", renderFrontMatterScalar(task.ID))
+	fmt.Fprintf(&b, "title: %s\n", renderFrontMatterScalar(task.Title))
+	fmt.Fprintf(&b, "status: %s\n", renderFrontMatterScalar(task.Status))
+	fmt.Fprintf(&b, "priority: %s\n", renderFrontMatterScalar(task.Priority))
+	fmt.Fprintf(&b, "effort: %s\n", renderFrontMatterScalar(task.Effort))
+	fmt.Fprintf(&b, "labels: %s\n", renderFrontMatterScalar(task.Labels))
+	fmt.Fprintf(&b, "exec_plan: %s\n", renderFrontMatterScalar(task.ExecPlan))
+	fmt.Fprintf(&b, "depends_on: %s\n", renderFrontMatterScalar(formatList(task.DependsOn)))
 	if task.Created != "" {
-		fmt.Fprintf(&b, "created: %s\n", task.Created)
+		fmt.Fprintf(&b, "created: %s\n", renderFrontMatterScalar(task.Created))
 	}
 	if task.Updated != "" {
-		fmt.Fprintf(&b, "updated: %s\n", task.Updated)
+		fmt.Fprintf(&b, "updated: %s\n", renderFrontMatterScalar(task.Updated))
 	}
 	if task.Parent != "" {
-		fmt.Fprintf(&b, "parent: %s\n", task.Parent)
+		fmt.Fprintf(&b, "parent: %s\n", renderFrontMatterScalar(task.Parent))
 	}
 	if task.ExternalRef != "" {
-		fmt.Fprintf(&b, "external_ref: %s\n", task.ExternalRef)
+		fmt.Fprintf(&b, "external_ref: %s\n", renderFrontMatterScalar(task.ExternalRef))
 	}
 	for _, k := range sortedKeys(task.Extra) {
-		fmt.Fprintf(&b, "%s: %s\n", k, task.Extra[k])
+		fmt.Fprintf(&b, "%s: %s\n", k, renderFrontMatterScalar(task.Extra[k]))
 	}
 	fmt.Fprintln(&b, "---")
 	fmt.Fprintf(&b, "# %s\n\n", task.Title)

@@ -56,6 +56,20 @@ func TestParseFrontMatter_EdgeCases(t *testing.T) {
 			},
 		},
 		{
+			name:  "quoted value preserves literal backslashes",
+			input: "---\ntitle: \"C:\\\\Users\\\\test\"\n---\n# Task\n",
+			want: map[string]string{
+				"title": "C:\\\\Users\\\\test",
+			},
+		},
+		{
+			name:  "quoted value with escaped quote",
+			input: "---\ntitle: \"say \\\"hello\\\"\"\n---\n# Task\n",
+			want: map[string]string{
+				"title": "say \"hello\"",
+			},
+		},
+		{
 			name:  "comment lines are skipped",
 			input: "---\nid: 001\n# this is a comment\ntitle: Task\n---\n# Body\n",
 			want: map[string]string{
@@ -116,6 +130,20 @@ func TestParseFrontMatter_EdgeCases(t *testing.T) {
 			name:    "block list standalone",
 			input:   "---\n- item\n- other\n---\n# Task\n",
 			wantErr: "unsupported block list syntax",
+		},
+		{
+			name:  "quoted block scalar prefix round-trips",
+			input: "---\ntitle: \"| block\"\n---\n# Task\n",
+			want: map[string]string{
+				"title": "| block",
+			},
+		},
+		{
+			name:  "unquoted value with internal quotes round-trips",
+			input: "---\ntitle: say \"hello\"\n---\n# Task\n",
+			want: map[string]string{
+				"title": "say \"hello\"",
+			},
 		},
 	}
 
@@ -626,5 +654,168 @@ func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 	got := renderTask(task)
 	if got != want {
 		t.Errorf("renderTask with extra fields mismatch\ngot:\n%s\n\nwant:\n%s", got, want)
+	}
+}
+
+func TestRenderFrontMatterScalar(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"plain", "Plain Value", "Plain Value"},
+		{"colon", "type:bug", "type:bug"},
+		{"empty", "", "\"\""},
+		{"whitespace trimmed", "  padded  ", "padded"},
+		{"leading hash", "#not a comment", "\"#not a comment\""},
+		{"block scalar pipe", "| block", "\"| block\""},
+		{"block scalar gt", "> block", "\"> block\""},
+		{"block list", "- list item", "\"- list item\""},
+		{"dash alone", "-", "-"},
+		{"leading quote", "\"quoted", "\"\\\"quoted\""},
+		{"internal quotes plain", "say \"hello\"", "say \"hello\""},
+		{"backslash plain", "C:\\Users\\test", "C:\\Users\\test"},
+		{"newline collapsed", "line1\nline2", "line1 line2"},
+		{"crlf collapsed", "line1\r\nline2", "line1 line2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderFrontMatterScalar(tt.value)
+			if got != tt.want {
+				t.Errorf("renderFrontMatterScalar(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderTaskRoundTrip(t *testing.T) {
+	tests := []struct {
+		name   string
+		fields map[string]string
+	}{
+		{
+			name: "block scalar prefix in title",
+			fields: map[string]string{
+				"id":     "100",
+				"title":  "| block scalar",
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "block list prefix in title",
+			fields: map[string]string{
+				"id":     "101",
+				"title":  "- list like",
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "internal quotes in title",
+			fields: map[string]string{
+				"id":     "102",
+				"title":  "Important \"task\"",
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "quoted title",
+			fields: map[string]string{
+				"id":     "106",
+				"title":  `"Important" task`,
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "title of only double quotes",
+			fields: map[string]string{
+				"id":     "107",
+				"title":  `""`,
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "title with backslash and quote",
+			fields: map[string]string{
+				"id":     "108",
+				"title":  `"\"`,
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "backslash in title",
+			fields: map[string]string{
+				"id":     "105",
+				"title":  `C:\Users\test`,
+				"labels": "type:test",
+			},
+		},
+		{
+			name: "colon in label",
+			fields: map[string]string{
+				"id":     "103",
+				"title":  "Task",
+				"labels": "type:test, area:workflow",
+			},
+		},
+		{
+			name: "extra field with special content",
+			fields: map[string]string{
+				"id":          "104",
+				"title":       "Task",
+				"labels":      "type:test",
+				"extra_note":  "# not a comment",
+				"extra_block": "| not a block",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := map[string]string{
+				"status":     "Pending",
+				"priority":   "P2",
+				"effort":     "S",
+				"exec_plan":  "-",
+				"depends_on": "-",
+			}
+			for k, v := range tt.fields {
+				meta[k] = v
+			}
+			input := renderTask(Task{
+				ID:          meta["id"],
+				Title:       meta["title"],
+				Status:      meta["status"],
+				Priority:    meta["priority"],
+				Effort:      meta["effort"],
+				Labels:      meta["labels"],
+				ExecPlan:    meta["exec_plan"],
+				DependsOn:   nil,
+				Created:     "",
+				Updated:     "",
+				Parent:      "",
+				ExternalRef: "",
+				Extra:       metaExtra(meta),
+				Body:        "Body.",
+			})
+			task, err := parseTaskFromData([]byte(input), "unused.md", "active")
+			if err != nil {
+				t.Fatalf("parseTaskFromData: %v", err)
+			}
+			if task.Title != meta["title"] {
+				t.Errorf("title round-trip = %q, want %q", task.Title, meta["title"])
+			}
+			if task.Labels != meta["labels"] {
+				t.Errorf("labels round-trip = %q, want %q", task.Labels, meta["labels"])
+			}
+			for k, v := range tt.fields {
+				switch k {
+				case "id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on":
+					continue
+				}
+				if task.Extra[k] != v {
+					t.Errorf("extra %q round-trip = %q, want %q", k, task.Extra[k], v)
+				}
+			}
+		})
 	}
 }

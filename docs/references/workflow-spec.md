@@ -379,19 +379,46 @@ emitted in alphabetical order after all standard fields.
 
 Task front matter uses a flat `key: value` format. Each line holds one field.
 The value is everything after the first colon, trimmed of leading and trailing
-whitespace. Double-quoted values have the wrapping quotes stripped.
+whitespace. Double-quoted values have the wrapping quotes stripped and the
+escape sequence `\"` (double quote) is decoded. All other backslash sequences,
+including `\\`, are left literal.
 
 Supported value forms:
 
 - Simple: `key: value` → `"value"`
 - Colon in value: `labels: type:bug, area:tasks` → `"type:bug, area:tasks"`
 - Double-quoted: `title: "My Task: The Reckoning"` → `"My Task: The Reckoning"`
+- Escaped double-quoted: `title: "say \"hello\""` → `"say \"hello\""`
 - Inline list: `depends_on: 001, 002` or `depends_on: [001, 002]`
 - Dash sentinel: `depends_on: -` (empty list, see Dash Sentinel Semantics)
 
+When `ahm` writes a task file, it renders each scalar with the smallest safe
+representation. Newlines and lone carriage returns are collapsed to spaces and
+leading/trailing whitespace is trimmed. The renderer then quotes any value that
+would otherwise be misinterpreted by the parser: empty values, values starting
+with `#`, `|`, `>`, or `"`, and values that are a dash followed by a space.
+Inside quoted values, double quotes are escaped as `\"`; backslashes are left
+literal. Values that do not need quoting are left plain, so colons, internal
+quotes, and backslashes are usually unescaped.
+
+Examples of the rendered representation:
+
+- Empty value: `title: ""`
+- `# not a comment`: `title: "# not a comment"`
+- `| block`: `title: "| block"`
+- `- list item`: `title: "- list item"`
+- `"quoted`: `title: "\"quoted"`
+- `""`: `title: "\"\"\""`
+- `say "hello"`: `title: say "hello"`
+- `type:bug`: `labels: type:bug`
+
+`ahm task create` rejects titles and labels with leading or trailing whitespace,
+newlines, or carriage returns. It also canonicalizes an empty `--labels` value
+to the `-` sentinel so that every accepted value round-trips.
+
 Unsupported forms that produce a parse error:
 
-- Block scalars (`|` and `>`): `description: |\n  multi\n  line`
+- Unquoted block scalars (`|` and `>`): `description: |\n  multi\n  line`
 - Block lists (`-` prefix): `depends_on:\n  - 001\n  - 002`
 - Keys with spaces: `bad key: value`
 

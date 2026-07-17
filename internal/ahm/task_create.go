@@ -25,11 +25,20 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.title == "" {
 		return usageError("task create requires a title\n  ahm task create <title>")
 	}
+	if strings.TrimSpace(parsed.title) != parsed.title {
+		return usageError("task create title must not have leading or trailing whitespace")
+	}
+	if strings.TrimSpace(parsed.labels) != parsed.labels {
+		return usageError("task create labels must not have leading or trailing whitespace")
+	}
 	if strings.ContainsAny(parsed.title, "\n\r") {
 		return usageError("task create title must not contain newlines")
 	}
 	if strings.ContainsAny(parsed.labels, "\n\r") {
 		return usageError("task create labels must not contain newlines")
+	}
+	if parsed.labels == "" {
+		parsed.labels = "-"
 	}
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err
