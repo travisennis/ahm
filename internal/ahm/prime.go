@@ -220,6 +220,14 @@ func (a *app) primeRecentResearch() []primeResearchNote {
 			})
 		}
 	}
+	sort.Slice(notes, func(i, j int) bool {
+		iName := filepath.Base(notes[i].Link)
+		jName := filepath.Base(notes[j].Link)
+		if iName != jName {
+			return iName > jName
+		}
+		return notes[i].Link < notes[j].Link
+	})
 	if len(notes) > 5 {
 		notes = notes[:5]
 	}

@@ -146,6 +146,45 @@ func TestPrimeReadyCapWithOverflow(t *testing.T) {
 	}
 }
 
+func TestPrimeRecentResearchSortsGloballyBeforeCap(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	researchRoot := filepath.Join(root, ".ahm", "research")
+	for _, note := range []struct {
+		bucket string
+		name   string
+	}{
+		{bucket: "inbox", name: "2026-01-01-oldest.md"},
+		{bucket: "inbox", name: "2026-06-01-middle.md"},
+		{bucket: "topics", name: "2026-07-05-newest.md"},
+		{bucket: "investigations", name: "2026-07-05-newest.md"},
+		{bucket: "topics", name: "2026-07-04-fourth.md"},
+		{bucket: "investigations", name: "2026-07-03-third.md"},
+		{bucket: "sources", name: "2026-07-02-second.md"},
+		{bucket: "sources", name: "2026-07-01-first.md"},
+	} {
+		writeFile(t, filepath.Join(researchRoot, note.bucket, note.name), "# "+note.name+"\n")
+	}
+
+	a := app{opts: options{root: root}}
+	notes := a.primeRecentResearch()
+	if len(notes) != 5 {
+		t.Fatalf("recent research count = %d, want 5", len(notes))
+	}
+	want := []string{
+		"investigations/2026-07-05-newest.md",
+		"topics/2026-07-05-newest.md",
+		"topics/2026-07-04-fourth.md",
+		"investigations/2026-07-03-third.md",
+		"sources/2026-07-02-second.md",
+	}
+	for i, suffix := range want {
+		if !strings.HasSuffix(notes[i].Link, suffix) {
+			t.Errorf("notes[%d].Link = %q, want suffix %q", i, notes[i].Link, suffix)
+		}
+	}
+}
+
 func TestPrimeDirtyWorktreeWarning(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

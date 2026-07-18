@@ -405,7 +405,8 @@ The briefing includes (in order, omitting empty sections):
 - `## Ready` — ready task lines capped at 5, with an overflow pointer to
   `ahm task ready` for the remainder.
 - Blocked and open task counts, with commands to expand each.
-- Active ExecPlans and recent research notes.
+- Active ExecPlans and the five most recent research notes, sorted globally
+  across buckets by descending filename with a deterministic path tie-breaker.
 - `## Managed Work Intake` — the routing table for managed-work types,
   active-mode workflow record paths, and notes on workflow and multi-step
   plans.
