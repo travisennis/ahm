@@ -549,6 +549,11 @@ Useful flags:
 - `--force`: adopts supported existing managed files where applicable.
 - `--json` or `--plain`: changes the emitted install summary format.
 
+The JSON and plain summaries always include the array-valued keys `adopted`,
+`created`, `updated`, `removed`, `skipped`, `conflicts`, `metadata`, and
+`indexes`. Keys with no entries are emitted as empty arrays. Dry-run summaries
+also include a `directories` array.
+
 Example:
 
 ```bash
@@ -583,6 +588,10 @@ Useful flags:
 - `--force`: removes locally modified former instruction files. This does not
   apply to `AGENTS.md` or the three project-owned procedure skill files.
 - `--json` or `--plain`: changes the emitted upgrade summary format.
+
+The JSON and plain summaries use the same stable array-valued key set as
+`init`, including empty arrays for groups with no entries. Dry-run summaries
+also include a `directories` array.
 
 Example:
 

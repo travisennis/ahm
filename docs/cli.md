@@ -23,6 +23,10 @@ output, plain output, dry-run behavior, and validation finding codes are
 compatibility surfaces. Preserve them unless a task explicitly changes the CLI
 contract.
 
+Structured `init` and `upgrade` summaries have a stable set of array-valued
+keys: `adopted`, `created`, `updated`, `removed`, `skipped`, `conflicts`,
+`metadata`, and `indexes`. Empty result groups remain present as empty arrays.
+
 For implementation boundaries and invariants, see
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state and file-format
 semantics, see [the workflow specification](references/workflow-spec.md).

@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -438,6 +439,52 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, target)); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("%s should not be installed, err = %v", target, err)
 		}
+	}
+}
+
+func TestInstallJSONResultSchema(t *testing.T) {
+	wantKeys := []string{
+		"adopted",
+		"conflicts",
+		"created",
+		"indexes",
+		"metadata",
+		"removed",
+		"skipped",
+		"updated",
+	}
+	for _, command := range []string{"init", "upgrade"} {
+		t.Run(command, func(t *testing.T) {
+			root := t.TempDir()
+			if command == "upgrade" {
+				if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+					t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+				}
+			}
+
+			stdout, stderr, code := runCLI(t, "--root", root, "--json", command)
+			if code != 0 {
+				t.Fatalf("%s --json exit code = %d, stderr = %s", command, code, stderr)
+			}
+			var result map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+				t.Fatalf("%s --json returned invalid JSON: %v\n%s", command, err, stdout)
+			}
+			if len(result) != len(wantKeys) {
+				t.Fatalf("%s --json keys = %v, want exactly %v", command, result, wantKeys)
+			}
+			for _, key := range wantKeys {
+				value, ok := result[key]
+				if !ok {
+					t.Errorf("%s --json missing key %q", command, key)
+					continue
+				}
+				var items []string
+				if err := json.Unmarshal(value, &items); err != nil {
+					t.Errorf("%s --json key %q is not a string array: %s", command, key, value)
+				}
+			}
+		})
 	}
 }
 

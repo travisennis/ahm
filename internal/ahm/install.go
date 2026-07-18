@@ -262,6 +262,7 @@ func (a *app) install(upgrade bool) error {
 	}
 
 	result := map[string][]string{
+		"adopted":   {},
 		"created":   {},
 		"updated":   {},
 		"removed":   {},
