@@ -443,7 +443,10 @@ func splitTaskID(id string) (int, string, bool) {
 	if i == 0 {
 		return 0, id, false
 	}
-	n, _ := strconv.Atoi(id[:i])
+	n, err := strconv.Atoi(id[:i])
+	if err != nil {
+		return 0, id, false
+	}
 	return n, id[i:], true
 }
 

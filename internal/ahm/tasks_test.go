@@ -442,6 +442,17 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	}
 }
 
+func TestNextTaskIDIgnoresOverflowingNumericIDs(t *testing.T) {
+	root := t.TempDir()
+	overflow := strings.Repeat("9", 100)
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", overflow+".md"), "# Malformed overflow task\n")
+
+	got := nextTaskID([]Task{{ID: "001"}, {ID: overflow}}, root)
+	if got != "002" {
+		t.Errorf("nextTaskID = %q, want %q", got, "002")
+	}
+}
+
 func TestSplitTaskID(t *testing.T) {
 	tests := []struct {
 		id     string
@@ -457,6 +468,8 @@ func TestSplitTaskID(t *testing.T) {
 		{id: "abc", wantN: 0, wantS: "abc", wantOk: false},
 		{id: "", wantN: 0, wantS: "", wantOk: false},
 		{id: "12", wantN: 12, wantS: "", wantOk: true},
+		{id: strings.Repeat("9", 100), wantN: 0, wantS: strings.Repeat("9", 100), wantOk: false},
+		{id: strings.Repeat("9", 100) + "a", wantN: 0, wantS: strings.Repeat("9", 100) + "a", wantOk: false},
 	}
 	for _, tt := range tests {
 		n, s, ok := splitTaskID(tt.id)
