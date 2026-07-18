@@ -541,7 +541,7 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 			task.Status = "Pending"
 		}
 		task.Updated = now
-		target := workflowPathsFor(a.opts.root).taskFile("active", task.ID)
+		target := a.workflowPaths().taskFile("active", task.ID)
 		if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 			return groomSummary{}, err
 		}

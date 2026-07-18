@@ -66,11 +66,11 @@ func (a *app) indexWrites() (map[string]string, error) {
 		}
 		a.addWarning("some task files could not be parsed and were skipped: %s", err)
 	}
-	return indexWritesFor(a.opts.root, tasks)
+	return indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
 }
 
 func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
-	tasks, err := a.getTasks()
+	tasks, err := collectTasksForPaths(a.opts.root, paths)
 	if err != nil {
 		if tasks == nil {
 			return nil, err

@@ -258,7 +258,7 @@ func (a *app) install(upgrade bool) error {
 	// the existing layout.
 	recordsDir := toolRecordsDirName // default for fresh init
 	if upgrade || hasExistingMeta {
-		recordsDir = workflowPathsFor(root).recordsDir
+		recordsDir = a.workflowPaths().recordsDir
 	}
 
 	result := map[string][]string{
@@ -307,6 +307,7 @@ func (a *app) install(upgrade bool) error {
 				return err
 			}
 		}
+		a.invalidateWorkflowPaths()
 		if err := a.writeIndexes(); err != nil {
 			return err
 		}

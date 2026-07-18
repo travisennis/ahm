@@ -29,6 +29,8 @@ type app struct {
 	in         io.Reader
 	tasksCache []Task   // cached result of collectTasks, nil when stale
 	warnings   []string // non-fatal errors accumulated during a command
+	pathsCache *workflowPaths
+	pathsLoad  func(string) workflowPaths
 }
 
 func (a *app) addWarning(format string, args ...any) {
@@ -57,11 +59,27 @@ func (a *app) getTasks() ([]Task, error) {
 	if a.tasksCache != nil {
 		return a.tasksCache, nil
 	}
-	tasks, err := collectTasks(a.opts.root)
+	tasks, err := collectTasksForPaths(a.opts.root, a.workflowPaths())
 	if err == nil {
 		a.tasksCache = tasks
 	}
 	return tasks, err
+}
+
+func (a *app) workflowPaths() workflowPaths {
+	if a.pathsCache == nil {
+		load := workflowPathsFor
+		if a.pathsLoad != nil {
+			load = a.pathsLoad
+		}
+		paths := load(a.opts.root)
+		a.pathsCache = &paths
+	}
+	return *a.pathsCache
+}
+
+func (a *app) invalidateWorkflowPaths() {
+	a.pathsCache = nil
 }
 
 // invalidateTasks clears the cached task list so the next call to

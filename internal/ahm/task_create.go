@@ -80,14 +80,14 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		// The parent is known to exist from the pre-lock check, but the ID
 		// may have been zero-padded differently; use the resolved ID for child prefix.
 		parentID := parsed.resolvedParentID
-		id, err = nextChildTaskID(tasks, a.opts.root, parentID)
+		id, err = nextChildTaskIDForPaths(tasks, a.workflowPaths(), parentID)
 		if err != nil {
 			return err
 		}
 	} else {
-		id = nextTaskID(tasks, a.opts.root)
+		id = nextTaskIDForPaths(tasks, a.workflowPaths())
 	}
-	path := workflowPathsFor(a.opts.root).taskFile("active", id)
+	path := a.workflowPaths().taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
 		ID:       id,
@@ -163,6 +163,10 @@ func (a *app) resolveTaskCreateBody(parsed taskCreateArgs) (string, error) {
 }
 
 func nextTaskID(tasks []Task, root string) string {
+	return nextTaskIDForPaths(tasks, workflowPathsFor(root))
+}
+
+func nextTaskIDForPaths(tasks []Task, paths workflowPaths) string {
 	maxID := 0
 	for _, task := range tasks {
 		n, suffix, ok := splitTaskID(task.ID)
@@ -172,7 +176,6 @@ func nextTaskID(tasks []Task, root string) string {
 	}
 	// Also scan the filesystem for task files that may have been skipped
 	// due to parse errors, to avoid colliding with them.
-	paths := workflowPathsFor(root)
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
 		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
@@ -197,6 +200,10 @@ func nextTaskID(tasks []Task, root string) string {
 // It scans parsed tasks and filesystem entries across all buckets to avoid collisions.
 // At most 26 children (a-z) are allowed per parent.
 func nextChildTaskID(tasks []Task, root string, parentID string) (string, error) {
+	return nextChildTaskIDForPaths(tasks, workflowPathsFor(root), parentID)
+}
+
+func nextChildTaskIDForPaths(tasks []Task, paths workflowPaths, parentID string) (string, error) {
 	parentNum, _, ok := splitTaskID(parentID)
 	if !ok {
 		return "", fmt.Errorf("invalid parent task ID %q", parentID)
@@ -213,7 +220,6 @@ func nextChildTaskID(tasks []Task, root string, parentID string) (string, error)
 	}
 
 	// Also scan the filesystem for unparsed files that may have been skipped.
-	paths := workflowPathsFor(root)
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
 		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)

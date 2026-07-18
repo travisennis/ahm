@@ -12,7 +12,7 @@ import (
 
 func (a *app) status() error {
 	a.warnProjectDocsScopeDeprecation()
-	validation, tasks := validateWorkflowScoped(a.opts.root, a.opts.check)
+	validation, tasks := a.validateWorkflow(a.opts.check)
 	meta, metaErr := readMetadata(a.opts.root)
 	var installedVersion any
 	if metaErr == nil {
@@ -40,7 +40,7 @@ func (a *app) doctor() error {
 	a.warnProjectDocsScopeDeprecation()
 	_, gitErr := exec.LookPath("git")
 	meta, metaErr := readMetadata(a.opts.root)
-	validation, _ := validateWorkflowScoped(a.opts.root, a.opts.check)
+	validation, _ := a.validateWorkflow(a.opts.check)
 	addOnboardDoctorFinding(a.opts.root, &validation)
 	var installedVersion any
 	if metaErr == nil {
@@ -90,7 +90,7 @@ func (a *app) warnProjectDocsScopeDeprecation() {
 // validation report. Exit 0 when clean or warnings-only; exit 1 on errors.
 // --strict promotes warnings to errors.
 func (a *app) docsCheck() error {
-	validation, _ := validateWorkflowScoped(a.opts.root, []string{CheckScopeProjectDocs})
+	validation, _ := a.validateWorkflow([]string{CheckScopeProjectDocs})
 
 	// Under --strict, warnings become errors for exit-code purposes.
 	if a.opts.strict {

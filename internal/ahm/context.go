@@ -79,7 +79,7 @@ func (a *app) context(scope string) error {
 	defer a.emitWarnings()
 	if a.opts.json || a.opts.plain {
 		if scope != "" {
-			instruction, err := scopedContextInstruction(scope, a.opts.root)
+			instruction, err := a.scopedContextInstruction(scope)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func (a *app) context(scope string) error {
 		return a.emit(report)
 	}
 	if scope != "" {
-		instruction, err := scopedContextInstruction(scope, a.opts.root)
+		instruction, err := a.scopedContextInstruction(scope)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (a *app) context(scope string) error {
 }
 
 func (a *app) contextReport() contextReport {
-	validation, tasks := validateWorkflow(a.opts.root)
+	validation, tasks := a.validateWorkflow(nil)
 	meta, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
 		var err error
@@ -229,7 +229,11 @@ type instructionRenderPaths struct {
 	ConfigPath              string
 }
 
-func scopedContextInstruction(scope string, root string) (contextInstruction, error) {
+func (a *app) scopedContextInstruction(scope string) (contextInstruction, error) {
+	return scopedContextInstructionForPaths(scope, a.workflowPaths())
+}
+
+func scopedContextInstructionForPaths(scope string, paths workflowPaths) (contextInstruction, error) {
 	files := map[string]struct {
 		id     string
 		title  string
@@ -249,7 +253,7 @@ func scopedContextInstruction(scope string, root string) (contextInstruction, er
 	if err != nil {
 		return contextInstruction{}, err
 	}
-	body, err := renderInstructionTemplate(file.source, string(data), instructionPathsFor(root))
+	body, err := renderInstructionTemplate(file.source, string(data), pathsForWorkflowPaths(paths))
 	if err != nil {
 		return contextInstruction{}, err
 	}
@@ -258,11 +262,6 @@ func scopedContextInstruction(scope string, root string) (contextInstruction, er
 		Title: file.title,
 		Body:  body,
 	}, nil
-}
-
-func instructionPathsFor(root string) instructionRenderPaths {
-	paths := workflowPathsFor(root)
-	return pathsForWorkflowPaths(paths)
 }
 
 func pathsForWorkflowPaths(wp workflowPaths) instructionRenderPaths {

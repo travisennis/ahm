@@ -412,7 +412,7 @@ func TestValidateExecPlansReportsLifecycleFindings(t *testing.T) {
 			writeFile(t, path, tt.content)
 
 			report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
-			validateExecPlans(root, tt.tasks, &report)
+			validateExecPlans(root, workflowPathsFor(root), tt.tasks, &report)
 
 			if tt.wantWarn != "" && !hasFinding(report.Warnings, tt.wantWarn) {
 				t.Errorf("missing warning %q: %#v", tt.wantWarn, report.Warnings)

@@ -133,7 +133,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 
 		// Warn when completing a task linked to an active ExecPlan.
 		if task.ExecPlan != "" && task.ExecPlan != "-" {
-			paths := workflowPathsFor(a.opts.root)
+			paths := a.workflowPaths()
 			planPath, bucket, ok := resolveExecPlanReference(paths, task.ExecPlan)
 			if ok && bucket == "active" {
 				relPlan := relPath(a.opts.root, planPath)
@@ -157,7 +157,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	task.Status = status
 	task.Updated = now
 	bucket := bucketForStatus(status)
-	target := workflowPathsFor(a.opts.root).taskFile(bucket, task.ID)
+	target := a.workflowPaths().taskFile(bucket, task.ID)
 	var unblocked []Task
 	if status == "Completed" {
 		unblocked = a.taskUnblockDependents(loadTasks(), task.ID, now)

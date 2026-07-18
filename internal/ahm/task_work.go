@@ -242,7 +242,7 @@ Use the repository task workflow. Keep changes scoped to the task. %s Do not com
 func (a *app) markTaskInProgressLocked(task Task) error {
 	task.Status = "In Progress"
 	task.Updated = time.Now().Format(time.RFC3339)
-	target := workflowPathsFor(a.opts.root).taskFile("active", task.ID)
+	target := a.workflowPaths().taskFile("active", task.ID)
 	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
 		return err
 	}

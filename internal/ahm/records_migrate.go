@@ -87,7 +87,7 @@ func (a *app) recordsMigrate() error {
 		}
 		return a.emit(newRecordsMigrateReport(plan, true))
 	}
-	release, err := acquireWorkflowRecordMigrationLocks(a.opts.root)
+	release, err := acquireWorkflowRecordMigrationLocksForPaths(a.opts.root, a.workflowPaths())
 	if err != nil {
 		return err
 	}
@@ -109,6 +109,7 @@ func (a *app) recordsMigrate() error {
 	if err := a.executeRecordsMigratePlan(plan); err != nil {
 		return err
 	}
+	a.invalidateWorkflowPaths()
 	return a.emit(report)
 }
 

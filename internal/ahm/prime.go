@@ -58,7 +58,7 @@ func (a *app) prime() error {
 	// creating untracked files.
 	if _, err := readMetadata(a.opts.root); err == nil {
 		if !a.opts.dryRun {
-			paths := workflowPathsFor(a.opts.root)
+			paths := a.workflowPaths()
 			if _, err := a.ensureWorkflowDirs(paths.recordsDir); err != nil {
 				return err
 			}
@@ -103,7 +103,7 @@ func (a *app) regenerateIndexes() error {
 }
 
 func (a *app) buildPrimeReport() primeReport {
-	validation, tasks := validateWorkflow(a.opts.root)
+	validation, tasks := a.validateWorkflow(nil)
 	meta, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
 		var err error
@@ -140,13 +140,13 @@ func (a *app) buildPrimeReport() primeReport {
 		Plans:    plans,
 		Research: research,
 		Commands: contextCommands(""),
-		Paths:    instructionPathsFor(a.opts.root),
+		Paths:    pathsForWorkflowPaths(a.workflowPaths()),
 	}
 }
 
 // primeActivePlans collects active ExecPlans in the current record layout.
 func (a *app) primeActivePlans() []primePlanSummary {
-	paths := workflowPathsFor(a.opts.root)
+	paths := a.workflowPaths()
 	dir := paths.execPlansDir("active")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -181,7 +181,7 @@ func (a *app) primeActivePlans() []primePlanSummary {
 // primeRecentResearch collects recent research notes (up to 5, newest by
 // filename sort) in the current record layout.
 func (a *app) primeRecentResearch() []primeResearchNote {
-	paths := workflowPathsFor(a.opts.root)
+	paths := a.workflowPaths()
 	buckets := []string{"inbox", "topics", "investigations", "sources"}
 	var notes []primeResearchNote
 	for _, bucket := range buckets {

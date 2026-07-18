@@ -80,7 +80,7 @@ func (a *app) audit(parsed auditArgs) error {
 	if err != nil {
 		return fmt.Errorf("cannot audit with malformed task files: %w", err)
 	}
-	validation, _ := validateWorkflow(a.opts.root)
+	validation, _ := a.validateWorkflow(nil)
 	prompt := buildAuditPrompt(tasks, summarizeTaskLabels(tasks), validation)
 	roles, err := a.resolveTaskWorkRoles(parsed.agent, parsed.model)
 	if err != nil {

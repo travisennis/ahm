@@ -60,6 +60,9 @@ task to an external coding-agent CLI.
   slash-separated relative paths.
 - `internal/ahm/workflow_paths.go`: record-layout-aware resolution of workflow
   record paths (`.agents` for legacy committed records, `.ahm` after migration).
+  App commands cache the resolved paths for their lifetime; standalone helpers
+  resolve explicitly, and config-creating or migration commands invalidate the
+  app cache after changing the metadata anchor.
 - `internal/ahm/records.go`: internal workflow record plumbing for
   selecting `.ahm/` source records.
 - `internal/ahm/git.go`: shared environment isolation for ahm-owned Git

@@ -104,12 +104,20 @@ func validCheckScopes() []string {
 }
 
 func validateWorkflow(root string) (validationReport, []Task) {
-	return validateWorkflowScoped(root, nil)
+	return validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 }
 
 // validateWorkflowScoped runs only the validation groups named in scopes.
 // When scopes is nil or empty, all validators run (same as validateWorkflow).
 func validateWorkflowScoped(root string, scopes []string) (validationReport, []Task) {
+	return validateWorkflowScopedForPaths(root, scopes, workflowPathsFor(root))
+}
+
+func (a *app) validateWorkflow(scopes []string) (validationReport, []Task) {
+	return validateWorkflowScopedForPaths(a.opts.root, scopes, a.workflowPaths())
+}
+
+func validateWorkflowScopedForPaths(root string, scopes []string, paths workflowPaths) (validationReport, []Task) {
 	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
 
 	all := len(scopes) == 0
@@ -117,17 +125,17 @@ func validateWorkflowScoped(root string, scopes []string) (validationReport, []T
 
 	var tasks []Task
 	if want(CheckScopeWorkflow) {
-		tasks = validateManagedFiles(root, &report)
+		tasks = validateManagedFiles(root, paths, &report)
 		validateTaskDependencies(root, tasks, &report)
 		validateBlockedDepsComplete(root, tasks, &report)
-		validateTaskBuckets(root, tasks, &report)
-		validateTaskExecPlans(root, tasks, &report)
-		validateExecPlans(root, tasks, &report)
+		validateTaskBuckets(root, paths, tasks, &report)
+		validateTaskExecPlans(root, paths, tasks, &report)
+		validateExecPlans(root, paths, tasks, &report)
 		validateADRs(root, &report)
-		validateGeneratedIndexes(root, tasks, &report)
+		validateGeneratedIndexes(root, paths, tasks, &report)
 	}
 	if want(CheckScopeLinks) {
-		validateMarkdownLinks(root, &report)
+		validateMarkdownLinks(root, paths, &report)
 	}
 	// project-docs is opt-in only: it never runs as part of the default
 	// (all) scope, so default status/doctor behavior is unchanged. It runs
@@ -159,7 +167,7 @@ func (a *app) emitPostMutationFindings() {
 	if a.opts.dryRun {
 		return
 	}
-	report, _ := validateWorkflowScoped(a.opts.root, []string{CheckScopeWorkflow})
+	report, _ := a.validateWorkflow([]string{CheckScopeWorkflow})
 	for _, finding := range report.Errors {
 		a.addWarning("%s", finding.Message)
 	}
@@ -168,7 +176,7 @@ func (a *app) emitPostMutationFindings() {
 	}
 }
 
-func validateManagedFiles(root string, report *validationReport) []Task {
+func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
 	_, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
@@ -177,14 +185,14 @@ func validateManagedFiles(root string, report *validationReport) []Task {
 			report.addError("metadata_corrupt", metadataErrorPath(metaErr), fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
 	}
-	return validateTaskFiles(root, report)
+	return validateTaskFiles(root, paths, report)
 }
 
-func validateTaskFiles(root string, report *validationReport) []Task {
+func validateTaskFiles(root string, paths workflowPaths, report *validationReport) []Task {
 	var tasks []Task
-	files, err := taskFilePaths(root)
+	files, err := taskFilePathsFor(paths)
 	if err != nil {
-		report.addError("task_dir_unreadable", workflowPathsFor(root).tasksRel(), err.Error())
+		report.addError("task_dir_unreadable", paths.tasksRel(), err.Error())
 		return nil
 	}
 	for _, f := range files {
@@ -287,8 +295,8 @@ func validateBlockedDepsComplete(root string, tasks []Task, report *validationRe
 	}
 }
 
-func validateTaskBuckets(root string, tasks []Task, report *validationReport) {
-	tasksRel := workflowPathsFor(root).tasksRel()
+func validateTaskBuckets(root string, paths workflowPaths, tasks []Task, report *validationReport) {
+	tasksRel := paths.tasksRel()
 	for _, task := range tasks {
 		switch {
 		case task.Status == "Completed" && task.Bucket != "completed":
@@ -301,8 +309,7 @@ func validateTaskBuckets(root string, tasks []Task, report *validationReport) {
 	}
 }
 
-func validateTaskExecPlans(root string, tasks []Task, report *validationReport) {
-	paths := workflowPathsFor(root)
+func validateTaskExecPlans(root string, paths workflowPaths, tasks []Task, report *validationReport) {
 	for _, task := range tasks {
 		if task.ExecPlan == "" || task.ExecPlan == "-" {
 			continue
@@ -329,8 +336,7 @@ var mandatoryExecPlanSections = []string{
 	"Outcomes & Retrospective",
 }
 
-func validateExecPlans(root string, tasks []Task, report *validationReport) {
-	paths := workflowPathsFor(root)
+func validateExecPlans(root string, paths workflowPaths, tasks []Task, report *validationReport) {
 	referenced := referencedExecPlans(paths, tasks)
 	for _, bucket := range []string{"active", "completed"} {
 		dir := paths.execPlansDir(bucket)
@@ -554,14 +560,14 @@ func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 	return false
 }
 
-func validateGeneratedIndexes(root string, tasks []Task, report *validationReport) {
+func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}
-	writes, err := indexWritesFor(root, tasks)
+	writes, err := indexWritesForPaths(root, tasks, paths)
 	if err != nil {
 		report.addWarning("generated_index_check_failed", "", err.Error())
 		return
@@ -647,19 +653,19 @@ func stripInlineCodeSpans(line string) string {
 	return inlineCodeSpanPattern.ReplaceAllString(line, "")
 }
 
-func validateMarkdownLinks(root string, report *validationReport) {
+func validateMarkdownLinks(root string, paths workflowPaths, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}
-	for _, path := range workflowMarkdownFiles(root) {
+	for _, path := range workflowMarkdownFilesForPaths(root, paths) {
 		validateMarkdownFileLinks(root, path, report)
 	}
 }
 
-func workflowMarkdownFiles(root string) []string {
+func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string {
 	seen := map[string]bool{}
 	var paths []string
 	add := func(path string) {
@@ -670,7 +676,7 @@ func workflowMarkdownFiles(root string) []string {
 		}
 	}
 	walkRoots := []string{filepath.Join(root, legacyRecordsDirName)}
-	if recordsDir := workflowPathsFor(root).recordsDir; recordsDir != legacyRecordsDirName {
+	if recordsDir := resolved.recordsDir; recordsDir != legacyRecordsDirName {
 		walkRoots = append(walkRoots, filepath.Join(root, recordsDir))
 	}
 	for _, walkRoot := range walkRoots {

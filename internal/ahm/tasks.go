@@ -20,7 +20,10 @@ type taskFileInfo struct {
 // active, completed, and cancelled buckets. It skips index.md and
 // non-.md entries. Directories that do not exist are silently skipped.
 func taskFilePaths(root string) ([]taskFileInfo, error) {
-	paths := workflowPathsFor(root)
+	return taskFilePathsFor(workflowPathsFor(root))
+}
+
+func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 	var files []taskFileInfo
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
 		dir := paths.tasksBucketDir(bucket)
@@ -68,7 +71,11 @@ type Task struct {
 }
 
 func collectTasks(root string) ([]Task, error) {
-	files, err := taskFilePaths(root)
+	return collectTasksForPaths(root, workflowPathsFor(root))
+}
+
+func collectTasksForPaths(root string, paths workflowPaths) ([]Task, error) {
+	files, err := taskFilePathsFor(paths)
 	if err != nil {
 		return nil, err
 	}
