@@ -167,6 +167,42 @@ func TestWriteFileAtomic_RejectsNonCanonicalPath(t *testing.T) {
 	}
 }
 
+func TestWriteFileAtomic_AcceptsCanonicalAbsolutePath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "absolute.txt")
+
+	if err := writeFileAtomic(path, []byte("absolute"), 0o644); err != nil {
+		t.Fatalf("writeFileAtomic failed: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back failed: %v", err)
+	}
+	if string(data) != "absolute" {
+		t.Errorf("content = %q, want %q", string(data), "absolute")
+	}
+}
+
+func TestWriteFileAtomic_AcceptsCanonicalParentTraversal(t *testing.T) {
+	root := t.TempDir()
+	child := filepath.Join(root, "child")
+	if err := os.Mkdir(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(child)
+
+	path := filepath.Join("..", "parent.txt")
+	if err := writeFileAtomic(path, []byte("parent"), 0o644); err != nil {
+		t.Fatalf("writeFileAtomic failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "parent.txt"))
+	if err != nil {
+		t.Fatalf("read back failed: %v", err)
+	}
+	if string(data) != "parent" {
+		t.Errorf("content = %q, want %q", string(data), "parent")
+	}
+}
+
 func TestCleanupStaleTemps(t *testing.T) {
 	dir := t.TempDir()
 

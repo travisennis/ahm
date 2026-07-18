@@ -19,6 +19,9 @@ atomic writes, and dry-run behavior.
 ## Required Checks
 
 - Add or update tests for write paths, dry-run paths, and root/path edge cases.
+- Treat `writeFileAtomic` as an atomicity primitive, not a containment check:
+  it requires canonical path spelling, while callers must scope targets to an
+  owned repository or workflow directory.
 - Route ahm-owned Git subprocesses through the shared environment filter; do
   not rely on `git -C` alone when hook-provided `GIT_*` variables may exist.
 - Re-read ADR 001 before changing atomic write behavior.

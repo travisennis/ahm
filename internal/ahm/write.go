@@ -25,8 +25,13 @@ import (
 //
 // If any step before the rename fails, the original file is left intact
 // and the temp file is cleaned up.
+//
+// The path must already be in canonical form: filepath.Clean(path) must equal
+// path. This check does not enforce containment or require an absolute or
+// relative path; callers are responsible for scoping the target to an owned
+// directory tree.
 func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
-	// Reject path traversal that would escape the intended directory tree.
+	// Reject non-canonical path spellings so target handling is deterministic.
 	clean := filepath.Clean(path)
 	if clean != path {
 		return fmt.Errorf("atomic write: non-canonical path %q", path)
