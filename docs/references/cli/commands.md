@@ -162,8 +162,10 @@ ahm --json adr show 009-madr-adr-management
 Sets a MADR-profile ADR's `status:` to `accepted`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
 
-Rerunning on an already-`accepted` ADR is idempotent. The command refuses
-ADRs that are `rejected`, `deprecated`, or `superseded by ADR-NNN`.
+Rerunning on an already-`accepted` ADR is idempotent: it preserves the file,
+including its existing `date:`, and reports `NNN already accepted`. Structured
+and dry-run output reports `changed: false`. The command refuses ADRs that are
+`rejected`, `deprecated`, or `superseded by ADR-NNN`.
 
 Example:
 
@@ -176,8 +178,9 @@ ahm adr accept 009
 Sets a MADR-profile ADR's `status:` to `rejected`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
 
-Rerunning on an already-`rejected` ADR is idempotent. The command refuses
-ADRs that are `accepted`, `deprecated`, or `superseded by ADR-NNN`.
+Rerunning on an already-`rejected` ADR is idempotent: it preserves the file and
+its existing `date:`, and reports an unchanged result. The command refuses ADRs
+that are `accepted`, `deprecated`, or `superseded by ADR-NNN`.
 
 Example:
 
@@ -190,7 +193,8 @@ ahm adr reject 009
 Sets a MADR-profile ADR's `status:` to `deprecated`, updates `date:` to today's
 date, and regenerates indexes. The command rewrites only front matter.
 
-Rerunning on an already-`deprecated` ADR is idempotent. The command refuses
+Rerunning on an already-`deprecated` ADR is idempotent: it preserves the file
+and its existing `date:`, and reports an unchanged result. The command refuses
 ADRs that are `proposed`, `rejected`, or `superseded by ADR-NNN`.
 
 Example:
@@ -208,7 +212,8 @@ This is a correction command for ADRs that were prematurely accepted before
 review was complete. It is not a general undo: `rejected`, `deprecated`, and
 `superseded by ADR-NNN` ADRs are terminal and refused.
 
-Rerunning on an already-`proposed` ADR is idempotent.
+Rerunning on an already-`proposed` ADR is idempotent: it preserves the file and
+its existing `date:`, and reports an unchanged result.
 
 Example:
 

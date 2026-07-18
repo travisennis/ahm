@@ -250,6 +250,39 @@ func TestADRStatusCommandsRewriteOnlyFrontMatter(t *testing.T) {
 	}
 }
 
+func TestADRStatusCommandNoOpPreservesFileAndReportsUnchanged(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "text", args: nil, want: []string{"001 already accepted"}},
+		{name: "json", args: []string{"--json"}, want: []string{`"adr": "001"`, `"status": "accepted"`, `"date": "2000-01-01"`, `"changed": false`}},
+		{name: "plain", args: []string{"--plain"}, want: []string{`"adr":"001"`, `"status":"accepted"`, `"date":"2000-01-01"`, `"changed":false`}},
+		{name: "dry-run", args: []string{"--dry-run"}, want: []string{"adr: 001", "status: accepted", "date: 2000-01-01", "changed: false"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "docs", "adr", "001-accepted.md")
+			writeADRFile(t, root, "001-accepted.md", "---\nstatus: accepted\ndate: 2000-01-01\n---\n# Accepted\n\nBody.\n")
+			before := mustRead(t, path)
+
+			args := append([]string{"--root", root}, tt.args...)
+			args = append(args, "adr", "accept", "001")
+			stdout, stderr, code := runCLI(t, args...)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+			}
+			assertContainsAll(t, stdout, tt.want...)
+			if after := mustRead(t, path); after != before {
+				t.Errorf("ADR changed on no-op status update:\nbefore: %q\nafter:  %q", before, after)
+			}
+		})
+	}
+}
+
 func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
@@ -641,7 +674,7 @@ func TestADRLifecycleTransitions(t *testing.T) {
 			want string
 		}{
 			{name: "from proposed", args: []string{"adr", "accept", "010"}, code: 0, want: "010 -> accepted"},
-			{name: "idempotent", args: []string{"adr", "accept", "011"}, code: 0, want: "011 -> accepted"},
+			{name: "idempotent", args: []string{"adr", "accept", "011"}, code: 0, want: "011 already accepted"},
 			{name: "from rejected", args: []string{"adr", "accept", "012"}, code: 1, want: "ADR 012 is rejected; cannot set to accepted"},
 			{name: "from deprecated", args: []string{"adr", "accept", "013"}, code: 1, want: "ADR 013 is deprecated; cannot set to accepted"},
 			{name: "from superseded", args: []string{"adr", "accept", "014"}, code: 1, want: "ADR 014 is superseded by ADR-011; cannot set to accepted"},
@@ -682,7 +715,7 @@ func TestADRLifecycleTransitions(t *testing.T) {
 			want string
 		}{
 			{name: "from proposed", args: []string{"adr", "reject", "020"}, code: 0, want: "020 -> rejected"},
-			{name: "idempotent", args: []string{"adr", "reject", "022"}, code: 0, want: "022 -> rejected"},
+			{name: "idempotent", args: []string{"adr", "reject", "022"}, code: 0, want: "022 already rejected"},
 			{name: "from accepted", args: []string{"adr", "reject", "021"}, code: 1, want: "ADR 021 is accepted; cannot set to rejected"},
 			{name: "from deprecated", args: []string{"adr", "reject", "023"}, code: 1, want: "ADR 023 is deprecated; cannot set to rejected"},
 			{name: "from superseded", args: []string{"adr", "reject", "024"}, code: 1, want: "ADR 024 is superseded by ADR-021; cannot set to rejected"},
@@ -722,7 +755,7 @@ func TestADRLifecycleTransitions(t *testing.T) {
 			want string
 		}{
 			{name: "from accepted", args: []string{"adr", "deprecate", "031"}, code: 0, want: "031 -> deprecated"},
-			{name: "idempotent", args: []string{"adr", "deprecate", "033"}, code: 0, want: "033 -> deprecated"},
+			{name: "idempotent", args: []string{"adr", "deprecate", "033"}, code: 0, want: "033 already deprecated"},
 			{name: "from proposed", args: []string{"adr", "deprecate", "030"}, code: 1, want: "ADR 030 is proposed; cannot set to deprecated"},
 			{name: "from rejected", args: []string{"adr", "deprecate", "032"}, code: 1, want: "ADR 032 is rejected; cannot set to deprecated"},
 			{name: "from superseded", args: []string{"adr", "deprecate", "034"}, code: 1, want: "ADR 034 is superseded by ADR-031; cannot set to deprecated"},
@@ -763,7 +796,7 @@ func TestADRLifecycleTransitions(t *testing.T) {
 			want string
 		}{
 			{name: "from accepted", args: []string{"adr", "propose", "041"}, code: 0, want: "041 -> proposed"},
-			{name: "idempotent", args: []string{"adr", "propose", "040"}, code: 0, want: "040 -> proposed"},
+			{name: "idempotent", args: []string{"adr", "propose", "040"}, code: 0, want: "040 already proposed"},
 			{name: "from rejected", args: []string{"adr", "propose", "042"}, code: 1, want: "ADR 042 is rejected; cannot set to proposed"},
 			{name: "from deprecated", args: []string{"adr", "propose", "043"}, code: 1, want: "ADR 043 is deprecated; cannot set to proposed"},
 			{name: "from superseded", args: []string{"adr", "propose", "044"}, code: 1, want: "ADR 044 is superseded by ADR-041; cannot set to proposed"},

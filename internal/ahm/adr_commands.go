@@ -332,11 +332,21 @@ func (a *app) adrSetStatusLocked(id string, status string) error {
 	if err != nil {
 		return err
 	}
-	if adr.Status != status {
-		allowed, ok := adrTransitions[status]
-		if !ok || !containsString(allowed, adr.Status) {
-			return fmt.Errorf("ADR %s is %s; cannot set to %s", adr.ID, adr.Status, status)
+	if adr.Status == status {
+		if a.opts.json || a.opts.plain || a.opts.dryRun {
+			return a.emit(map[string]any{
+				"adr":     adr.ID,
+				"status":  status,
+				"date":    adr.Date,
+				"changed": false,
+			})
 		}
+		fmt.Fprintf(a.out, "%s already %s\n", adr.ID, status)
+		return nil
+	}
+	allowed, ok := adrTransitions[status]
+	if !ok || !containsString(allowed, adr.Status) {
+		return fmt.Errorf("ADR %s is %s; cannot set to %s", adr.ID, adr.Status, status)
 	}
 	today := time.Now().Format(time.DateOnly)
 	if a.opts.dryRun {
