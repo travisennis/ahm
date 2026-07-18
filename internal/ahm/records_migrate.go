@@ -34,6 +34,13 @@ var legacyRecordMigrationRoots = []string{
 	".agents/exec-plans",
 }
 
+// legacyDotRecordMigrationRoots are record trees created by early .ahm/
+// migrations before record directory names stopped using a leading dot.
+var legacyDotRecordMigrationRoots = []string{
+	".ahm/.tasks",
+	".ahm/.research",
+}
+
 // recordsGitignoreEntries keep generated workflow indexes and machine-local
 // state out of branch history while source records and .ahm/config.json stay
 // committed.
@@ -238,11 +245,7 @@ func collectRecordsMigrateMoves(root string) ([]recordsMigrateMove, error) {
 	// Migrate legacy dot-prefixed subdirectories under .ahm/ (task 165) to
 	// non-dot names. This handles repositories that migrated before the
 	// non-dot-record-directory convention was introduced.
-	oldAHMRecordDirs := []string{
-		".ahm/.tasks",
-		".ahm/.research",
-	}
-	for _, dir := range oldAHMRecordDirs {
+	for _, dir := range legacyDotRecordMigrationRoots {
 		absDir := filepath.Join(root, filepath.FromSlash(dir))
 		err := filepath.WalkDir(absDir, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -319,8 +322,14 @@ func moveRecordFile(root string, move recordsMigrateMove) error {
 }
 
 func removeEmptyLegacyRecordDirs(root string) error {
-	// Clean up emptied legacy .agents/ record dirs.
-	for _, dir := range legacyRecordMigrationRoots {
+	if err := removeEmptyRecordDirs(root, legacyRecordMigrationRoots); err != nil {
+		return err
+	}
+	return removeEmptyRecordDirs(root, legacyDotRecordMigrationRoots)
+}
+
+func removeEmptyRecordDirs(root string, roots []string) error {
+	for _, dir := range roots {
 		absDir := filepath.Join(root, filepath.FromSlash(dir))
 		var dirs []string
 		err := filepath.WalkDir(absDir, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -340,37 +349,6 @@ func removeEmptyLegacyRecordDirs(root string) error {
 		}
 		// Children sort after their parent prefix, so reverse order removes
 		// the deepest directories first.
-		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
-		for _, path := range dirs {
-			err := os.Remove(path)
-			if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
-				return err
-			}
-		}
-	}
-	// Clean up emptied old dot-prefixed .ahm/ record dirs (task 165).
-	oldAHMDirs := []string{
-		".ahm/.tasks",
-		".ahm/.research",
-	}
-	for _, dir := range oldAHMDirs {
-		absDir := filepath.Join(root, filepath.FromSlash(dir))
-		var dirs []string
-		err := filepath.WalkDir(absDir, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() {
-				dirs = append(dirs, path)
-			}
-			return nil
-		})
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
 		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
 		for _, path := range dirs {
 			err := os.Remove(path)
@@ -470,15 +448,9 @@ func recordsMigrateMessage(plan recordsMigratePlan, dryRun bool) string {
 // leftover legacy record files, a leftover legacy config, or legacy record
 // paths still tracked in the project git index.
 func recordsMigrationDiagnostic(ctx context.Context, root string) (string, bool, error) {
-	var leftovers []string
-	for _, dir := range legacyRecordMigrationRoots {
-		present, err := dirContainsFiles(filepath.Join(root, filepath.FromSlash(dir)))
-		if err != nil {
-			return "", false, err
-		}
-		if present {
-			leftovers = append(leftovers, dir)
-		}
+	leftovers, err := recordDirLeftovers(root, legacyRecordMigrationRoots)
+	if err != nil {
+		return "", false, err
 	}
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(legacyMetadataRelPath))); err == nil {
 		leftovers = append(leftovers, legacyMetadataRelPath)
@@ -489,18 +461,9 @@ func recordsMigrationDiagnostic(ctx context.Context, root string) (string, bool,
 		return "legacy record paths remain (" + strings.Join(leftovers, ", ") + "); run 'ahm records migrate'", false, nil
 	}
 	// Check for legacy dot-prefixed subdirectories under .ahm/ (task 165).
-	oldAHMDirs := []string{
-		".ahm/.tasks",
-		".ahm/.research",
-	}
-	for _, dir := range oldAHMDirs {
-		present, err := dirContainsFiles(filepath.Join(root, filepath.FromSlash(dir)))
-		if err != nil {
-			return "", false, err
-		}
-		if present {
-			leftovers = append(leftovers, dir)
-		}
+	leftovers, err = recordDirLeftovers(root, legacyDotRecordMigrationRoots)
+	if err != nil {
+		return "", false, err
 	}
 	if len(leftovers) > 0 {
 		return "legacy dot-prefixed record paths under .ahm/ remain (" + strings.Join(leftovers, ", ") + "); run 'ahm records migrate'", false, nil
@@ -513,6 +476,20 @@ func recordsMigrationDiagnostic(ctx context.Context, root string) (string, bool,
 		return "project git index still tracks legacy record paths; run '" + legacyRecordsGitCleanupCommand(tracked) + "' and commit the result", false, nil
 	}
 	return "complete", true, nil
+}
+
+func recordDirLeftovers(root string, dirs []string) ([]string, error) {
+	var leftovers []string
+	for _, dir := range dirs {
+		present, err := dirContainsFiles(filepath.Join(root, filepath.FromSlash(dir)))
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			leftovers = append(leftovers, dir)
+		}
+	}
+	return leftovers, nil
 }
 
 func dirContainsFiles(dir string) (bool, error) {

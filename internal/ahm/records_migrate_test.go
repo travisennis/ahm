@@ -238,6 +238,51 @@ func TestRecordsMigrateIsIdempotentAndReportsGitCleanup(t *testing.T) {
 	assertNotContains(t, stdout, "git add .ahm/")
 }
 
+func TestRecordsMigrateConsolidatesLegacyDotRecordDirectories(t *testing.T) {
+	root := newGitRepo(t)
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "test",
+  "strict_acceptance": false,
+  "files": {}
+}
+`)
+	writeFile(t, filepath.Join(root, ".ahm", ".tasks", "active", "001.md"), "# Task One\n")
+	writeFile(t, filepath.Join(root, ".ahm", ".research", "topics", "note.md"), "# Note\n")
+	git(t, root, "add", ".ahm")
+	git(t, root, "commit", "-q", "-m", "add legacy dot record directories")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "records", "doctor")
+	if code != 0 {
+		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"legacy dot-prefixed record paths under .ahm/ remain (.ahm/.tasks, .ahm/.research)",
+		"ahm records migrate",
+	)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "records", "migrate")
+	if code != 0 {
+		t.Fatalf("records migrate exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		".ahm/.tasks/active/001.md -> .ahm/tasks/active/001.md",
+		".ahm/.research/topics/note.md -> .ahm/research/topics/note.md",
+	)
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "# Task One")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Note")
+	for _, gone := range legacyDotRecordMigrationRoots {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(gone))); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("legacy path %s still exists: %v", gone, err)
+		}
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "records", "doctor")
+	if code != 0 {
+		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "migration: complete")
+}
+
 func TestRecordsMigrateResumesPartialStateAndRejectsConflicts(t *testing.T) {
 	root := newLegacyCommittedRepo(t)
 
