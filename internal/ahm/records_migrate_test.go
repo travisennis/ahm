@@ -289,6 +289,15 @@ func TestRecordsDoctorDiagnosesPartialMigration(t *testing.T) {
 		t.Fatalf("records doctor exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "ok: false", "project git index still tracks legacy record paths", "git add .ahm/")
+	assertNotContains(t, stdout, "mode:")
+	for _, outputMode := range []string{"--json", "--plain"} {
+		structured, structuredErr, structuredCode := runCLI(t, "--root", root, outputMode, "records", "doctor")
+		if structuredCode != 0 {
+			t.Fatalf("records doctor %s exit code = %d, stderr = %s", outputMode, structuredCode, structuredErr)
+		}
+		assertContainsAll(t, structured, `"ok"`, `"migration"`)
+		assertNotContains(t, structured, `"mode"`)
+	}
 
 	// Leftover legacy record files point back at migration.
 	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "# Straggler\n")

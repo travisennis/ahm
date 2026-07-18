@@ -6,7 +6,7 @@ cancellation, and reopening commands. For task file and validation formats, see
 
 ## Task Commands
 
-Task commands operate on Markdown task files in the current storage mode:
+Task commands operate on Markdown task files in the current record layout:
 
 - `.agents/.tasks/active|completed|cancelled/` in legacy committed-record repositories.
 - `.ahm/tasks/active|completed|cancelled/` after migration.

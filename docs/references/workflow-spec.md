@@ -73,7 +73,7 @@ ahm-managed records under `.agents/`. The opt-in records migration
 (`ahm records migrate`) moves ahm-managed state to
 tool-owned `.ahm/` while leaving project-owned agent content under `.agents/`.
 
-Workflow commands are storage-mode aware. In legacy repositories (metadata
+Workflow commands are record-layout aware. In legacy repositories (metadata
 source `.agents/ahm.json`), task, research, ExecPlan, index,
 validation, and install behavior is unchanged and uses `.agents/` paths. After
 migration, the same commands read and write task records under `.ahm/tasks/`,
@@ -203,7 +203,7 @@ All workflow record mutations (`ahm task` lifecycle and metadata commands,
 `ahm adr` lifecycle commands, `ahm task groom`, `ahm records migrate`, and
 `ahm task|adr migrate`) serialize on a single repository-local workflow record
 lock. The lock lives under `.agents/.lock/workflow-records` or
-`.ahm/.lock/workflow-records` depending on the repository's storage mode. It is
+`.ahm/.lock/workflow-records` depending on the repository's record layout. It is
 held across the full read-compute-write sequence for each command, including ID
 allocation, file writes, and index regeneration. `--dry-run` and read-only
 preview paths do not take the lock and do not write workflow state.
@@ -236,7 +236,7 @@ The ownership categories are:
    `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
    Scoped commands such as `ahm context task` expose the
    full embedded reference document for that workflow, with record and index
-   paths rendered for the repository's active storage mode. Existing
+   paths rendered for the repository's legacy or post-migration layout. Existing
    `.ahm/tasks/README.md`, `.ahm/research/README.md`, and
    `docs/adr/README.md` scaffold copies from older releases are preserved and
    relinquished from metadata ownership; `ahm upgrade` does not remove them.
@@ -328,8 +328,8 @@ The output format and exit codes are the same regardless of which scopes are
 active; only the reported findings change.
 
 ExecPlan lifecycle state is implicit in file placement and Markdown sections.
-In-progress plans live under the active ExecPlan bucket in the current storage
-mode; completed plans live under the completed ExecPlan bucket. Every ExecPlan
+In-progress plans live under the active ExecPlan bucket in the current record
+layout; completed plans live under the completed ExecPlan bucket. Every ExecPlan
 must maintain `Progress`, `Surprises & Discoveries`, `Decision Log`, and
 `Outcomes & Retrospective` sections. Active plans should not have completed
 outcomes, completed plans should have completed outcomes, and completed plans
@@ -496,7 +496,8 @@ the batch as a whole has no rollback or transaction semantics.
 Managed-work references are exposed by scoped
 `ahm context task|plan|adr|research|docs` instead of being copied into target
 repositories. Scoped reference output renders record and index paths for the
-repository's active storage mode. `ahm prime` is the live session briefing with
-repository state and active-mode workflow record paths; `--json` and `--plain`
+repository's legacy or post-migration layout. `ahm prime` is the live session
+briefing with repository state and layout-specific workflow record paths;
+`--json` and `--plain`
 expose the same structured briefing for integrations. Unscoped `ahm context`
 is no longer a briefing command.

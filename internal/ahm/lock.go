@@ -36,8 +36,8 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) error {
 }
 
 // workflowRecordLockRoot returns the lock directory for the repository's
-// current storage mode. Commands that wait for the lock re-evaluate this on
-// each retry so they follow a storage-mode transition (e.g. records migration)
+// current record layout. Commands that wait for the lock re-evaluate this on
+// each retry so they follow a layout transition (e.g. records migration)
 // rather than waiting on an abandoned lock directory.
 func workflowRecordLockRoot(root string) string {
 	return filepath.Join(root, workflowPathsFor(root).recordsDir, ".lock")
@@ -45,8 +45,8 @@ func workflowRecordLockRoot(root string) string {
 
 // acquireWorkflowRecordLock returns the release function for the single
 // repository-scoped workflow record-mutation lock. The lock lives in the
-// active storage root (`.agents/.lock` or `.ahm/.lock`) and is re-resolved on
-// each retry so waiters migrate with a storage-mode transition.
+// active record root (`.agents/.lock` or `.ahm/.lock`) and is re-resolved on
+// each retry so waiters migrate with a layout transition.
 func acquireWorkflowRecordLock(root string) (func() error, error) {
 	deadline := time.Now().Add(workflowLockTimeout)
 	for {
@@ -68,9 +68,9 @@ func acquireWorkflowRecordLock(root string) (func() error, error) {
 }
 
 // acquireWorkflowRecordMigrationLocks holds the record-mutation lock for both
-// the current storage root and the `.ahm` target root during records migration.
-// This prevents the lock namespace from splitting while the repository's active
-// storage mode changes.
+// the current record root and the `.ahm` target root during records migration.
+// This prevents the lock namespace from splitting while the repository's record
+// layout changes.
 func acquireWorkflowRecordMigrationLocks(root string) (func() error, error) {
 	currentRoot := workflowRecordLockRoot(root)
 	targetRoot := filepath.Join(root, toolRecordsDirName, ".lock")

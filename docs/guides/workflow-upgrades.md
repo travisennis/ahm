@@ -41,6 +41,17 @@ Use `--dry-run` to preview changes. Use `--force` only when old local
 instruction files should be removed even though they no longer match their
 recorded managed hash.
 
+## Record Layout Terminology (2026-07-18)
+
+`internal/templates.Version` advanced from `0.6.2` to `0.6.3` because the
+embedded research workflow reference now describes the metadata-selected
+record layout rather than a storage mode. Legacy `.agents/` and post-migration
+`.ahm/` layouts both keep source records as ordinary committed files.
+
+Structured `prime` output no longer includes the obsolete `records.mode`
+field, and `records doctor` no longer includes `checks.mode`. Record-path
+selection and legacy-layout compatibility are unchanged.
+
 ## Context-Only Workflow References (2026-07-15)
 
 `internal/templates.Version` advanced from `0.6.1` to `0.6.2`. Fresh installs
@@ -163,23 +174,23 @@ precedence rules and examples.
 - No template version change; existing metadata formats are fully backward
   compatible.
 
-## Active-Mode Agent Guidance Rendering (2026-07-09)
+## Layout-Aware Agent Guidance Rendering (2026-07-09)
 
 `internal/templates.Version` advanced from `0.4.5` to `0.4.6`.
 
 Live agent instruction output now renders workflow record, generated index, and
-metadata paths for the repository's active storage mode. Legacy repositories
+metadata paths for the repository's record layout. Legacy repositories
 see direct `.agents/...` paths; migrated repositories see direct `.ahm/...`
-paths. Generic project documentation still describes both storage modes where
+paths. Generic project documentation still describes both layouts where
 that distinction is durable user-facing behavior.
 
 ### Impact
 
 - `ahm context task`, `ahm context research`, `ahm context plan`,
   `ahm context docs`, and `ahm prime` avoid unnecessary paired-path wording in
-  live output when the repository mode is known.
+  live output when the repository layout is known.
 - Managed skill templates and `ahm agents suggestions` render the generated
-  task or research index paths for the active storage mode.
+  task or research index paths for the active record layout.
 - `ahm upgrade` records template version `0.4.6` in `.ahm/config.json` after
   migration, or legacy `.agents/ahm.json` before migration.
 
@@ -188,7 +199,7 @@ that distinction is durable user-facing behavior.
 `internal/templates.Version` advanced from `0.4.4` to `0.4.5`.
 
 The embedded task, research, and ExecPlan workflow references now describe the
-current storage mode instead of hard-coding only legacy `.agents/` paths.
+current record layout instead of hard-coding only legacy `.agents/` paths.
 Legacy repositories still use `.agents/`; repositories that run
 `ahm records migrate` use `.ahm/` for task, research, ExecPlan, and generated
 index paths. The `ahm agents suggestions` advisory output now includes
@@ -197,7 +208,7 @@ index paths. The `ahm agents suggestions` advisory output now includes
 ### Impact
 
 - `ahm context task`, `ahm context research`, and `ahm context plan` output
-  describes both storage modes for fallback paths and generated indexes.
+  describes both layouts for fallback paths and generated indexes.
 - `ahm agents suggestions` tells maintainers to put `ahm prime` before normal
   managed-work intake in project-owned `AGENTS.md`.
 - `ahm upgrade` records template version `0.4.5` in `.ahm/config.json` after

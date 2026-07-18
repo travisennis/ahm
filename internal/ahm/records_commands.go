@@ -70,8 +70,6 @@ func (a *app) recordsDoctor() error {
 		report.Checks["metadata"] = metadataErrorPath(err) + ": " + err.Error()
 		return a.emit(report)
 	}
-	report.Checks["mode"] = "committed"
-
 	migration, migrationOK, err := recordsMigrationDiagnostic(ctx, a.opts.root)
 	if err != nil {
 		report.OK = false

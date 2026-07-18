@@ -19,15 +19,10 @@ type primeReport struct {
 	Workflow contextWorkflow        `json:"workflow"`
 	Git      contextGit             `json:"git"`
 	Tasks    primeTasks             `json:"tasks"`
-	Records  primeRecords           `json:"records"`
 	Plans    []primePlanSummary     `json:"plans,omitempty"`
 	Research []primeResearchNote    `json:"research,omitempty"`
 	Commands []string               `json:"commands"`
 	Paths    instructionRenderPaths `json:"-"`
-}
-
-type primeRecords struct {
-	Mode string `json:"mode"`
 }
 
 type primePlanSummary struct {
@@ -126,7 +121,6 @@ func (a *app) buildPrimeReport() primeReport {
 	}
 	taskInfo := a.primeTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
-	recordsInfo := a.buildPrimeRecords(meta, metaErr)
 	plans := a.primeActivePlans()
 	research := a.primeRecentResearch()
 
@@ -143,7 +137,6 @@ func (a *app) buildPrimeReport() primeReport {
 		},
 		Git:      gitInfo,
 		Tasks:    taskInfo,
-		Records:  recordsInfo,
 		Plans:    plans,
 		Research: research,
 		Commands: contextCommands(""),
@@ -151,14 +144,7 @@ func (a *app) buildPrimeReport() primeReport {
 	}
 }
 
-func (a *app) buildPrimeRecords(_ metadata, metaErr error) primeRecords {
-	if metaErr != nil {
-		return primeRecords{Mode: "committed"}
-	}
-	return primeRecords{Mode: "committed"}
-}
-
-// primeActivePlans collects active ExecPlans in the current storage mode.
+// primeActivePlans collects active ExecPlans in the current record layout.
 func (a *app) primeActivePlans() []primePlanSummary {
 	paths := workflowPathsFor(a.opts.root)
 	dir := paths.execPlansDir("active")
@@ -193,7 +179,7 @@ func (a *app) primeActivePlans() []primePlanSummary {
 }
 
 // primeRecentResearch collects recent research notes (up to 5, newest by
-// filename sort) in the current storage mode.
+// filename sort) in the current record layout.
 func (a *app) primeRecentResearch() []primeResearchNote {
 	paths := workflowPathsFor(a.opts.root)
 	buckets := []string{"inbox", "topics", "investigations", "sources"}

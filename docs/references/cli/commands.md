@@ -381,7 +381,10 @@ in the project git index, pointing at `ahm records migrate` or the required
 Git cleanup commands.
 
 Text output includes `ok: true|false` and a `checks:` section. With `--json` or
-`--plain`, the same information is emitted as structured JSON.
+`--plain`, the same information is emitted as structured JSON. The checks
+describe migration state only; they do not emit a `mode` field because both
+supported layouts use ordinary committed source records. Removing the former
+`checks.mode` key is a deliberate structured-output compatibility change.
 
 Example:
 
@@ -408,7 +411,7 @@ The briefing includes (in order, omitting empty sections):
 - Active ExecPlans and the five most recent research notes, sorted globally
   across buckets by descending filename with a deterministic path tie-breaker.
 - `## Managed Work Intake` — the routing table for managed-work types,
-  active-mode workflow record paths, and notes on workflow and multi-step
+  layout-specific workflow record paths, and notes on workflow and multi-step
   plans.
 - `## Useful Commands` — common follow-up commands.
 
@@ -418,7 +421,6 @@ Useful flags:
 
 - `--json`: prints structured output with `root`, `workflow`, `git`,
   `tasks` (with `in_progress`, `ready`, `ready_total`, `blocked`, `open`),
-  `records` (with `mode`),
   `plans` (active ExecPlan summaries), `research` (recent research notes),
   and `commands`.
 - `--plain`: prints compact JSON.
@@ -443,7 +445,7 @@ artifact type. For example, `ahm context task` prints the task workflow
 reference for creating, choosing, updating, or working on tasks. Scoped output
 is pure reference text with no live briefing wrapper. References that name
 workflow record, generated index, or metadata paths render those paths for the
-repository's active storage mode.
+repository's legacy or post-migration layout.
 
 Required scope:
 

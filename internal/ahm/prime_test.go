@@ -96,6 +96,7 @@ func TestPrimeJSONOutput(t *testing.T) {
 		`"open":`,
 	)
 	assertNotContains(t, stdout, `"instructions"`)
+	assertNotContains(t, stdout, `"records"`)
 }
 
 func TestPrimePlainOutput(t *testing.T) {
@@ -112,6 +113,7 @@ func TestPrimePlainOutput(t *testing.T) {
 		t.Fatalf("plain output should be compact JSON (single line), got %d lines:\n%s", strings.Count(stdout, "\n"), stdout)
 	}
 	assertContainsAll(t, stdout, `"root":"`+root+`"`, `"ready_total":`)
+	assertNotContains(t, stdout, `"records"`)
 }
 
 func TestPrimeReadyCapWithOverflow(t *testing.T) {

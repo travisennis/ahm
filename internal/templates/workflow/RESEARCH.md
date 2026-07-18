@@ -3,7 +3,7 @@
 This output explains how research artifacts are handled in this repository.
 When you are asked to create, update, organize, or use research, run
 `ahm context research` first, then use the generated research index in the
-current storage mode (`{{.ResearchIndex}}`) as the map and open the relevant
+current record layout (`{{.ResearchIndex}}`) as the map and open the relevant
 source files.
 
 ## Research Storage
@@ -21,7 +21,7 @@ Use these subdirectories:
 - `topics/` for synthesized, durable notes about an area of this project or an idea that may feed several tasks or plans.
 - `archived/` for stale or superseded notes kept for historical reference.
 
-The research index in the current storage mode is the generated research map.
+The research index in the current record layout is the generated research map.
 Use it to orient yourself, but always open the source research file before
 relying on a note.
 
@@ -57,7 +57,7 @@ Research is not automatically authoritative. Before using a research note to jus
 If a research finding implies actionable work, either link an existing task or
 create one with `ahm task create`. If the finding is broad, risky, or
 implementation-heavy, promote it into an ExecPlan under the active ExecPlan
-bucket in the current storage mode.
+bucket in the current record layout.
 
 Research should usually flow from rough capture to durable project work:
 

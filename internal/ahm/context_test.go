@@ -75,7 +75,7 @@ func TestScopedContextPrintsMigratedInstructionPaths(t *testing.T) {
 	)
 }
 
-func TestScopedContextsRenderStorageModePaths(t *testing.T) {
+func TestScopedContextsRenderLayoutPaths(t *testing.T) {
 	root := t.TempDir()
 	writeAHMConfig(t, root)
 

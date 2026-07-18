@@ -14,8 +14,7 @@ All notable user-facing changes to `ahm` are recorded here.
   managed `.ahm/.gitignore` that ignores only generated indexes and
   machine-local state, writes committed `.ahm/config.json`, and prints the
   required `git add`/`git rm --cached` instructions.
-- *(prime)* `ahm prime` now regenerates stale indexes in place and prints
-  a `records` block with `mode` field in `--json` output.
+- *(prime)* `ahm prime` now regenerates stale indexes in place.
 - *(init/upgrade)* `ahm init` and `ahm upgrade` ensure `.ahm/.gitignore`
   exists after migration and create missing record directories and
   generated indexes under `.ahm/` when the repository is migrated.
@@ -38,6 +37,11 @@ All notable user-facing changes to `ahm` are recorded here.
   `records_last_sync` metadata field are removed.
 
 ### Changed
+
+- *(records)* Structured `prime` output no longer includes the obsolete
+  `records.mode` field, and `records doctor` no longer includes
+  `checks.mode`. This is a deliberate structured-output compatibility change;
+  both supported record layouts use ordinary committed files.
 
 - *(migration)* `ahm records migrate` no longer creates or updates
   `refs/ahm/*` refs, seeds remote refs, or writes sync metadata to
