@@ -625,29 +625,12 @@ func applyGroomRevision(task *Task, revision *groomRevision) error {
 func replaceGroomSection(body, role, content string) (string, error) {
 	aliases := groomSectionHeadings[role]
 	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
-	start, end, matches := -1, len(lines), 0
-	for i, line := range lines {
-		level := headingLevel(line)
-		if level != 2 && level != 3 {
-			continue
-		}
-		heading := strings.ToLower(strings.TrimSpace(strings.TrimSpace(line)[level:]))
-		if containsString(aliases, heading) {
-			matches++
-			if start < 0 {
-				start = i
-			}
-			continue
-		}
-		if start >= 0 && end == len(lines) && level <= headingLevel(lines[start]) {
-			end = i
-		}
-	}
-	if matches > 1 {
+	sections := locateHeadingSections(lines, aliases)
+	if len(sections) > 1 {
 		return "", fmt.Errorf("ambiguous %s sections", role)
 	}
 	replacement := strings.TrimSpace(content)
-	if start < 0 {
+	if len(sections) == 0 {
 		// Section not found; insert before ## Comments if present so Comments
 		// always remains the final section.
 		if commentsIdx := groomCommentsIndex(lines); commentsIdx >= 0 {
@@ -658,9 +641,10 @@ func replaceGroomSection(body, role, content string) (string, error) {
 		}
 		return strings.TrimSpace(body) + "\n\n## " + groomCanonicalHeadings[role] + "\n\n" + replacement, nil
 	}
-	newLines := append([]string{}, lines[:start+1]...)
+	section := sections[0]
+	newLines := append([]string{}, lines[:section.Start+1]...)
 	newLines = append(newLines, "", replacement, "")
-	newLines = append(newLines, lines[end:]...)
+	newLines = append(newLines, lines[section.End:]...)
 	return strings.TrimSpace(strings.Join(newLines, "\n")), nil
 }
 
@@ -681,29 +665,15 @@ func groomCommentsIndex(lines []string) int {
 func groomSectionContent(body, role string) (string, bool, error) {
 	aliases := groomSectionHeadings[role]
 	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
-	start, end, matches := -1, len(lines), 0
-	for i, line := range lines {
-		level := headingLevel(line)
-		if level != 2 && level != 3 {
-			continue
-		}
-		heading := strings.ToLower(strings.TrimSpace(strings.TrimSpace(line)[level:]))
-		if containsString(aliases, heading) {
-			matches++
-			start = i
-			continue
-		}
-		if start >= 0 && end == len(lines) && level <= headingLevel(lines[start]) {
-			end = i
-		}
-	}
-	if matches > 1 {
+	sections := locateHeadingSections(lines, aliases)
+	if len(sections) > 1 {
 		return "", false, fmt.Errorf("ambiguous %s sections", role)
 	}
-	if start < 0 {
+	if len(sections) == 0 {
 		return "", false, nil
 	}
-	return strings.TrimSpace(strings.Join(lines[start+1:end], "\n")), true, nil
+	section := sections[0]
+	return strings.TrimSpace(strings.Join(lines[section.Start+1:section.End], "\n")), true, nil
 }
 
 func validateRevisedTaskReadiness(task Task) error {

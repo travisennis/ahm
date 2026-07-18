@@ -364,30 +364,18 @@ func upsertADRMoreInformationReference(body string, superseded ADR) string {
 func upsertADRSection(body string, heading string, content string) string {
 	newline := dominantNewline(body)
 	lines := splitLinesForEdit(body)
-	for i, line := range lines {
-		level := headingLevel(line)
-		if level != 2 && level != 3 {
-			continue
-		}
-		trimmedLine := strings.TrimSpace(line)
-		if !strings.EqualFold(strings.TrimSpace(trimmedLine[level:]), heading) {
-			continue
-		}
-		end := len(lines)
-		for j := i + 1; j < len(lines); j++ {
-			nextLevel := headingLevel(lines[j])
-			if nextLevel > 0 && nextLevel <= level {
-				end = j
-				break
-			}
-		}
+	sections := locateHeadingSections(lines, []string{heading})
+	if len(sections) > 0 {
+		// Preserve the established first-match behavior for repeated headings.
+		section := sections[0]
+		trimmedLine := strings.TrimSpace(lines[section.Start])
 		replacement := []string{trimmedLine, "", content}
-		if end < len(lines) {
+		if section.End < len(lines) {
 			replacement = append(replacement, "")
 		}
-		updated := append([]string{}, lines[:i]...)
+		updated := append([]string{}, lines[:section.Start]...)
 		updated = append(updated, replacement...)
-		updated = append(updated, lines[end:]...)
+		updated = append(updated, lines[section.End:]...)
 		return joinLinesForEdit(updated, newline)
 	}
 	section := "## " + heading + "\n\n" + content

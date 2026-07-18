@@ -249,30 +249,18 @@ func (a *app) warnCancellationAcceptancePlaceholder(task Task) {
 func upsertCancellationReason(body string, reason string) string {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	lines := strings.Split(body, "\n")
-	for i, line := range lines {
-		level := headingLevel(line)
-		if level != 2 && level != 3 {
-			continue
-		}
-		trimmedLine := strings.TrimSpace(line)
-		if !isCancellationReasonHeading(trimmedLine[level:]) {
-			continue
-		}
-		end := len(lines)
-		for j := i + 1; j < len(lines); j++ {
-			nextLevel := headingLevel(lines[j])
-			if nextLevel > 0 && nextLevel <= level {
-				end = j
-				break
-			}
-		}
+	sections := locateHeadingSections(lines, []string{"Cancellation Reason"})
+	if len(sections) > 0 {
+		// Preserve the established first-match behavior for repeated headings.
+		section := sections[0]
+		trimmedLine := strings.TrimSpace(lines[section.Start])
 		replacement := []string{trimmedLine, "", reason}
-		if end < len(lines) {
+		if section.End < len(lines) {
 			replacement = append(replacement, "")
 		}
-		updated := append([]string{}, lines[:i]...)
+		updated := append([]string{}, lines[:section.Start]...)
 		updated = append(updated, replacement...)
-		updated = append(updated, lines[end:]...)
+		updated = append(updated, lines[section.End:]...)
 		return strings.TrimSpace(strings.Join(updated, "\n"))
 	}
 	body = strings.TrimSpace(body)
@@ -281,8 +269,4 @@ func upsertCancellationReason(body string, reason string) string {
 		return section
 	}
 	return body + "\n\n" + section
-}
-
-func isCancellationReasonHeading(heading string) bool {
-	return strings.EqualFold(strings.TrimSpace(heading), "Cancellation Reason")
 }
