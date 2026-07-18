@@ -46,6 +46,27 @@ Task efforts must be one of:
 - `L`
 - `XL`
 
+### Shared List Sorting
+
+`task list`, `task ready`, and `task blocked` accept the same presentation
+flags. `--sort <field>` supports `priority`, `id`, `created`, `updated`,
+`effort`, `status`, and `title`. The default is `priority`, preserving the
+existing priority-rank-then-task-ID order. `--reverse` reverses the complete
+selected ordering, including the task-ID tie-breaker; when used without
+`--sort`, it reverses the default priority ordering.
+
+Priority uses `P0`, `P1`, `P2`, `P3`, `P4` order. Effort uses `XS`, `S`, `M`,
+`L`, `XL` order. Status uses `Open`, `Pending`, `In Progress`, `Blocked`,
+`Tracking`, `Completed`, `Cancelled` order. IDs use numeric-aware task ID
+ordering, valid RFC3339 `created` and `updated` values use chronological order,
+and titles use case-insensitive alphabetical order. Missing or invalid
+timestamps sort before valid timestamps and otherwise compare lexically. Every
+field except `id` uses task ID as its deterministic tie-breaker.
+
+The selected order is the same in text, plain, and JSON output. These flags are
+presentation-only and are not available on `task next`, which always selects
+the highest-priority ready task using priority rank and then task ID.
+
 ### Malformed Task Resilience
 
 List-like commands (`task list`, `task ls`, `task ready`, `task blocked`,
@@ -190,6 +211,9 @@ Useful flags:
   comma-separated list (`--effort S,M`) or repeated flags
   (`--effort S --effort M`). Matching is case-insensitive. Duplicate efforts
   are ignored.
+- `--sort <field>`: selects one of the shared list sort fields. Defaults to
+  `priority`.
+- `--reverse`: reverses the selected ordering, including task-ID ties.
 - `--json`: emits parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, `effort`, `labels`, `exec_plan`, `depends_on`, `created`, `updated`, `parent`, `external_ref`, `extra`, `path`, `bucket`, `body`).
 
 When multiple filters are supplied, `task list` applies AND semantics across
@@ -204,6 +228,7 @@ ahm task list --status pending,completed
 ahm task list --status open --status "in progress"
 ahm task list --label type:feature --label area:cli
 ahm task list --priority P0,P1 --effort S,M
+ahm task list --sort updated --reverse
 ```
 
 ### `task ready`
@@ -217,6 +242,7 @@ Useful flags:
 
 - `--label <label>`: filters ready tasks by one or more labels. Matching uses
   the same AND semantics as `task list --label`.
+- `--sort <field>` and `--reverse`: use the shared list sorting behavior.
 - `--json`: emits parsed task structs with lowercase snake_case keys.
 
 Example:
@@ -224,6 +250,7 @@ Example:
 ```bash
 ahm task ready
 ahm task ready --label area:cli
+ahm task ready --sort effort
 ```
 
 ### `task blocked`
@@ -239,6 +266,7 @@ Useful flags:
 
 - `--label <label>`: filters blocked tasks by one or more labels. Matching uses
   the same AND semantics as `task list --label`.
+- `--sort <field>` and `--reverse`: use the shared list sorting behavior.
 - `--json`: emits parsed task structs with lowercase snake_case keys.
 
 Example:
@@ -246,6 +274,7 @@ Example:
 ```bash
 ahm task blocked
 ahm task blocked --label risk:external-service
+ahm task blocked --sort status --reverse
 ```
 
 ### `task search <query>`

@@ -6,9 +6,14 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
 func (a *app) taskList(mode string, statuses []string, labels []string, priorities []string, efforts []string) error {
+	return a.taskListSorted(mode, statuses, labels, priorities, efforts, "", false)
+}
+
+func (a *app) taskListSorted(mode string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool) error {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
 	if err != nil {
@@ -55,6 +60,9 @@ func (a *app) taskList(mode string, statuses []string, labels []string, prioriti
 		}
 		filtered = filterTasksByEffort(filtered, allowed)
 	}
+	if err := sortTaskList(filtered, sortField, reverse); err != nil {
+		return err
+	}
 	if len(filtered) == 0 {
 		if a.opts.json {
 			return a.emit([]Task{})
@@ -76,6 +84,98 @@ func (a *app) taskList(mode string, statuses []string, labels []string, prioriti
 		a.printTaskLine(task)
 	}
 	return nil
+}
+
+func sortTaskList(tasks []Task, field string, reverse bool) error {
+	field = strings.ToLower(strings.TrimSpace(field))
+	if field == "" {
+		field = "priority"
+	}
+	supported := taskSortFieldOrder()
+	if !containsString(supported, field) {
+		return usageError(fmt.Sprintf("unsupported task sort field %q (supported: %s)", field, strings.Join(supported, ", ")))
+	}
+	sort.SliceStable(tasks, func(i, j int) bool {
+		comparison := compareTaskSortField(tasks[i], tasks[j], field)
+		if comparison == 0 && field != "id" {
+			comparison = compareTaskIDs(tasks[i].ID, tasks[j].ID)
+		}
+		if reverse {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+	return nil
+}
+
+func taskSortFieldOrder() []string {
+	return []string{"priority", "id", "created", "updated", "effort", "status", "title"}
+}
+
+func compareTaskSortField(a, b Task, field string) int {
+	switch field {
+	case "priority":
+		return compareInts(priorityRank(a.Priority), priorityRank(b.Priority))
+	case "id":
+		return compareTaskIDs(a.ID, b.ID)
+	case "created":
+		return compareTaskTimestamps(a.Created, b.Created)
+	case "updated":
+		return compareTaskTimestamps(a.Updated, b.Updated)
+	case "effort":
+		return compareInts(enumRank(a.Effort, effortOrder()), enumRank(b.Effort, effortOrder()))
+	case "status":
+		return compareInts(enumRank(a.Status, statusOrder()), enumRank(b.Status, statusOrder()))
+	case "title":
+		return strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title))
+	default:
+		return 0
+	}
+}
+
+func compareTaskIDs(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if taskLess(a, b) {
+		return -1
+	}
+	return 1
+}
+
+func compareTaskTimestamps(a, b string) int {
+	aTime, aErr := time.Parse(time.RFC3339, a)
+	bTime, bErr := time.Parse(time.RFC3339, b)
+	switch {
+	case aErr == nil && bErr == nil:
+		return aTime.Compare(bTime)
+	case aErr == nil:
+		return 1
+	case bErr == nil:
+		return -1
+	default:
+		return strings.Compare(a, b)
+	}
+}
+
+func enumRank(value string, order []string) int {
+	for i, candidate := range order {
+		if value == candidate {
+			return i
+		}
+	}
+	return len(order)
+}
+
+func compareInts(a, b int) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (a *app) taskSearch(query string, statuses []string, labels []string) error {
@@ -357,20 +457,7 @@ func depsComplete(task Task, completed map[string]bool) bool {
 }
 
 func priorityRank(priority string) int {
-	switch priority {
-	case "P0":
-		return 0
-	case "P1":
-		return 1
-	case "P2":
-		return 2
-	case "P3":
-		return 3
-	case "P4":
-		return 4
-	default:
-		return 99
-	}
+	return enumRank(priority, priorityOrder())
 }
 
 func filterTasksByPriority(tasks []Task, allowed map[string]bool) []Task {

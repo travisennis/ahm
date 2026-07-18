@@ -73,18 +73,21 @@ Examples:
   ahm task list --status pending,completed
   ahm task list --label type:feature --label area:cli
   ahm task list --priority P0
-  ahm task list --priority P0,P1 --effort S,M`))
+  ahm task list --priority P0,P1 --effort S,M
+  ahm task list --sort updated --reverse`))
 	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready", `List pending tasks whose dependencies are all completed.
 
 Examples:
   ahm task ready
   ahm task ready --label area:cli
+  ahm task ready --sort effort
   ahm --json task ready`))
 	task.AddCommand(a.taskListCommand("blocked", nil, "List blocked tasks", "blocked", `List blocked tasks.
 
 Examples:
   ahm task blocked
-  ahm task blocked --label risk:external-service`))
+  ahm task blocked --label risk:external-service
+  ahm task blocked --sort status --reverse`))
 	task.AddCommand(&cobra.Command{
 		Use:   "labels",
 		Short: "List task labels",
@@ -343,6 +346,8 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 	var labels []string
 	var priorities []string
 	var efforts []string
+	var sortField string
+	var reverse bool
 	cmd := &cobra.Command{
 		Use:     use,
 		Aliases: aliases,
@@ -353,7 +358,7 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskList(mode, statuses, labels, priorities, efforts)
+			return a.taskListSorted(mode, statuses, labels, priorities, efforts, sortField, reverse)
 		},
 	}
 	if mode == "all" {
@@ -362,5 +367,7 @@ func (a *app) taskListCommand(use string, aliases []string, short string, mode s
 		cmd.Flags().StringSliceVar(&efforts, "effort", nil, "Filter tasks by effort; valid: XS, S, M, L, XL (comma-separated or repeatable)")
 	}
 	cmd.Flags().StringSliceVar(&labels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
+	cmd.Flags().StringVar(&sortField, "sort", "", "Sort by priority, id, created, updated, effort, status, or title (default priority)")
+	cmd.Flags().BoolVar(&reverse, "reverse", false, "Reverse the selected sort order, including task ID tie-breakers")
 	return cmd
 }

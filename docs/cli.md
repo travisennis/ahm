@@ -27,6 +27,10 @@ Structured `init` and `upgrade` summaries have a stable set of array-valued
 keys: `adopted`, `created`, `updated`, `removed`, `skipped`, `conflicts`,
 `metadata`, and `indexes`. Empty result groups remain present as empty arrays.
 
+`task list`, `task ready`, and `task blocked` share configurable deterministic
+ordering through `--sort` and `--reverse`; the supported fields and rank rules
+are documented in the task command reference.
+
 For implementation boundaries and invariants, see
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state and file-format
 semantics, see [the workflow specification](references/workflow-spec.md).
