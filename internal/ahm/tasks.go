@@ -141,7 +141,10 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 
 func parseFrontMatter(text string) (map[string]string, string, error) {
 	meta := map[string]string{}
-	raw, body, ok := splitFrontMatter(text)
+	raw, body, ok, err := splitFrontMatter(text)
+	if err != nil {
+		return nil, "", err
+	}
 	if !ok {
 		return meta, body, nil
 	}
@@ -158,16 +161,33 @@ func parseFrontMatter(text string) (map[string]string, string, error) {
 	return meta, body, nil
 }
 
-func splitFrontMatter(text string) (string, string, bool) {
+func splitFrontMatter(text string) (string, string, bool, error) {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return "", text, false
+	if text != "---" && !strings.HasPrefix(text, "---\n") {
+		return "", text, false, nil
 	}
-	end := strings.Index(text[4:], "\n---\n")
-	if end < 0 {
-		return "", text, false
+	// A lone opening delimiter without a close is malformed front matter.
+	if text == "---" {
+		return "", text, false, fmt.Errorf("front matter is not closed")
 	}
-	return text[4 : 4+end], text[4+end+5:], true
+	rest := text[4:]
+	// Empty front matter: closing delimiter immediately after opening.
+	if rest == "---" {
+		return "", "", true, nil
+	}
+	if strings.HasPrefix(rest, "---\n") {
+		return "", rest[4:], true, nil
+	}
+	// Non-empty front matter: look for closing delimiter on its own line.
+	end := strings.Index(rest, "\n---\n")
+	if end >= 0 {
+		return rest[:end], rest[end+5:], true, nil
+	}
+	// Closing delimiter at end of file (no trailing newline).
+	if strings.HasSuffix(rest, "\n---") {
+		return rest[:len(rest)-4], "", true, nil
+	}
+	return "", text, false, fmt.Errorf("front matter is not closed")
 }
 
 func parseFrontMatterLine(line string) (string, string, bool, error) {

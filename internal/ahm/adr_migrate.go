@@ -121,7 +121,11 @@ func migrateLegacyADR(text string, path string) (string, []string) {
 	paddedID := fmt.Sprintf("%03d", id)
 
 	// Skip files that already have front matter (MADR records).
-	if _, _, has := splitFrontMatter(text); has {
+	_, _, has, err := splitFrontMatter(text)
+	if err != nil {
+		return text, []string{"front matter is not closed; fix manually"}
+	}
+	if has {
 		return text, nil
 	}
 

@@ -101,7 +101,10 @@ func taskMarkdownPaths(root string) ([]string, error) {
 }
 
 func migrateTaskFrontMatter(text string) (string, []string) {
-	raw, body, ok := splitFrontMatter(text)
+	raw, body, ok, err := splitFrontMatter(text)
+	if err != nil {
+		return text, []string{"front matter is not closed; fix manually"}
+	}
 	if !ok {
 		return text, nil
 	}

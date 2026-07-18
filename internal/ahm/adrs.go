@@ -114,10 +114,11 @@ func parseADRFromData(data []byte, path string) (ADR, error) {
 	}
 	paddedID := fmt.Sprintf("%03d", id)
 	text := string(data)
-	if _, _, hasFrontMatter := splitFrontMatter(text); !hasFrontMatter {
-		if strings.HasPrefix(strings.ReplaceAll(text, "\r\n", "\n"), "---\n") {
-			return ADR{}, fmt.Errorf("ADR front matter is not closed")
-		}
+	_, _, hasFrontMatter, err := splitFrontMatter(text)
+	if err != nil {
+		return ADR{}, fmt.Errorf("ADR front matter is not closed")
+	}
+	if !hasFrontMatter {
 		return parseLegacyADR(text, path, paddedID, slug), nil
 	}
 	meta, body, err := parseFrontMatter(text)
@@ -266,7 +267,10 @@ func rewriteADR(path string, fields map[string]string, updateBody func(string) s
 		return err
 	}
 	text := string(data)
-	raw, body, newline, ok := splitRawFrontMatter(text)
+	raw, body, newline, ok, err := splitRawFrontMatter(text)
+	if err != nil {
+		return fmt.Errorf("ADR front matter is missing or not closed")
+	}
 	if !ok {
 		return fmt.Errorf("ADR front matter is missing or not closed")
 	}
@@ -280,23 +284,42 @@ func rewriteADR(path string, fields map[string]string, updateBody func(string) s
 	return writeFileAtomic(path, []byte(updated), 0o644)
 }
 
-func splitRawFrontMatter(text string) (string, string, string, bool) {
+func splitRawFrontMatter(text string) (string, string, string, bool, error) {
 	for _, newline := range []string{"\n", "\r\n"} {
 		open := "---" + newline
-		close := newline + "---" + newline
 		if !strings.HasPrefix(text, open) {
+			// A lone opening delimiter with no newline is malformed regardless of newline style.
+			if text == "---" {
+				return "", "", newline, false, fmt.Errorf("front matter is not closed")
+			}
 			continue
 		}
-		end := strings.Index(text[len(open):], close)
-		if end < 0 {
-			return "", "", newline, false
+		rest := text[len(open):]
+		// Empty front matter: closing delimiter immediately after opening.
+		closeDelim := "---"
+		if rest == closeDelim {
+			return "", "", newline, true, nil
 		}
-		rawStart := len(open)
-		rawEnd := rawStart + end
-		bodyStart := rawEnd + len(close)
-		return text[rawStart:rawEnd], text[bodyStart:], newline, true
+		if strings.HasPrefix(rest, closeDelim+newline) {
+			return "", rest[len(closeDelim)+len(newline):], newline, true, nil
+		}
+		// Non-empty front matter: look for closing delimiter on its own line.
+		close := newline + "---" + newline
+		end := strings.Index(rest, close)
+		if end >= 0 {
+			rawEnd := end
+			bodyStart := end + len(close)
+			return rest[:rawEnd], text[len(open)+bodyStart:], newline, true, nil
+		}
+		// Closing delimiter at end of file (no trailing newline).
+		endEOF := newline + "---"
+		if strings.HasSuffix(rest, endEOF) {
+			rawEnd := len(rest) - len(endEOF)
+			return rest[:rawEnd], "", newline, true, nil
+		}
+		return "", "", newline, false, fmt.Errorf("front matter is not closed")
 	}
-	return "", text, "\n", false
+	return "", text, "\n", false, nil
 }
 
 func updateRawFrontMatter(raw string, newline string, fields map[string]string) string {

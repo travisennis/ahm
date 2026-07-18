@@ -270,6 +270,139 @@ func TestValidADRStatus(t *testing.T) {
 	}
 }
 
+func TestParseADR_EOF(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "009-eof.md")
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{
+			name: "closing delimiter at EOF parses",
+			input: "---\n" +
+				"status: accepted\n" +
+				"date: 2026-06-14\n" +
+				"---",
+		},
+		{
+			name:  "empty front matter at EOF is legacy",
+			input: "---\n---",
+		},
+		{
+			name: "unterminated front matter reports error",
+			input: "---\n" +
+				"status: accepted\n" +
+				"date: 2026-06-14",
+			wantErr: "ADR front matter is not closed",
+		},
+		{
+			name: "CRLF closing delimiter at EOF parses",
+			input: "---\r\n" +
+				"status: accepted\r\n" +
+				"date: 2026-06-14\r\n" +
+				"---",
+		},
+		{
+			name: "CRLF unterminated front matter reports error",
+			input: "---\r\n" +
+				"status: accepted\r\n" +
+				"date: 2026-06-14",
+			wantErr: "ADR front matter is not closed",
+		},
+		{
+			name:    "lone opening delimiter at EOF reports error",
+			input:   "---",
+			wantErr: "ADR front matter is not closed",
+		},
+		{
+			name:    "lone opening delimiter followed by newline reports error",
+			input:   "---\n",
+			wantErr: "ADR front matter is not closed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseADRFromData([]byte(tt.input), path)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestSplitRawFrontMatter_EOF(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantRaw  string
+		wantBody string
+		wantErr  bool
+	}{
+		{
+			name:     "closing delimiter at EOF",
+			input:    "---\nstatus: accepted\ndate: 2026-06-14\n---",
+			wantRaw:  "status: accepted\ndate: 2026-06-14",
+			wantBody: "",
+		},
+		{
+			name:     "empty front matter at EOF with body",
+			input:    "---\n---\n# Body",
+			wantRaw:  "",
+			wantBody: "# Body",
+		},
+		{
+			name:    "unterminated front matter reports error",
+			input:   "---\nstatus: accepted",
+			wantErr: true,
+		},
+		{
+			name:     "CRLF closing delimiter at EOF",
+			input:    "---\r\nstatus: accepted\r\n---",
+			wantRaw:  "status: accepted",
+			wantBody: "",
+		},
+		{
+			name:     "CRLF empty front matter at EOF with body",
+			input:    "---\r\n---\r\n# Body",
+			wantRaw:  "",
+			wantBody: "# Body",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, body, _, ok, err := splitRawFrontMatter(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !ok {
+				t.Errorf("expected front matter to be found")
+			}
+			if raw != tt.wantRaw {
+				t.Errorf("raw = %q, want %q", raw, tt.wantRaw)
+			}
+			if body != tt.wantBody {
+				t.Errorf("body = %q, want %q", body, tt.wantBody)
+			}
+		})
+	}
+}
+
 func writeADRFile(t *testing.T, root string, name string, content string) {
 	t.Helper()
 	path := filepath.Join(root, "docs", "adr", name)

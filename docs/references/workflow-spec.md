@@ -424,6 +424,13 @@ Unsupported forms that produce a parse error:
 
 Comments (`#` at line start) and blank lines within front matter are ignored.
 
+A front matter block is opened by a line containing exactly `---` and closed by a
+second line containing exactly `---`. The closing delimiter may appear either at
+the end of a line followed by the body (`---\n# Body`) or at the end of the file
+with no trailing newline (`---\n...\n---`). CRLF line endings are normalized to LF
+before parsing. A file that opens with `---` but never closes it produces a parse
+error rather than being treated as a file with no front matter.
+
 ## Dash Sentinel Semantics
 
 Certain optional task front matter fields use the dash (`-`) as a sentinel

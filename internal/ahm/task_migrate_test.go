@@ -8,7 +8,10 @@ import (
 )
 
 func TestSplitFrontMatter_CRLF(t *testing.T) {
-	raw, body, ok := splitFrontMatter("---\r\nid: 001\r\n---\r\n# Body\r\n")
+	raw, body, ok, err := splitFrontMatter("---\r\nid: 001\r\n---\r\n# Body\r\n")
+	if err != nil {
+		t.Errorf("splitFrontMatter returned error for CRLF input: %v", err)
+	}
 	if !ok {
 		t.Error("splitFrontMatter returned false for CRLF input")
 	}
@@ -292,6 +295,97 @@ func TestMigrateTaskFrontMatter_MultipleInsertAndNormalize(t *testing.T) {
 			}
 			if len(changes) == 0 && len(tt.changes) == 0 {
 				return
+			}
+			if len(changes) != len(tt.changes) {
+				t.Errorf("changes = %v (len=%d), want %v (len=%d)", changes, len(changes), tt.changes, len(tt.changes))
+			}
+			for i, c := range changes {
+				if c != tt.changes[i] {
+					t.Errorf("changes[%d] = %q, want %q", i, c, tt.changes[i])
+				}
+			}
+		})
+	}
+}
+
+func TestMigrateTaskFrontMatter_EOF(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		changes []string
+	}{
+		{
+			name: "closing delimiter at EOF migrates",
+			input: "---\n" +
+				"id: 001\n" +
+				"title: EOF Task\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: EOF Task\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task, area:unknown\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n",
+			changes: []string{"add labels"},
+		},
+		{
+			name:    "unterminated front matter reports error",
+			input:   "---\nid: 001\ntitle: Unterminated",
+			want:    "---\nid: 001\ntitle: Unterminated",
+			changes: []string{"front matter is not closed; fix manually"},
+		},
+		{
+			name: "CRLF closing delimiter at EOF migrates",
+			input: "---\r\n" +
+				"id: 001\r\n" +
+				"title: CRLF EOF\r\n" +
+				"status: Pending\r\n" +
+				"priority: P2\r\n" +
+				"effort: S\r\n" +
+				"exec_plan: -\r\n" +
+				"depends_on: -\r\n" +
+				"---",
+			want: "---\n" +
+				"id: 001\n" +
+				"title: CRLF EOF\n" +
+				"status: Pending\n" +
+				"priority: P2\n" +
+				"effort: S\n" +
+				"labels: type:task, area:unknown\n" +
+				"exec_plan: -\n" +
+				"depends_on: -\n" +
+				"---\n",
+			changes: []string{"add labels"},
+		},
+		{
+			name:    "lone opening delimiter at EOF reports error",
+			input:   "---",
+			want:    "---",
+			changes: []string{"front matter is not closed; fix manually"},
+		},
+		{
+			name:    "lone opening delimiter followed by newline reports error",
+			input:   "---\n",
+			want:    "---\n",
+			changes: []string{"front matter is not closed; fix manually"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, changes := migrateTaskFrontMatter(tt.input)
+			if got != tt.want {
+				t.Errorf("migrateTaskFrontMatter() output =\n%s\n\nwant =\n%s", got, tt.want)
 			}
 			if len(changes) != len(tt.changes) {
 				t.Errorf("changes = %v (len=%d), want %v (len=%d)", changes, len(changes), tt.changes, len(tt.changes))

@@ -192,6 +192,99 @@ func TestParseFrontMatter_CRLF(t *testing.T) {
 	}
 }
 
+func TestParseFrontMatter_EOF(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]string
+		wantErr string
+	}{
+		{
+			name:  "closing delimiter at EOF with content",
+			input: "---\nid: 001\ntitle: EOF Task\n---",
+			want: map[string]string{
+				"id":    "001",
+				"title": "EOF Task",
+			},
+		},
+		{
+			name:  "empty front matter at EOF",
+			input: "---\n---",
+			want:  map[string]string{},
+		},
+		{
+			name:  "empty front matter at EOF with trailing newline",
+			input: "---\n---\n",
+			want:  map[string]string{},
+		},
+		{
+			name:  "closing delimiter at EOF with body",
+			input: "---\nid: 001\n---\n# Body",
+			want: map[string]string{
+				"id": "001",
+			},
+		},
+		{
+			name:    "unterminated front matter",
+			input:   "---\nid: 001\ntitle: Unterminated",
+			wantErr: "front matter is not closed",
+		},
+		{
+			name:    "unterminated front matter with partial close",
+			input:   "---\nid: 001\n---not a delimiter",
+			wantErr: "front matter is not closed",
+		},
+		{
+			name:  "CRLF closing delimiter at EOF",
+			input: "---\r\nid: 001\r\ntitle: CRLF EOF\r\n---",
+			want: map[string]string{
+				"id":    "001",
+				"title": "CRLF EOF",
+			},
+		},
+		{
+			name:    "CRLF unterminated front matter",
+			input:   "---\r\nid: 001\r\ntitle: Unterminated",
+			wantErr: "front matter is not closed",
+		},
+		{
+			name:    "lone opening delimiter at EOF",
+			input:   "---",
+			wantErr: "front matter is not closed",
+		},
+		{
+			name:    "lone opening delimiter followed by newline",
+			input:   "---\n",
+			wantErr: "front matter is not closed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := parseFrontMatter(tt.input)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("len(meta) = %d, want %d; got %v", len(got), len(tt.want), got)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("meta[%q] = %q, want %q", k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
 func TestParseTask_CRLF(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder

@@ -424,7 +424,10 @@ func TestADRMigrateIdempotent(t *testing.T) {
 
 func bodyAfterRawFrontMatter(t *testing.T, text string) string {
 	t.Helper()
-	_, body, _, ok := splitRawFrontMatter(text)
+	_, body, _, ok, err := splitRawFrontMatter(text)
+	if err != nil {
+		t.Errorf("splitRawFrontMatter returned error: %v", err)
+	}
 	if !ok {
 		t.Errorf("missing front matter:\n%s", text)
 	}
