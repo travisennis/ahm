@@ -28,7 +28,7 @@ The validator treats these as workflow invariants:
   `Decision Log`, and `Outcomes & Retrospective` sections.
 - Active ExecPlans should not have a filled `Outcomes & Retrospective` section.
 - Completed ExecPlans should have a filled `Outcomes & Retrospective` section.
-- Completed ExecPlans should not have open `- [ ]` items in `Progress`.
+- Completed ExecPlans should not have open `- [ ]` or `* [ ]` items in `Progress`.
 - ExecPlans that no task references are informational findings.
 
 Validation reports now expose three tiers: `errors`, `warnings`, and `info`.

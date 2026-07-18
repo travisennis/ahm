@@ -94,7 +94,7 @@ Finding codes:
 | `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |
 | `exec_plan_active_with_outcomes` | An active ExecPlan has a filled `Outcomes & Retrospective` section. |
 | `exec_plan_completed_without_outcomes` | A completed ExecPlan has an empty or missing `Outcomes & Retrospective` section. |
-| `exec_plan_completed_with_open_progress` | A completed ExecPlan still has open `- [ ]` items in its `Progress` section. |
+| `exec_plan_completed_with_open_progress` | A completed ExecPlan still has open `- [ ]` or `* [ ]` items in its `Progress` section. |
 | `exec_plan_missing_section` | An ExecPlan is missing one of the mandatory lifecycle sections. `ahm` emits one finding per missing section. |
 | `exec_plan_orphan` | An ExecPlan is not referenced by any task `exec_plan` field. This is an info-tier finding. |
 | `adr_malformed` | An ADR file could not be parsed. |

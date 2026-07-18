@@ -26,7 +26,7 @@ func parseAcceptanceNotes(body []byte) []taskAcceptanceFinding {
 		if headingLevel(line) > 0 && headingLevel(line) <= level {
 			break
 		}
-		if !isUncheckedTaskItem(line) {
+		if !isUncheckedChecklistItem(line) {
 			continue
 		}
 		if isAcceptanceTODO(line) {
@@ -79,11 +79,6 @@ func isAcceptanceHeading(heading string) bool {
 	default:
 		return false
 	}
-}
-
-func isUncheckedTaskItem(line string) bool {
-	trimmed := strings.TrimLeft(line, " \t")
-	return strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "* [ ]")
 }
 
 func isAcceptanceTODO(line string) bool {

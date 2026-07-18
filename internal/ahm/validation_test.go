@@ -1704,3 +1704,66 @@ func TestDeprecatedProjectDocsScopeStillFunctions(t *testing.T) {
 		t.Errorf("exit code = %d (warnings-only should exit 0), stdout = %s", code, stdout)
 	}
 }
+
+func TestExecPlanSectionHasOpenProgress(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines []string
+		want  bool
+	}{
+		{
+			name:  "unindented dash unchecked",
+			lines: []string{"- [ ] Do it"},
+			want:  true,
+		},
+		{
+			name:  "unindented asterisk unchecked",
+			lines: []string{"* [ ] Do it"},
+			want:  true,
+		},
+		{
+			name:  "indented dash unchecked",
+			lines: []string{"  - [ ] Do it"},
+			want:  true,
+		},
+		{
+			name:  "indented asterisk unchecked",
+			lines: []string{"  * [ ] Do it"},
+			want:  true,
+		},
+		{
+			name:  "tab indented asterisk unchecked",
+			lines: []string{"\t* [ ] Do it"},
+			want:  true,
+		},
+		{
+			name:  "dash checked",
+			lines: []string{"- [x] Done"},
+			want:  false,
+		},
+		{
+			name:  "asterisk checked",
+			lines: []string{"* [x] Done"},
+			want:  false,
+		},
+		{
+			name:  "plain text",
+			lines: []string{"just a line", "- not a checkbox"},
+			want:  false,
+		},
+		{
+			name:  "empty section",
+			lines: []string{},
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			section := execPlanSection{Lines: tt.lines}
+			if got := execPlanSectionHasOpenProgress(section); got != tt.want {
+				t.Errorf("execPlanSectionHasOpenProgress() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

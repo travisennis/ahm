@@ -540,9 +540,14 @@ func execPlanSectionHasBody(section execPlanSection) bool {
 	return false
 }
 
+func isUncheckedChecklistItem(line string) bool {
+	trimmed := strings.TrimLeft(line, " \t")
+	return strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "* [ ]")
+}
+
 func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 	for _, line := range section.Lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "- [ ]") {
+		if isUncheckedChecklistItem(line) {
 			return true
 		}
 	}
