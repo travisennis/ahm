@@ -30,6 +30,16 @@ or legacy `.agents/ahm.json`) with the target repository files.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Current-Layout Onboarding Guidance (2026-07-19)
+
+`ahm onboard` now describes `.ahm/` as the workflow-record directory and
+distinguishes ADRs under `docs/adr/` as project-owned durable documentation.
+It no longer advertises project-owned `.agents/` as ahm record storage.
+
+This is binary-owned CLI guidance in `internal/ahm/onboard.go`, not an embedded
+workflow template under `internal/templates/workflow/`, so
+`internal/templates.Version` remains `0.6.3`.
+
 **Version advancement:** The metadata `version` field always advances to the
 embedded template version, even when conflicts exist. This ensures that
 subsequent upgrades correctly identify files that have already been updated.

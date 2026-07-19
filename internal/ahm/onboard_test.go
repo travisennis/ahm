@@ -14,9 +14,9 @@ func TestOnboardOutputModes(t *testing.T) {
 		want []string
 		not  []string
 	}{
-		{"text", nil, []string{"Paste this snippet", "## Managed Work (ahm)", "ALWAYS run `ahm prime`"}, nil},
-		{"plain", []string{"--plain"}, []string{"## Managed Work (ahm)", "ALWAYS run `ahm prime`"}, []string{"Paste this snippet"}},
-		{"json", []string{"--json"}, []string{"\"snippet\"", "Managed Work (ahm)", "ahm prime"}, []string{"Paste this snippet"}},
+		{"text", nil, []string{"Paste this snippet", "## Managed Work (ahm)", "workflow records live under `.ahm/`", "ADRs are project-owned durable", "ALWAYS run `ahm prime`"}, []string{".agents/"}},
+		{"plain", []string{"--plain"}, []string{"## Managed Work (ahm)", "workflow records live under `.ahm/`", "ADRs are project-owned durable", "ALWAYS run `ahm prime`"}, []string{"Paste this snippet", ".agents/"}},
+		{"json", []string{"--json"}, []string{"\"snippet\"", "Managed Work (ahm)", "workflow records live under `.ahm/`", "ADRs are project-owned durable", "ahm prime"}, []string{"Paste this snippet", ".agents/"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			args := append([]string{"--root", root}, tc.args...)

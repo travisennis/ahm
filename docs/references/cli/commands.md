@@ -289,8 +289,11 @@ ahm --json adr migrate --dry-run
 Prints the minimal bootstrap and safety snippet maintainers can paste into the
 project-owned `AGENTS.md`. The snippet requires `ahm prime` before work and
 after context compaction, and directs record state changes and generated-index
-updates through ahm. It deliberately omits project operating loops and workflow
-routing. The command never reads or writes `AGENTS.md`.
+updates through ahm. It identifies `.ahm/` as the workflow-record directory and
+distinguishes ADRs under `docs/adr/` as project-owned durable documentation; it
+does not describe `.agents/` as record storage. It deliberately omits project
+operating loops and workflow routing. The command never reads or writes
+`AGENTS.md`.
 
 Text mode adds brief paste/import framing. `--plain` prints the bare snippet;
 `--json` returns an object with a `snippet` field.

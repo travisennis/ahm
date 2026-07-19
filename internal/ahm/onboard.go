@@ -9,8 +9,9 @@ import (
 
 const onboardSnippet = `## Managed Work (ahm)
 
-This project tracks tasks, ExecPlans, ADRs, and research notes with ` + "`ahm`" + `,
-stored as files under ` + "`.agents/`" + ` and ` + "`docs/adr/`" + `.
+This project manages tasks, ExecPlans, and research notes with ` + "`ahm`" + `;
+workflow records live under ` + "`.ahm/`" + `. ADRs are project-owned durable
+documentation under ` + "`docs/adr/`" + `, with lifecycle managed through ` + "`ahm`" + `.
 
 ALWAYS run ` + "`ahm prime`" + ` before starting work, and re-run it after context
 compaction. It reports workflow state, in-progress and ready tasks,

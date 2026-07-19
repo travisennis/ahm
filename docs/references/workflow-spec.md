@@ -264,7 +264,10 @@ The ownership categories are:
 
 5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
    never create, overwrite, or remove `AGENTS.md`. `ahm onboard` prints a
-   paste-ready bootstrap snippet but does not modify the file.
+   paste-ready bootstrap snippet but does not modify the file. The snippet
+   identifies `.ahm/` as the workflow-record directory and distinguishes ADRs
+   under `docs/adr/` as project-owned durable documentation. It does not
+   advertise project-owned `.agents/` as ahm record storage.
 
 `doctor` reports the informational finding `agents_prime_missing` when a root
 `AGENTS.md` exists but does not reference `ahm prime`, and suggests running
@@ -499,9 +502,9 @@ the batch as a whole has no rollback or transaction semantics.
 
 Managed-work references are exposed by scoped
 `ahm context task|plan|adr|research|docs` instead of being copied into target
-repositories. Scoped reference output renders record and index paths for the
-repository's legacy or post-migration layout. `ahm prime` is the live session
-briefing with repository state and layout-specific workflow record paths;
-`--json` and `--plain`
-expose the same structured briefing for integrations. Unscoped `ahm context`
-is no longer a briefing command.
+repositories. Each scoped command exposes the full workflow-specific reference,
+not the session briefing under a different label. Scoped reference output
+renders record and index paths for the repository's selected layout. `ahm prime`
+is the live session briefing with repository state and layout-specific workflow
+record paths; `--json` and `--plain` expose the same structured briefing for
+integrations. Unscoped `ahm context` is no longer a briefing command.

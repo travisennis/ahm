@@ -2,140 +2,89 @@
 
 ## Project
 
-`ahm` is a Go CLI that manages repo-local agent workflow state. Legacy
-repositories store ahm-managed records under `.agents/`; repositories that
-have run `ahm records migrate` keep tasks, research notes, ExecPlans, and
-config as ordinary committed files under tool-owned `.ahm/`, with generated
-workflow indexes local-only (ignored via the managed `.ahm/.gitignore`).
-Records are branch-scoped and use normal Git checkout, merge, conflict,
-clone, worktree, and recovery behavior; `ahm` performs no ref or network
-operations. Project-owned agent guidance remains under `.agents/`.
+`ahm` is a Go CLI that manages repo-local agent workflow state. Tasks, research
+notes, ExecPlans, config, and indexes live under `.ahm/`; project guidance
+lives under `.agents/`. Records are branch-scoped and use normal Git behavior; `ahm` performs no ref or network operations.
 
-Compatibility surfaces: CLI commands, flags, exit codes, output formats,
-`.agents/ahm.json`, `.ahm/config.json`, workflow file formats,
-generated indexes, embedded templates, atomic writes, root detection,
-validation codes, external agent orchestration, release/version semantics, and
-the guarantee that `ahm` does not patch project source, stage files, move
-`HEAD`, mutate branches, or create project commits.
+Compatibility surfaces include CLI behavior, workflow metadata and formats,
+indexes, templates, atomic writes, root detection, validation, orchestration,
+and releases. `ahm` does not patch source, stage files, move `HEAD`, mutate
+branches, or create project commits.
 
 ## Operating Loop
 
-0. **Before any work**: run `ahm prime` to prepare the worktree, regenerate
-   indexes, and get the session briefing. This is the canonical session-start
-   command for coding agents.
+0. Run `ahm prime` before any work to prepare the worktree and get the briefing.
+1. Use `ahm` intake first for tasks, ExecPlans, ADRs, or research; classify
+   direct code, CLI, docs, or repository work immediately.
+2. Select the route below, load only its docs, and state both before editing.
+3. Preserve compatibility unless explicitly changed; edit surgically and
+   verify according to risk.
+4. After implementation edits, run codex review (`tb__codex_review`), fix all
+   findings, and rerun until clean; reconsider approaches that do not converge.
+5. Use the oracle (`tb__oracle`) for unclear design, debugging, or path choices.
+6. After completing a task, run preflight checks before handoff.
 
-1. Do work intake first:
-   - If the request is about a task, ExecPlan, ADR, or research note, use `ahm`
-     to understand that managed work item before choosing implementation docs.
-   - If the request is directly about code, CLI behavior, tests, docs, or repo
-     mechanics, skip `ahm` intake and classify the request directly.
-2. Classify the concrete work by the Workflow Routing section below.
-3. Load only the routed docs required for that concrete work.
-4. State the selected route and loaded docs before editing.
-5. Preserve compatibility surfaces unless the task explicitly changes them.
-6. Keep edits surgical and verify according to risk.
-7. Run codex review (`tb__codex_review`) after completing implementation edits. Fix all reported issues, then re-run until the tool reports no remaining issues. Do not call codex review excessively --- if it takes more than a few rounds to reach clean output, step back and reconsider the approach or design rather than grinding through fix loops.
-8. When stuck on a design decision, a debugging problem, or an unclear path, use the oracle tool (`tb__oracle`) to get guidance before burning time on trial and error.
-9. Handoff with changes, exact checks, and remaining risk.
-
-When this file conflicts with a specialized workflow doc for that workflow,
-the specialized doc wins.
+Specialized workflow docs override this file when they conflict.
 
 ## Workflow Routing
 
 ### CLI, User Output, And Exit Behavior
 
-Use this workflow for command wiring, flags, help text, exit codes, output, and
-dry-run behavior. Consult
-[`docs/guardrails/cli-and-user-output.md`](docs/guardrails/cli-and-user-output.md),
-[`docs/cli.md`](docs/cli.md), the relevant
-[`docs/references/cli/`](docs/references/cli/) page, and
-[`ARCHITECTURE.md`](ARCHITECTURE.md). Keep documented behavior stable unless the task is
-explicitly a breaking CLI change.
+For command wiring, flags, help, exit codes, output, or dry-run behavior, load
+[`docs/guardrails/cli-and-user-output.md`](docs/guardrails/cli-and-user-output.md), [`docs/cli.md`](docs/cli.md),
+the relevant [`docs/references/cli/`](docs/references/cli/) page, and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ### Workflow State, File Formats, And Upgrades
 
-Use this workflow for `.agents/ahm.json`, `.ahm/config.json`, workflow formats,
-generated indexes, install/upgrade/context/status/doctor behavior, and embedded
-templates. Consult
-[`docs/guardrails/workflow-state-and-file-formats.md`](docs/guardrails/workflow-state-and-file-formats.md),
-[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md),
-[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and
-[`ARCHITECTURE.md`](ARCHITECTURE.md). Do not edit generated indexes by hand.
-For `ahm prime`, the command is a session briefing; scoped commands such as
-`ahm context task`, `ahm context adr`, `ahm context research`,
-`ahm context plan`, and `ahm context docs` should expose the full scoped
-instruction content, not the same briefing with a different label.
+For `.ahm/config.json`, workflow formats, indexes, install, upgrade, context,
+status, doctor, or templates, load [`docs/guardrails/workflow-state-and-file-formats.md`](docs/guardrails/workflow-state-and-file-formats.md),
+[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), [`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md),
+and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ### External Agent Orchestration
 
-Use this workflow for `ahm task work`, agent definitions, arg builders,
-parsers, session capture, handoff, and golden transcripts. Consult
-[`docs/guardrails/external-agent-orchestration.md`](docs/guardrails/external-agent-orchestration.md)
-and [`docs/guides/testing.md`](docs/guides/testing.md). Parser fixtures are not
-enough when a real agent CLI contract changes.
+For `ahm task work`, agent definitions, parsers, sessions, handoff, or golden transcripts, load
+[`docs/guardrails/external-agent-orchestration.md`](docs/guardrails/external-agent-orchestration.md) and [`docs/guides/testing.md`](docs/guides/testing.md).
 
 ### Safety, Permissions, And Atomic Writes
 
-Use this workflow for filesystem writes, path handling, root detection, command
-execution, and safety boundaries. Consult
-[`docs/guardrails/safety-and-permissions.md`](docs/guardrails/safety-and-permissions.md),
-[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), and
-[ADR 001](docs/adr/001-atomic-writes-and-concurrency.md).
-Keep writes explicit, dry-run aware, and crash-safe.
+For filesystem writes, paths, root detection, command execution, or safety, load
+[`docs/guardrails/safety-and-permissions.md`](docs/guardrails/safety-and-permissions.md), [`docs/references/workflow-spec.md`](docs/references/workflow-spec.md),
+and [ADR 001](docs/adr/001-atomic-writes-and-concurrency.md).
 
 ### Dependencies, Build, CI, And Release
 
-Use this workflow for dependencies, build scripts, CI, GoReleaser, version
-injection, and release behavior. Consult
-[`docs/guardrails/dependencies-build-ci-release.md`](docs/guardrails/dependencies-build-ci-release.md),
-[`CONTRIBUTING.md`](CONTRIBUTING.md),
-[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and
-[`.github/workflows/`](.github/workflows/). Preserve binary/template version
-separation.
+For dependencies, builds, CI, GoReleaser, version injection, or releases, load
+[`docs/guardrails/dependencies-build-ci-release.md`](docs/guardrails/dependencies-build-ci-release.md), [`CONTRIBUTING.md`](CONTRIBUTING.md),
+[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and [`.github/workflows/`](.github/workflows/).
 
 ### Architecture And Implementation Quality
 
-Use this workflow for refactors, module boundaries, shared helpers, validation,
-parsers, and performance-sensitive code. Consult
-[`docs/guardrails/implementation-quality.md`](docs/guardrails/implementation-quality.md),
-[`ARCHITECTURE.md`](ARCHITECTURE.md), and relevant
-[ADRs](docs/adr/). Prefer small concrete functions and deterministic output.
+For refactors, module boundaries, helpers, validation, parsers, or performance, load
+[`docs/guardrails/implementation-quality.md`](docs/guardrails/implementation-quality.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), and relevant [ADRs](docs/adr/).
 
 ### Build, Test, And Verification Commands
 
-When deciding what build, test, lint, verification, or commit-prep commands to
-run, consult [`CONTRIBUTING.md`](CONTRIBUTING.md). It is the canonical source
-for the command catalog, verification expectations, and project-specific
-command pitfalls.
+Use [`CONTRIBUTING.md`](CONTRIBUTING.md) as the canonical command catalog and verification policy.
 
 ### Managed Work Intake With `ahm`
 
-`ahm` is for understanding and managing higher-order workflow records. It is not the implementation route. Use it first when the user asks about a managed work item, then return to Workflow Routing and choose the route for the actual change.
-
-Always run `ahm prime` before starting work on a managed-work item (task, ExecPlan, ADR, or research note), and re-run it after context compaction. It reports workflow state, in-progress and ready tasks, validation warnings, and which scoped `ahm context <scope>` command covers the work at hand. Work done without it often conflicts with tracked in-progress work.
-
-After `ahm` intake, re-classify the discovered work under Workflow Routing. For example, a task about CLI flags still uses the CLI route; a task about sandbox policy still uses the sandboxing route; a task about prompt, skill, or hook behavior still uses the prompts, skills, and hooks route.
-
-After completing a task, do preflight checks on your work to make sure it is ready to be committed.
-
-Never hand-edit generated task, research, ExecPlan, or ADR indexes. Update the source records and run the appropriate `ahm` command. Use `ahm task` commands for task state moves and `ahm adr` commands for ADR lifecycle changes.
+Run `ahm prime` before intake and after compaction, then use its scoped command,
+such as `ahm context task` followed by `ahm task show <id>`. Reclassify implementation under the routes above.
+Never hand-edit indexes; use source records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
 
 ## Repository Rules
 
 - Do not commit or push unless explicitly asked.
-- Assume uncommitted changes may belong to the user.
-- Use Conventional Commit standard when writing commit messages.
-- Do not revert, overwrite, or clean files you did not intentionally change.
+- Assume uncommitted changes belong to the user; do not revert or clean files
+  you did not intentionally change.
 - Inspect `git status --short` before broad edits.
-- Never hand-edit ahm-generated indexes; update source records and run the
-  appropriate `ahm` command.
-- `AGENTS.md` is project-owned after creation; `ahm init`, `ahm upgrade`, and
-  `--force` must not overwrite an existing project `AGENTS.md`.
+- Use Conventional Commits when writing commit messages.
+- `AGENTS.md` is project-owned; `ahm init`, `ahm upgrade`, and `--force` must
+  not overwrite it.
 
 ## Handoff
 
-End with the selected workflow route, routed docs loaded, what changed, exact
-checks run, remaining risks or skipped checks, and actionable next steps. For
-commits, include the commit hash, whether the worktree is clean, and any
-leftover modified, deleted, or untracked files.
+End with the selected route, routed docs loaded, changes, exact checks, risks
+or skipped checks, and next steps. For commits, include the hash, worktree
+status, and leftover modified, deleted, or untracked files.

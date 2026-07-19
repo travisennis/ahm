@@ -214,6 +214,12 @@ suggestions mechanism. The new snippet carries only:
 - safety invariants: never hand-edit generated indexes, use `ahm task` for
   task state changes, and use `ahm adr` for ADR lifecycle changes.
 
+Task 159 later retained one static ownership-boundary line in the snippet:
+workflow records live under `.ahm/`, while ADRs under `docs/adr/` are
+project-owned durable documentation. This keeps onboarding aligned with the
+current namespace model without moving long-form routing back into the pasted
+layer.
+
 Long-form routing and workflow intake guidance moves out of the pasted snippet.
 The content architecture is:
 

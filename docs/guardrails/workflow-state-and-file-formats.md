@@ -22,6 +22,8 @@ behavior, embedded instructions, and file-format parsing or rendering.
   file formats change.
 - Update `docs/guides/workflow-upgrades.md` when install, upgrade, context,
   template version, or legacy instruction behavior changes.
+- Keep `ahm prime` as the live session briefing and scoped `ahm context`
+  commands as full workflow-specific references, not relabeled briefings.
 - For template changes, run `go test ./internal/templates ./internal/ahm`
   before the final verification pass.
 - Regenerate indexes only through source changes plus `ahm` commands; never
