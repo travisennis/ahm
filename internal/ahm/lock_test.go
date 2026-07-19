@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -170,6 +171,97 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	// The lock directory must now exist (re-created by the successful acquire).
 	if _, err := os.Stat(lockPath); err != nil {
 		t.Errorf("lock directory should exist after fresh acquire: %v", err)
+	}
+}
+
+func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
+	dir := t.TempDir()
+	saveLockStaleAfter(t)
+	workflowLockStaleAfter = 10 * time.Millisecond
+
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-replacement")
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * workflowLockStaleAfter)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	var replacementRelease func() error
+	err := removeStaleWorkflowLockAfterObservation(lockPath, func() {
+		if err := os.Remove(lockPath); err != nil {
+			t.Fatalf("remove observed stale lock: %v", err)
+		}
+		var err error
+		replacementRelease, err = tryAcquireWorkflowLock(dir, lockRoot, "test-replacement")
+		if err != nil {
+			t.Fatalf("acquire replacement lock: %v", err)
+		}
+	})
+	if !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("remove stale lock error = %v, want ownership lost", err)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("replacement lock was removed: %v", err)
+	}
+	if err := replacementRelease(); err != nil {
+		t.Fatalf("release replacement lock: %v", err)
+	}
+}
+
+func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-release-replacement")
+
+	release, err := acquireWorkflowLock(dir, "test-release-replacement")
+	if err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+	if err := os.Remove(lockPath); err != nil {
+		t.Fatalf("remove acquired lock: %v", err)
+	}
+	if err := os.Mkdir(lockPath, 0o755); err != nil {
+		t.Fatalf("create replacement lock: %v", err)
+	}
+
+	if err := release(); !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("release error = %v, want ownership lost", err)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("replacement lock was removed: %v", err)
+	}
+}
+
+func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(dir, ".agents", ".lock", "test-release-missing")
+
+	release, err := acquireWorkflowLock(dir, "test-release-missing")
+	if err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+	if err := os.Remove(lockPath); err != nil {
+		t.Fatalf("remove acquired lock: %v", err)
+	}
+
+	if err := release(); !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("release error = %v, want ownership lost", err)
+	}
+}
+
+func TestWithWorkflowRecordLock_ReturnsReleaseOwnershipLoss(t *testing.T) {
+	dir := t.TempDir()
+	a := app{opts: options{root: dir}}
+	lockPath := filepath.Join(dir, ".agents", ".lock", workflowRecordLockName)
+
+	err := a.withWorkflowRecordLock(true, func() error {
+		return os.Remove(lockPath)
+	})
+	if !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("withWorkflowRecordLock error = %v, want ownership lost", err)
 	}
 }
 

@@ -85,7 +85,7 @@ func (p recordsMigratePlan) complete() bool {
 		p.legacyConfig == migrateActionAbsent
 }
 
-func (a *app) recordsMigrate() error {
+func (a *app) recordsMigrate() (resultErr error) {
 	ctx := context.Background()
 	if a.opts.dryRun {
 		plan, err := a.buildRecordsMigratePlan(ctx)
@@ -98,11 +98,7 @@ func (a *app) recordsMigrate() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err := release(); err != nil {
-			fmt.Fprintln(a.err, err)
-		}
-	}()
+	defer func() { resultErr = errors.Join(resultErr, release()) }()
 	// Plan under the lock so a concurrent record mutation cannot slip
 	// between planning and execution.
 	plan, err := a.buildRecordsMigratePlan(ctx)

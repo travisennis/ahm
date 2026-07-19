@@ -481,7 +481,11 @@ and `index` commands.
 All workflow record mutations share a single repository-local lock under
 `.agents/.lock/workflow-records` or `.ahm/.lock/workflow-records` to serialize
 read-compute-write sequences across concurrent `ahm` invocations. Dry-run and
-read-only preview paths do not take the lock.
+read-only preview paths do not take the lock. Stale lock reclamation first
+atomically moves the observed directory into a unique quarantine and verifies
+its filesystem identity before deletion, so a replacement lock is not removed.
+Release performs the same ownership check and reports an error when the
+acquired directory is missing or has been replaced.
 
 ### Generated Index Write Semantics
 
