@@ -107,6 +107,7 @@ Finding codes:
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
 | `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
+| `research_inbox_stale` | A research inbox note reached the configured stale threshold. This is a warning-tier finding that names the human disposition options. |
 | `markdown_link_missing` | A relative Markdown link inside the managed workflow surface points at a missing file. |
 | `markdown_link_check_failed` | A workflow Markdown link check could not be completed. |
 | `project_doc_link_missing` | A relative Markdown link in a discovered project documentation file points at a missing file. Emitted only under the opt-in `--check project-docs` scope. |

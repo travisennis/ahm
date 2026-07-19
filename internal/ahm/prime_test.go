@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
@@ -184,6 +185,53 @@ func TestPrimeRecentResearchSortsGloballyBeforeCap(t *testing.T) {
 		if !strings.HasSuffix(notes[i].Link, suffix) {
 			t.Errorf("notes[%d].Link = %q, want suffix %q", i, notes[i].Link, suffix)
 		}
+	}
+}
+
+func TestPrimeShowsInboxAgeAndStalenessInTextAndJSON(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	created := time.Now().UTC().AddDate(0, 0, -30).Format(time.DateOnly)
+	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: "+created+"\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
+	if code != 0 {
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"[inbox](.ahm/research/inbox/old-note.md) Old Note (30 days old, STALE)",
+	)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "prime")
+	if code != 0 {
+		t.Fatalf("prime --json exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		`"age_days": 30`,
+		`"stale": true`,
+	)
+}
+
+func TestPrimeShowsInboxAgeWithoutStaleFlagWhenDisabled(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	zero := 0
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.Research = &researchConfig{InboxStaleDays: &zero}
+	if err := writeMetadata(root, meta); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: 2020-01-01\n")
+
+	notes := (&app{opts: options{root: root}}).primeRecentResearchAt(time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC))
+	if len(notes) != 1 || notes[0].AgeDays == nil {
+		t.Fatalf("notes = %#v", notes)
+	}
+	if notes[0].Stale {
+		t.Fatal("disabled inbox note marked stale")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
@@ -141,6 +142,31 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 		`"ok": true`,
 		`"code": "task_dependency_cancelled"`,
 		`task 001 depends on cancelled task 002`,
+	)
+}
+
+func TestDoctorReportsStaleResearchInboxDisposition(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	created := time.Now().UTC().AddDate(0, 0, -30).Format(time.DateOnly)
+	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: "+created+"\n")
+	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, out.String(),
+		`"code": "research_inbox_stale"`,
+		`"path": ".ahm/research/inbox/old-note.md"`,
+		"threshold 21",
+		"promote it to research/topics",
+		"convert it to a task",
+		"delete it if it has no continuing value",
 	)
 }
 

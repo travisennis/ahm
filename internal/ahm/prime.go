@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
@@ -32,9 +33,11 @@ type primePlanSummary struct {
 }
 
 type primeResearchNote struct {
-	Bucket string `json:"bucket"`
-	Link   string `json:"link"`
-	Title  string `json:"title"`
+	Bucket  string `json:"bucket"`
+	Link    string `json:"link"`
+	Title   string `json:"title"`
+	AgeDays *int   `json:"age_days,omitempty"`
+	Stale   bool   `json:"stale,omitempty"`
 }
 
 type primeTasks struct {
@@ -181,7 +184,16 @@ func (a *app) primeActivePlans() []primePlanSummary {
 // primeRecentResearch collects recent research notes (up to 5, newest by
 // filename sort) in the current record layout.
 func (a *app) primeRecentResearch() []primeResearchNote {
+	return a.primeRecentResearchAt(time.Now())
+}
+
+func (a *app) primeRecentResearchAt(now time.Time) []primeResearchNote {
 	paths := a.workflowPaths()
+	meta, metaErr := readMetadata(a.opts.root)
+	threshold, staleEnabled := meta.researchInboxStaleThreshold()
+	if metaErr != nil {
+		staleEnabled = false
+	}
 	buckets := []string{"inbox", "topics", "investigations", "sources"}
 	var notes []primeResearchNote
 	for _, bucket := range buckets {
@@ -199,11 +211,18 @@ func (a *app) primeRecentResearch() []primeResearchNote {
 			if err != nil {
 				continue
 			}
-			notes = append(notes, primeResearchNote{
+			note := primeResearchNote{
 				Bucket: bucket,
 				Link:   filepath.ToSlash(filepath.Join(paths.researchRel(), bucket, entry.Name())),
 				Title:  title,
-			})
+			}
+			if bucket == "inbox" {
+				if ageDays, err := researchNoteAgeDays(fpath, now); err == nil {
+					note.AgeDays = &ageDays
+					note.Stale = staleEnabled && ageDays >= threshold
+				}
+			}
+			notes = append(notes, note)
 		}
 	}
 	sort.Slice(notes, func(i, j int) bool {
@@ -322,7 +341,15 @@ func (r primeReport) RenderText(w io.Writer) error {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "## Recent Research")
 		for _, note := range r.Research {
-			fmt.Fprintf(w, "- [%s](%s) %s\n", note.Bucket, note.Link, note.Title)
+			fmt.Fprintf(w, "- [%s](%s) %s", note.Bucket, note.Link, note.Title)
+			if note.AgeDays != nil {
+				fmt.Fprintf(w, " (%d days old", *note.AgeDays)
+				if note.Stale {
+					fmt.Fprint(w, ", STALE")
+				}
+				fmt.Fprint(w, ")")
+			}
+			fmt.Fprintln(w)
 		}
 	}
 

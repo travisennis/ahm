@@ -65,6 +65,12 @@ Research should usually flow from rough capture to durable project work:
 inbox note -> investigation/source/topic synthesis -> task or ExecPlan -> completed artifact
 ```
 
+Inbox notes must eventually receive a disposition. When `ahm doctor` reports a
+stale inbox note, choose one of these outcomes: promote useful synthesis to
+`topics/`, create an `ahm task` for actionable work, or delete material that
+has no continuing value. Ahm reports age and staleness but never chooses or
+applies the disposition automatically.
+
 ## Updating Research
 
 When a note becomes stale, do not silently delete useful context. Mark it `superseded` or move it to `archived/`, and add a short note explaining what replaced it.

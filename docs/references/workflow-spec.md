@@ -128,6 +128,9 @@ Example:
       "model": "sonnet"
     }
   },
+  "research": {
+    "inboxStaleDays": 21
+  },
   "files": {}
 }
 ```
@@ -172,6 +175,22 @@ Agent/model selection precedence for each phase:
 
 Feedback-resume and commit handoff always use the implementation agent
 because they resume the implementation session.
+
+The optional `research` block configures advisory research lifecycle checks.
+Its optional `inboxStaleDays` integer controls when a Markdown note directly
+under the selected record layout's research `inbox/` is considered stale. The
+field defaults to 21 days when absent, a positive value replaces the default,
+and `0` disables stale-inbox warnings. Negative values are invalid metadata.
+The block is preserved in both
+`.ahm/config.json` and legacy `.agents/ahm.json`, including when `ahm upgrade`
+rewrites metadata.
+
+Research age prefers the most recent valid ISO `updated`, `date`, or `created`
+value, in that order, from flat YAML front matter or the conventional research
+header. When no valid date is available, age falls back to file modification
+time. Ahm calculates non-negative elapsed whole days in UTC and does not invoke
+Git to obtain a timestamp. A note becomes stale when its age is greater than or
+equal to the enabled threshold.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
 must be non-empty; `--force` does not bypass this requirement. Cancellation
@@ -277,7 +296,11 @@ Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, task status and bucket mismatches, broken task dependencies,
 completed task acceptance-note drift, task-to-ExecPlan consistency issues,
 ExecPlan lifecycle coherence issues, ADR record issues, and broken relative
-Markdown links within the managed workflow surface. Project-wide documentation
+Markdown links within the managed workflow surface. They also report warning-tier
+`research_inbox_stale` findings for stale research inbox notes, in both current
+`.ahm/` and legacy `.agents/` record layouts. The warning names the available
+human dispositions; validation never moves, converts, or deletes the note.
+Project-wide documentation
 is not scanned by default; `ahm` validates the workflow files and artifacts it
 manages or indexes.
 

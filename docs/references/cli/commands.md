@@ -413,6 +413,8 @@ The briefing includes (in order, omitting empty sections):
 - Blocked and open task counts, with commands to expand each.
 - Active ExecPlans and the five most recent research notes, sorted globally
   across buckets by descending filename with a deterministic path tie-breaker.
+  Inbox notes include their age in whole days and a `STALE` marker when they
+  reach the enabled `research.inboxStaleDays` threshold.
 - `## Managed Work Intake` — the routing table for managed-work types,
   layout-specific workflow record paths, and notes on workflow and multi-step
   plans.
@@ -424,7 +426,8 @@ Useful flags:
 
 - `--json`: prints structured output with `root`, `workflow`, `git`,
   `tasks` (with `in_progress`, `ready`, `ready_total`, `blocked`, `open`),
-  `plans` (active ExecPlan summaries), `research` (recent research notes),
+  `plans` (active ExecPlan summaries), `research` (recent research notes;
+  inbox entries add `age_days` and set `stale` when applicable),
   and `commands`.
 - `--plain`: prints compact JSON.
 
@@ -682,6 +685,9 @@ The report includes:
 - Whether workflow metadata is installed.
 - Installed and embedded workflow template versions.
 - The same workflow validation report used by `status`.
+- Warning-tier `research_inbox_stale` findings from that shared report when an
+  inbox note reaches the configured age threshold. The message points to the
+  promote-to-topic, convert-to-task, and delete dispositions.
 - An informational `agents_prime_missing` finding when root `AGENTS.md`
   exists but does not reference `ahm prime`; `ahm onboard` prints the current
   bootstrap snippet. Missing `AGENTS.md` is not a finding.

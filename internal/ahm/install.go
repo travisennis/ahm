@@ -27,6 +27,10 @@ type taskWorkConfig struct {
 	Review         *taskWorkRoleConfig `json:"review,omitempty"`
 }
 
+type researchConfig struct {
+	InboxStaleDays *int `json:"inboxStaleDays,omitempty"`
+}
+
 const (
 	legacyMetadataRelPath = ".agents/ahm.json"
 	configMetadataRelPath = ".ahm/config.json"
@@ -54,6 +58,7 @@ type metadata struct {
 	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
 	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
 	ProjectDocs      *projectDocsConfig         `json:"projectDocs,omitempty"`
+	Research         *researchConfig            `json:"research,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
 }
@@ -74,9 +79,13 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 		"default_work_agent",
 		"taskWork",
 		"projectDocs",
+		"research",
 		"files",
 	} {
 		delete(raw, key)
+	}
+	if alias.Research != nil && alias.Research.InboxStaleDays != nil && *alias.Research.InboxStaleDays < 0 {
+		return fmt.Errorf("research.inboxStaleDays must be non-negative")
 	}
 	*m = metadata(alias)
 	if len(raw) > 0 {
@@ -107,6 +116,11 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if m.ProjectDocs != nil {
 		if err := writeJSONField(&buf, &first, "projectDocs", m.ProjectDocs); err != nil {
+			return nil, err
+		}
+	}
+	if m.Research != nil {
+		if err := writeJSONField(&buf, &first, "research", m.Research); err != nil {
 			return nil, err
 		}
 	}

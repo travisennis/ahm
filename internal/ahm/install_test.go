@@ -185,6 +185,64 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 	)
 }
 
+func TestResearchConfigRoundTripsAndSurvivesUpgrade(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "0.1.0",
+  "research": {
+    "inboxStaleDays": 9
+  },
+  "future_setting": true,
+  "files": {}
+}`)
+
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Research == nil || meta.Research.InboxStaleDays == nil || *meta.Research.InboxStaleDays != 9 {
+		t.Fatalf("research config = %#v", meta.Research)
+	}
+	if threshold, enabled := meta.researchInboxStaleThreshold(); !enabled || threshold != 9 {
+		t.Fatalf("threshold = %d, enabled = %v", threshold, enabled)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.install(true); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Research == nil || after.Research.InboxStaleDays == nil || *after.Research.InboxStaleDays != 9 {
+		t.Fatalf("research config after upgrade = %#v", after.Research)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"),
+		`"research": {`,
+		`"inboxStaleDays": 9`,
+		`"future_setting": true`,
+	)
+}
+
+func TestResearchConfigRejectsNegativeThreshold(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
+  "version": "0.6.4",
+  "research": {
+    "inboxStaleDays": -1
+  },
+  "files": {}
+}`)
+
+	_, err := readMetadata(root)
+	if err == nil || !strings.Contains(err.Error(), "research.inboxStaleDays must be non-negative") {
+		t.Fatalf("readMetadata error = %v", err)
+	}
+}
+
 func TestTaskWorkRoleConfigRoundTrip(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 type validationReport struct {
@@ -131,6 +132,7 @@ func validateWorkflowScopedForPaths(root string, scopes []string, paths workflow
 		validateTaskBuckets(root, paths, tasks, &report)
 		validateTaskExecPlans(root, paths, tasks, &report)
 		validateExecPlans(root, paths, tasks, &report)
+		validateResearchInbox(root, paths, &report, time.Now())
 		validateADRs(root, &report)
 		validateGeneratedIndexes(root, paths, tasks, &report)
 	}
@@ -168,12 +170,44 @@ func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Tas
 	validateTaskBuckets(root, paths, tasks, &report)
 	validateTaskExecPlans(root, paths, tasks, &report)
 	validateExecPlans(root, paths, tasks, &report)
+	validateResearchInbox(root, paths, &report, time.Now())
 	validateADRs(root, &report)
 	if validateGeneratedIndexMetadata(root, &report) {
 		validateGeneratedIndexWrites(root, writes, &report)
 	}
 	report.OK = len(report.Errors) == 0
 	return report
+}
+
+func validateResearchInbox(root string, paths workflowPaths, report *validationReport, now time.Time) {
+	meta, err := readMetadata(root)
+	if err != nil {
+		return
+	}
+	threshold, enabled := meta.researchInboxStaleThreshold()
+	if !enabled {
+		return
+	}
+	dir := filepath.Join(root, filepath.FromSlash(paths.researchRel()), "inbox")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		ageDays, err := researchNoteAgeDays(path, now)
+		if err != nil || ageDays < threshold {
+			continue
+		}
+		report.addWarning(
+			"research_inbox_stale",
+			relPath(root, path),
+			fmt.Sprintf("research inbox note is %d days old (threshold %d); promote it to research/topics, convert it to a task, or delete it if it has no continuing value", ageDays, threshold),
+		)
+	}
 }
 
 func containsScope(scopes []string, target string) bool {

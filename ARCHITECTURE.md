@@ -65,6 +65,9 @@ task to an external coding-agent CLI.
   app cache after changing the metadata anchor.
 - `internal/ahm/records.go`: internal workflow record plumbing for
   selecting `.ahm/` source records.
+- `internal/ahm/research_inbox.go`: shared research timestamp parsing, inbox
+  age calculation, and stale-threshold configuration used by validation and
+  the prime briefing.
 - `internal/ahm/git.go`: shared environment isolation for ahm-owned Git
   subprocesses.
 - `internal/ahm/records_commands.go`: `records migrate` and `records doctor`

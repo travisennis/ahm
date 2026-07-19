@@ -30,6 +30,24 @@ or legacy `.agents/ahm.json`) with the target repository files.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Stale Research Inbox Disposition (2026-07-19)
+
+`internal/templates.Version` advanced from `0.6.3` to `0.6.4` because the
+embedded `ahm context research` reference now requires stale inbox notes to be
+promoted to a durable topic, converted to a task, or deleted when they have no
+continuing value. Ahm reports the condition but never applies a disposition.
+
+The repository config accepts an optional `research.inboxStaleDays` setting in
+both `.ahm/config.json` and legacy `.agents/ahm.json`. Absence uses 21 days, a
+positive value overrides the default, and zero disables the check. The setting
+round-trips through `ahm upgrade`; negative values are rejected as invalid.
+
+`ahm status` and `ahm doctor` now emit warning-tier
+`research_inbox_stale` findings. `ahm prime` shows whole-day age for inbox
+entries in Recent Research and marks entries that have reached the enabled
+threshold. The behavior is layout-aware and applies equally to current `.ahm/`
+and legacy `.agents/` research inboxes.
+
 ## Current-Layout Onboarding Guidance (2026-07-19)
 
 `ahm onboard` now describes `.ahm/` as the workflow-record directory and
