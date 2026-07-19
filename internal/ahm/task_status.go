@@ -78,17 +78,17 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	}
 
 	var allTasks []Task
+	var allTasksErr error
 	var allTasksLoaded bool
 	loadTasks := func() []Task {
 		if allTasksLoaded {
 			return allTasks
 		}
 		allTasksLoaded = true
-		tasks, collErr := a.getTasks()
-		if collErr != nil {
+		allTasks, allTasksErr = a.getTasks()
+		if allTasksErr != nil {
 			a.addWarning("some task files could not be parsed and were skipped")
 		}
-		allTasks = tasks
 		return allTasks
 	}
 
@@ -172,7 +172,12 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		}
 		return a.emit(preview)
 	}
-	if err := writeFileAtomic(target, []byte(renderTask(task)), 0o644); err != nil {
+	renderedTask := []byte(renderTask(task))
+	refreshedTask, err := parseTaskFromData(renderedTask, target, bucket)
+	if err != nil {
+		return fmt.Errorf("reparse updated task %s: %w", task.ID, err)
+	}
+	if err := writeFileAtomic(target, renderedTask, 0o644); err != nil {
 		return err
 	}
 	if filepath.Clean(task.Path) != filepath.Clean(target) {
@@ -180,12 +185,26 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 			return err
 		}
 	}
+	refreshedUnblocked := make([]Task, 0, len(unblocked))
 	for _, utask := range unblocked {
-		if err := writeFileAtomic(utask.Path, []byte(renderTask(utask)), 0o644); err != nil {
+		rendered := []byte(renderTask(utask))
+		refreshed, err := parseTaskFromData(rendered, utask.Path, utask.Bucket)
+		if err != nil {
+			return fmt.Errorf("reparse unblocked task %s: %w", utask.ID, err)
+		}
+		if err := writeFileAtomic(utask.Path, rendered, 0o644); err != nil {
 			return err
 		}
+		refreshedUnblocked = append(refreshedUnblocked, refreshed)
 	}
-	if err := a.writeIndexes(); err != nil {
+	currentTasks := loadTasks()
+	if allTasksErr == nil {
+		currentTasks = replaceTaskStates(currentTasks, append([]Task{refreshedTask}, refreshedUnblocked...))
+		err = a.writeIndexesForTasks(currentTasks, true)
+	} else {
+		err = a.writeIndexes()
+	}
+	if err != nil {
 		return err
 	}
 	fmt.Fprintf(a.out, "%s -> %s\n", task.ID, status)
@@ -193,6 +212,22 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		fmt.Fprintf(a.out, "%s -> Pending\n", utask.ID)
 	}
 	return nil
+}
+
+func replaceTaskStates(tasks, updates []Task) []Task {
+	byID := make(map[string]Task, len(updates))
+	for _, task := range updates {
+		byID[task.ID] = task
+	}
+	result := make([]Task, len(tasks))
+	for i, task := range tasks {
+		if updated, ok := byID[task.ID]; ok {
+			result[i] = updated
+			continue
+		}
+		result[i] = task
+	}
+	return result
 }
 
 func (a *app) taskUnblockDependents(tasks []Task, completedID string, updated string) []Task {

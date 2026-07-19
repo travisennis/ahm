@@ -54,7 +54,7 @@ task to an external coding-agent CLI.
   removal, and generated index writes.
 - `internal/ahm/status.go`: `status` and `doctor`.
 - `internal/ahm/validation.go`: workflow, link, ADR, task, and project-doc
-  validation.
+  validation, including post-mutation validation from complete parsed state.
 - `internal/ahm/output.go`: shared text, JSON, and plain emitters.
 - `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
   slash-separated relative paths.
@@ -99,7 +99,8 @@ task to an external coding-agent CLI.
 - `internal/ahm/adrs.go`: ADR model, parsing, rendering, and validation.
 - `internal/ahm/adr_commands.go`: ADR lifecycle commands.
 - `internal/ahm/adr_migrate.go`: legacy ADR migration.
-- `internal/ahm/indexes.go`: task, research, ExecPlan, and ADR index rendering.
+- `internal/ahm/indexes.go`: task, research, ExecPlan, and ADR index rendering;
+  mutation paths reuse complete parsed task state and rendered index content.
 - `internal/ahm/lock.go`: repository-local workflow locks for serialized
   cross-process mutations.
 - `internal/ahm/write.go`: atomic writes and stale temp cleanup.
@@ -118,6 +119,9 @@ task to an external coding-agent CLI.
   `.ahm/.lock/` after migration.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
+- Post-mutation index generation and workflow validation may reuse a complete
+  freshly parsed task set. Partial task parses and standalone `status`/`doctor`
+  validation retain independent disk reads so validation findings stay intact.
 - Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`;
   procedures are binary-owned delegation/review prompts, not installed files.
 - Legacy managed instruction templates are removed by `upgrade` only when

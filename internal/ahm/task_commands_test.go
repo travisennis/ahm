@@ -1754,6 +1754,59 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 	}
 }
 
+func TestTaskStatusReusesParsedStateAfterLock(t *testing.T) {
+	root := t.TempDir()
+	const taskCount = 300
+	for i := 1; i <= taskCount; i++ {
+		id := fmt.Sprintf("%03d", i)
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", id+".md"), id, "Task "+id, "Pending", "")
+	}
+
+	originalParseHook := taskParseHook
+	originalIndexHook := indexWritesForPathsHook
+	originalPreLockHook := taskStatusPreLockHook
+	t.Cleanup(func() {
+		taskParseHook = originalParseHook
+		indexWritesForPathsHook = originalIndexHook
+		taskStatusPreLockHook = originalPreLockHook
+	})
+	parseCounts := map[string]int{}
+	indexRenders := 0
+	measuring := false
+	taskParseHook = func(path string) {
+		if measuring {
+			parseCounts[path]++
+		}
+	}
+	indexWritesForPathsHook = func() {
+		if measuring {
+			indexRenders++
+		}
+	}
+	taskStatusPreLockHook = func() {
+		parseCounts = map[string]int{}
+		indexRenders = 0
+		measuring = true
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "start", "300")
+	measuring = false
+	if code != 0 {
+		t.Fatalf("task start exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	if len(parseCounts) != taskCount {
+		t.Fatalf("parsed task files = %d, want %d", len(parseCounts), taskCount)
+	}
+	for path, count := range parseCounts {
+		if count != 1 {
+			t.Fatalf("post-lock parse count for %s = %d, want 1", path, count)
+		}
+	}
+	if indexRenders != 1 {
+		t.Fatalf("generated index renders = %d, want 1", indexRenders)
+	}
+}
+
 func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")

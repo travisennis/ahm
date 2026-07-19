@@ -5,11 +5,64 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/travisennis/ahm/internal/templates"
 )
+
+func TestValidateWorkflowStateMatchesStandaloneValidation(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+	path := paths.taskFile("active", "301")
+	writeFile(t, path, `---
+id: 301
+title: Missing labels
+status: Pending
+priority: P2
+effort: S
+exec_plan: -
+depends_on: -
+---
+# Missing labels
+
+## Acceptance Notes
+
+- [ ] Preserve validation findings.
+`)
+
+	tasks, err := collectTasksForPaths(root, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writes, err := indexWritesForPaths(root, tasks, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target, content := range writes {
+		if err := writeFileAtomic(target, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	assertEquivalent := func(context string) {
+		t.Helper()
+		standalone, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeWorkflow}, paths)
+		reused := validateWorkflowStateForPaths(root, paths, tasks, writes)
+		if standalone.OK != reused.OK ||
+			!reflect.DeepEqual(standalone.Errors, reused.Errors) ||
+			!reflect.DeepEqual(standalone.Warnings, reused.Warnings) ||
+			!reflect.DeepEqual(standalone.Info, reused.Info) {
+			t.Fatalf("%s: reused validation differs from standalone\nstandalone: %+v\nreused: %+v", context, standalone, reused)
+		}
+	}
+	assertEquivalent("valid metadata")
+
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{")
+	assertEquivalent("corrupt metadata")
+}
 
 func TestValidateTaskFrontMatter_CRLF(t *testing.T) {
 	root := t.TempDir()

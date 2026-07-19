@@ -118,7 +118,7 @@ func (a *app) validateWorkflow(scopes []string) (validationReport, []Task) {
 }
 
 func validateWorkflowScopedForPaths(root string, scopes []string, paths workflowPaths) (validationReport, []Task) {
-	report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
+	report := newValidationReport()
 
 	all := len(scopes) == 0
 	want := func(s string) bool { return all || containsScope(scopes, s) }
@@ -148,6 +148,34 @@ func validateWorkflowScopedForPaths(root string, scopes []string, paths workflow
 	return report, tasks
 }
 
+func newValidationReport() validationReport {
+	return validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
+}
+
+// validateWorkflowStateForPaths validates a complete, already-parsed task set
+// and already-rendered generated indexes. Mutation paths use it only when the
+// task parse had no errors; standalone status and doctor keep the independent
+// disk-reading path above.
+func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string) validationReport {
+	report := newValidationReport()
+	validateMetadata(root, &report)
+	for _, task := range tasks {
+		validateTaskFrontMatterMeta(task.meta, relPath(root, task.Path), &report)
+		validateTaskAcceptance(root, task, &report)
+	}
+	validateTaskDependencies(root, tasks, &report)
+	validateBlockedDepsComplete(root, tasks, &report)
+	validateTaskBuckets(root, paths, tasks, &report)
+	validateTaskExecPlans(root, paths, tasks, &report)
+	validateExecPlans(root, paths, tasks, &report)
+	validateADRs(root, &report)
+	if validateGeneratedIndexMetadata(root, &report) {
+		validateGeneratedIndexWrites(root, writes, &report)
+	}
+	report.OK = len(report.Errors) == 0
+	return report
+}
+
 func containsScope(scopes []string, target string) bool {
 	for _, s := range scopes {
 		if s == target {
@@ -163,11 +191,16 @@ func containsScope(scopes []string, target string) bool {
 // workflow drift. The validation runs on every writeIndexes call, which
 // covers task create, lifecycle commands, dep updates, comments, ADR lifecycle
 // commands, and explicit ahm index.
-func (a *app) emitPostMutationFindings() {
+func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, reuseState bool) {
 	if a.opts.dryRun {
 		return
 	}
-	report, _ := a.validateWorkflow([]string{CheckScopeWorkflow})
+	var report validationReport
+	if reuseState {
+		report = validateWorkflowStateForPaths(a.opts.root, a.workflowPaths(), tasks, writes)
+	} else {
+		report, _ = a.validateWorkflow([]string{CheckScopeWorkflow})
+	}
 	for _, finding := range report.Errors {
 		a.addWarning("%s", finding.Message)
 	}
@@ -177,6 +210,11 @@ func (a *app) emitPostMutationFindings() {
 }
 
 func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
+	validateMetadata(root, report)
+	return validateTaskFiles(root, paths, report)
+}
+
+func validateMetadata(root string, report *validationReport) {
 	_, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
@@ -185,7 +223,6 @@ func validateManagedFiles(root string, paths workflowPaths, report *validationRe
 			report.addError("metadata_corrupt", metadataErrorPath(metaErr), fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
 	}
-	return validateTaskFiles(root, paths, report)
 }
 
 func validateTaskFiles(root string, paths workflowPaths, report *validationReport) []Task {
@@ -235,6 +272,10 @@ func validateTaskFrontMatter(data []byte, relPath string, report *validationRepo
 		report.addError("task_malformed", relPath, err.Error())
 		return
 	}
+	validateTaskFrontMatterMeta(meta, relPath, report)
+}
+
+func validateTaskFrontMatterMeta(meta map[string]string, relPath string, report *validationReport) {
 	required := []string{"id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on"}
 	for _, field := range required {
 		if strings.TrimSpace(meta[field]) == "" {
@@ -561,10 +602,7 @@ func execPlanSectionHasOpenProgress(section execPlanSection) bool {
 }
 
 func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	if _, err := readMetadata(root); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
-		}
+	if !validateGeneratedIndexMetadata(root, report) {
 		return
 	}
 	writes, err := indexWritesForPaths(root, tasks, paths)
@@ -572,6 +610,20 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 		report.addWarning("generated_index_check_failed", "", err.Error())
 		return
 	}
+	validateGeneratedIndexWrites(root, writes, report)
+}
+
+func validateGeneratedIndexMetadata(root string, report *validationReport) bool {
+	if _, err := readMetadata(root); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
+		}
+		return false
+	}
+	return true
+}
+
+func validateGeneratedIndexWrites(root string, writes map[string]string, report *validationReport) {
 	for _, path := range sortedKeys(writes) {
 		data, err := readWorkflowFile(path)
 		if errors.Is(err, os.ErrNotExist) {

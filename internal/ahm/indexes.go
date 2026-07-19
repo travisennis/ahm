@@ -12,7 +12,18 @@ import (
 func (a *app) writeIndexes() error {
 	defer a.emitWarnings()
 	a.invalidateTasks()
-	writes, err := a.indexWrites()
+	tasks, err := a.getTasks()
+	if err != nil {
+		if tasks == nil {
+			return err
+		}
+		a.addWarning("some task files could not be parsed and were skipped: %s", err)
+	}
+	return a.writeIndexesForTasks(tasks, err == nil)
+}
+
+func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
+	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
 	if err != nil {
 		return err
 	}
@@ -42,7 +53,10 @@ func (a *app) writeIndexes() error {
 	// mutation just created or left behind. This uses only the workflow
 	// scope so that markdown-link false positives do not drown out core
 	// workflow drift.
-	a.emitPostMutationFindings()
+	if completeState {
+		a.tasksCache = tasks
+	}
+	a.emitPostMutationFindings(tasks, writes, completeState)
 	return nil
 }
 
@@ -96,6 +110,7 @@ func indexWritesFor(root string, tasks []Task) (map[string]string, error) {
 }
 
 func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[string]string, error) {
+	indexWritesForPathsHook()
 	research, err := collectMarkdownDocs(root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
@@ -123,6 +138,10 @@ func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[st
 		filepath.Join(root, "docs", "adr", "index.md"):                           renderADRIndex(adrs),
 	}, nil
 }
+
+// indexWritesForPathsHook supports instrumented tests that count complete
+// generated-index renders.
+var indexWritesForPathsHook = func() {}
 
 var generatedIndexTargetsList = []string{
 	".agents/.tasks/index.md",

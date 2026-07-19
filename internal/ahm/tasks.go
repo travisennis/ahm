@@ -68,7 +68,12 @@ type Task struct {
 	Path        string            `json:"path"`
 	Bucket      string            `json:"bucket"`
 	Body        string            `json:"body"`
+	meta        map[string]string
 }
+
+// taskParseHook supports instrumented tests that count filesystem-backed task
+// parses without replacing the workflow file reader.
+var taskParseHook = func(string) {}
 
 func collectTasks(root string) ([]Task, error) {
 	return collectTasksForPaths(root, workflowPathsFor(root))
@@ -99,6 +104,7 @@ func collectTasksForPaths(root string, paths workflowPaths) ([]Task, error) {
 }
 
 func parseTask(path string, bucket string) (Task, error) {
+	taskParseHook(path)
 	data, err := readWorkflowFile(path)
 	if err != nil {
 		return Task{}, err
@@ -139,6 +145,7 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 		Path:        path,
 		Bucket:      bucket,
 		Body:        body,
+		meta:        meta,
 	}
 	if err := validateTaskEnums(task, path); err != nil {
 		return Task{}, err
