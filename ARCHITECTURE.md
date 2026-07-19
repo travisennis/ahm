@@ -83,8 +83,9 @@ task to an external coding-agent CLI.
 - `internal/ahm/task_find.go`: task ID resolution and prefix matching.
 - `internal/ahm/task_enum.go`: task status, priority, and effort enum
   validation.
-- `internal/ahm/task_groom.go`: delegated backlog-grooming schema, structured
-  task-revision validation, preservation, application, and summaries.
+- `internal/ahm/task_groom.go`: delegated backlog-grooming schema, aggregate
+  semantic validation, one-attempt correction, task-revision preservation,
+  application, and summaries.
 - `internal/ahm/task_work.go`: `task work` delegation to external coding-agent
   CLIs.
 - `internal/ahm/task_agents.go`: external agent registry and selection.

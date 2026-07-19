@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ func TestTaskGroomDryRunScopesOneTask(t *testing.T) {
 		t.Fatalf("exit=%d stderr=%s", code, stderr)
 	}
 	assertContainsAll(t, stdout, "tasks:", "- 001", "Result schema", "Existing label vocabulary")
+	assertContainsAll(t, stdout, "correction_retry:", "available: true", "max_attempts: 1", "trigger: semantic_validation_failure")
 	if strings.Contains(stdout, "Second") {
 		t.Fatalf("dry-run included out-of-scope task: %s", stdout)
 	}
@@ -186,7 +188,9 @@ func TestTaskGroomInvalidOutputMakesNoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/cake", nil })
+	calls := 0
 	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
 		_, err := fmt.Fprintln(stdout, `not json`)
 		return err
 	})
@@ -202,6 +206,247 @@ func TestTaskGroomInvalidOutputMakesNoChanges(t *testing.T) {
 	}
 	if string(after) != string(before) {
 		t.Fatal("task changed after invalid output")
+	}
+	if calls != 1 {
+		t.Fatalf("delegation calls = %d, want 1", calls)
+	}
+}
+
+func TestValidateGroomResultReportsAllIndependentErrors(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Status: "Blocked", Labels: "type:task, area:tasks"},
+		{ID: "002", Status: "Open", Labels: "type:task, area:tasks"},
+	}
+	result := groomResult{Verdicts: []groomVerdict{
+		{Task: "001", Action: "accept", AddDeps: []string{"999"}, RemoveDeps: []string{}, Labels: []string{"area:unknown"}},
+		{Task: "002", Action: "comment", Comment: "", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}, Revision: &groomRevision{}},
+	}}
+
+	_, err := validateGroomResult(result, tasks, tasks)
+	if err == nil {
+		t.Fatal("validateGroomResult succeeded")
+	}
+	assertContainsAll(t, err.Error(),
+		"task 001 cannot be accepted from Blocked",
+		"task 001 has invalid dependency 999",
+		"task 001 uses unknown label area:unknown",
+		"task 002 comment action requires a comment",
+		"task 002 comment action cannot include a revision",
+		"task 002 revision is empty",
+	)
+}
+
+func TestTaskGroomCorrectsSemanticFailureAndAppliesOnce(t *testing.T) {
+	root := t.TempDir()
+	blockedPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	openPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	dependencyPath := filepath.Join(root, ".agents", ".tasks", "active", "003.md")
+	writeTaskFile(t, blockedPath, "001", "Blocked task", "Blocked", "")
+	writeTaskFile(t, openPath, "002", "Open task", "Open", "")
+	writeTaskFile(t, dependencyPath, "003", "Dependency", "Pending", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, args []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
+		if calls == 1 {
+			_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"accept","comment":"Incorrect original.","add_deps":[],"remove_deps":[],"labels":[],"revision":null},{"task":"002","action":"comment","comment":"Valid original.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+			return err
+		}
+		prompt := strings.Join(args, "\n")
+		assertContainsAll(t, prompt,
+			"Original request and target scope:",
+			"- 001 [Blocked]",
+			"- 002 [Open]",
+			"Original structured result:",
+			`"task": "001"`,
+			"task 001 cannot be accepted from Blocked",
+		)
+		before, err := os.ReadFile(openPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(before), "Valid original.") {
+			t.Fatal("original valid verdict was applied before correction")
+		}
+		_, err = fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"comment","comment":"Still blocked.","add_deps":[],"remove_deps":[],"labels":[],"revision":null},{"task":"002","action":"revise","comment":"Valid corrected verdict.","add_deps":["003"],"remove_deps":[],"labels":[],"revision":{"priority":"","effort":"","sections":[{"role":"problem","content":"Corrected problem once."}]}}]}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "groom", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "Correction retry succeeded", "task 001 cannot be accepted from Blocked", "001: comment", "002: revise", "added deps 003", "revised problem")
+	assertContainsAll(t, stderr, "groom correction retry: attempting after 1 semantic validation error(s)")
+	if calls != 2 {
+		t.Fatalf("delegation calls = %d, want 2", calls)
+	}
+	for path, comment := range map[string]string{blockedPath: "Still blocked.", openPath: "Valid corrected verdict."} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(string(data), comment) != 1 {
+			t.Fatalf("%s comment count = %d, want 1\n%s", path, strings.Count(string(data), comment), data)
+		}
+		if strings.Contains(string(data), "Incorrect original.") || strings.Contains(string(data), "Valid original.") {
+			t.Fatalf("original verdict was partially applied:\n%s", data)
+		}
+	}
+	openData, err := os.ReadFile(openPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(openData), "depends_on: 003") != 1 || strings.Count(string(openData), "Corrected problem once.") != 1 {
+		t.Fatalf("corrected dependency or revision was duplicated:\n%s", openData)
+	}
+}
+
+func TestTaskGroomCorrectionVisibleInJSON(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Blocked task", "Blocked", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
+		action, comment := "accept", "Invalid."
+		if calls == 2 {
+			action, comment = "comment", "Corrected."
+		}
+		_, err := fmt.Fprintf(stdout, `{"verdicts":[{"task":"001","action":%q,"comment":%q,"add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`+"\n", action, comment)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--json", "task", "groom", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	var summary groomSummary
+	if err := json.Unmarshal([]byte(stdout), &summary); err != nil {
+		t.Fatalf("decode JSON summary: %v\n%s", err, stdout)
+	}
+	if summary.Correction == nil || !summary.Correction.Attempted || !summary.Correction.Succeeded {
+		t.Fatalf("correction summary = %+v", summary.Correction)
+	}
+	if len(summary.Correction.ValidationErrors) != 1 || !strings.Contains(summary.Correction.ValidationErrors[0], "cannot be accepted from Blocked") {
+		t.Fatalf("validation errors = %v", summary.Correction.ValidationErrors)
+	}
+}
+
+func TestTaskGroomInvalidCorrectionMakesNoChanges(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Blocked task", "Blocked", "")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
+		_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"accept","comment":"Still invalid.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom correction retry failed", "original structured result", "corrected structured result", "corrected validation errors", "task 001 cannot be accepted from Blocked")
+	if calls != 2 {
+		t.Fatalf("delegation calls = %d, want 2", calls)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("task changed after invalid original and corrected batches")
+	}
+}
+
+func TestTaskGroomUnparseableCorrectionIsBoundedAndConcise(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Blocked task", "Blocked", "")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
+		if calls == 1 {
+			_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"accept","comment":"Invalid.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+			return err
+		}
+		_, err := fmt.Fprintln(stdout, "provider secret payload that is not JSON")
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom correction retry failed", "correction attempt failed", "correction output was not parseable", "original structured result", "original validation errors")
+	if strings.Contains(stderr, "provider secret payload") {
+		t.Fatalf("raw correction transcript was dumped:\n%s", stderr)
+	}
+	if calls != 2 {
+		t.Fatalf("delegation calls = %d, want 2", calls)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("task changed after unparseable correction")
+	}
+}
+
+func TestTaskGroomProviderFailureDoesNotRetry(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Open task", "Open", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, _ io.Writer, _ io.Writer) error {
+		calls++
+		return fmt.Errorf("provider unavailable")
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom delegation failed", "provider unavailable")
+	if calls != 1 {
+		t.Fatalf("delegation calls = %d, want 1", calls)
+	}
+}
+
+func TestTaskGroomStateRaceDoesNotRetry(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	writeTaskFile(t, path, "001", "Open task", "Open", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	calls := 0
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		calls++
+		writeTaskFile(t, path, "001", "Changed task", "Blocked", "")
+		_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"accept","comment":"Initially valid.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom targets changed before apply", "cannot be accepted from Blocked")
+	if calls != 1 {
+		t.Fatalf("delegation calls = %d, want 1", calls)
 	}
 }
 

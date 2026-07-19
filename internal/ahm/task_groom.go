@@ -3,6 +3,7 @@ package ahm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -69,11 +70,32 @@ type groomSectionChange struct {
 }
 
 type groomSummary struct {
-	Agent   string        `json:"agent"`
-	Changes []groomChange `json:"changes"`
+	Agent      string           `json:"agent"`
+	Correction *groomCorrection `json:"correction,omitempty"`
+	Changes    []groomChange    `json:"changes"`
+}
+
+type groomCorrection struct {
+	Attempted        bool     `json:"attempted"`
+	Succeeded        bool     `json:"succeeded"`
+	ValidationErrors []string `json:"validation_errors"`
+}
+
+type groomValidationErrors struct {
+	messages []string
+}
+
+func (e *groomValidationErrors) Error() string {
+	return strings.Join(e.messages, "; ")
 }
 
 func (s groomSummary) RenderText(w io.Writer) error {
+	if s.Correction != nil {
+		fmt.Fprintln(w, "Correction retry succeeded after semantic validation failed:")
+		for _, message := range s.Correction.ValidationErrors {
+			fmt.Fprintf(w, "  - %s\n", message)
+		}
+	}
 	if len(s.Changes) == 0 {
 		fmt.Fprintln(w, "No grooming changes.")
 		return nil
@@ -133,33 +155,38 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 		return err
 	}
 	if a.opts.dryRun {
-		return a.emit(map[string]any{"agent": roles.implAgent.name, "prompt": prompt, "schema": groomResultSchema, "tasks": taskIDs(targets)})
+		return a.emit(map[string]any{
+			"agent": roles.implAgent.name, "prompt": prompt, "schema": groomResultSchema, "tasks": taskIDs(targets),
+			"correction_retry": map[string]any{"available": true, "max_attempts": 1, "trigger": "semantic_validation_failure"},
+		})
 	}
 	executable, err := taskWorkLookPath(roles.implAgent.executable)
 	if err != nil {
 		return fmt.Errorf("cannot groom with %s: executable %q not found on PATH", roles.implAgent.name, roles.implAgent.executable)
 	}
-	args, cleanup, err := delegatedResultArgs(roles.implAgent, prompt, roles.implModel, groomResultSchema)
+	result, raw, err := a.runGroomDelegation(parsed, roles, executable, prompt)
 	if err != nil {
-		return err
-	}
-	defer cleanup()
-	var out bytes.Buffer
-	if err := taskWorkRunCommand(taskWorkRunContext(parsed.timeout, roles.implAgent.envFilter(os.Environ())), a.opts.root, executable, args, nil, &out, a.err); err != nil {
-		return fmt.Errorf("groom delegation failed (raw output preserved below): %w\n%s", err, out.String())
-	}
-	if roles.implAgent.parseSessionID != nil {
-		if sessionID, parseErr := roles.implAgent.parseSessionID(out.Bytes()); parseErr == nil && sessionID != "" {
-			fmt.Fprintf(a.err, "%s session started: %.8s\n", roles.implAgent.name, sessionID)
-		}
-	}
-	result, err := parseGroomResult(out.Bytes())
-	if err != nil {
-		return fmt.Errorf("invalid groom result; no changes applied (raw output preserved below): %w\n%s", err, out.String())
+		return fmt.Errorf("%w; no changes applied (raw output preserved below):\n%s", err, raw)
 	}
 	_, err = validateGroomResult(result, targets, tasks)
+	var correction *groomCorrection
 	if err != nil {
-		return fmt.Errorf("invalid groom result; no changes applied (raw output preserved below): %w\n%s", err, out.String())
+		validationErrors := groomValidationMessages(err)
+		fmt.Fprintf(a.err, "groom correction retry: attempting after %d semantic validation error(s)\n", len(validationErrors))
+		correctionPrompt, promptErr := buildGroomCorrectionPrompt(prompt, result, validationErrors)
+		if promptErr != nil {
+			return promptErr
+		}
+		corrected, correctedRaw, correctionErr := a.runGroomDelegation(parsed, roles, executable, correctionPrompt)
+		if correctionErr != nil {
+			return groomCorrectionFailure(result, validationErrors, nil, nil, fmt.Errorf("correction attempt failed: %w", correctionErr), correctedRaw)
+		}
+		if _, correctionErr = validateGroomResult(corrected, targets, tasks); correctionErr != nil {
+			correctedErrors := groomValidationMessages(correctionErr)
+			return groomCorrectionFailure(result, validationErrors, &corrected, correctedErrors, fmt.Errorf("corrected groom result is invalid"), nil)
+		}
+		result = corrected
+		correction = &groomCorrection{Attempted: true, Succeeded: true, ValidationErrors: validationErrors}
 	}
 	return a.withWorkflowRecordLock(true, func() error {
 		a.invalidateTasks()
@@ -179,8 +206,80 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 		if err != nil {
 			return err
 		}
+		summary.Correction = correction
 		return a.emit(summary)
 	})
+}
+
+func (a *app) runGroomDelegation(parsed taskGroomArgs, roles taskWorkRoles, executable, prompt string) (groomResult, []byte, error) {
+	args, cleanup, err := delegatedResultArgs(roles.implAgent, prompt, roles.implModel, groomResultSchema)
+	if err != nil {
+		return groomResult{}, nil, err
+	}
+	defer cleanup()
+	var out bytes.Buffer
+	if err := taskWorkRunCommand(taskWorkRunContext(parsed.timeout, roles.implAgent.envFilter(os.Environ())), a.opts.root, executable, args, nil, &out, a.err); err != nil {
+		return groomResult{}, out.Bytes(), fmt.Errorf("groom delegation failed: %w", err)
+	}
+	if roles.implAgent.parseSessionID != nil {
+		if sessionID, parseErr := roles.implAgent.parseSessionID(out.Bytes()); parseErr == nil && sessionID != "" {
+			fmt.Fprintf(a.err, "%s session started: %.8s\n", roles.implAgent.name, sessionID)
+		}
+	}
+	result, err := parseGroomResult(out.Bytes())
+	if err != nil {
+		return groomResult{}, out.Bytes(), fmt.Errorf("invalid groom result: %w", err)
+	}
+	return result, out.Bytes(), nil
+}
+
+func buildGroomCorrectionPrompt(originalPrompt string, result groomResult, validationErrors []string) (string, error) {
+	structured, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("encode invalid groom result for correction: %w", err)
+	}
+	var b strings.Builder
+	b.WriteString("Correct the prior grooming result. Return one complete replacement result matching the schema. Do not omit valid verdicts, coerce actions, edit files, or run mutation commands.\n\nOriginal request and target scope:\n")
+	b.WriteString(originalPrompt)
+	b.WriteString("\n\nOriginal structured result:\n")
+	b.Write(structured)
+	b.WriteString("\n\nSemantic validation errors:\n")
+	for _, message := range validationErrors {
+		fmt.Fprintf(&b, "- %s\n", message)
+	}
+	return b.String(), nil
+}
+
+func groomCorrectionFailure(original groomResult, originalErrors []string, corrected *groomResult, correctedErrors []string, cause error, raw []byte) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "groom correction retry failed; no changes applied: %v\n", cause)
+	b.WriteString("original structured result:\n")
+	writeGroomRecoveryResult(&b, original)
+	b.WriteString("original validation errors:\n")
+	for _, message := range originalErrors {
+		fmt.Fprintf(&b, "- %s\n", message)
+	}
+	if corrected != nil {
+		b.WriteString("corrected structured result:\n")
+		writeGroomRecoveryResult(&b, *corrected)
+		b.WriteString("corrected validation errors:\n")
+		for _, message := range correctedErrors {
+			fmt.Fprintf(&b, "- %s\n", message)
+		}
+	} else if len(bytes.TrimSpace(raw)) > 0 {
+		fmt.Fprintf(&b, "correction output was not parseable (%d bytes); rerun with --verbose provider logging if manual transport recovery is needed.\n", len(raw))
+	}
+	return fmt.Errorf("%s", strings.TrimSpace(b.String()))
+}
+
+func writeGroomRecoveryResult(b *strings.Builder, result groomResult) {
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Fprintf(b, "<cannot encode result: %v>\n", err)
+		return
+	}
+	b.Write(data)
+	b.WriteByte('\n')
 }
 
 func groomTargets(tasks []Task, id string) ([]Task, error) {
@@ -395,51 +494,55 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 		targetByID[task.ID] = task
 	}
 	seen := map[string]bool{}
+	var messages []string
 	for _, verdict := range result.Verdicts {
 		task, ok := targetByID[verdict.Task]
 		if !ok {
-			return nil, fmt.Errorf("verdict task %s is outside the requested scope", verdict.Task)
+			messages = append(messages, fmt.Sprintf("verdict task %s is outside the requested scope", verdict.Task))
 		}
 		if seen[verdict.Task] {
-			return nil, fmt.Errorf("duplicate verdict for task %s", verdict.Task)
+			messages = append(messages, fmt.Sprintf("duplicate verdict for task %s", verdict.Task))
 		}
 		seen[verdict.Task] = true
 		if verdict.Action != "accept" && verdict.Action != "comment" && verdict.Action != "revise" {
-			return nil, fmt.Errorf("task %s has invalid action %q", verdict.Task, verdict.Action)
+			messages = append(messages, fmt.Sprintf("task %s has invalid action %q", verdict.Task, verdict.Action))
 		}
-		if verdict.Action == "accept" && task.Status != "Open" {
-			return nil, fmt.Errorf("task %s cannot be accepted from %s", verdict.Task, task.Status)
+		if ok && verdict.Action == "accept" && task.Status != "Open" {
+			messages = append(messages, fmt.Sprintf("task %s cannot be accepted from %s", verdict.Task, task.Status))
 		}
 		if verdict.Action == "comment" && strings.TrimSpace(verdict.Comment) == "" {
-			return nil, fmt.Errorf("task %s comment action requires a comment", verdict.Task)
+			messages = append(messages, fmt.Sprintf("task %s comment action requires a comment", verdict.Task))
 		}
 		if verdict.Action == "revise" && verdict.Revision == nil {
-			return nil, fmt.Errorf("task %s revise action requires a revision", verdict.Task)
+			messages = append(messages, fmt.Sprintf("task %s revise action requires a revision", verdict.Task))
 		}
 		if verdict.Action == "revise" && strings.TrimSpace(verdict.Comment) == "" {
-			return nil, fmt.Errorf("task %s revise action requires a comment explaining what remains", verdict.Task)
+			messages = append(messages, fmt.Sprintf("task %s revise action requires a comment explaining what remains", verdict.Task))
 		}
 		if verdict.Action == "comment" && verdict.Revision != nil {
-			return nil, fmt.Errorf("task %s comment action cannot include a revision", verdict.Task)
+			messages = append(messages, fmt.Sprintf("task %s comment action cannot include a revision", verdict.Task))
 		}
 		if err := validateGroomRevision(verdict.Task, verdict.Revision); err != nil {
-			return nil, err
+			messages = append(messages, groomValidationMessages(err)...)
 		}
 		for _, dep := range append(append([]string{}, verdict.AddDeps...), verdict.RemoveDeps...) {
 			if !allIDs[dep] || dep == verdict.Task {
-				return nil, fmt.Errorf("task %s has invalid dependency %s", verdict.Task, dep)
+				messages = append(messages, fmt.Sprintf("task %s has invalid dependency %s", verdict.Task, dep))
 			}
 		}
 		for _, label := range verdict.Labels {
 			if !vocabulary[label] {
-				return nil, fmt.Errorf("task %s uses unknown label %s", verdict.Task, label)
+				messages = append(messages, fmt.Sprintf("task %s uses unknown label %s", verdict.Task, label))
 			}
 		}
 	}
 	for _, task := range targets {
 		if !seen[task.ID] {
-			return nil, fmt.Errorf("missing verdict for task %s", task.ID)
+			messages = append(messages, fmt.Sprintf("missing verdict for task %s", task.ID))
 		}
+	}
+	if len(messages) > 0 {
+		return nil, &groomValidationErrors{messages: messages}
 	}
 	modified := make([]Task, len(all))
 	copy(modified, all)
@@ -458,28 +561,40 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 				modified[i].Labels = strings.Join(verdict.Labels, ", ")
 			}
 			if err := applyGroomRevision(&modified[i], verdict.Revision); err != nil {
-				return nil, fmt.Errorf("task %s revision: %w", verdict.Task, err)
+				messages = append(messages, fmt.Sprintf("task %s revision: %v", verdict.Task, err))
+				continue
 			}
 			if verdict.Action == "accept" {
 				modified[i].Status = "Pending"
 				if verdict.Revision != nil {
 					if err := validateRevisedTaskReadiness(modified[i]); err != nil {
-						return nil, fmt.Errorf("task %s revised task is not ready: %w", verdict.Task, err)
+						messages = append(messages, fmt.Sprintf("task %s revised task is not ready: %v", verdict.Task, err))
 					}
 				}
 			}
 			if verdict.Revision != nil {
 				rendered := renderTask(modified[i])
 				if _, err := parseTaskFromData([]byte(rendered), modified[i].Path, modified[i].Bucket); err != nil {
-					return nil, fmt.Errorf("task %s revised task is invalid: %w", verdict.Task, err)
+					messages = append(messages, fmt.Sprintf("task %s revised task is invalid: %v", verdict.Task, err))
 				}
 			}
 		}
 	}
-	if cycles := taskDependencyCycles(modified); len(cycles) > 0 {
-		return nil, fmt.Errorf("dependency corrections would create a cycle: %s", strings.Join(cycles[0], " -> "))
+	for _, cycle := range taskDependencyCycles(modified) {
+		messages = append(messages, fmt.Sprintf("dependency corrections would create a cycle: %s", strings.Join(cycle, " -> ")))
+	}
+	if len(messages) > 0 {
+		return nil, &groomValidationErrors{messages: messages}
 	}
 	return result.Verdicts, nil
+}
+
+func groomValidationMessages(err error) []string {
+	var validationErr *groomValidationErrors
+	if errors.As(err, &validationErr) {
+		return append([]string(nil), validationErr.messages...)
+	}
+	return []string{err.Error()}
 }
 
 func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent string) (groomSummary, error) {
@@ -577,27 +692,31 @@ func validateGroomRevision(taskID string, revision *groomRevision) error {
 	if revision == nil {
 		return nil
 	}
+	var messages []string
 	if revision.Priority != "" && !containsString(priorityOrder(), revision.Priority) {
-		return fmt.Errorf("task %s revision has invalid priority %q", taskID, revision.Priority)
+		messages = append(messages, fmt.Sprintf("task %s revision has invalid priority %q", taskID, revision.Priority))
 	}
 	if revision.Effort != "" && !containsString(effortOrder(), revision.Effort) {
-		return fmt.Errorf("task %s revision has invalid effort %q", taskID, revision.Effort)
+		messages = append(messages, fmt.Sprintf("task %s revision has invalid effort %q", taskID, revision.Effort))
 	}
 	seen := map[string]bool{}
 	for _, section := range revision.Sections {
 		if _, ok := groomSectionHeadings[section.Role]; !ok {
-			return fmt.Errorf("task %s revision has invalid section role %q", taskID, section.Role)
+			messages = append(messages, fmt.Sprintf("task %s revision has invalid section role %q", taskID, section.Role))
 		}
 		if seen[section.Role] {
-			return fmt.Errorf("task %s revision duplicates section role %s", taskID, section.Role)
+			messages = append(messages, fmt.Sprintf("task %s revision duplicates section role %s", taskID, section.Role))
 		}
 		seen[section.Role] = true
 		if strings.TrimSpace(section.Content) == "" {
-			return fmt.Errorf("task %s revision section %s is empty", taskID, section.Role)
+			messages = append(messages, fmt.Sprintf("task %s revision section %s is empty", taskID, section.Role))
 		}
 	}
 	if revision.Priority == "" && revision.Effort == "" && len(revision.Sections) == 0 {
-		return fmt.Errorf("task %s revision is empty", taskID)
+		messages = append(messages, fmt.Sprintf("task %s revision is empty", taskID))
+	}
+	if len(messages) > 0 {
+		return &groomValidationErrors{messages: messages}
 	}
 	return nil
 }

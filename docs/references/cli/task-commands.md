@@ -492,6 +492,15 @@ label, timestamp, and index write. Task identity, title, linkage/provenance
 fields, unknown front matter, comments, and body sections outside the revision
 remain protected. The command never cancels a task; cancellation
 recommendations are comments.
+
+When a result parses successfully but fails semantic validation, ahm reports
+all independently detectable validation errors and makes at most one correction
+request to the same agent. The correction prompt contains the original target
+scope, original structured result, and exact validation errors. Ahm validates
+the complete corrected batch from scratch and applies only that batch when it
+is fully valid. Provider failures, timeouts, unparseable results, and target
+changes found under the mutation lock do not trigger correction.
+
 For Cake, ahm supplies the schema through Cake's native `--output-schema`
 constraint while retaining the `stream-json` transport.
 
@@ -502,10 +511,15 @@ configured implementation model. `--timeout` limits the external process.
 Text, `--plain`, and `--json` summaries are rendered from the same result.
 Human output names revised metadata and section roles. JSON additionally
 includes before/after metadata and section content and whether a section was
-inserted.
+inserted. Dry-run output describes the one-attempt correction policy. When a
+correction succeeds, human output reports the retry and original validation
+errors; structured output includes `correction.attempted`,
+`correction.succeeded`, and `correction.validation_errors`.
 
-Invalid, missing, duplicated, or out-of-scope verdicts fail before mutation,
-print the preserved raw agent output for inspection, and exit nonzero.
+An invalid corrected batch fails before mutation and reports concise original
+and corrected structured results plus their validation errors for manual
+recovery. Raw provider output remains available for initial transport or parse
+failures but is not dumped by default for a parsed semantic correction failure.
 
 ```bash
 ahm task groom
