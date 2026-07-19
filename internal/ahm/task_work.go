@@ -176,7 +176,7 @@ func (a *app) ensureTaskDependenciesComplete(task Task) error {
 	}
 	allTasks, err := a.getTasks()
 	if err != nil {
-		a.addWarning("some task files could not be parsed and were skipped")
+		return fmt.Errorf("cannot work task %s: dependency readiness cannot be checked because task files are unparseable; repair the task records and retry: %w", task.ID, err)
 	}
 	completed := map[string]bool{}
 	for _, t := range allTasks {

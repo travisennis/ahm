@@ -2621,6 +2621,35 @@ func TestTaskWorkRefusesIncompleteDependencies(t *testing.T) {
 	assertContainsAll(t, stderr, "cannot work task 002: incomplete dependencies: 001")
 }
 
+func TestTaskWorkRefusesUnparseableDependencySet(t *testing.T) {
+	root := t.TempDir()
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Dependency", "Completed", "")
+	mainPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	writeTaskFileWithDeps(t, mainPath, "002", "Main", "Pending", "001")
+	malformedPath := filepath.Join(root, ".agents", ".tasks", "active", "003.md")
+	if err := os.WriteFile(malformedPath, []byte("---\nid: 003\nstatus: Pending\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(executable string) (string, error) {
+		t.Error("LookPath should not be called when dependency readiness cannot be checked")
+		return "", nil
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "work", "002")
+	if code == 0 {
+		t.Fatal("expected dependency parse failure")
+	}
+	assertContainsAll(t, stderr,
+		"dependency readiness cannot be checked because task files are unparseable",
+		"repair the task records and retry",
+	)
+	assertNotContains(t, stderr, "incomplete dependencies")
+	if strings.Count(stderr, "warning: some task files could not be parsed and were skipped") != 1 {
+		t.Fatalf("parse warning count = %d, want 1\n%s", strings.Count(stderr, "warning: some task files could not be parsed and were skipped"), stderr)
+	}
+	assertFileContainsAll(t, mainPath, "status: Pending")
+}
+
 func TestTaskWorkMissingExecutableLeavesPendingTaskUnchanged(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Workable Task", "Pending", "")

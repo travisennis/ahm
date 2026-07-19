@@ -534,8 +534,11 @@ Resolves a task, validates that it can be worked, and hands it to an external
 coding-agent CLI from the repository root.
 
 `task work` refuses completed and cancelled tasks. It also verifies every task
-listed in `depends_on` is already `Completed` before invoking an agent. If the
-task is `Pending`, the command marks it `In Progress`, writes it to
+listed in `depends_on` is already `Completed` before invoking an agent. This
+check requires every task record to parse successfully; otherwise the command
+reports that dependency readiness cannot be certified, directs the user to
+repair the records, and stops before agent lookup or task mutation. If the task
+is `Pending`, the command marks it `In Progress`, writes it to
 the active task bucket, removes the old file when the bucket changed, and
 regenerates indexes after validation and executable lookup, but before invoking
 the external CLI.
