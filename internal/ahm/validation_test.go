@@ -620,6 +620,32 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	assertNotContains(t, got, "also-missing.md")
 }
 
+func TestWalkMarkdownLinks(t *testing.T) {
+	data := []byte("[first](one.md)\n" +
+		"`[inline](ignored-inline.md)` [second](two.md)\n" +
+		"```md\n[fenced](ignored-backtick.md)\n```\n" +
+		"~~~md\n[fenced](ignored-tilde.md)\n~~~\n" +
+		"![image](image.png)\n")
+
+	type link struct {
+		lineNo int
+		target string
+	}
+	var got []link
+	walkMarkdownLinks(data, func(lineNo int, target string) {
+		got = append(got, link{lineNo: lineNo, target: target})
+	})
+
+	want := []link{
+		{lineNo: 1, target: "one.md"},
+		{lineNo: 2, target: "two.md"},
+		{lineNo: 9, target: "image.png"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("walkMarkdownLinks() = %#v, want %#v", got, want)
+	}
+}
+
 func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder

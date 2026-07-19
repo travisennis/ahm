@@ -705,6 +705,25 @@ func stripInlineCodeSpans(line string) string {
 	return inlineCodeSpanPattern.ReplaceAllString(line, "")
 }
 
+// walkMarkdownLinks calls visit for each raw Markdown link target outside
+// fenced and inline code, with the target's one-based source line number.
+func walkMarkdownLinks(data []byte, visit func(lineNo int, target string)) {
+	inFence := false
+	for lineNo, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
+			visit(lineNo+1, match[1])
+		}
+	}
+}
+
 func validateMarkdownLinks(root string, paths workflowPaths, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -756,29 +775,18 @@ func validateMarkdownFileLinksWithCodes(root string, path string, report *valida
 		report.addWarning(failedCode, relPath(root, path), err.Error())
 		return
 	}
-	inFence := false
-	for lineNo, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
+	walkMarkdownLinks(data, func(lineNo int, rawTarget string) {
+		target := normalizeMarkdownLinkTarget(rawTarget)
+		if target == "" || shouldSkipMarkdownLink(target) {
+			return
 		}
-		if inFence {
-			continue
+		resolved := filepath.Clean(filepath.Join(filepath.Dir(path), filepath.FromSlash(target)))
+		if _, err := os.Stat(resolved); errors.Is(err, os.ErrNotExist) {
+			report.addWarning(missingCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
+		} else if err != nil {
+			report.addWarning(failedCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo), err.Error())
 		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
-			target := normalizeMarkdownLinkTarget(match[1])
-			if target == "" || shouldSkipMarkdownLink(target) {
-				continue
-			}
-			resolved := filepath.Clean(filepath.Join(filepath.Dir(path), filepath.FromSlash(target)))
-			if _, err := os.Stat(resolved); errors.Is(err, os.ErrNotExist) {
-				report.addWarning(missingCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
-			} else if err != nil {
-				report.addWarning(failedCode, fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1), err.Error())
-			}
-		}
-	}
+	})
 }
 
 // projectDocPrefixes lists common root-level project documentation filename
@@ -854,25 +862,14 @@ func validateDesignDocIndex(root string, report *validationReport) {
 // ignored.
 func designDocIndexTargets(designDir string, indexData []byte) map[string]bool {
 	targets := map[string]bool{}
-	inFence := false
-	for _, line := range strings.Split(string(indexData), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
+	walkMarkdownLinks(indexData, func(_ int, rawTarget string) {
+		target := normalizeMarkdownLinkTarget(rawTarget)
+		if target == "" || shouldSkipMarkdownLink(target) {
+			return
 		}
-		if inFence {
-			continue
-		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
-			target := normalizeMarkdownLinkTarget(match[1])
-			if target == "" || shouldSkipMarkdownLink(target) {
-				continue
-			}
-			resolved := filepath.Clean(filepath.Join(designDir, filepath.FromSlash(target)))
-			targets[resolved] = true
-		}
-	}
+		resolved := filepath.Clean(filepath.Join(designDir, filepath.FromSlash(target)))
+		targets[resolved] = true
+	})
 	return targets
 }
 
@@ -927,27 +924,16 @@ func validateProjectDocLinkPortability(root string, path string, report *validat
 	if err != nil {
 		return
 	}
-	inFence := false
-	for lineNo, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
+	walkMarkdownLinks(data, func(lineNo int, rawTarget string) {
+		target := strings.TrimSpace(rawTarget)
+		if shouldSkipMarkdownLinkForPortability(target) {
+			return
 		}
-		if inFence {
-			continue
+		if desc := isNonPortableLinkTarget(target); desc != "" {
+			report.addError("project_doc_link_not_portable", fmt.Sprintf("%s:%d", relPath(root, path), lineNo),
+				fmt.Sprintf("non-portable Markdown link target (%s): %s", desc, target))
 		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
-			target := strings.TrimSpace(match[1])
-			if shouldSkipMarkdownLinkForPortability(target) {
-				continue
-			}
-			if desc := isNonPortableLinkTarget(target); desc != "" {
-				report.addError("project_doc_link_not_portable", fmt.Sprintf("%s:%d", relPath(root, path), lineNo+1),
-					fmt.Sprintf("non-portable Markdown link target (%s): %s", desc, target))
-			}
-		}
-	}
+	})
 }
 
 // validateEntryPointBudget checks that the root AGENTS.md does not exceed the
@@ -1034,25 +1020,14 @@ func validateDocIndexCoverage(root string, report *validationReport) {
 // links found in a doc index file, resolved relative to the index directory.
 func docIndexTargets(dir string, indexData []byte) map[string]bool {
 	targets := map[string]bool{}
-	inFence := false
-	for _, line := range strings.Split(string(indexData), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
+	walkMarkdownLinks(indexData, func(_ int, rawTarget string) {
+		target := normalizeMarkdownLinkTarget(rawTarget)
+		if target == "" || shouldSkipMarkdownLink(target) {
+			return
 		}
-		if inFence {
-			continue
-		}
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {
-			target := normalizeMarkdownLinkTarget(match[1])
-			if target == "" || shouldSkipMarkdownLink(target) {
-				continue
-			}
-			resolved := filepath.Clean(filepath.Join(dir, filepath.FromSlash(target)))
-			targets[resolved] = true
-		}
-	}
+		resolved := filepath.Clean(filepath.Join(dir, filepath.FromSlash(target)))
+		targets[resolved] = true
+	})
 	return targets
 }
 
