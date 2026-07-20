@@ -30,6 +30,15 @@ or legacy `.agents/ahm.json`) with the target repository files.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Task Lifecycle Alignment In AGENTS.md (2026-07-20)
+
+`internal/templates.Version` advanced from `0.6.4` to `0.6.5` because the
+embedded `ahm context task` reference now explicitly states that
+`ahm task complete` must run before any git commit that includes the task's
+implementation. The project `AGENTS.md` operating loop was also updated to
+include `ahm task start` after intake and `ahm task complete` before preflight
+checks — both qualified for task-backed work only.
+
 ## Stale Research Inbox Disposition (2026-07-19)
 
 `internal/templates.Version` advanced from `0.6.3` to `0.6.4` because the

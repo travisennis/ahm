@@ -51,6 +51,7 @@ func TestScopedContextPrintsEmbeddedInstructionDocument(t *testing.T) {
 		"Task source records live under `.ahm/tasks/`",
 		"`.ahm/tasks/index.md` and its linked indexes",
 		"`\"strict_acceptance\": true` in `.ahm/config.json`",
+		"must run before any git commit that includes",
 	)
 	assertNotContains(t, stdout, "# ahm context", "git:", "## Useful Commands", ".agents/")
 }

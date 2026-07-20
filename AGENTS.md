@@ -16,13 +16,15 @@ branches, or create project commits.
 0. Run `ahm prime` before any work to prepare the worktree and get the briefing.
 1. Use `ahm` intake first for tasks, ExecPlans, ADRs, or research; classify
    direct code, CLI, docs, or repository work immediately.
-2. Select the route below, load only its docs, and state both before editing.
-3. Preserve compatibility unless explicitly changed; edit surgically and
+2. For a Pending task, run `ahm task start <id>` to begin its lifecycle.
+3. Select the route below, load only its docs, and state both before editing.
+4. Preserve compatibility unless explicitly changed; edit surgically and
    verify according to risk.
-4. After implementation edits, run codex review (`tb__codex_review`), fix all
+5. After implementation edits, run codex review (`tb__codex_review`), fix all
    findings, and rerun until clean; reconsider approaches that do not converge.
-5. Use the oracle (`tb__oracle`) for unclear design, debugging, or path choices.
-6. After completing a task, run preflight checks before handoff.
+6. Use the oracle (`tb__oracle`) for unclear design, debugging, or path choices.
+7. For task-backed work, run `ahm task complete <id>` to close the task lifecycle.
+8. Run preflight checks and handoff.
 
 Specialized workflow docs override this file when they conflict.
 

@@ -103,6 +103,9 @@ ExecPlan:
    the completed plan bucket, update the task's `exec_plan` path, and regenerate
    indexes for those manual plan changes.
 7. Run `ahm task complete <id>` and provide the repository's required handoff.
+   The `ahm task complete` command must run before any git commit that includes
+   the task's implementation — committing an uncompleted task breaks the
+   lifecycle contract.
 
 For a task without an ExecPlan, skip only step 6. The inspection, start,
 implementation, verification, acceptance, completion, and handoff steps remain
