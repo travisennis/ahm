@@ -286,6 +286,9 @@ func groomTargets(tasks []Task, id string) ([]Task, error) {
 	if id != "" {
 		for _, task := range tasks {
 			if task.ID == id {
+				if task.Status != "Open" && task.Status != "Blocked" {
+					return nil, fmt.Errorf("task %s is in status %s and cannot be groomed (only Open and Blocked tasks can be groomed)", id, task.Status)
+				}
 				return []Task{task}, nil
 			}
 		}
@@ -507,6 +510,9 @@ func validateGroomResult(result groomResult, targets, all []Task) ([]groomVerdic
 		if verdict.Action != "accept" && verdict.Action != "comment" && verdict.Action != "revise" {
 			messages = append(messages, fmt.Sprintf("task %s has invalid action %q", verdict.Task, verdict.Action))
 		}
+		if ok && (task.Status == "Completed" || task.Status == "Cancelled") {
+			messages = append(messages, fmt.Sprintf("task %s is %s and cannot be groomed", verdict.Task, task.Status))
+		}
 		if ok && verdict.Action == "accept" && task.Status != "Open" {
 			messages = append(messages, fmt.Sprintf("task %s cannot be accepted from %s", verdict.Task, task.Status))
 		}
@@ -601,6 +607,12 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 	byID := map[string]Task{}
 	for _, task := range all {
 		byID[task.ID] = task
+	}
+	for _, verdict := range verdicts {
+		task := byID[verdict.Task]
+		if task.Status == "Completed" || task.Status == "Cancelled" {
+			return groomSummary{}, fmt.Errorf("task %s is %s and cannot be relocated by grooming", task.ID, task.Status)
+		}
 	}
 	now := time.Now().Format(time.RFC3339)
 	summary := groomSummary{Agent: agent}

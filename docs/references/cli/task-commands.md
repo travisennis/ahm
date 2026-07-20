@@ -475,7 +475,9 @@ ahm task create "Fix index sort order" \
 Delegates backlog grooming to a supported coding-agent CLI and mechanically
 applies its schema-constrained verdicts through ahm. With no ID, the prompt
 contains all Open tasks plus Blocked tasks for a staleness review. With an ID,
-exactly that task is included. Only Open tasks can be accepted.
+exactly that task is included, but grooming is restricted to Open and Blocked
+tasks; Pending, In Progress, Tracking, Completed, and Cancelled tasks are
+rejected before delegation. Only Open tasks can be accepted.
 
 The prompt includes task state, dependency values, paths for inspection, the
 repository's current label vocabulary, and the result schema. The delegated

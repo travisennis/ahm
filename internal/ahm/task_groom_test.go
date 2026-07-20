@@ -570,6 +570,162 @@ func TestValidateGroomResultNoAliasing(t *testing.T) {
 	}
 }
 
+func TestGroomTargetsRejectsNonOpenBlockedExplicitIDs(t *testing.T) {
+	tasks := []Task{
+		{ID: "001", Status: "Open", Labels: "type:task"},
+		{ID: "002", Status: "Blocked", Labels: "type:task"},
+		{ID: "003", Status: "Pending", Labels: "type:task"},
+		{ID: "004", Status: "In Progress", Labels: "type:task"},
+		{ID: "005", Status: "Tracking", Labels: "type:task"},
+		{ID: "006", Status: "Completed", Labels: "type:task"},
+		{ID: "007", Status: "Cancelled", Labels: "type:task"},
+	}
+	t.Run("open", func(t *testing.T) {
+		got, err := groomTargets(tasks, "001")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].ID != "001" {
+			t.Fatalf("got %v, want [001]", got)
+		}
+	})
+	t.Run("blocked", func(t *testing.T) {
+		got, err := groomTargets(tasks, "002")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].ID != "002" {
+			t.Fatalf("got %v, want [002]", got)
+		}
+	})
+	for _, id := range []string{"003", "004", "005", "006", "007"} {
+		t.Run(id, func(t *testing.T) {
+			_, err := groomTargets(tasks, id)
+			if err == nil {
+				t.Fatalf("expected error for task %s", id)
+			}
+			if !strings.Contains(err.Error(), "cannot be groomed") {
+				t.Fatalf("unexpected error for %s: %v", id, err)
+			}
+		})
+	}
+}
+
+func TestValidateGroomResultRejectsTerminalTaskVerdicts(t *testing.T) {
+	completed := Task{ID: "001", Status: "Completed", Labels: "type:task"}
+	cancelled := Task{ID: "002", Status: "Cancelled", Labels: "type:task"}
+	all := []Task{completed, cancelled}
+
+	for _, action := range []string{"comment", "revise", "accept"} {
+		t.Run("completed_"+action, func(t *testing.T) {
+			result := groomResult{Verdicts: []groomVerdict{
+				{Task: "001", Action: action, Comment: "x", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}},
+			}}
+			_, err := validateGroomResult(result, all, all)
+			if err == nil || !strings.Contains(err.Error(), "is Completed and cannot be groomed") {
+				t.Fatalf("expected Completed rejection for %s, got %v", action, err)
+			}
+		})
+		t.Run("cancelled_"+action, func(t *testing.T) {
+			result := groomResult{Verdicts: []groomVerdict{
+				{Task: "002", Action: action, Comment: "x", AddDeps: []string{}, RemoveDeps: []string{}, Labels: []string{}},
+			}}
+			_, err := validateGroomResult(result, all, all)
+			if err == nil || !strings.Contains(err.Error(), "is Cancelled and cannot be groomed") {
+				t.Fatalf("expected Cancelled rejection for %s, got %v", action, err)
+			}
+		})
+	}
+}
+
+func TestTaskGroomRejectsNonOpenBlockedBeforeDelegation(t *testing.T) {
+	for _, tc := range []struct{ id, status, bucket string }{
+		{"003", "Pending", "active"},
+		{"004", "In Progress", "active"},
+		{"005", "Tracking", "active"},
+		{"006", "Completed", "completed"},
+		{"007", "Cancelled", "cancelled"},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, ".agents", ".tasks", tc.bucket, tc.id+".md")
+			writeTaskFile(t, path, tc.id, tc.status+" task", tc.status, "")
+			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Open task", "Open", "")
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stubTaskWorkLookPath(t, func(string) (string, error) {
+				t.Fatal("agent lookup must not run for a non-groomable task")
+				return "", nil
+			})
+
+			stdout, stderr, code := runCLI(t, "--root", root, "task", "groom", tc.id, "--agent", "codex")
+			if code == 0 {
+				t.Fatalf("expected failure for %s task, stdout=%s stderr=%s", tc.status, stdout, stderr)
+			}
+			if !strings.Contains(stderr, "cannot be groomed") && !strings.Contains(stderr, "is in status") {
+				t.Fatalf("expected rejection for %s in stderr, got: %s", tc.status, stderr)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("original record missing: %v", err)
+			}
+			if string(after) != string(before) {
+				t.Fatalf("record was modified:\n%s", after)
+			}
+			if tc.bucket != "active" {
+				if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", tc.id+".md")); !os.IsNotExist(err) {
+					t.Fatalf("terminal task was written to active bucket: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyGroomVerdictsRejectsTerminalTaskBeforeWrites(t *testing.T) {
+	root := t.TempDir()
+	openPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "002.md")
+	writeTaskFile(t, openPath, "001", "Open task", "Open", "")
+	writeTaskFile(t, completedPath, "002", "Completed task", "Completed", "")
+	openBefore, err := os.ReadFile(openPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completedBefore, err := os.ReadFile(completedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a := &app{opts: options{root: root}, out: io.Discard, err: io.Discard}
+	verdicts := []groomVerdict{
+		{Task: "001", Action: "comment", Comment: "Should not be written."},
+		{Task: "002", Action: "comment", Comment: "Must be rejected."},
+	}
+	_, err = a.applyGroomVerdicts(verdicts, []Task{
+		{ID: "001", Status: "Open", Path: openPath},
+		{ID: "002", Status: "Completed", Path: completedPath},
+	}, "test")
+	if err == nil || !strings.Contains(err.Error(), "cannot be relocated by grooming") {
+		t.Fatalf("expected terminal-task rejection, got %v", err)
+	}
+	openAfter, err := os.ReadFile(openPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completedAfter, err := os.ReadFile(completedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(openAfter) != string(openBefore) || string(completedAfter) != string(completedBefore) {
+		t.Fatal("groom application wrote task records before rejecting a terminal task")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "002.md")); !os.IsNotExist(err) {
+		t.Fatalf("terminal task was written to active bucket: %v", err)
+	}
+}
+
 func TestApplyGroomVerdictsNoAliasing(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First", "Open", "002,003")
