@@ -46,7 +46,7 @@ Commands:
   (no prior workflow metadata), creates the committed `.ahm/` layout
   directly. On repositories with existing `.agents/ahm.json` metadata, the
   existing layout is preserved.
-- `upgrade`: update managed workflow state for the embedded template version.
+- `upgrade`: update managed workflow state.
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
@@ -89,8 +89,7 @@ source records directly to `.ahm/`. Generated indexes remain local-only
 under `.ahm/`. Record writes never touch branches, `HEAD`, or the project
 index.
 
-`ahm` writes `.agents/ahm.json` with the installed template version, managed
-file hashes for any legacy managed templates, and repository-scoped workflow
+`ahm` writes `.agents/ahm.json` with the managed file hashes for any legacy managed templates, and repository-scoped workflow
 settings. This metadata lets future versions remove or migrate files that have
 not been locally changed while preserving user edits.
 
@@ -114,7 +113,6 @@ Example:
 
 ```json
 {
-  "version": "0.1.0",
   "strict_acceptance": true,
   "default_work_agent": "codex",
   "taskWork": {

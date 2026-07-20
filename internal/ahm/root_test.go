@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 func TestRuntimeErrorsExitCode1(t *testing.T) {
@@ -279,5 +277,4 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	if !strings.Contains(stdout, evalRoot) {
 		t.Errorf("status output missing root %q:\n%s", evalRoot, stdout)
 	}
-	assertContainsAll(t, stdout, templates.Version)
 }

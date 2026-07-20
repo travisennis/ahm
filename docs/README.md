@@ -17,8 +17,7 @@ index.
   types and authoritative docs.
 - [Testing guide](guides/testing.md): agent integration smoke checks and golden
   transcript workflow.
-- [Workflow upgrade guide](guides/workflow-upgrades.md): template version and
-  upgrade behavior notes.
+- [Workflow upgrade guide](guides/workflow-upgrades.md): upgrade behavior notes.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
 - [Guardrails](guardrails/): short agent-facing rules by risk surface.

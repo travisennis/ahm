@@ -74,7 +74,6 @@ print human-friendly key-value output:
 
 ```text
 root: /path/to/repo
-template_version: 1.0.0
 installed: true
 installed_version: 1.0.0
 tasks:
@@ -94,7 +93,6 @@ validation report includes the metadata error:
 
 ```text
 root: /path/to/repo
-template_version: 1.0.0
 installed: false
 installed_version: none
 tasks:

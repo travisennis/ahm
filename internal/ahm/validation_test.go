@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 func TestValidateWorkflowStateMatchesStandaloneValidation(t *testing.T) {
@@ -275,23 +273,23 @@ func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// JSON mode: installed_version shows the version string.
+	// JSON mode: installed_version shows the binary version.
 	var jOut strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &jOut}
 	if err := a.status(); err != nil {
 		t.Errorf("status error: %v", err)
 	}
 	jGot := jOut.String()
-	assertContainsAll(t, jGot, `"installed_version": "`+templates.Version+`"`)
+	assertContainsAll(t, jGot, `"installed": true`, `"installed_version": "dev"`)
 
-	// Text mode: installed_version shows the version string.
+	// Text mode: installed_version shows the binary version.
 	var tOut strings.Builder
 	a2 := app{opts: options{root: root}, out: &tOut}
 	if err := a2.status(); err != nil {
 		t.Errorf("status error: %v", err)
 	}
 	tGot := tOut.String()
-	assertContainsAll(t, tGot, "installed_version: "+templates.Version)
+	assertContainsAll(t, tGot, "installed: true", "installed_version: dev")
 }
 
 func TestDoctorWithoutMetadataShowsInstalledVersionNone(t *testing.T) {

@@ -151,5 +151,3 @@ git tag --points-at HEAD
   `ahm_0.3.0_darwin_arm64.tar.gz`.
 - `internal/version.Binary` is the binary release version injected by
   GoReleaser.
-- `internal/templates.Version` is the embedded workflow template version and
-  only changes when the embedded workflow templates change.

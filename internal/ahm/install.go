@@ -12,8 +12,6 @@ import (
 	"sort"
 	"strings"
 	"syscall"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 type taskWorkRoleConfig struct {
@@ -53,7 +51,9 @@ type projectDocsConfig struct {
 const defaultEntryPointBudget = 150
 
 type metadata struct {
-	Version          string                     `json:"version"`
+	// Version preserves the obsolete template-version field in existing
+	// metadata. Fresh metadata omits it, and ahm no longer reads or updates it.
+	Version          string                     `json:"version,omitempty"`
 	StrictAcceptance bool                       `json:"strict_acceptance"`
 	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
 	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
@@ -98,8 +98,10 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
 	first := true
-	if err := writeJSONField(&buf, &first, "version", m.Version); err != nil {
-		return nil, err
+	if m.Version != "" {
+		if err := writeJSONField(&buf, &first, "version", m.Version); err != nil {
+			return nil, err
+		}
 	}
 	if err := writeJSONField(&buf, &first, "strict_acceptance", m.StrictAcceptance); err != nil {
 		return nil, err
@@ -309,7 +311,6 @@ func (a *app) install(upgrade bool) error {
 	}
 	result["indexes"] = indexes
 	if !a.opts.dryRun {
-		meta.Version = templates.Version
 		// Fresh init with no prior metadata writes .ahm/config.json.
 		// When existing metadata is present, preserve the existing path.
 		if upgrade || hasExistingMeta {

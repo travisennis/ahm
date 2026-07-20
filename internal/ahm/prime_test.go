@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 // primeTestRoots is a testing helper that sets up a committed-mode repo for prime tests.
@@ -48,7 +46,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"root: "+root,
-		"workflow: installed "+templates.Version,
+		"workflow: installed dev",
 		"validation: ok",
 		"## In Progress",
 		"001 [In Progress] P2 S Current Work",
@@ -88,7 +86,6 @@ func TestPrimeJSONOutput(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		`"root": "`+root+`"`,
-		`"template_version": "`+templates.Version+`"`,
 		`"commands":`,
 		`"in_progress":`,
 		`"ready":`,

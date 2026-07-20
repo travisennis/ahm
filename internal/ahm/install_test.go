@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 func TestReadWorkflowFile_CRLF(t *testing.T) {
@@ -464,10 +462,8 @@ func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
 		}
 	}
 
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"),
-		`"version": "`+templates.Version+`"`,
-	)
-	assertNotContains(t, mustRead(t, filepath.Join(root, ".ahm", "config.json")), ".agents/TASKS.md", "docs/adr/README.md")
+	config := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	assertNotContains(t, config, `"version":`, ".agents/TASKS.md", "docs/adr/README.md")
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"),
 		"# Task Index",
 		"- Pending: 0",
@@ -642,8 +638,8 @@ func TestUpgradeRemovesOwnedInstructionTemplatesAndPreservesProjectAgents(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Version != templates.Version {
-		t.Errorf("metadata version = %q, want %q (version advances despite conflicts)", after.Version, templates.Version)
+	if after.Version != "0.0.1" {
+		t.Errorf("metadata version = %q, want %q (version should be preserved)", after.Version, "0.0.1")
 	}
 	for _, target := range []string{
 		".agents/TASKS.md",
@@ -693,8 +689,8 @@ func TestUpgradeRemovesOwnedInstructionTemplatesAndPreservesProjectAgents(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if afterForce.Version != templates.Version {
-		t.Errorf("forced metadata version = %q, want %q", afterForce.Version, templates.Version)
+	if afterForce.Version != "0.0.1" {
+		t.Errorf("forced metadata version = %q, want %q", afterForce.Version, "0.0.1")
 	}
 }
 
@@ -875,7 +871,7 @@ func TestMainUpgradeIntegration(t *testing.T) {
 		"indexes:",
 	)
 	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"version": "`+templates.Version+`"`)
+	assertNotContains(t, mustRead(t, filepath.Join(root, ".ahm", "config.json")), `"version":`)
 }
 
 func TestInstallFailsOnCorruptMetadata(t *testing.T) {

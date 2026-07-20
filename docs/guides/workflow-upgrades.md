@@ -32,8 +32,7 @@ complete file ownership boundary.
 
 ## Task Lifecycle Alignment In AGENTS.md (2026-07-20)
 
-`internal/templates.Version` advanced from `0.6.4` to `0.6.5` because the
-embedded `ahm context task` reference now explicitly states that
+The embedded `ahm context task` reference now explicitly states that
 `ahm task complete` must run before any git commit that includes the task's
 implementation. The project `AGENTS.md` operating loop was also updated to
 include `ahm task start` after intake and `ahm task complete` before preflight
@@ -41,8 +40,7 @@ checks — both qualified for task-backed work only.
 
 ## Stale Research Inbox Disposition (2026-07-19)
 
-`internal/templates.Version` advanced from `0.6.3` to `0.6.4` because the
-embedded `ahm context research` reference now requires stale inbox notes to be
+The embedded `ahm context research` reference now requires stale inbox notes to be
 promoted to a durable topic, converted to a task, or deleted when they have no
 continuing value. Ahm reports the condition but never applies a disposition.
 
@@ -64,15 +62,7 @@ distinguishes ADRs under `docs/adr/` as project-owned durable documentation.
 It no longer advertises project-owned `.agents/` as ahm record storage.
 
 This is binary-owned CLI guidance in `internal/ahm/onboard.go`, not an embedded
-workflow template under `internal/templates/workflow/`, so
-`internal/templates.Version` remains `0.6.3`.
-
-**Version advancement:** The metadata `version` field always advances to the
-embedded template version, even when conflicts exist. This ensures that
-subsequent upgrades correctly identify files that have already been updated.
-Conflicted files retain their old expected hashes in metadata and remain in
-conflict until resolved by deleting the local copy, restoring the recorded
-content, or running with `--force`.
+workflow template under `internal/templates/workflow/`.
 
 Use `--dry-run` to preview changes. Use `--force` only when old local
 instruction files should be removed even though they no longer match their
@@ -80,8 +70,7 @@ recorded managed hash.
 
 ## Record Layout Terminology (2026-07-18)
 
-`internal/templates.Version` advanced from `0.6.2` to `0.6.3` because the
-embedded research workflow reference now describes the metadata-selected
+The embedded research workflow reference now describes the metadata-selected
 record layout rather than a storage mode. Legacy `.agents/` and post-migration
 `.ahm/` layouts both keep source records as ordinary committed files.
 
@@ -91,8 +80,7 @@ selection and legacy-layout compatibility are unchanged.
 
 ## Context-Only Workflow References (2026-07-15)
 
-`internal/templates.Version` advanced from `0.6.1` to `0.6.2`. Fresh installs
-no longer create `.ahm/tasks/README.md`, `.ahm/research/README.md`, or
+Fresh installs no longer create `.ahm/tasks/README.md`, `.ahm/research/README.md`, or
 `docs/adr/README.md`. Task, research, and ADR guidance remains available from
 `ahm context task`, `ahm context research`, and `ahm context adr` respectively.
 The embedded ADR context source was renamed from `workflow/adr-README.md` to
@@ -105,8 +93,7 @@ or overwrite consumer copies.
 
 ## Concise Task Workflow Reference (2026-07-15)
 
-`internal/templates.Version` advanced from `0.6.0` to `0.6.1` because the
-embedded task workflow reference changed. `ahm context task` now focuses on
+The embedded task workflow reference changed. `ahm context task` now focuses on
 task decisions and a single end-to-end working procedure while leaving task
 front matter, body scaffolding, exact flags, and lifecycle mechanics to the
 `ahm task ...` commands that own them.
@@ -118,8 +105,7 @@ unchanged.
 
 ## Command-Based Procedures (2026-07-11)
 
-`internal/templates.Version` advanced from `0.4.6` to `0.5.0` because the
-embedded managed-file set changed. Fresh installs no longer create
+The embedded managed-file set changed. Fresh installs no longer create
 `.agents/skills/`. Grooming is delegated through `ahm task groom`, improvement
 audits through `ahm audit`, and task-work review uses a binary-embedded
 preflight procedure. `ahm onboard` replaces the removed `ahm agents`
@@ -127,8 +113,7 @@ suggestions group.
 
 ## .ahm-first init (2026-07-12)
 
-`internal/templates.Version` advanced from `0.5.0` to `0.6.0` because
-`managedFiles` in `templates.go` was populated with `.ahm/` scaffold targets.
+`managedFiles` in the templates package was populated with `.ahm/` scaffold targets.
 Fresh `ahm init` (no prior workflow metadata) now creates the committed
 `.ahm/` layout directly: `.ahm/config.json`, scaffold READMEs under
 `.ahm/tasks/`, `.ahm/research/`, and `docs/adr/`, and workflow directories
@@ -208,12 +193,8 @@ precedence rules and examples.
   when no role-specific config is present.
 - `ahm --dry-run task work <id>` includes `review_agent` and `review_model`
   fields when review will run.
-- No template version change; existing metadata formats are fully backward
-  compatible.
 
 ## Layout-Aware Agent Guidance Rendering (2026-07-09)
-
-`internal/templates.Version` advanced from `0.4.5` to `0.4.6`.
 
 Live agent instruction output now renders workflow record, generated index, and
 metadata paths for the repository's record layout. Legacy repositories
@@ -228,12 +209,8 @@ that distinction is durable user-facing behavior.
   live output when the repository layout is known.
 - Managed skill templates and `ahm agents suggestions` render the generated
   task or research index paths for the active record layout.
-- `ahm upgrade` records template version `0.4.6` in `.ahm/config.json` after
-  migration, or legacy `.agents/ahm.json` before migration.
 
 ## Migrated Agent Guidance (2026-07-07)
-
-`internal/templates.Version` advanced from `0.4.4` to `0.4.5`.
 
 The embedded task, research, and ExecPlan workflow references now describe the
 current record layout instead of hard-coding only legacy `.agents/` paths.
@@ -248,12 +225,8 @@ index paths. The `ahm agents suggestions` advisory output now includes
   describes both layouts for fallback paths and generated indexes.
 - `ahm agents suggestions` tells maintainers to put `ahm prime` before normal
   managed-work intake in project-owned `AGENTS.md`.
-- `ahm upgrade` records template version `0.4.5` in `.ahm/config.json` after
-  migration, or legacy `.agents/ahm.json` before migration.
 
 ## Context Role Split (2026-06-20)
-
-`internal/templates.Version` advanced from `0.4.2` to `0.4.3`.
 
 This release splits the `ahm context` command into two distinct modes:
 
@@ -281,12 +254,9 @@ This release splits the `ahm context` command into two distinct modes:
 - `ahm context` text and JSON output shapes change as described above.
   Consumers relying on the old scoped JSON shape (with `root`, `workflow`,
   `git`, `tasks`) need to adapt.
-- `ahm upgrade` records template version `0.4.3` in `.agents/ahm.json`.
 - Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
 
 ## AGENTS.md Integration Suggestions (2026-06-20)
-
-`internal/templates.Version` advanced from `0.4.1` to `0.4.2`.
 
 The `ahm agents suggestions` output now frames its Markdown as AGENTS.md
 integration guidance rather than simple additions. It tells maintainers or
@@ -307,12 +277,9 @@ The guidance now distinguishes three target shapes:
 ### Impact
 
 - `ahm agents suggestions` output changes for the advisory suggestion blocks.
-- `ahm upgrade` records template version `0.4.2` in `.agents/ahm.json`.
 - Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
 
 ## Managed Work Intake Suggestions (2026-06-20)
-
-`internal/templates.Version` advanced from `0.4.0` to `0.4.1`.
 
 The `ahm-workflow-routing` advisory block printed by
 `ahm agents suggestions` now frames `ahm` as managed-work intake for tasks,
@@ -326,12 +293,9 @@ docs, CLI, safety, or release change.
 
 - `ahm agents suggestions` output changes for the `ahm-workflow-routing`
   advisory block.
-- `ahm upgrade` records template version `0.4.1` in `.agents/ahm.json`.
 - Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
 
 ## Context-Based Agent Instructions (2026-06-19)
-
-`internal/templates.Version` advanced from `0.3.1` to `0.4.0`.
 
 Canonical agent workflow guidance moved from installed repository workflow
 guide files to the new `ahm context` command. Fresh installs no longer create
@@ -363,31 +327,22 @@ The binary version and the workflow template version are now separate.
 - `internal/version.Binary` (var, set by goreleaser ldflags) is the release
   version shown by `ahm --version` and `ahm version`. It advances with every
   tagged release.
-- `internal/templates.Version` (const) is the embedded workflow template schema
-  version. It advances only when the content of the embedded workflow templates
-  under `internal/templates/workflow/` changes.
-- `.agents/ahm.json`'s `version` field continues to track the template version
-  (`templates.Version`), not the binary version. This ensures that `ahm upgrade`
-  correctly detects template changes regardless of the release tag.
 
 This separation avoids the bug where `ahm --version` silently reported the
-wrong version because `templates.Version` was a `const` and the linker `-X`
-flag only sets `var` symbols. Task 023 had made `Version` a `const` on the
-assumption there was no separate release pipeline — that assumption was wrong.
+wrong version because the workflow template version was a `const` and the linker `-X`
+flag only sets `var` symbols.
+
+*(The template version constant has since been removed entirely; the binary
+version is now the single version tracked in the repository.)*
 
 ### Impact
 
-- `ahm init` and `ahm upgrade` still stamp `templates.Version` into metadata.
-- `ahm status` and `ahm doctor` still report `template_version` from
-  `templates.Version`.
 - `ahm --version` and `ahm version` now return the injected binary version,
   which matches the release tag in goreleaser builds.
 - Dev builds (`go build`, `just build`) without ldflags show `dev` so they are
   not confused with tagged release builds.
 
 ## ADR Template Rewrite for MADR (2026-06-14)
-
-`internal/templates.Version` advanced from `0.2.0` to `0.3.0`.
 
 `docs/adr/README.md` was rewritten to document only the constrained MADR
 profile instead of the legacy Nygard-style format. The new template covers:
@@ -412,16 +367,7 @@ index.
 - The `ahm-workflow-routing` and `ahm-owned-files` agent suggestions now
   cover ADR commands and the generated ADR index.
 
-### Rejected Alternative
-
-Reverting `templates.Version` to `var` would have fixed the injection but
-would conflate the binary release version with the template schema version,
-causing every release to bump the template version even when templates hadn't
-changed.
-
 ## Task Workflow Verification Link Update (2026-06-14)
-
-`internal/templates.Version` advanced from `0.3.0` to `0.3.1`.
 
 The task workflow template now points contributors to `CONTRIBUTING.md` for the
 project's full CI check instead of the root `AGENTS.md`. This supports the

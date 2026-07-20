@@ -190,7 +190,7 @@ Examples:
   ahm --force init`, func() error {
 		return a.install(false)
 	}))
-	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", `Update managed workflow files to the embedded template version.
+	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", `Update managed workflow files.
 
 Examples:
   ahm upgrade

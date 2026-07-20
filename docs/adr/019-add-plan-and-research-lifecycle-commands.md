@@ -152,9 +152,8 @@ Creation templates are dedicated embedded artifacts compiled into the binary.
 Commands must not parse the prose returned by `ahm context plan` or `ahm
 context research`, and they must not depend on installed template copies.
 Implementation keeps each command template and its corresponding context
-guidance semantically aligned through tests. Changing scoped guidance requires
-the normal embedded template-version bump; changing only command rendering is
-tied to the binary version.
+guidance semantically aligned through tests. Both scoped guidance and command
+rendering ship with the binary version.
 
 ### Consequences
 

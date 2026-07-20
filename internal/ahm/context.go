@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/travisennis/ahm/internal/templates"
+	"github.com/travisennis/ahm/internal/version"
 )
 
 type contextReport struct {
@@ -28,7 +29,6 @@ type contextScopedReport struct {
 type contextWorkflow struct {
 	Installed        bool             `json:"installed"`
 	InstalledVersion string           `json:"installed_version,omitempty"`
-	TemplateVersion  string           `json:"template_version"`
 	ValidationOK     bool             `json:"validation_ok"`
 	Errors           int              `json:"errors"`
 	Warnings         int              `json:"warnings"`
@@ -107,7 +107,7 @@ func (a *app) context(scope string) error {
 
 func (a *app) contextReport() contextReport {
 	validation, tasks := a.validateWorkflow(nil)
-	meta, metaErr := readMetadata(a.opts.root)
+	_, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
 		var err error
 		tasks, err = a.getTasks()
@@ -120,7 +120,7 @@ func (a *app) contextReport() contextReport {
 	}
 	var installedVersion string
 	if metaErr == nil {
-		installedVersion = meta.Version
+		installedVersion = version.Binary
 	}
 	taskInfo := a.contextTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
@@ -129,7 +129,6 @@ func (a *app) contextReport() contextReport {
 		Workflow: contextWorkflow{
 			Installed:        metaErr == nil,
 			InstalledVersion: installedVersion,
-			TemplateVersion:  templates.Version,
 			ValidationOK:     validation.OK && len(validation.Warnings) == 0,
 			Errors:           len(validation.Errors),
 			Warnings:         len(validation.Warnings),
@@ -365,9 +364,9 @@ func (a *app) emitContextText(report contextReport) {
 	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "root: %s\n", report.Root)
 	if report.Workflow.Installed {
-		fmt.Fprintf(a.out, "workflow: installed %s (templates %s)\n", report.Workflow.InstalledVersion, report.Workflow.TemplateVersion)
+		fmt.Fprintf(a.out, "workflow: installed %s\n", report.Workflow.InstalledVersion)
 	} else {
-		fmt.Fprintf(a.out, "workflow: not installed (templates %s)\n", report.Workflow.TemplateVersion)
+		fmt.Fprintln(a.out, "workflow: not installed")
 	}
 	switch {
 	case report.Workflow.Errors == 0 && report.Workflow.Warnings == 0:

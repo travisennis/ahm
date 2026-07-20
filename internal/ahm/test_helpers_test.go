@@ -79,8 +79,7 @@ func writeFile(t *testing.T, path string, content string) {
 }
 
 // setupAhmRepo creates minimal .ahm/ workflow state (the modern layout)
-// in root. Creates .ahm/config.json with the current template version
-// and the full directory structure.
+// in root. Creates .ahm/config.json and the full directory structure.
 func setupAhmRepo(t *testing.T, root string) {
 	t.Helper()
 	for _, dir := range []string{
@@ -100,7 +99,7 @@ func setupAhmRepo(t *testing.T, root string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, ".ahm", "config.json"), []byte(`{"version":"`+templates.Version+`"}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".ahm", "config.json"), []byte(`{"version":"0.0.0"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -130,7 +129,7 @@ func initAndCreateLegacyMetadata(t *testing.T, root string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte(`{"version":"`+templates.Version+`"}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte(`{"version":"0.0.0"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

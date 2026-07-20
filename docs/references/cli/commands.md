@@ -55,8 +55,7 @@ ahm help
 ### `version`
 
 Prints the ahm binary version. This is the release tag version injected at
-build time, distinct from the embedded workflow template version shown in
-`status` and `doctor`.
+build time.
 
 Alias:
 
@@ -577,7 +576,7 @@ ahm --dry-run init
 
 ### `upgrade`
 
-Updates managed workflow state for the embedded template version.
+Updates managed workflow state.
 
 `upgrade` compares the installed workflow metadata (`.ahm/config.json`
 or legacy `.agents/ahm.json`) with managed files in the target root. Previously managed workflow instruction files that still match their
@@ -588,11 +587,6 @@ as conflicts unless `--force` is used. The former preflight, grooming-backlog,
 and finding-improvements skill files are left in place and removed from
 managed-file metadata; ahm no longer manages them. Generated indexes are
 regenerated.
-
-The metadata `version` field always advances to the embedded template version,
-even when conflicts exist. This means a partial upgrade (some files conflicted,
-others updated) records the new template version so subsequent upgrades can
-correctly identify already-updated files.
 
 `AGENTS.md` remains project-owned and is never overwritten or removed.
 
@@ -622,10 +616,8 @@ no command is provided.
 The report includes:
 
 - Target root.
-- Current embedded template version.
 - Whether workflow metadata is installed.
-- Installed workflow version from `.ahm/config.json` when present, otherwise
-  `.agents/ahm.json`.
+- Current binary version when workflow metadata is installed.
 - Task counts by status.
 - Validation errors, warnings, and info findings for managed workflow files,
   task consistency, ADR records, generated indexes, ExecPlan references and
@@ -689,7 +681,7 @@ The report includes:
 - Target root.
 - Whether `git` is available on `PATH`.
 - Whether workflow metadata is installed.
-- Installed and embedded workflow template versions.
+- Current binary version when workflow metadata is installed.
 - The same workflow validation report used by `status`.
 - Warning-tier `research_inbox_stale` findings from that shared report when an
   inbox note reaches the configured age threshold. The message points to the

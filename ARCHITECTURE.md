@@ -31,8 +31,7 @@ task to an external coding-agent CLI.
 
 - CLI command names, flags, aliases, exit codes, help text, and output modes.
 - Text, JSON, and plain output shapes, including validation finding codes.
-- `.agents/ahm.json` and `.ahm/config.json` metadata fields and version
-  semantics.
+- `.agents/ahm.json` and `.ahm/config.json` metadata fields and compatibility.
 - Task, research, ExecPlan, ADR, and generated index formats.
 - Embedded templates under `internal/templates/workflow/`.
 - Install and upgrade conflict behavior, including project-owned `AGENTS.md`
@@ -107,8 +106,7 @@ task to an external coding-agent CLI.
 - `internal/ahm/lock.go`: repository-local workflow locks for serialized
   cross-process mutations.
 - `internal/ahm/write.go`: atomic writes and stale temp cleanup.
-- `internal/templates/templates.go`: embedded workflow filesystem and template
-  version.
+- `internal/templates/templates.go`: embedded workflow filesystem.
 - `internal/templates/workflow/`: canonical workflow references embedded for
   scoped `ahm context` output and binary-owned procedures.
 - `internal/version/version.go`: binary version injected by release builds.

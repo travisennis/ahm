@@ -7,20 +7,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/travisennis/ahm/internal/templates"
+	"github.com/travisennis/ahm/internal/version"
 )
 
 func (a *app) status() error {
 	a.warnProjectDocsScopeDeprecation()
 	validation, tasks := a.validateWorkflow(a.opts.check)
-	meta, metaErr := readMetadata(a.opts.root)
+	_, metaErr := readMetadata(a.opts.root)
 	var installedVersion any
 	if metaErr == nil {
-		installedVersion = meta.Version
+		installedVersion = version.Binary
 	}
 	status := map[string]any{
 		"root":              a.opts.root,
-		"template_version":  templates.Version,
 		"installed":         metaErr == nil,
 		"installed_version": installedVersion,
 		"tasks":             taskCounts(tasks),
@@ -39,19 +38,18 @@ func (a *app) status() error {
 func (a *app) doctor() error {
 	a.warnProjectDocsScopeDeprecation()
 	_, gitErr := exec.LookPath("git")
-	meta, metaErr := readMetadata(a.opts.root)
+	_, metaErr := readMetadata(a.opts.root)
 	validation, _ := a.validateWorkflow(a.opts.check)
 	addOnboardDoctorFinding(a.opts.root, &validation)
 	var installedVersion any
 	if metaErr == nil {
-		installedVersion = meta.Version
+		installedVersion = version.Binary
 	}
 	report := map[string]any{
 		"root":               a.opts.root,
 		"git_available":      gitErr == nil,
 		"workflow_installed": metaErr == nil,
 		"installed_version":  installedVersion,
-		"template_version":   templates.Version,
 		"validation":         validation,
 	}
 	if err := a.emit(report); err != nil {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/travisennis/ahm/internal/templates"
+	"github.com/travisennis/ahm/internal/version"
 )
 
 // primeReport is the structured data for the ahm prime session briefing.
@@ -107,7 +107,7 @@ func (a *app) regenerateIndexes() error {
 
 func (a *app) buildPrimeReport() primeReport {
 	validation, tasks := a.validateWorkflow(nil)
-	meta, metaErr := readMetadata(a.opts.root)
+	_, metaErr := readMetadata(a.opts.root)
 	if metaErr != nil {
 		var err error
 		tasks, err = a.getTasks()
@@ -120,7 +120,7 @@ func (a *app) buildPrimeReport() primeReport {
 	}
 	var installedVersion string
 	if metaErr == nil {
-		installedVersion = meta.Version
+		installedVersion = version.Binary
 	}
 	taskInfo := a.primeTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
@@ -132,7 +132,6 @@ func (a *app) buildPrimeReport() primeReport {
 		Workflow: contextWorkflow{
 			Installed:        metaErr == nil,
 			InstalledVersion: installedVersion,
-			TemplateVersion:  templates.Version,
 			ValidationOK:     validation.OK && len(validation.Warnings) == 0,
 			Errors:           len(validation.Errors),
 			Warnings:         len(validation.Warnings),
@@ -272,9 +271,9 @@ func (r primeReport) RenderText(w io.Writer) error {
 	// Section 2: Root, workflow, validation
 	fmt.Fprintf(w, "root: %s\n", r.Root)
 	if r.Workflow.Installed {
-		fmt.Fprintf(w, "workflow: installed %s (templates %s)\n", r.Workflow.InstalledVersion, r.Workflow.TemplateVersion)
+		fmt.Fprintf(w, "workflow: installed %s\n", r.Workflow.InstalledVersion)
 	} else {
-		fmt.Fprintf(w, "workflow: not installed (templates %s)\n", r.Workflow.TemplateVersion)
+		fmt.Fprintln(w, "workflow: not installed")
 	}
 	switch {
 	case r.Workflow.Errors == 0 && r.Workflow.Warnings == 0:
