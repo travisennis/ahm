@@ -19,6 +19,12 @@ creates one standard task per finding through the task creation machinery,
 with status `Open` and the `source:audit` provenance label. `Open` is the
 acceptance gate; the audit command has no interactive acceptance step.
 
+**Label policy.** Findings must carry both a `type:` and `area:` label from the
+repository's existing task label vocabulary. When the repository has no
+existing task labels, a deterministic bootstrap vocabulary of `type:task` and
+`area:unknown` is used instead. Once the repository has a usable vocabulary,
+unknown labels are rejected.
+
 Agent selection and `--agent`, `--model`, and `--timeout` behavior match
 `task groom`. `--dry-run` prints the prompt and schema without delegation or
 writes. Invalid output is printed for inspection, creates no tasks, and exits

@@ -52,6 +52,8 @@ func (s auditSummary) RenderText(w io.Writer) error {
 
 const auditResultSchema = `{"type":"object","additionalProperties":false,"required":["findings"],"properties":{"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["title","problem","relevant_files","fix_direction","acceptance_notes","labels","priority","effort"],"properties":{"title":{"type":"string"},"problem":{"type":"string"},"relevant_files":{"type":"array","items":{"type":"string"}},"fix_direction":{"type":"string"},"acceptance_notes":{"type":"array","items":{"type":"string"}},"labels":{"type":"array","items":{"type":"string"}},"priority":{"type":"string","enum":["P0","P1","P2","P3","P4"]},"effort":{"type":"string","enum":["XS","S","M","L","XL"]}}}}}}`
 const auditProcedure = `Act as a senior engineering advisor and survey this repository for the highest-value improvement opportunities. Remain strictly read-only: never modify source, configuration, workflow records, or git state. Never reproduce secret values; report only the location and nature of a secret-handling risk. Deduplicate against the active tasks supplied below. Every finding must be independently actionable and fully self-contained, with a concrete problem, relevant files, fix direction, acceptance notes, priority, effort, and existing type/area/risk labels. Return only JSON matching the supplied schema. Do not ask for interactive acceptance: ahm creates findings as Open tasks, which is the acceptance gate.`
+const auditBootstrapTypeLabel = "type:task"
+const auditBootstrapAreaLabel = "area:unknown"
 
 func (a *app) auditCommand() *cobra.Command {
 	parsed := auditArgs{timeout: taskWorkDefaultTimeout}
@@ -142,8 +144,13 @@ func buildAuditPrompt(tasks []Task, labels []taskLabelSummary, validation valida
 		fmt.Fprintf(&b, "- %d more; inspect with `ahm task list` before reporting a possible duplicate\n", len(active)-len(shown))
 	}
 	b.WriteString("\nExisting label vocabulary:\n")
-	for _, l := range labels {
-		fmt.Fprintf(&b, "- %s\n", l.Label)
+	if len(labels) == 0 {
+		fmt.Fprintf(&b, "- %s (bootstrap — no task labels exist yet)\n", auditBootstrapTypeLabel)
+		fmt.Fprintf(&b, "- %s (bootstrap — no task labels exist yet)\n", auditBootstrapAreaLabel)
+	} else {
+		for _, l := range labels {
+			fmt.Fprintf(&b, "- %s\n", l.Label)
+		}
 	}
 	b.WriteString("\nKnown validation findings (do not re-report):\n")
 	for _, group := range []struct {
@@ -234,6 +241,11 @@ func validateAuditResult(result auditResult, tasks []Task) error {
 		for l := range taskLabelSet(t) {
 			vocab[l] = true
 		}
+	}
+	// Bootstrap vocabulary for repositories with no existing task labels.
+	if len(vocab) == 0 {
+		vocab[auditBootstrapTypeLabel] = true
+		vocab[auditBootstrapAreaLabel] = true
 	}
 	titles := map[string]bool{}
 	for _, t := range tasks {
