@@ -1642,6 +1642,97 @@ func TestProjectDocFilesIncludesAgentsAndClaude(t *testing.T) {
 	}
 }
 
+func TestProjectDocFilesDepthLimit(t *testing.T) {
+	root := t.TempDir()
+
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Agents\n")
+	// Within depth limit (a/b/c/AGENTS.md has depth 3)
+	writeFile(t, filepath.Join(root, "a", "b", "c", "AGENTS.md"), "# Deep Enough\n")
+	// Beyond depth limit (a/b/c/d/AGENTS.md has depth 4)
+	writeFile(t, filepath.Join(root, "a", "b", "c", "d", "AGENTS.md"), "# Too Deep\n")
+
+	files := projectDocFiles(root)
+
+	var foundInBounds, foundOutOfBounds bool
+	for _, f := range files {
+		if strings.HasSuffix(filepath.ToSlash(f), "a/b/c/AGENTS.md") {
+			foundInBounds = true
+		}
+		if strings.HasSuffix(filepath.ToSlash(f), "a/b/c/d/AGENTS.md") {
+			foundOutOfBounds = true
+		}
+	}
+	if !foundInBounds {
+		t.Error("AGENTS.md at a/b/c/AGENTS.md should be within depth limit")
+	}
+	if foundOutOfBounds {
+		t.Error("AGENTS.md at a/b/c/d/AGENTS.md should be beyond depth limit")
+	}
+}
+
+func TestProjectDocFilesSkipsBuildOutputDirs(t *testing.T) {
+	root := t.TempDir()
+
+	for _, dir := range []string{"build", "dist", "target", "out"} {
+		writeFile(t, filepath.Join(root, dir, "AGENTS.md"), "# Skipped\n")
+	}
+	// Sanity: a non-skipped nested AGENTS.md is still found
+	writeFile(t, filepath.Join(root, "valid", "AGENTS.md"), "# Found\n")
+
+	files := projectDocFiles(root)
+
+	for _, dir := range []string{"build", "dist", "target", "out"} {
+		for _, f := range files {
+			if strings.HasPrefix(filepath.ToSlash(f), filepath.ToSlash(filepath.Join(root, dir))) {
+				t.Errorf("AGENTS.md under %s/ should have been skipped", dir)
+			}
+		}
+	}
+
+	foundValid := false
+	for _, f := range files {
+		if strings.HasSuffix(filepath.ToSlash(f), "valid/AGENTS.md") {
+			foundValid = true
+			break
+		}
+	}
+	if !foundValid {
+		t.Error("AGENTS.md under valid/ should have been found")
+	}
+}
+
+func TestProjectDocFilesRootNamedBuild(t *testing.T) {
+	// When the checkout root itself is named after a skipped build-output
+	// directory, the walk must still descend (it must skip only subdirs,
+	// not the root).
+	parent := t.TempDir()
+	root := filepath.Join(parent, "build")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Agents\n")
+	writeFile(t, filepath.Join(root, "nested", "AGENTS.md"), "# Nested\n")
+
+	files := projectDocFiles(root)
+
+	var hasRoot, hasNested bool
+	for _, f := range files {
+		if filepath.Base(f) == "AGENTS.md" && filepath.Dir(f) == root {
+			hasRoot = true
+		}
+		if filepath.Base(f) == "AGENTS.md" && filepath.Dir(f) != root {
+			hasNested = true
+		}
+	}
+	if !hasRoot {
+		t.Error("root AGENTS.md not found when checkout dir is named 'build'")
+	}
+	if !hasNested {
+		t.Error("nested AGENTS.md not found when checkout dir is named 'build'")
+	}
+}
+
 // --- ahm docs check command tests ---
 
 func TestDocsCheckCommandText(t *testing.T) {

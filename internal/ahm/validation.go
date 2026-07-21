@@ -1065,9 +1065,16 @@ func docIndexTargets(dir string, indexData []byte) map[string]bool {
 	return targets
 }
 
+// projectDocNestDepth is the max directory nesting depth (relative to root)
+// for nested AGENTS.md discovery. A depth of 3 reaches a/b/c/AGENTS.md but
+// skips deeper trees, which avoids scanning generated, vendored, and build
+// output directories even when their names are not in the skip list.
+const projectDocNestDepth = 3
+
 // projectDocFiles discovers common project documentation Markdown files: root
 // level docs matching projectDocPrefixes, CLAUDE.md, every Markdown file under
-// docs/ (which covers docs/adr/ and similar), and nested AGENTS.md files.
+// docs/ (which covers docs/adr/ and similar), and nested AGENTS.md files (depth-
+// limited to projectDocNestDepth and skipping common build-output directories).
 // Results are deduplicated and sorted for deterministic output.
 func projectDocFiles(root string) []string {
 	seen := map[string]bool{}
@@ -1105,18 +1112,28 @@ func projectDocFiles(root string) []string {
 		add(path)
 		return nil
 	})
-	// Walk the repo for nested AGENTS.md files (depth-limited to avoid
-	// scanning vendor, node_modules, etc.).
+	// Walk the repo for nested AGENTS.md files, bounded by projectDocNestDepth
+	// and skipping dot-directories, vendored deps, and common build-output dirs.
 	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if entry.IsDir() {
 			name := entry.Name()
-			if name == ".git" || name == ".agents" || name == ".ahm" || name == "vendor" || name == "node_modules" {
+			// Never skip the root directory itself — the skip list is for
+			// subdirectories only, to avoid a checkout whose basename
+			// matches a skipped name (e.g. a CI workspace named "build").
+			if path != root && (name == ".git" || name == ".agents" || name == ".ahm" ||
+				name == "vendor" || name == "node_modules" ||
+				name == "build" || name == "dist" || name == "target" || name == "out") {
 				return fs.SkipDir
 			}
 			if strings.HasPrefix(name, ".") {
+				return fs.SkipDir
+			}
+			// Stop descending beyond the configured depth.
+			rel, err := filepath.Rel(root, path)
+			if err == nil && strings.Count(rel, string(filepath.Separator)) >= projectDocNestDepth {
 				return fs.SkipDir
 			}
 			return nil

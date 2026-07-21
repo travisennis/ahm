@@ -325,8 +325,10 @@ Supported scopes:
   documentation. **Deprecated:** prefer `ahm docs check`. It discovers common
   documentation surfaces rather than assuming a fixed layout: root-level
   `AGENTS.md`, `README*`, `CONTRIBUTING*`, `CHANGELOG*`, `ARCHITECTURE*`, and
-  `DESIGN*` Markdown files, plus `CLAUDE.md`, nested `AGENTS.md` files, and
-  every Markdown file under `docs/` (covering `docs/adr/`). It reports broken
+  `DESIGN*` Markdown files, plus `CLAUDE.md`, nested `AGENTS.md` files through
+  three directory levels, and every Markdown file under `docs/` (covering
+  `docs/adr/`). Nested instruction discovery skips dot-directories, vendored
+  dependency directories, and common build-output directories. It reports broken
   relative Markdown links via `project_doc_link_missing`, non-portable link
   targets via `project_doc_link_not_portable` (errors), entry-point line budget
   overages via `entry_point_over_budget` (warnings), and generalized index
