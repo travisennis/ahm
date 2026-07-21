@@ -104,16 +104,6 @@ func validCheckScopes() []string {
 	return []string{CheckScopeWorkflow, CheckScopeLinks, CheckScopeProjectDocs}
 }
 
-func validateWorkflow(root string) (validationReport, []Task) {
-	return validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
-}
-
-// validateWorkflowScoped runs only the validation groups named in scopes.
-// When scopes is nil or empty, all validators run (same as validateWorkflow).
-func validateWorkflowScoped(root string, scopes []string) (validationReport, []Task) {
-	return validateWorkflowScopedForPaths(root, scopes, workflowPathsFor(root))
-}
-
 func (a *app) validateWorkflow(scopes []string) (validationReport, []Task) {
 	return validateWorkflowScopedForPaths(a.opts.root, scopes, a.workflowPaths())
 }

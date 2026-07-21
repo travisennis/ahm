@@ -151,7 +151,9 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
+		return workflowPathsFor(root)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -653,19 +655,19 @@ func TestTaskCreateSubtaskCollisionAvoidance(t *testing.T) {
 	// Also create a completed child with letter 'e' to prove scanning happens across buckets.
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001e.md"), "001e", "Completed Child E", "Completed", "parent: 001\n")
 
-	// Collect tasks and call nextChildTaskID directly.
-	tasks, err := collectTasks(root)
+	// Collect tasks and call nextChildTaskIDForPaths directly.
+	tasks, err := collectTasksForPaths(root, workflowPathsFor(root))
 	if err == nil {
-		t.Log("collectTasks returned no error") // may warn but succeed
+		t.Log("collectTasksForPaths returned no error") // may warn but succeed
 	}
 
-	got, err := nextChildTaskID(tasks, root, "001")
+	got, err := nextChildTaskIDForPaths(tasks, workflowPathsFor(root), "001")
 	if err != nil {
-		t.Fatalf("nextChildTaskID: %v", err)
+		t.Fatalf("nextChildTaskIDForPaths: %v", err)
 	}
 	// 'c' and 'e' exist, so first available is 'a'.
 	if got != "001a" {
-		t.Errorf("nextChildTaskID = %q, want %q", got, "001a")
+		t.Errorf("nextChildTaskIDForPaths = %q, want %q", got, "001a")
 	}
 }
 
@@ -4287,7 +4289,9 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
+		return workflowPathsFor(root)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4332,7 +4336,9 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Original Title", "Pending", "")
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
+		return workflowPathsFor(root)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

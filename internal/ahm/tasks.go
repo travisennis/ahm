@@ -75,10 +75,6 @@ type Task struct {
 // parses without replacing the workflow file reader.
 var taskParseHook = func(string) {}
 
-func collectTasks(root string) ([]Task, error) {
-	return collectTasksForPaths(root, workflowPathsFor(root))
-}
-
 func collectTasksForPaths(root string, paths workflowPaths) ([]Task, error) {
 	files, err := taskFilePathsFor(paths)
 	if err != nil {

@@ -161,7 +161,9 @@ func cleanupStaleTempsIn(stateDir string, removeFailures *[]string) error {
 		// Resolve the path to a clean absolute form to avoid
 		// symlink-TOC-TOU attacks (gosec G122).
 		cleanPath := filepath.Clean(path)
-		if !strings.HasPrefix(cleanPath, filepath.Clean(stateDir)) {
+		prefix := filepath.Clean(stateDir)
+		if !strings.HasPrefix(cleanPath, prefix) ||
+			(len(cleanPath) > len(prefix) && cleanPath[len(prefix)] != filepath.Separator) {
 			return nil
 		}
 

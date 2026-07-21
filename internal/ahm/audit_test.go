@@ -144,7 +144,7 @@ func TestAuditCreatesOpenTaskWithZeroTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertContainsAll(t, string(data), "status: Open", "labels: type:task, area:unknown, source:audit", "## Problem", "## Relevant Files", "## Fix Direction", "## Acceptance Notes", "Timeout errors name the failed phase")
-	report, _ := validateWorkflow(root)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	if len(report.Errors) != 0 {
 		t.Fatalf("created task failed workflow validation: %v", report.Errors)
 	}

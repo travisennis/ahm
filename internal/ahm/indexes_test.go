@@ -196,7 +196,7 @@ func TestIndexWritesForReturnsADRCollectionFailures(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "docs", "adr"), "not a directory\n")
 
-	_, err := indexWritesFor(root, nil)
+	_, err := indexWritesForPaths(root, nil, workflowPathsFor(root))
 	if err == nil {
 		t.Error("expected ADR collection failure")
 	}

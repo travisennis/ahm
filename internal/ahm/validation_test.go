@@ -716,7 +716,7 @@ func TestValidateProjectDocsIgnoresCodeSpansAndFences(t *testing.T) {
 			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
 			"But [real](docs/nope.md) is a real link.\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	var targets []string
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" {
@@ -772,7 +772,7 @@ func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only workflow checks.
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeWorkflow})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeWorkflow}, workflowPathsFor(root))
 	// Should find task_malformed (workflow check) but NOT markdown_link_missing.
 	foundTaskMalformed := false
 	for _, e := range report.Errors {
@@ -803,7 +803,7 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only link checks.
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeLinks})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, workflowPathsFor(root))
 	// Should find markdown_link_missing.
 	foundLinkMissing := false
 	for _, w := range report.Warnings {
@@ -837,7 +837,7 @@ func TestValidateWorkflowScopedProjectDocsNoDocs(t *testing.T) {
 
 	// A fresh install has no project docs; the project-docs scope should
 	// produce no findings.
-	report, tasks := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, tasks := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	if !report.OK {
 		t.Error("expected OK for project-docs scope, got errors")
 	}
@@ -862,7 +862,7 @@ func TestValidateWorkflowScopedProjectDocsCommonDocsValid(t *testing.T) {
 	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [the guide](docs/guide.md).\n")
 	writeFile(t, filepath.Join(root, "CONTRIBUTING.md"), "# Contributing\n\n[Back to README](README.md)\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	if !report.OK {
 		t.Error("expected OK for valid project docs, got errors")
 	}
@@ -884,7 +884,7 @@ func TestValidateWorkflowScopedProjectDocsBrokenLinks(t *testing.T) {
 	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [missing doc](docs/nope.md).\n")
 	writeFile(t, filepath.Join(root, "docs", "design.md"), "# Design\n\n[gone](./absent.md)\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	var found []string
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" {
@@ -907,7 +907,7 @@ func TestValidateWorkflowScopedProjectDocsNotDefault(t *testing.T) {
 	// A broken project-doc link must not surface in the default (all) scope.
 	writeFile(t, filepath.Join(root, "README.md"), "# Project\n\nSee [missing doc](docs/nope.md).\n")
 
-	report, _ := validateWorkflowScoped(root, nil)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" {
 			t.Errorf("project-docs check ran by default; found %#v", w)
@@ -924,7 +924,7 @@ func TestValidateWorkflowScopedDesignDocsAbsent(t *testing.T) {
 	}
 
 	// No docs/design-docs/ surface: no design-doc findings.
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
 			t.Errorf("unexpected design_doc_unindexed without design docs: %#v", w)
@@ -943,7 +943,7 @@ func TestValidateWorkflowScopedDesignDocsDirWithoutIndex(t *testing.T) {
 	// A design-docs directory without index.md does not adopt the convention.
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "auth.md"), "# Auth\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
 			t.Errorf("unexpected design_doc_unindexed without index.md: %#v", w)
@@ -964,7 +964,7 @@ func TestValidateWorkflowScopedDesignDocsValid(t *testing.T) {
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
 		"# Design Docs\n\n- [Auth](auth.md)\n- [Storage](storage.md)\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" || w.Code == "project_doc_link_missing" {
 			t.Errorf("unexpected finding for valid design docs: %#v", w)
@@ -985,7 +985,7 @@ func TestValidateWorkflowScopedDesignDocsUnindexed(t *testing.T) {
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
 		"# Design Docs\n\n- [Auth](auth.md)\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	var found []string
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
@@ -1010,7 +1010,7 @@ func TestValidateWorkflowScopedDesignDocsIndexEntryMissing(t *testing.T) {
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"),
 		"# Design Docs\n\n- [Gone](gone.md)\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	foundLink := false
 	for _, w := range report.Warnings {
 		if w.Code == "project_doc_link_missing" && strings.HasPrefix(w.Path, "docs/design-docs/index.md") {
@@ -1036,7 +1036,7 @@ func TestValidateWorkflowScopedDesignDocsNotDefault(t *testing.T) {
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "orphan.md"), "# Orphan\n")
 	writeFile(t, filepath.Join(root, "docs", "design-docs", "index.md"), "# Design Docs\n")
 
-	report, _ := validateWorkflowScoped(root, nil)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	for _, w := range report.Warnings {
 		if w.Code == "design_doc_unindexed" {
 			t.Errorf("design-doc check ran by default; found %#v", w)
@@ -1056,7 +1056,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
 
 	// No scopes = default checks run.
-	report, _ := validateWorkflowScoped(root, nil)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	foundLinkMissing := false
 	for _, w := range report.Warnings {
 		if w.Code == "markdown_link_missing" {
@@ -1067,10 +1067,10 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 	if !foundLinkMissing {
 		t.Error("expected markdown_link_missing when running all checks")
 	}
-	// validateWorkflow should produce the same result.
-	report2, _ := validateWorkflow(root)
+	// validateWorkflowScopedForPaths with nil scopes should produce the same result.
+	report2, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	if report.OK != report2.OK {
-		t.Error("validateWorkflowScoped(nil) should match validateWorkflow")
+		t.Error("validateWorkflowScopedForPaths(nil) should match validateWorkflowScopedForPaths with workflow+links")
 	}
 	if len(report.Errors) != len(report2.Errors) {
 		t.Errorf("error count mismatch: %d vs %d", len(report.Errors), len(report2.Errors))
@@ -1170,7 +1170,7 @@ func TestValidateReportsCorruptMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, _ := validateWorkflow(root)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	foundCorrupt := false
 	for _, err := range report.Errors {
 		if err.Code == "metadata_corrupt" {
@@ -1198,7 +1198,7 @@ func TestValidateReportsCorruptAhmConfig(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{invalid json}")
 
-	report, _ := validateWorkflow(root)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	foundCorrupt := false
 	for _, err := range report.Errors {
 		if err.Code == "metadata_corrupt" && err.Path == ".ahm/config.json" {
@@ -1219,7 +1219,7 @@ func TestValidateReportsCorruptAhmConfig(t *testing.T) {
 func TestValidateReportsMissingMetadata(t *testing.T) {
 	root := t.TempDir()
 	// No init, no metadata at all.
-	report, _ := validateWorkflow(root)
+	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
 	foundMissing := false
 	for _, err := range report.Errors {
 		if err.Code == "metadata_missing" {
@@ -1398,7 +1398,7 @@ func TestValidateProjectDocLinkPortability(t *testing.T) {
 			"- [good link](docs/guide.md)\n")
 	writeFile(t, filepath.Join(root, "docs", "guide.md"), "# Guide\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	// Should have 3 non-portable errors.
 	var notPortable int
@@ -1440,7 +1440,7 @@ func TestValidateProjectDocLinkPortabilityIgnoresCodeSpansAndFences(t *testing.T
 			"```md\n[fenced](~/fenced.md)\n```\n\n"+
 			"Real [bad](file:///real.md) though.\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	var notPortable int
 	for _, e := range report.Errors {
@@ -1468,7 +1468,7 @@ func TestValidateEntryPointBudget(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Join(lines, "\n")+"\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	found := false
 	for _, w := range report.Warnings {
@@ -1495,7 +1495,7 @@ func TestValidateEntryPointBudgetUnderBudget(t *testing.T) {
 	// AGENTS.md within budget.
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "# AGENTS.md\n\nShort file.\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	for _, w := range report.Warnings {
 		if w.Code == "entry_point_over_budget" {
@@ -1526,7 +1526,7 @@ func TestValidateEntryPointBudgetConfig(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(root, "AGENTS.md"), strings.Join(lines, "\n")+"\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	found := false
 	for _, w := range report.Warnings {
@@ -1557,7 +1557,7 @@ func TestValidateDocIndexCoverage(t *testing.T) {
 		"# Guardrails Index\n\n- [A](a.md)\n")
 	writeFile(t, filepath.Join(root, "docs", "adr", "README.md"), "# Preserved ADR Guide\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	foundUnindexed := false
 	for _, w := range report.Warnings {
@@ -1580,7 +1580,7 @@ func TestValidateDocIndexCoverage(t *testing.T) {
 	writeFile(t, filepath.Join(designDir, "orphan.md"), "# Orphan\n")
 	writeFile(t, filepath.Join(designDir, "index.md"), "# Design Docs\n")
 
-	report2, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report2, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 	for _, w := range report2.Warnings {
 		if w.Code == "doc_unindexed" && strings.Contains(w.Path, "design-docs") {
 			t.Errorf("design-docs should not produce doc_unindexed: %#v", w)
@@ -1599,7 +1599,7 @@ func TestValidateDocIndexCoverageNoIndex(t *testing.T) {
 	// A docs/ subdirectory without index.md should not trigger checks.
 	writeFile(t, filepath.Join(root, "docs", "random", "file.md"), "# File\n")
 
-	report, _ := validateWorkflowScoped(root, []string{CheckScopeProjectDocs})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeProjectDocs}, workflowPathsFor(root))
 
 	for _, w := range report.Warnings {
 		if w.Code == "doc_unindexed" {

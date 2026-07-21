@@ -102,13 +102,9 @@ func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
 	return targets, nil
 }
 
-// indexWritesFor is the package-level counterpart of app.indexWrites that
-// accepts already-parsed tasks. It is used by both the index-writing and
+// indexWritesForPaths generates the complete set of index file writes for the
+// given task set and workflow paths. It is used by both the index-writing and
 // validation paths to avoid re-parsing the task tree.
-func indexWritesFor(root string, tasks []Task) (map[string]string, error) {
-	return indexWritesForPaths(root, tasks, workflowPathsFor(root))
-}
-
 func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[string]string, error) {
 	indexWritesForPathsHook()
 	research, err := collectMarkdownDocs(root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})

@@ -470,10 +470,7 @@ func metadataReadRelPath(root string) string {
 }
 
 func metadataWriteRelPath(root string) string {
-	if stat, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); err == nil && !stat.IsDir() { // #nosec G703 // path constructed from project root, not user input
-		return configMetadataRelPath
-	}
-	return legacyMetadataRelPath
+	return metadataReadRelPath(root)
 }
 
 func metadataErrorPath(err error) string {

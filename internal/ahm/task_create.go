@@ -162,10 +162,6 @@ func (a *app) resolveTaskCreateBody(parsed taskCreateArgs) (string, error) {
 	return body, nil
 }
 
-func nextTaskID(tasks []Task, root string) string {
-	return nextTaskIDForPaths(tasks, workflowPathsFor(root))
-}
-
 func nextTaskIDForPaths(tasks []Task, paths workflowPaths) string {
 	maxID := 0
 	for _, task := range tasks {
@@ -193,14 +189,6 @@ func nextTaskIDForPaths(tasks []Task, paths workflowPaths) string {
 		}
 	}
 	return fmt.Sprintf("%03d", maxID+1)
-}
-
-// nextChildTaskID finds the next available lettered child ID for the given parent ID.
-// For a parent with numeric part 47, children are 047a, 047b, ..., 047z.
-// It scans parsed tasks and filesystem entries across all buckets to avoid collisions.
-// At most 26 children (a-z) are allowed per parent.
-func nextChildTaskID(tasks []Task, root string, parentID string) (string, error) {
-	return nextChildTaskIDForPaths(tasks, workflowPathsFor(root), parentID)
 }
 
 func nextChildTaskIDForPaths(tasks []Task, paths workflowPaths, parentID string) (string, error) {

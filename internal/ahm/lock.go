@@ -40,16 +40,6 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 	return f()
 }
 
-// acquireWorkflowRecordLock returns the release function for the single
-// repository-scoped workflow record-mutation lock. The lock lives in the
-// active record root (`.agents/.lock` or `.ahm/.lock`) and is re-resolved on
-// each retry so waiters migrate with a layout transition.
-func acquireWorkflowRecordLock(root string) (func() error, error) {
-	return acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
-		return workflowPathsFor(root)
-	})
-}
-
 func acquireWorkflowRecordLockWithResolver(root string, resolve func() workflowPaths) (func() error, error) {
 	deadline := time.Now().Add(workflowLockTimeout)
 	for {
@@ -102,11 +92,6 @@ func acquireWorkflowRecordMigrationLocksForPaths(root string, paths workflowPath
 		}
 		return firstErr
 	}, nil
-}
-
-func acquireWorkflowLock(root string, name string) (func() error, error) {
-	lockRoot := filepath.Join(root, workflowPathsFor(root).recordsDir, ".lock")
-	return acquireNamedWorkflowLock(root, lockRoot, name)
 }
 
 // acquireNamedWorkflowLock waits for the named lock under a fixed lock root,
