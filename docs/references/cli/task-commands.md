@@ -371,12 +371,14 @@ Useful global flags:
 
 - `--dry-run`: prints the task files and field changes without writing.
 - `--json` or `--plain`: emits the migration report in machine-readable form.
+  The report includes `dry_run` to distinguish previews from applied migrations.
 
 Example:
 
 ```bash
 ahm --dry-run task migrate
 ahm task migrate
+ahm --json task migrate
 ```
 
 ### `task show <id> [<id>...]`

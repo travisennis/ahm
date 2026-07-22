@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -436,6 +437,45 @@ func TestADRMigrateDryRunReportsChanges(t *testing.T) {
 		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "migrations:", "docs/adr/001-legacy.md:", "docs/adr/002-old.md:")
+}
+
+func TestADRMigrateStructuredOutputPreservesWriteSemantics(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		dryRun bool
+	}{
+		{name: "json applies", format: "--json"},
+		{name: "json previews", format: "--json", dryRun: true},
+		{name: "plain applies", format: "--plain"},
+		{name: "plain previews", format: "--plain", dryRun: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeADRFile(t, root, "001-legacy.md", "# ADR 001: Legacy\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\nBody.\n")
+			path := filepath.Join(root, "docs", "adr", "001-legacy.md")
+			args := []string{"--root", root, tt.format}
+			if tt.dryRun {
+				args = append(args, "--dry-run")
+			}
+			stdout, stderr, code := runCLI(t, append(args, "adr", "migrate")...)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			}
+			var report adrMigrationReport
+			if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+				t.Fatalf("structured output is not JSON: %v\n%s", err, stdout)
+			}
+			if report.DryRun != tt.dryRun || len(report.Migrations) != 1 {
+				t.Fatalf("report = %#v", report)
+			}
+			content := mustRead(t, path)
+			if got := strings.HasPrefix(content, "---\n"); got == tt.dryRun {
+				t.Fatalf("front matter present = %v, dry run = %v\n%s", got, tt.dryRun, content)
+			}
+		})
+	}
 }
 
 func TestADRMigrateIdempotent(t *testing.T) {

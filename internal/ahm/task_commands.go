@@ -128,6 +128,7 @@ Examples:
 Examples:
   ahm --dry-run task migrate
   ahm task migrate
+  ahm --json task migrate
   ahm --json task migrate --dry-run`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

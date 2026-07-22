@@ -12,6 +12,11 @@ type adrMigration struct {
 	Changes []string `json:"changes"`
 }
 
+type adrMigrationReport struct {
+	Migrations []adrMigration `json:"migrations"`
+	DryRun     bool           `json:"dry_run"`
+}
+
 // hasSupersessionHeading checks whether the body already contains a level-2 or
 // level-3 heading that contains "supersession" (case-insensitive).
 func hasSupersessionHeading(body string) bool {
@@ -35,7 +40,7 @@ var adrPartialSupersessionPattern = regexp.MustCompile(`(?i)^Accepted,\s*superse
 func (a *app) adrMigrate() error {
 	defer a.emitWarnings()
 
-	if a.opts.dryRun || a.opts.json || a.opts.plain {
+	if a.opts.dryRun {
 		return a.adrMigratePreview()
 	}
 	return a.withWorkflowRecordLock(true, func() error {
@@ -49,7 +54,7 @@ func (a *app) adrMigratePreview() error {
 		return err
 	}
 	if a.opts.json || a.opts.plain {
-		return a.emit(map[string]any{"migrations": migrations})
+		return a.emit(adrMigrationReport{Migrations: migrations, DryRun: true})
 	}
 	if len(migrations) == 0 {
 		fmt.Fprintln(a.out, "No ADR migrations found")
@@ -66,7 +71,7 @@ func (a *app) adrMigratePreview() error {
 }
 
 func (a *app) adrMigrateLocked() error {
-	_, writes, err := a.adrMigrateCompute()
+	migrations, writes, err := a.adrMigrateCompute()
 	if err != nil {
 		return err
 	}
@@ -79,6 +84,9 @@ func (a *app) adrMigrateLocked() error {
 		if err := a.writeIndexes(); err != nil {
 			return err
 		}
+	}
+	if a.opts.json || a.opts.plain {
+		return a.emit(adrMigrationReport{Migrations: migrations})
 	}
 	fmt.Fprintf(a.out, "migrated %d ADR files\n", len(writes))
 	return nil

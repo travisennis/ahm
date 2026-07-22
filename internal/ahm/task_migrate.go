@@ -11,10 +11,15 @@ type taskMigration struct {
 	Changes []string `json:"changes"`
 }
 
+type taskMigrationReport struct {
+	Migrations []taskMigration `json:"migrations"`
+	DryRun     bool            `json:"dry_run"`
+}
+
 func (a *app) taskMigrate() error {
 	defer a.emitWarnings()
 
-	if a.opts.dryRun || a.opts.json || a.opts.plain {
+	if a.opts.dryRun {
 		return a.taskMigratePreview()
 	}
 	return a.withWorkflowRecordLock(true, func() error {
@@ -28,7 +33,7 @@ func (a *app) taskMigratePreview() error {
 		return err
 	}
 	if a.opts.json || a.opts.plain {
-		return a.emit(map[string]any{"migrations": migrations})
+		return a.emit(taskMigrationReport{Migrations: migrations, DryRun: true})
 	}
 	if len(migrations) == 0 {
 		fmt.Fprintln(a.out, "No task migrations found")
@@ -45,7 +50,7 @@ func (a *app) taskMigratePreview() error {
 }
 
 func (a *app) taskMigrateLocked() error {
-	_, writes, err := a.taskMigrateCompute()
+	migrations, writes, err := a.taskMigrateCompute()
 	if err != nil {
 		return err
 	}
@@ -58,6 +63,9 @@ func (a *app) taskMigrateLocked() error {
 		if err := a.writeIndexes(); err != nil {
 			return err
 		}
+	}
+	if a.opts.json || a.opts.plain {
+		return a.emit(taskMigrationReport{Migrations: migrations})
 	}
 	fmt.Fprintf(a.out, "migrated %d task files\n", len(writes))
 	return nil

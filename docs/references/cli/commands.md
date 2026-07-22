@@ -279,13 +279,15 @@ redundant note.
 Useful flags:
 
 - `--dry-run`: preview which files would change without modifying them.
-- `--json` or `--plain`: structured migration report for scripting.
+- `--json` or `--plain`: structured migration report for scripting. The report
+  includes `dry_run` to distinguish previews from applied migrations.
 
 Examples:
 
 ```bash
 ahm adr migrate --dry-run
 ahm adr migrate
+ahm --json adr migrate
 ahm --json adr migrate --dry-run
 ```
 

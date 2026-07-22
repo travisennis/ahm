@@ -184,6 +184,7 @@ diffs.
 Examples:
   ahm adr migrate --dry-run
   ahm adr migrate
+  ahm --json adr migrate
   ahm --json adr migrate --dry-run`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,6 +135,50 @@ func TestTaskMigrateWritesMechanicalFixes(t *testing.T) {
 		"labels: type:task, area:unknown",
 		"depends_on: -",
 	)
+}
+
+func TestTaskMigrateStructuredOutputPreservesWriteSemantics(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		dryRun bool
+	}{
+		{name: "json applies", format: "--json"},
+		{name: "json previews", format: "--json", dryRun: true},
+		{name: "plain applies", format: "--plain"},
+		{name: "plain previews", format: "--plain", dryRun: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			installer := app{opts: options{root: root}, out: &strings.Builder{}}
+			if err := installer.install(false); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
+			writeFile(t, path, "---\nid: 001\ntitle: Legacy Task\nstatus: Pending\npriority: -\neffort: S\nexec_plan: -\ndepends_on: -\n---\n# Legacy Task\n")
+
+			args := []string{"--root", root, tt.format}
+			if tt.dryRun {
+				args = append(args, "--dry-run")
+			}
+			stdout, stderr, code := runCLI(t, append(args, "task", "migrate")...)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
+			}
+			var report taskMigrationReport
+			if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+				t.Fatalf("structured output is not JSON: %v\n%s", err, stdout)
+			}
+			if report.DryRun != tt.dryRun || len(report.Migrations) != 1 {
+				t.Fatalf("report = %#v", report)
+			}
+			content := mustRead(t, path)
+			if got := strings.Contains(content, "labels:"); got == tt.dryRun {
+				t.Fatalf("labels present = %v, dry run = %v\n%s", got, tt.dryRun, content)
+			}
+		})
+	}
 }
 
 func TestMigrateTaskFrontMatter_MultipleInsertAndNormalize(t *testing.T) {
