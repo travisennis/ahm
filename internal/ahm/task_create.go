@@ -46,7 +46,7 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	if parsed.parent != "" {
 		// Resolve parent upfront for fast validation (read-only, no lock needed).
 		// Re-resolution inside the locked section uses the stored resolved ID.
-		parent, err := a.resolveTask(parsed.parent)
+		parent, err := a.resolveTaskForMutation(parsed.parent)
 		if err != nil {
 			return usageError(fmt.Sprintf("parent task %q: %s", parsed.parent, err))
 		}
@@ -70,9 +70,15 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 
 func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	defer a.emitWarnings()
+	a.invalidateTasks()
 	tasks, err := a.getTasks()
 	if err != nil {
 		a.addWarning("some task files could not be parsed and were skipped")
+	}
+	if parsed.resolvedParentID != "" {
+		if err := checkDuplicateTaskID(tasks, parsed.resolvedParentID, a.opts.root); err != nil {
+			return err
+		}
 	}
 	var id string
 	if parsed.resolvedParentID != "" {

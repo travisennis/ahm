@@ -114,11 +114,11 @@ func (a *app) taskDepUpdate(argv []string, add bool) error {
 
 func (a *app) taskDepUpdateLocked(argv []string, add bool) error {
 	a.invalidateTasks()
-	task, err := a.resolveTask(argv[0])
+	task, err := a.resolveTaskForMutation(argv[0])
 	if err != nil {
 		return err
 	}
-	dep, err := a.resolveTask(argv[1])
+	dep, err := a.resolveTaskForMutation(argv[1])
 	if err != nil {
 		return err
 	}

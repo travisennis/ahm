@@ -54,7 +54,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 		// metadata, or task status. Re-read after the external process finishes so
 		// the reviewer sees the review-ready state rather than the intake snapshot.
 		a.invalidateTasks()
-		reviewTask, err := a.resolveTask(task.ID)
+		reviewTask, err := a.resolveTaskForMutation(task.ID)
 		if err != nil {
 			return fmt.Errorf("cannot load task %s for review: %w", task.ID, err)
 		}
@@ -109,7 +109,7 @@ func (a *app) taskWorkWithSession(roles taskWorkRoles, executable string, args [
 // default.
 func (a *app) validateTaskCompletion(task Task, phase string) error {
 	a.invalidateTasks()
-	current, err := a.resolveTask(task.ID)
+	current, err := a.resolveTaskForMutation(task.ID)
 	if err != nil {
 		return fmt.Errorf("cannot load task %s after %s: %w", task.ID, phase, err)
 	}

@@ -57,7 +57,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		// that any concurrent updates that landed before lock acquisition are
 		// preserved instead of overwritten by a pre-lock Task value.
 		a.invalidateTasks()
-		task, err := a.resolveTask(parsed.ids[0])
+		task, err := a.resolveTaskForMutation(parsed.ids[0])
 		if err != nil {
 			return err
 		}
@@ -95,8 +95,12 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	// Enforce dependency completion before completing a task,
 	// but only when the status is actually changing.
 	if task.Status != status && status == "Completed" && len(task.DependsOn) > 0 {
+		allTasks := loadTasks()
+		if err := checkTaskDepsNotDuplicated(allTasks, task, a.opts.root); err != nil {
+			return err
+		}
 		completed := map[string]bool{}
-		for _, t := range loadTasks() {
+		for _, t := range allTasks {
 			if t.Status == "Completed" {
 				completed[t.ID] = true
 			}
@@ -160,7 +164,20 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	target := a.workflowPaths().taskFile(bucket, task.ID)
 	var unblocked []Task
 	if status == "Completed" {
-		unblocked = a.taskUnblockDependents(loadTasks(), task.ID, now)
+		allTasks := loadTasks()
+		// Reject unblocking any dependent whose ID is duplicated or whose
+		// own dependencies are duplicated.
+		for _, t := range allTasks {
+			if t.Status == "Blocked" && taskDependsOn(t, task.ID) {
+				if err := checkDuplicateTaskID(allTasks, t.ID, a.opts.root); err != nil {
+					return err
+				}
+				if err := checkTaskDepsNotDuplicated(allTasks, t, a.opts.root); err != nil {
+					return err
+				}
+			}
+		}
+		unblocked = a.taskUnblockDependents(allTasks, task.ID, now)
 	}
 	if a.opts.dryRun {
 		preview := map[string]any{"move": target, "status": status}

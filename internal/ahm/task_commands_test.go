@@ -1809,6 +1809,61 @@ func TestTaskStatusReusesParsedStateAfterLock(t *testing.T) {
 	}
 }
 
+func TestTaskMutationRefusesDuplicateIDs(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+
+	// Write two task files with the same ID in different buckets (crash-window state).
+	writeTaskFile(t, paths.taskFile("active", "042"), "042", "Duplicate Original", "Pending", "")
+	writeTaskFile(t, paths.taskFile("completed", "042"), "042", "Duplicate Copy", "Completed", "depends_on: -\n")
+
+	t.Run("status transition fails", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &strings.Builder{}}
+		err := a.taskStatus([]string{"042"}, "Completed")
+		if err == nil {
+			t.Fatal("expected error for duplicate task ID, got nil")
+		}
+		if !strings.Contains(err.Error(), "duplicate") || !strings.Contains(err.Error(), "042") {
+			t.Errorf("error should mention duplicate and the ID, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "active/042.md") || !strings.Contains(err.Error(), "completed/042.md") {
+			t.Errorf("error should name both conflicting paths, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "resolve the duplicate manually") {
+			t.Errorf("error should include recovery instruction, got: %v", err)
+		}
+	})
+
+	t.Run("dependency command fails", func(t *testing.T) {
+		// Create a second valid task to use as dependency target.
+		writeTaskFile(t, paths.taskFile("active", "001"), "001", "Valid Task", "Pending", "")
+
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &strings.Builder{}}
+		err := a.taskDepUpdate([]string{"001", "042"}, true)
+		if err == nil {
+			t.Fatal("expected error for duplicate task ID, got nil")
+		}
+		if !strings.Contains(err.Error(), "duplicate") || !strings.Contains(err.Error(), "042") {
+			t.Errorf("error should mention duplicate and the ID, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "resolve the duplicate manually") {
+			t.Errorf("error should include recovery instruction, got: %v", err)
+		}
+	})
+
+	t.Run("show command still works (read-only)", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out, err: &strings.Builder{}}
+		err := a.taskShow([]string{"042"})
+		if err != nil {
+			t.Errorf("read-only show command should still work with duplicates, got: %v", err)
+		}
+	})
+}
+
 func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")

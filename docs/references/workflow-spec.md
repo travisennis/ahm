@@ -291,10 +291,15 @@ The ownership categories are:
 `ahm onboard`. Absence of `AGENTS.md` is not a finding.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
-generated indexes, task status and bucket mismatches, broken task dependencies,
-completed task acceptance-note drift, task-to-ExecPlan consistency issues,
-ExecPlan lifecycle coherence issues, ADR record issues, and broken relative
-Markdown links within the managed workflow surface. They also report warning-tier
+generated indexes, duplicate task IDs across task files, task status and bucket
+mismatches, broken task dependencies, completed task acceptance-note drift,
+task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, ADR
+record issues, and broken relative Markdown links within the managed workflow
+surface. Duplicate task IDs are error-tier findings that name every conflicting
+path and require manual removal or renaming; task-record mutation commands
+refuse to operate on an affected ID until the conflict is resolved. Read-only
+list and validation commands remain available for diagnosis. Validation also
+reports warning-tier
 `research_inbox_stale` findings for stale research inbox notes, in both current
 `.ahm/` and legacy `.agents/` record layouts. The warning names the available
 human dispositions; validation never moves, converts, or deletes the note.

@@ -146,6 +146,12 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	if err != nil {
 		return err
 	}
+	// Reject grooming any task whose ID is duplicated across buckets.
+	for _, t := range targets {
+		if err := checkDuplicateTaskID(tasks, t.ID, a.opts.root); err != nil {
+			return err
+		}
+	}
 	if len(targets) == 0 {
 		return a.emit(groomSummary{})
 	}
@@ -197,6 +203,11 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 		currentTargets, err := groomTargets(current, parsed.id)
 		if err != nil {
 			return err
+		}
+		for _, t := range currentTargets {
+			if err := checkDuplicateTaskID(current, t.ID, a.opts.root); err != nil {
+				return err
+			}
 		}
 		validated, err := validateGroomResult(result, currentTargets, current)
 		if err != nil {
@@ -612,6 +623,19 @@ func (a *app) applyGroomVerdicts(verdicts []groomVerdict, all []Task, agent stri
 		task := byID[verdict.Task]
 		if task.Status == "Completed" || task.Status == "Cancelled" {
 			return groomSummary{}, fmt.Errorf("task %s is %s and cannot be relocated by grooming", task.ID, task.Status)
+		}
+	}
+	// Reject applying any verdict that references a duplicated dependency ID.
+	for _, verdict := range verdicts {
+		for _, dep := range verdict.AddDeps {
+			if err := checkDuplicateTaskID(all, dep, a.opts.root); err != nil {
+				return groomSummary{}, err
+			}
+		}
+		for _, dep := range verdict.RemoveDeps {
+			if err := checkDuplicateTaskID(all, dep, a.opts.root); err != nil {
+				return groomSummary{}, err
+			}
 		}
 	}
 	now := time.Now().Format(time.RFC3339)

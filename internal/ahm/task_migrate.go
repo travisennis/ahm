@@ -2,7 +2,9 @@ package ahm
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -53,6 +55,41 @@ func (a *app) taskMigrateLocked() error {
 	migrations, writes, err := a.taskMigrateCompute()
 	if err != nil {
 		return err
+	}
+	// Reject migration when any task ID is duplicated. Use a lightweight
+	// front-matter-only parse to avoid enum validation errors on pre-migration
+	// files (priority/effort may still use legacy "-" values).
+	files, err := taskFilePathsFor(a.workflowPaths())
+	if err != nil {
+		return err
+	}
+	byID := map[string][]string{}
+	for _, f := range files {
+		data, err := readWorkflowFile(f.Path)
+		if err != nil {
+			continue
+		}
+		meta, _, parseErr := parseFrontMatter(string(data))
+		if parseErr != nil {
+			continue
+		}
+		id := meta["id"]
+		if id == "" {
+			id = strings.TrimSuffix(filepath.Base(f.Path), ".md")
+		}
+		byID[id] = append(byID[id], relPath(a.opts.root, f.Path))
+	}
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		paths := byID[id]
+		if len(paths) < 2 {
+			continue
+		}
+		return fmt.Errorf("task ID %s is duplicated across %s; resolve the duplicate manually before migrating", id, strings.Join(paths, ", "))
 	}
 	for _, path := range sortedKeys(writes) {
 		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {

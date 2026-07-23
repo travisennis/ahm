@@ -151,6 +151,7 @@ func newValidationReport() validationReport {
 func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string) validationReport {
 	report := newValidationReport()
 	validateMetadata(root, &report)
+	validateTaskDuplicateIDs(root, tasks, &report)
 	for _, task := range tasks {
 		validateTaskFrontMatterMeta(task.meta, relPath(root, task.Path), &report)
 		validateTaskAcceptance(root, task, &report)
@@ -235,7 +236,9 @@ func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, r
 
 func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
 	validateMetadata(root, report)
-	return validateTaskFiles(root, paths, report)
+	tasks := validateTaskFiles(root, paths, report)
+	validateTaskDuplicateIDs(root, tasks, report)
+	return tasks
 }
 
 func validateMetadata(root string, report *validationReport) {
@@ -371,6 +374,30 @@ func validateTaskBuckets(root string, paths workflowPaths, tasks []Task, report 
 		case task.Status != "Completed" && task.Status != "Cancelled" && task.Bucket != "active":
 			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "active task status should be in "+tasksRel+"/active")
 		}
+	}
+}
+
+func validateTaskDuplicateIDs(root string, tasks []Task, report *validationReport) {
+	byID := map[string][]Task{}
+	for _, task := range tasks {
+		byID[task.ID] = append(byID[task.ID], task)
+	}
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		matches := byID[id]
+		if len(matches) < 2 {
+			continue
+		}
+		paths := make([]string, 0, len(matches))
+		for _, task := range matches {
+			paths = append(paths, relPath(root, task.Path))
+		}
+		sort.Strings(paths)
+		report.addError("task_duplicate_id", "", fmt.Sprintf("task ID %s is used by multiple files: %s; resolve the duplicate manually (remove or rename one file)", id, strings.Join(paths, ", ")))
 	}
 }
 

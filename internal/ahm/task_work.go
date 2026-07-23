@@ -80,12 +80,18 @@ type taskWorkArgs struct {
 
 func (a *app) taskWork(parsed taskWorkArgs) error {
 	defer a.emitWarnings()
-	task, err := a.resolveTask(parsed.id)
+	task, err := a.resolveTaskForMutation(parsed.id)
 	if err != nil {
 		return err
 	}
 	if task.Status == "Completed" || task.Status == "Cancelled" {
 		return fmt.Errorf("cannot work task %s: status is %s", task.ID, task.Status)
+	}
+	if len(task.DependsOn) > 0 {
+		allTasks, _ := a.getTasks()
+		if err := checkTaskDepsNotDuplicated(allTasks, task, a.opts.root); err != nil {
+			return err
+		}
 	}
 	if err := a.ensureTaskDependenciesComplete(task); err != nil {
 		return err
@@ -145,12 +151,19 @@ func (a *app) taskWork(parsed taskWorkArgs) error {
 	if task.Status == "Pending" {
 		if err := a.withWorkflowRecordLock(true, func() error {
 			a.invalidateTasks()
-			current, err := a.resolveTask(parsed.id)
+			current, err := a.resolveTaskForMutation(parsed.id)
 			if err != nil {
 				return err
 			}
 			if current.Status != "Pending" {
 				return fmt.Errorf("cannot work task %s: status changed to %s", current.ID, current.Status)
+			}
+			// Re-check dependencies under the lock with fresh state.
+			if len(current.DependsOn) > 0 {
+				allTasks, _ := a.getTasks()
+				if err := checkTaskDepsNotDuplicated(allTasks, current, a.opts.root); err != nil {
+					return err
+				}
 			}
 			if err := a.ensureTaskDependenciesComplete(current); err != nil {
 				return err

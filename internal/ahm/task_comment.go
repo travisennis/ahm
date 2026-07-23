@@ -92,6 +92,9 @@ func (a *app) taskCommentLocked(parsed taskCommentArgs, text string) error {
 	if err != nil {
 		return err
 	}
+	if err := checkDuplicateTaskID(tasks, task.ID, a.opts.root); err != nil {
+		return err
+	}
 
 	now := time.Now().Format(time.RFC3339)
 

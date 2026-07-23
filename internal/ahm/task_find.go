@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -53,4 +54,54 @@ func (a *app) resolveTask(pattern string) (Task, error) {
 		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	return resolveTaskFromTasks(pattern, tasks)
+}
+
+// resolveTaskForMutation is like resolveTask but also checks that the
+// resolved task ID is not duplicated across buckets. Mutation commands must
+// use this instead of resolveTask so that duplicates are caught before
+// writing, avoiding the risk of mutating or deleting the wrong record.
+func (a *app) resolveTaskForMutation(pattern string) (Task, error) {
+	defer a.emitWarnings()
+	tasks, err := a.getTasks()
+	if err != nil {
+		a.addWarning("some task files could not be parsed and were skipped")
+	}
+	task, err := resolveTaskFromTasks(pattern, tasks)
+	if err != nil {
+		return Task{}, err
+	}
+	if err := checkDuplicateTaskID(tasks, task.ID, a.opts.root); err != nil {
+		return Task{}, err
+	}
+	return task, nil
+}
+
+// checkDuplicateTaskID checks whether the given task ID appears in more than
+// one file. If so, it returns an error listing the conflicting paths and the
+// manual recovery action so that mutation commands can refuse to operate on
+// a duplicated ID.
+func checkDuplicateTaskID(tasks []Task, id string, root string) error {
+	var paths []string
+	for _, task := range tasks {
+		if task.ID == id {
+			paths = append(paths, relPath(root, task.Path))
+		}
+	}
+	if len(paths) > 1 {
+		sort.Strings(paths)
+		return fmt.Errorf("task ID %s is duplicated across %s; resolve the duplicate manually (remove or rename one file) before retrying", id, strings.Join(paths, ", "))
+	}
+	return nil
+}
+
+// checkTaskDepsNotDuplicated checks that none of the given task's dependency
+// IDs appear in more than one file. It is called by mutation paths before
+// operating on a task whose dependencies must be unambiguous.
+func checkTaskDepsNotDuplicated(tasks []Task, task Task, root string) error {
+	for _, dep := range task.DependsOn {
+		if err := checkDuplicateTaskID(tasks, dep, root); err != nil {
+			return err
+		}
+	}
+	return nil
 }
