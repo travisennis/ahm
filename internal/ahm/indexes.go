@@ -25,7 +25,10 @@ func (a *app) writeIndexes() error {
 func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
 	if err != nil {
-		return err
+		if writes == nil {
+			return err
+		}
+		a.addWarning("%s", err)
 	}
 	paths := sortedKeys(writes)
 	// Index writes are sequential and best-effort. If a mid-batch write
@@ -80,7 +83,14 @@ func (a *app) indexWrites() (map[string]string, error) {
 		}
 		a.addWarning("some task files could not be parsed and were skipped: %s", err)
 	}
-	return indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
+	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
+	if err != nil {
+		if writes == nil {
+			return nil, err
+		}
+		a.addWarning("%s", err)
+	}
+	return writes, nil
 }
 
 func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
@@ -93,7 +103,10 @@ func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
 	}
 	writes, err := indexWritesForPaths(a.opts.root, tasks, paths)
 	if err != nil {
-		return nil, err
+		if writes == nil {
+			return nil, err
+		}
+		a.addWarning("%s", err)
 	}
 	targets := make([]string, 0, len(writes))
 	for _, path := range sortedKeys(writes) {
@@ -119,11 +132,11 @@ func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[st
 	if err != nil {
 		return nil, err
 	}
-	adrs, err := collectADRs(root)
-	if err != nil && len(adrs) == 0 {
-		return nil, err
+	adrs, adrErr := collectADRs(root)
+	if adrErr != nil && len(adrs) == 0 {
+		return nil, adrErr
 	}
-	return map[string]string{
+	writes := map[string]string{
 		filepath.Join(paths.tasksBucketDir(""), "index.md"):                      renderRootIndex(tasks),
 		filepath.Join(paths.tasksBucketDir("active"), "index.md"):                renderBucketIndex(tasks, "active"),
 		filepath.Join(paths.tasksBucketDir("completed"), "index.md"):             renderBucketIndex(tasks, "completed"),
@@ -132,7 +145,11 @@ func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[st
 		filepath.Join(paths.execPlansDir("active"), "index.md"):                  renderExecPlanIndex("Active ExecPlans", "No active ExecPlans yet.", activePlans),
 		filepath.Join(paths.execPlansDir("completed"), "index.md"):               renderExecPlanIndex("Completed ExecPlans", "No completed ExecPlans yet.", completedPlans),
 		filepath.Join(root, "docs", "adr", "index.md"):                           renderADRIndex(adrs),
-	}, nil
+	}
+	if adrErr != nil {
+		return writes, fmt.Errorf("some ADR files could not be parsed and were skipped: %w", adrErr)
+	}
+	return writes, nil
 }
 
 // indexWritesForPathsHook supports instrumented tests that count complete

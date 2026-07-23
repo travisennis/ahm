@@ -746,8 +746,10 @@ Behavior on errors:
   is printed to stderr and index generation continues with the remaining tasks.
 - Generated indexes never silently omit tasks or produce empty output due to
   task file parse failures.
-- Malformed ADR files are omitted from `docs/adr/index.md` and reported by
-  `status` / `doctor`; legacy-format ADRs remain readable until migrated.
+- If one or more ADR files fail to parse, a warning listing the affected files
+  is printed to stderr and index generation continues with the readable ADRs.
+  `status` and `doctor` also report malformed ADRs; legacy-format ADRs remain
+  readable until migrated.
 - After regenerating indexes, `ahm` runs workflow-scoped validation and
   prints any resulting warnings to stderr. This surfaces drift (e.g., a
   completed task referencing an active ExecPlan) immediately rather than

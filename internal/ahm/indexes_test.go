@@ -205,6 +205,43 @@ func TestIndexWritesForReturnsADRCollectionFailures(t *testing.T) {
 	}
 }
 
+func TestIndexWritesForReturnsPartialADRParseErrors(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+
+	// Write one valid ADR.
+	writeADRFile(t, root, "001-valid.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Valid ADR\n\nBody.\n")
+
+	// Write a malformed ADR with a block scalar in front matter.
+	writeADRFile(t, root, "002-bad.md", "---\nkey: >\n---\n# Bad\n")
+
+	writes, err := indexWritesForPaths(root, nil, workflowPathsFor(root))
+	if err == nil {
+		t.Error("expected partial ADR parse error")
+	}
+	if writes == nil {
+		t.Fatal("expected usable writes despite partial parse error")
+	}
+	if !strings.Contains(err.Error(), "002-bad.md") {
+		t.Errorf("expected malformed file reference in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "some ADR files could not be parsed and were skipped") {
+		t.Errorf("expected partial parse message in error, got %v", err)
+	}
+
+	// Verify the ADR index was still generated.
+	adrIndex, ok := writes[filepath.Join(root, "docs", "adr", "index.md")]
+	if !ok {
+		t.Fatal("expected ADR index in writes")
+	}
+	if !strings.Contains(adrIndex, "ADR-001") {
+		t.Errorf("expected valid ADR in generated index, got:\n%s", adrIndex)
+	}
+	if strings.Contains(adrIndex, "002-bad") {
+		t.Errorf("expected malformed ADR to be excluded from index, got:\n%s", adrIndex)
+	}
+}
+
 func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	root := t.TempDir()
 	cli := func(args ...string) (string, string, int) {
@@ -350,6 +387,39 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 			t.Errorf("mtime changed for %s: before=%v after=%v", b.path, b.mtime, fi.ModTime())
 		}
 	}
+}
+
+func TestIndexWithMalformedADRPrintsWarning(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	// Install legacy workflow scaffold which creates docs/adr/.
+	initAndCreateLegacyMetadata(t, root)
+
+	// Write a valid ADR.
+	writeADRFile(t, root, "001-valid.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Valid ADR\n\nBody.\n")
+
+	// Write a malformed ADR with a block scalar in front matter.
+	writeADRFile(t, root, "002-bad.md", "---\nkey: >\n---\n# Bad\n")
+
+	// Run index — should print warning on stderr and exit 0.
+	_, stderr, code := cli("index")
+	if code != 0 {
+		t.Errorf("index with malformed ADR should exit 0, got code %d; stderr=%s", code, stderr)
+	}
+	if !strings.Contains(stderr, "warning: some ADR files could not be parsed and were skipped") {
+		t.Errorf("expected warning on stderr, got:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "002-bad.md") {
+		t.Errorf("expected malformed file reference in stderr, got:\n%s", stderr)
+	}
+
+	// The valid ADR should still appear in generated index.
+	adrIndex := filepath.Join(root, "docs", "adr", "index.md")
+	assertFileContainsAll(t, adrIndex, "ADR-001", "Valid ADR")
+	assertNotContains(t, mustRead(t, adrIndex), "002-bad")
 }
 
 func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {

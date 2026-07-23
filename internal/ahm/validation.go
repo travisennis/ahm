@@ -631,8 +631,12 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 	}
 	writes, err := indexWritesForPaths(root, tasks, paths)
 	if err != nil {
-		report.addWarning("generated_index_check_failed", "", err.Error())
-		return
+		if writes == nil {
+			report.addWarning("generated_index_check_failed", "", err.Error())
+			return
+		}
+		// validateADRs reports each malformed ADR. Keep checking the indexes
+		// rendered from the readable records instead of duplicating that finding.
 	}
 	validateGeneratedIndexWrites(root, writes, report)
 }
