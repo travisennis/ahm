@@ -42,74 +42,24 @@ task to an external coding-agent CLI.
 
 ## Module Map
 
-- `cmd/ahm/main.go`: CLI entrypoint.
-- `internal/ahm/cli.go`: Cobra root command, global flags, command wiring.
-- `internal/ahm/root.go`: repository root discovery.
-- `internal/ahm/context.go`: `context` command briefing and managed-work
-  references.
-- `internal/ahm/onboard.go`: `onboard` command that prints the static,
-  paste-ready AGENTS.md bootstrap snippet.
-- `internal/ahm/install.go`: `init`, `upgrade`, metadata, legacy instruction
-  removal, and generated index writes.
-- `internal/ahm/status.go`: `status` and `doctor`.
-- `internal/ahm/validation.go`: workflow, link, ADR, task, and project-doc
-  validation, including post-mutation validation from complete parsed state.
-- `internal/ahm/output.go`: shared text, JSON, and plain emitters.
-- `internal/ahm/path.go`: `relPath` helper for converting absolute paths to
-  slash-separated relative paths.
-- `internal/ahm/workflow_paths.go`: record-layout-aware resolution of workflow
-  record paths (`.agents` for legacy committed records, `.ahm` after migration).
-  App commands cache the resolved paths for their lifetime; standalone helpers
-  resolve explicitly, and config-creating or migration commands invalidate the
-  app cache after changing the metadata anchor.
-- `internal/ahm/records.go`: internal workflow record plumbing for
-  selecting `.ahm/` source records.
-- `internal/ahm/research_inbox.go`: shared research timestamp parsing, inbox
-  age calculation, and stale-threshold configuration used by validation and
-  the prime briefing.
-- `internal/ahm/git.go`: shared environment isolation for ahm-owned Git
-  subprocesses.
-- `internal/ahm/records_commands.go`: `records migrate` and `records doctor`
-  command surface for migration and diagnostics.
-- `internal/ahm/tasks.go`: task model, parsing, rendering, and ID helpers.
-- `internal/ahm/task_commands.go`: `task` command wiring (`taskCommand` and
-  `taskListCommand`).
-- `internal/ahm/task_comment.go`: `task comment` command for appending
-  timestamped comments to task bodies.
-- `internal/ahm/task_create.go`: `task create` parsing, body resolution, and ID
-  allocation.
-- `internal/ahm/task_list.go`: task list, next, labels, show, and
-  filter/sort helpers.
-- `internal/ahm/task_status.go`: status transitions, dependent unblocking, and
-  cancellation reasons.
-- `internal/ahm/task_find.go`: task ID resolution and prefix matching.
-- `internal/ahm/task_enum.go`: task status, priority, and effort enum
-  validation.
-- `internal/ahm/task_groom.go`: delegated backlog-grooming schema, aggregate
-  semantic validation, one-attempt correction, task-revision preservation,
-  application, and summaries.
-- `internal/ahm/task_work.go`: `task work` delegation to external coding-agent
-  CLIs.
-- `internal/ahm/task_agents.go`: external agent registry and selection.
-- `internal/ahm/task_session.go`: agent session orchestration, review, and
-  completion/commit handoff.
-- `internal/ahm/task_parsers.go`: agent stream-JSON session/feedback parsers and
-  resume-arg builders.
-- `internal/ahm/task_deps.go`: task dependency commands and cycle handling.
-- `internal/ahm/task_migrate.go`: task metadata migration.
-- `internal/ahm/task_acceptance.go`: acceptance-note completion checks.
-- `internal/ahm/adrs.go`: ADR model, parsing, rendering, and validation.
-- `internal/ahm/adr_commands.go`: ADR lifecycle commands.
-- `internal/ahm/adr_migrate.go`: legacy ADR migration.
-- `internal/ahm/indexes.go`: task, research, ExecPlan, and ADR index rendering;
-  mutation paths reuse complete parsed task state and rendered index content.
-- `internal/ahm/lock.go`: repository-local workflow locks for serialized
-  cross-process mutations.
-- `internal/ahm/write.go`: atomic writes and stale temp cleanup.
-- `internal/templates/templates.go`: embedded workflow filesystem.
-- `internal/templates/workflow/`: canonical workflow references embedded for
-  scoped `ahm context` output and binary-owned procedures.
-- `internal/version/version.go`: binary version injected by release builds.
+Files are grouped by responsibility. The source tree is the authoritative
+location map; this section describes what each group does.
+
+| Group | Location | Responsibility |
+| --- | --- | --- |
+| Entrypoint | `cmd/ahm/main.go` | Binary entrypoint. |
+| CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
+| Root detection | `internal/ahm/root.go` | Repository root discovery from `.git`, `.ahm/`, or `.agents/`. |
+| Infrastructure | `internal/ahm/lock.go`, `write.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `records.go` | Atomic writes, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-layout resolution. |
+| Install & upgrade | `internal/ahm/install.go`, `onboard.go` | `init`, `upgrade`, metadata, legacy instruction removal, generated index writes, `onboard` snippet. |
+| Status & validation | `internal/ahm/status.go`, `validation.go`, `research_inbox.go` | `status`, `doctor`, workflow/link/ADR/task/project-doc validation, research inbox staleness. |
+| Context | `internal/ahm/context.go` | `context` command briefing and managed-work references. |
+| Records migration | `internal/ahm/records_commands.go` | `records migrate`, `records doctor` for legacy-to-.ahm migration. |
+| Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_groom.go`, `task_work.go`, `task_agents.go`, `task_session.go`, `task_parsers.go`, `task_deps.go`, `task_migrate.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, agent delegation, session orchestration, backlog grooming, acceptance checking. |
+| ADRs | `internal/ahm/adrs.go`, `adr_commands.go`, `adr_migrate.go` | ADR model, parsing, lifecycle commands, legacy migration. |
+| Indexes | `internal/ahm/indexes.go` | Task, research, ExecPlan, and ADR generated index rendering. |
+| Templates | `internal/templates/templates.go`, `internal/templates/workflow/` | Embedded workflow filesystem and canonical workflow references. |
+| Version | `internal/version/version.go` | Binary version injected by release builds. |
 
 ## Architectural Invariants
 

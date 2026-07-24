@@ -103,14 +103,6 @@ A change fits this vision when:
 
 ## Current work embodying this
 
-- Tracker 172: committed `.ahm/` workflow record storage (state channel).
-- Tracker 156 (+ task 143): `ahm prime`, delegation commands, the embedded
-  task-work review, and `ahm onboard` (bootstrap, state, and procedure
-  channels).
-- Tracker 160: `ahm docs check`, docMap, hook recipes (enforcement
-  channel).
-
-This coordinated arc retires copied procedures and legacy advisory surfaces,
-unscoped `ahm context`, `--check project-docs`, and committed-by-default
-workflow records. Consumers should experience this as one migration with one
-upgrade guide, not five surprises.
+This section should reference the active task arc. Update it when the focus
+shifts. For current active work, run `ahm task list --status active` or
+`ahm context task`.
