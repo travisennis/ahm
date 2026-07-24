@@ -11,22 +11,18 @@ indexes, templates, atomic writes, root detection, validation, orchestration,
 and releases. `ahm` does not patch source, stage files, move `HEAD`, mutate
 branches, or create project commits.
 
-## Operating Loop
+## Operating loop
 
-0. Run `ahm prime` before any work to prepare the worktree and get the briefing.
-1. Use `ahm` intake first for tasks, ExecPlans, ADRs, or research; classify
-   direct code, CLI, docs, or repository work immediately.
-2. For a Pending task, run `ahm task start <id>` to begin its lifecycle.
-3. Select the route below, load only its docs, and state both before editing.
-4. Preserve compatibility unless explicitly changed; edit surgically and
-   verify according to risk.
-5. After implementation edits, run codex review (`tb__codex_review`), fix all
-   findings, and rerun until clean; reconsider approaches that do not converge.
-6. Use the oracle (`tb__oracle`) for unclear design, debugging, or path choices.
-7. For task-backed work, run `ahm task complete <id>` to close the task lifecycle.
-8. Run preflight checks and handoff.
+1. Run `ahm prime` before any work.
+2. If the request names a task, ExecPlan, ADR, or research record, inspect it through `ahm` before choosing implementation work.
+3. Read the smallest relevant code and tests. Load durable documentation only when the change affects its audience or contract.
+4. Preserve compatibility unless the task explicitly changes it.
+5. If work is managed, start and complete it through `ahm`.
+6. Make surgical edits and run risk-proportionate checks.
+7. After implementation edits, run a review in a subagent until no actionable findings remain, then perform preflight.
+8. Hand off changes, exact checks, skipped checks, and remaining risk.
 
-Specialized workflow docs override this file when they conflict.
+Large or cross-cutting work requires an ExecPlan as directed by `ahm context plan`.
 
 ## Workflow Routing
 
