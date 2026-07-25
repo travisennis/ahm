@@ -355,7 +355,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 	// Section 9: Managed Work Intake
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "## Managed Work Intake")
-	fmt.Fprintln(w, "- Work a task → `ahm context task`, then `ahm task show <id>`")
+	fmt.Fprintln(w, "- Work a task → `ahm context task`, then `ahm task show <id>` and follow the full lifecycle (start, implement, verify, complete)")
 	fmt.Fprintln(w, "- ExecPlan work → `ahm context plan`")
 	fmt.Fprintln(w, "- ADR work → `ahm context adr`")
 	fmt.Fprintln(w, "- Research notes → `ahm context research`")

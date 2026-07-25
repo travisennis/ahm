@@ -55,7 +55,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"Blocked: 0",
 		"Open: 0",
 		"## Managed Work Intake",
-		"- Work a task → `ahm context task`, then `ahm task show <id>`",
+		"- Work a task → `ahm context task`, then `ahm task show <id>` and follow the full lifecycle (start, implement, verify, complete)",
 		"- ExecPlan work → `ahm context plan`",
 		"- ADR work → `ahm context adr`",
 		"- Research notes → `ahm context research`",
