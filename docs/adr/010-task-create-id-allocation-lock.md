@@ -54,8 +54,13 @@ related generated-index writes.
 The lock is implemented with atomic directory creation instead of
 platform-specific `flock`. If a process crashes while holding the lock, later
 commands remove stale lock directories after a conservative timeout.
-Reclamation atomically renames the observed stale directory into a unique
-quarantine and verifies its filesystem identity before deletion. Release also
+A background heartbeat periodically refreshes the lock directory's
+modification time so that stale detection does not reclaim a live lock.
+Reclamation uses a two-check pattern (observe, wait, observe again) and only
+triggers when the modification time is past the stale threshold and unchanged
+between observations. Reclamation atomically renames the observed stale
+directory into a unique quarantine and verifies its filesystem identity before
+deletion. Release also
 verifies the acquired directory's identity and reports lost ownership instead
 of treating a missing or replacement directory as a successful release.
 

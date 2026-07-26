@@ -26,6 +26,22 @@ func saveLockStaleAfter(t *testing.T) {
 	t.Cleanup(func() { workflowLockStaleAfter = orig })
 }
 
+// saveLockHeartbeatInterval saves the current workflowLockHeartbeatInterval and
+// restores it via t.Cleanup.
+func saveLockHeartbeatInterval(t *testing.T) {
+	t.Helper()
+	orig := workflowLockHeartbeatInterval
+	t.Cleanup(func() { workflowLockHeartbeatInterval = orig })
+}
+
+// saveLockStaleRecheckDelay saves the current workflowLockStaleRecheckDelay and
+// restores it via t.Cleanup.
+func saveLockStaleRecheckDelay(t *testing.T) {
+	t.Helper()
+	orig := workflowLockStaleRecheckDelay
+	t.Cleanup(func() { workflowLockStaleRecheckDelay = orig })
+}
+
 func TestAcquireWorkflowLock_AcquireRelease(t *testing.T) {
 	dir := t.TempDir()
 	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
@@ -143,10 +159,12 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	dir := t.TempDir()
 	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
 	saveLockStaleAfter(t)
+	saveLockStaleRecheckDelay(t)
 
 	// Make the stale-after threshold very short so we can simulate age without
 	// waiting real time.
 	workflowLockStaleAfter = 10 * time.Millisecond
+	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
 
 	// Manually create a lock directory so it looks like a stale lock from a
 	// previous crashed process.
@@ -182,7 +200,9 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 	dir := t.TempDir()
 	saveLockStaleAfter(t)
+	saveLockStaleRecheckDelay(t)
 	workflowLockStaleAfter = 10 * time.Millisecond
+	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
 
 	lockRoot := filepath.Join(dir, ".agents", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-replacement")
@@ -297,5 +317,97 @@ func TestAcquireWorkflowLock_NonStaleLockIsNotRemoved(t *testing.T) {
 	// The original lock directory must still exist (was not removed).
 	if _, err := os.Stat(lockPath); err != nil {
 		t.Errorf("non-stale lock directory was removed: %v", err)
+	}
+}
+
+func TestHeartbeatPreventsStaleReclamation(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockPath := filepath.Join(lockRoot, "test-heartbeat")
+
+	// Create a lock directory with a past modification time.
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	saveLockStaleAfter(t)
+	saveLockStaleRecheckDelay(t)
+	saveLockHeartbeatInterval(t)
+
+	// Short intervals so the test is fast.
+	workflowLockStaleAfter = 50 * time.Millisecond
+	workflowLockStaleRecheckDelay = 30 * time.Millisecond
+	workflowLockHeartbeatInterval = 10 * time.Millisecond
+
+	// Start a heartbeat to simulate a live lock owner.
+	heartbeatDone := make(chan struct{})
+	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+	defer close(heartbeatDone)
+
+	// Wait long enough for the stale threshold to pass and for the heartbeat
+	// to fire at least once after the first observation.
+	time.Sleep(100 * time.Millisecond)
+
+	// The stale reclamation must not reclaim the lock: the heartbeat refreshes
+	// ModTime between observations.
+	err := removeStaleWorkflowLockAfterObservation(lockPath, nil)
+	if err != nil {
+		t.Fatalf("removeStaleWorkflowLockAfterObservation should not reclaim a heartbeating lock: %v", err)
+	}
+
+	// The lock directory must still exist.
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Errorf("heartbeating lock directory was removed: %v", err)
+	}
+}
+
+func TestHeartbeatStopsAndLockBecomesReclaimable(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockPath := filepath.Join(lockRoot, "test-heartbeat-stop")
+
+	saveLockStaleAfter(t)
+	saveLockStaleRecheckDelay(t)
+	saveLockHeartbeatInterval(t)
+
+	workflowLockStaleAfter = 50 * time.Millisecond
+	workflowLockStaleRecheckDelay = 10 * time.Millisecond
+	workflowLockHeartbeatInterval = 10 * time.Millisecond
+
+	// Create a lock manually and give it an old modtime.
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run the heartbeat briefly so that ModTime gets refreshed, then stop it.
+	heartbeatDone := make(chan struct{})
+	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+	time.Sleep(30 * time.Millisecond) // let heartbeat fire at least once
+	close(heartbeatDone)
+	time.Sleep(10 * time.Millisecond) // let goroutine exit
+
+	// Reset ModTime to past so the lock appears stale.
+	past = time.Now().Add(-2 * workflowLockStaleAfter)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now the lock should be reclaimable (no heartbeat).
+	err := removeStaleWorkflowLockAfterObservation(lockPath, nil)
+	if err != nil {
+		t.Fatalf("should reclaim lock after heartbeat stops: %v", err)
+	}
+
+	// The lock directory should be gone.
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Errorf("expected lock directory to be removed, stat: %v", err)
 	}
 }

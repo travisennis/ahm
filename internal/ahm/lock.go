@@ -13,9 +13,11 @@ const workflowRecordLockName = "workflow-records"
 var errWorkflowLockOwnershipLost = errors.New("workflow lock ownership lost")
 
 var (
-	workflowLockRetryDelay = 10 * time.Millisecond
-	workflowLockTimeout    = 10 * time.Second
-	workflowLockStaleAfter = 30 * time.Minute
+	workflowLockRetryDelay        = 10 * time.Millisecond
+	workflowLockTimeout           = 10 * time.Second
+	workflowLockStaleAfter        = 30 * time.Minute
+	workflowLockHeartbeatInterval = workflowLockStaleAfter / 6 // 5 minutes in practice
+	workflowLockStaleRecheckDelay = 1 * time.Second
 )
 
 // withWorkflowRecordLock runs f while holding the repository-scoped workflow
@@ -129,7 +131,12 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 		if statErr != nil {
 			return nil, fmt.Errorf("acquire workflow lock %s: inspect ownership: %w", relPath(root, lockPath), statErr)
 		}
+
+		heartbeatDone := make(chan struct{})
+		go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+
 		return func() error {
+			close(heartbeatDone)
 			if err := removeWorkflowLockIfOwned(lockPath, owner); err != nil {
 				return fmt.Errorf("release workflow lock %s: %w", relPath(root, lockPath), err)
 			}
@@ -142,12 +149,34 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 	return nil, err
 }
 
+// heartbeatLock periodically updates the lock directory's modification time so
+// that the stale-lock reclamation does not reclaim a live lock. It exits when
+// done is closed.
+func heartbeatLock(lockPath string, interval time.Duration, done <-chan struct{}) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			_ = os.Chtimes(lockPath, now, now)
+		case <-done:
+			return
+		}
+	}
+}
+
 func removeStaleWorkflowLock(lockPath string) error {
 	return removeStaleWorkflowLockAfterObservation(lockPath, nil)
 }
 
 // removeStaleWorkflowLockAfterObservation exists so tests can deterministically
 // replace a lock after its age is observed but before reclamation claims it.
+//
+// To avoid reclaiming a live lock whose owner is heartbeating, it uses a
+// two-check pattern: it observes the modification time, waits a short delay,
+// observes again, and only reclaims when both observations are past the stale
+// threshold and the modification time is unchanged.
 func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation func()) error {
 	info, err := os.Stat(lockPath)
 	if err != nil || !info.IsDir() {
@@ -156,10 +185,27 @@ func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation f
 	if time.Since(info.ModTime()) <= workflowLockStaleAfter {
 		return nil
 	}
+
+	// Re-observe after a short delay. A live heartbeat would update the
+	// modification time between observations, preventing reclamation.
+	time.Sleep(workflowLockStaleRecheckDelay)
+
+	info2, err := os.Stat(lockPath)
+	if err != nil || !info2.IsDir() {
+		return nil
+	}
+	if time.Since(info2.ModTime()) <= workflowLockStaleAfter {
+		return nil
+	}
+	if !info2.ModTime().Equal(info.ModTime()) {
+		// Modification time changed between observations; owner is heartbeating.
+		return nil
+	}
+
 	if afterObservation != nil {
 		afterObservation()
 	}
-	return removeWorkflowLockIfOwned(lockPath, info)
+	return removeWorkflowLockIfOwned(lockPath, info2)
 }
 
 // removeWorkflowLockIfOwned atomically moves a lock into a unique quarantine
