@@ -8,6 +8,13 @@ Documentation should help future contributors understand what exists, why it
 exists, how to use it, and how to change it safely. Keep documentation
 accurate, specific, and close to the behavior it describes.
 
+Documentation impact is a delivery concern for behavior-changing tasks.
+Before completing a task that alters user-visible behavior, public APIs,
+architecture, workflows, or any durable contract, assess whether the
+project's documentation needs updating. Record the documentation checked
+and changed (or the reason no update was needed) in the task's Acceptance
+Notes.
+
 Treat the repository's existing docs as the source for naming, structure,
 tone, and level of detail: prefer existing documentation locations over
 creating new ones, and prefer correcting an existing doc over adding a new
@@ -28,6 +35,18 @@ Update durable project documentation when a change affects:
 Do not add documentation just because code changed. Internal refactors often
 need no docs unless they change how people understand or work with the
 project.
+
+## Updating vs. Creating Documents
+
+Prefer updating the canonical existing document for a subject. When durable
+information has no coherent existing owner, or the information addresses a
+distinct audience or responsibility that would make insertion into an
+existing document misleading, create a new document.
+
+New documents must follow the project's existing naming conventions, file
+location, cross-reference navigation, tone, and validation rules (run `ahm
+docs check`). Keep uncertainty and unfinished work in tasks, research, or
+ExecPlans rather than presenting it as settled project truth.
 
 ## Project Docs vs Agent Artifacts
 

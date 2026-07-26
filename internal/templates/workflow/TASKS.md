@@ -65,7 +65,7 @@ to the `Pending` queue. A fully scoped task may be created directly as
 Accept a task only when its problem and scope are clear, its priority, effort,
 labels, and dependencies are reasonable, its acceptance criteria are useful,
 and any required ExecPlan or ADR exists. Leave it `Open` while product choices,
-dependencies, planning, or other material questions remain unresolved.
+dependencies, research, planning, or other material questions remain unresolved.
 
 Use metadata to support those decisions:
 
@@ -84,32 +84,48 @@ Follow this procedure for every implementation task, whether or not it has an
 ExecPlan:
 
 1. Run `ahm task show <id>`. Confirm that the task still matches the repository,
-   is ready to work, and has no incomplete dependencies.
+   is ready to work, and has no incomplete dependencies. During this inspection,
+   run `ahm context research` if resolving material uncertainty requires
+   evidence that should survive the session or inform multiple artifacts. Keep
+   brief task-local code reading in the task rather than creating research note
+   churn. Leave the task `Open` while material research questions prevent clear
+   scope or acceptance.
 2. Run `ahm task start <id>`. If the user explicitly asks to resume an existing
    `In Progress` task, continue it without restarting the lifecycle.
 3. Before implementation, route any required decision or planning work:
+   - Run `ahm context research` when factual or technical uncertainty requires
+     durable evidence that may feed an ADR, task, or ExecPlan. Research is
+     evidence, not a decision or implementation contract.
    - Use `ahm context adr` when the task introduces or changes a durable
      architectural decision, including persisted state, configuration,
      security boundaries, migrations, breaking behavior, or major dependencies.
    - Use `ahm context plan` for `L` and `XL` tasks, and for smaller work that is
      cross-cutting or substantially uncertain. Create or update the ExecPlan
      and link it from the task before changing code.
+
+   When all three apply, work in conceptual order: research evidence,
+   architectural decision, then execution planning. Do not require research
+   records or documentation changes for every task.
 4. Implement only the task's problem and acceptance scope. Preserve unrelated
    worktree changes, and do not commit unless the user explicitly asks.
 5. Run the repository's routed verification commands. Record material results
    and complete the task's Acceptance Notes so the record explains how the
    outcome was verified.
-6. If the task has an ExecPlan, update its Outcomes & Retrospective, move it to
+6. Before task completion, assess documentation impact. Run `ahm context docs`
+   when durable user or contributor knowledge may have changed. Record the
+   documents checked and updated, or the reason no update was needed, in the
+   Acceptance Notes. Do not require documentation changes for every task.
+7. If the task has an ExecPlan, update its Outcomes & Retrospective, move it to
    the completed plan bucket, update the task's `exec_plan` path, and regenerate
    indexes for those manual plan changes.
-7. Run `ahm task complete <id>` and provide the repository's required handoff.
+8. Run `ahm task complete <id>` and provide the repository's required handoff.
    The `ahm task complete` command must run before any git commit that includes
    the task's implementation — committing an uncompleted task breaks the
    lifecycle contract.
 
-For a task without an ExecPlan, skip only step 6. The inspection, start,
-implementation, verification, acceptance, completion, and handoff steps remain
-the same.
+For a task without an ExecPlan, skip step 7. The inspection, start,
+implementation, verification, documentation assessment, and handoff steps
+remain the same.
 
 ## Change Or Close A Task
 

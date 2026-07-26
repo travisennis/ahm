@@ -6,6 +6,10 @@ When you are asked to create, update, organize, or use research, run
 current record layout (`{{.ResearchIndex}}`) as the map and open the relevant
 source files.
 
+Research is evidence, not an authoritative decision or implementation
+contract. Architectural decisions belong in ADRs, actionable scope belongs
+in tasks, and broad implementation guidance belongs in ExecPlans.
+
 ## Research Storage
 
 Research lives under `{{.ResearchDir}}` in this repository. The directory is
@@ -28,6 +32,14 @@ relying on a note.
 ## Creating Research
 
 Put rough, untriaged material in `inbox/` unless the user or context clearly identifies a better location. Prefer a short, descriptive kebab-case filename.
+
+Create durable research (investigation, source, or topic notes) when material
+factual or technical investigation should survive the current session, needs
+to inform more than one task, plan, or ADR, or supplies evidence for an
+architectural decision or cross-cutting implementation guidance. Keep brief,
+task-specific code reading and implementation observations in the task or
+ExecPlan rather than creating research note churn—not every question during
+implementation needs a durable record.
 
 Use this header for durable research documents when it is useful. Raw inbox notes may be shorter.
 
@@ -52,17 +64,30 @@ Confidence: low | medium | high
 
 ## Using Research
 
-Research is not automatically authoritative. Before using a research note to justify implementation work, check its status, date, confidence, evidence, and whether a newer task, ExecPlan, or source file supersedes it.
+Research is not automatically authoritative. Before using a research note to
+justify implementation work, check its status, date, confidence, evidence,
+and whether a newer task, ADR, ExecPlan, or source file supersedes it.
 
-If a research finding implies actionable work, either link an existing task or
-create one with `ahm task create`. If the finding is broad, risky, or
-implementation-heavy, promote it into an ExecPlan under the active ExecPlan
-bucket in the current record layout.
+Research evidence feeds architectural decisions (ADRs), actionable work
+(tasks), or broad implementation guidance (ExecPlans). Route research
+findings according to their nature:
+
+- **ADRs** are authoritative for architectural decisions. Feed evidence to an
+  ADR when a finding shapes a durable design choice, security boundary,
+  configuration contract, or other architecturally significant decision.
+- **Tasks** are authoritative for actionable scope. Create or link a task when
+  a finding implies concrete, scoped work.
+- **ExecPlans** are authoritative for implementation plans. Promote broad or
+  cross-cutting findings to an ExecPlan.
+
+Research itself is evidence, not a decision or contract. Preserve uncertainty
+and open questions in research notes rather than presenting guesses as
+settled facts.
 
 Research should usually flow from rough capture to durable project work:
 
 ```text
-inbox note -> investigation/source/topic synthesis -> task or ExecPlan -> completed artifact
+inbox note -> investigation/source/topic synthesis -> ADR, task, or ExecPlan -> completed artifact
 ```
 
 Inbox notes must eventually receive a disposition. When `ahm doctor` reports a

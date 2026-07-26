@@ -116,6 +116,62 @@ func TestScopedContextsRenderLayoutPaths(t *testing.T) {
 	}
 }
 
+func TestContextResearchRendersDurableCreationThreshold(t *testing.T) {
+	root := t.TempDir()
+	writeAHMConfig(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context", "research")
+	if code != 0 {
+		t.Fatalf("context research exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"Create durable research",
+		"task-specific code reading",
+		"not every question during",
+		"needs a durable record",
+		"**ADRs** are authoritative for architectural decisions",
+		"**Tasks** are authoritative for actionable scope",
+		"**ExecPlans** are authoritative for implementation plans",
+		"Research is evidence",
+	)
+}
+
+func TestContextTaskRendersResearchAndDocsRouting(t *testing.T) {
+	root := t.TempDir()
+	writeAHMConfig(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context", "task")
+	if code != 0 {
+		t.Fatalf("context task exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"run `ahm context research`",
+		"ahm context docs",
+		"conceptual order: research evidence,",
+		"Record the",
+		"documents checked and updated",
+		"research, planning, or other material",
+	)
+	assertNotContains(t, stdout, ".agents/")
+}
+
+func TestContextDocsRendersDeliveryConcern(t *testing.T) {
+	root := t.TempDir()
+	writeAHMConfig(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "context", "docs")
+	if code != 0 {
+		t.Fatalf("context docs exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"Documentation impact is a delivery concern for behavior-changing tasks",
+		"Record the documentation checked",
+		"Prefer updating the canonical existing document",
+		"no coherent existing owner",
+		"distinct audience or responsibility",
+	)
+}
+
 func TestUnscopedContextJSONErrors(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
