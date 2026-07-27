@@ -191,17 +191,19 @@ Sets task status to `Completed` from `In Progress` or `Pending`. Equivalent to
 Appends a timestamped comment under `## Comments` in the task body. Creates
 the section if missing.
 
-### `task groom <id> [flags]`
+### `task groom [<id>] [flags]`
 
-Delegates structured backlog grooming of a task to a supported coding-agent
-CLI.
+Delegates structured backlog grooming of one task, or all groomable tasks when
+the ID is omitted, to a supported coding-agent CLI.
 
 **Guarantees:**
 
 - Agent selection, `--agent`, `--model`, `--timeout` match `task work`.
-- `--no-<step>` flags skip individual grooming steps.
 - `--dry-run` prints the prompt without delegation.
-- Requires `Open` status.
+- Targets only `Open` and `Blocked` tasks.
+- After delegation, fails without applying any verdict when an original target
+  record changed; the error names every changed target. Concurrent changes to
+  non-target tasks proceed to normal dependency and semantic revalidation.
 
 ### `task dep add|remove <id> <dependency-id>`
 

@@ -196,19 +196,15 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 	}
 	return a.withWorkflowRecordLock(true, func() error {
 		a.invalidateTasks()
-		current, err := a.getTasks()
-		if err != nil {
-			return fmt.Errorf("cannot apply groom result after task state changed: %w", err)
+		current, currentErr := a.getTasks()
+		changed := changedGroomTargetIDs(targets, current)
+		if len(changed) > 0 {
+			return fmt.Errorf("groom targets changed before apply (%s); no grooming changes were applied", strings.Join(changed, ", "))
 		}
-		currentTargets, err := groomTargets(current, parsed.id)
-		if err != nil {
-			return err
+		if currentErr != nil {
+			return fmt.Errorf("cannot apply groom result after task state changed: %w", currentErr)
 		}
-		for _, t := range currentTargets {
-			if err := checkDuplicateTaskID(current, t.ID, a.opts.root); err != nil {
-				return err
-			}
-		}
+		currentTargets := currentGroomTargets(targets, current)
 		validated, err := validateGroomResult(result, currentTargets, current)
 		if err != nil {
 			return fmt.Errorf("groom targets changed before apply; no changes applied: %w", err)
@@ -220,6 +216,36 @@ func (a *app) taskGroom(parsed taskGroomArgs) error {
 		summary.Correction = correction
 		return a.emit(summary)
 	})
+}
+
+func changedGroomTargetIDs(baseline, current []Task) []string {
+	currentByID := make(map[string][]Task, len(current))
+	for _, task := range current {
+		currentByID[task.ID] = append(currentByID[task.ID], task)
+	}
+	var changed []string
+	for _, original := range baseline {
+		matches := currentByID[original.ID]
+		if len(matches) != 1 ||
+			matches[0].sourceHash != original.sourceHash ||
+			filepath.Clean(matches[0].Path) != filepath.Clean(original.Path) {
+			changed = append(changed, original.ID)
+		}
+	}
+	sort.Slice(changed, func(i, j int) bool { return taskLess(changed[i], changed[j]) })
+	return changed
+}
+
+func currentGroomTargets(baseline, current []Task) []Task {
+	currentByID := make(map[string]Task, len(current))
+	for _, task := range current {
+		currentByID[task.ID] = task
+	}
+	targets := make([]Task, 0, len(baseline))
+	for _, original := range baseline {
+		targets = append(targets, currentByID[original.ID])
+	}
+	return targets
 }
 
 func (a *app) runGroomDelegation(parsed taskGroomArgs, roles taskWorkRoles, executable, prompt string) (groomResult, []byte, error) {

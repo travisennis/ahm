@@ -213,8 +213,12 @@ Acceptance Notes section roles. Ahm preserves task identity, title, linkage and
 provenance metadata, unknown front-matter fields, comments, and all other body
 sections. It validates and renders the complete result batch before taking the
 workflow record lock or writing; invalid delegated output leaves every task and
-index unchanged. ADR 017 defines the authority, preservation, readiness, and
-observability contract.
+index unchanged. After delegation, ahm compares each original target's
+normalized complete record fingerprint with its freshly loaded record under the
+workflow lock. If any target changed, the command names every stale target and
+applies none of the grooming batch; changes to non-target tasks are instead
+handled by normal dependency and semantic revalidation. ADR 017 defines the
+authority, preservation, readiness, and observability contract.
 
 All workflow record mutations (`ahm task` lifecycle and metadata commands,
 `ahm adr` lifecycle commands, `ahm task groom`, `ahm records migrate`, and

@@ -444,9 +444,209 @@ func TestTaskGroomStateRaceDoesNotRetry(t *testing.T) {
 	if code == 0 {
 		t.Fatal("expected failure")
 	}
-	assertContainsAll(t, stderr, "groom targets changed before apply", "cannot be accepted from Blocked")
+	assertContainsAll(t, stderr, "groom targets changed before apply (001)", "no grooming changes were applied")
 	if calls != 1 {
 		t.Fatalf("delegation calls = %d, want 1", calls)
+	}
+}
+
+func TestTaskGroomRejectsConcurrentTargetEdits(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*testing.T, string)
+	}{
+		{
+			name: "body",
+			mutate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, append(data, []byte("\nConcurrent body edit.\n")...), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "labels",
+			mutate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := strings.Replace(string(data), "labels: type:task", "labels: type:task, area:tasks", 1)
+				if err := os.WriteFile(path, []byte(changed), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "dependencies",
+			mutate: func(t *testing.T, path string) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := strings.Replace(string(data), "exec_plan: -\n", "exec_plan: -\ndepends_on: 002\n", 1)
+				if err := os.WriteFile(path, []byte(changed), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+			writeTaskFile(t, path, "001", "Open task", "Open", "")
+			writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency", "Pending", "")
+			stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+			var concurrent []byte
+			stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+				tc.mutate(t, path)
+				var err error
+				concurrent, err = os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"comment","comment":"Stale verdict must not apply.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+				return err
+			})
+
+			_, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+			if code == 0 {
+				t.Fatal("expected failure")
+			}
+			assertContainsAll(t, stderr, "groom targets changed before apply (001)", "no grooming changes were applied")
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != string(concurrent) {
+				t.Fatalf("concurrent edit was not preserved exactly:\n%s", after)
+			}
+			if strings.Contains(string(after), "Stale verdict must not apply.") {
+				t.Fatal("stale grooming verdict was applied")
+			}
+		})
+	}
+}
+
+func TestTaskGroomConcurrentTargetEditMakesBatchAllOrNothing(t *testing.T) {
+	root := t.TempDir()
+	firstPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	secondPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	writeTaskFile(t, firstPath, "001", "First task", "Open", "")
+	writeTaskFile(t, secondPath, "002", "Second task", "Open", "")
+	firstBefore, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	var secondConcurrent []byte
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		data, err := os.ReadFile(secondPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		secondConcurrent = slices.Concat(data, []byte("\nConcurrent second-task edit.\n"))
+		if err := os.WriteFile(secondPath, secondConcurrent, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err = fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"comment","comment":"First verdict.","add_deps":[],"remove_deps":[],"labels":[],"revision":null},{"task":"002","action":"comment","comment":"Second verdict.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom targets changed before apply (002)", "no grooming changes were applied")
+	firstAfter, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAfter, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstAfter) != string(firstBefore) {
+		t.Fatalf("unchanged target received a partial verdict:\n%s", firstAfter)
+	}
+	if string(secondAfter) != string(secondConcurrent) {
+		t.Fatalf("changed target was overwritten:\n%s", secondAfter)
+	}
+}
+
+func TestTaskGroomReportsEveryChangedTarget(t *testing.T) {
+	root := t.TempDir()
+	paths := []string{
+		filepath.Join(root, ".agents", ".tasks", "active", "001.md"),
+		filepath.Join(root, ".agents", ".tasks", "active", "002.md"),
+	}
+	writeTaskFile(t, paths[0], "001", "First task", "Open", "")
+	writeTaskFile(t, paths[1], "002", "Second task", "Open", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		for _, path := range paths {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, append(data, []byte("\nConcurrent edit.\n")...), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		_, err := fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"comment","comment":"First verdict.","add_deps":[],"remove_deps":[],"labels":[],"revision":null},{"task":"002","action":"comment","comment":"Second verdict.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+		return err
+	})
+
+	_, stderr, code := runCLI(t, "--root", root, "task", "groom", "--agent", "codex")
+	if code == 0 {
+		t.Fatal("expected failure")
+	}
+	assertContainsAll(t, stderr, "groom targets changed before apply (001, 002)", "no grooming changes were applied")
+}
+
+func TestTaskGroomAllowsConcurrentUnrelatedTaskEdit(t *testing.T) {
+	root := t.TempDir()
+	targetPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	unrelatedPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	writeTaskFile(t, targetPath, "001", "Target task", "Open", "")
+	writeTaskFile(t, unrelatedPath, "002", "Unrelated task", "Pending", "")
+	stubTaskWorkLookPath(t, func(string) (string, error) { return "/stub/codex", nil })
+	var unrelatedConcurrent []byte
+	stubTaskWorkRunner(t, func(_ context.Context, _ string, _ string, _ []string, _ io.Reader, stdout, _ io.Writer) error {
+		data, err := os.ReadFile(unrelatedPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		unrelatedConcurrent = slices.Concat(data, []byte("\nConcurrent unrelated edit.\n"))
+		if err := os.WriteFile(unrelatedPath, unrelatedConcurrent, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err = fmt.Fprintln(stdout, `{"verdicts":[{"task":"001","action":"comment","comment":"Current target verdict.","add_deps":[],"remove_deps":[],"labels":[],"revision":null}]}`)
+		return err
+	})
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "groom", "001", "--agent", "codex")
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001: comment", "commented")
+	target, err := os.ReadFile(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(target), "Current target verdict.") {
+		t.Fatalf("target verdict was not applied:\n%s", target)
+	}
+	unrelated, err := os.ReadFile(unrelatedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(unrelated) != string(unrelatedConcurrent) {
+		t.Fatalf("unrelated concurrent edit was not preserved:\n%s", unrelated)
 	}
 }
 

@@ -69,6 +69,7 @@ type Task struct {
 	Bucket      string            `json:"bucket"`
 	Body        string            `json:"body"`
 	meta        map[string]string
+	sourceHash  string
 }
 
 // taskParseHook supports instrumented tests that count filesystem-backed task
@@ -142,6 +143,7 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 		Bucket:      bucket,
 		Body:        body,
 		meta:        meta,
+		sourceHash:  hashBytes(data),
 	}
 	if err := validateTaskEnums(task, path); err != nil {
 		return Task{}, err
