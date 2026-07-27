@@ -801,18 +801,49 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 			paths = append(paths, clean)
 		}
 	}
-	walkRoots := []string{filepath.Join(root, legacyRecordsDirName)}
-	if recordsDir := resolved.recordsDir; recordsDir != legacyRecordsDirName {
-		walkRoots = append(walkRoots, filepath.Join(root, recordsDir))
+	sourceDirs := []string{
+		resolved.tasksBucketDir("active"),
+		resolved.tasksBucketDir("completed"),
+		resolved.tasksBucketDir("cancelled"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "inbox"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "investigations"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "sources"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "topics"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "archived"),
+		resolved.execPlansDir("active"),
+		resolved.execPlansDir("completed"),
 	}
-	for _, walkRoot := range walkRoots {
-		_ = filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-				return nil
+	for _, dir := range sourceDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || entry.Name() == "index.md" || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
 			}
+			add(filepath.Join(dir, entry.Name()))
+		}
+	}
+	if adrPaths, err := adrFilePaths(root); err == nil {
+		for _, path := range adrPaths {
 			add(path)
-			return nil
-		})
+		}
+	}
+	indexPaths := []string{
+		filepath.Join(resolved.tasksBucketDir(""), "index.md"),
+		filepath.Join(resolved.tasksBucketDir("active"), "index.md"),
+		filepath.Join(resolved.tasksBucketDir("completed"), "index.md"),
+		filepath.Join(resolved.tasksBucketDir("cancelled"), "index.md"),
+		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "index.md"),
+		filepath.Join(resolved.execPlansDir("active"), "index.md"),
+		filepath.Join(resolved.execPlansDir("completed"), "index.md"),
+		filepath.Join(root, "docs", "adr", "index.md"),
+	}
+	for _, path := range indexPaths {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			add(path)
+		}
 	}
 	sort.Strings(paths)
 	return paths

@@ -298,12 +298,16 @@ Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, duplicate task IDs across task files, task status and bucket
 mismatches, broken task dependencies, completed task acceptance-note drift,
 task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, ADR
-record issues, and broken relative Markdown links within the managed workflow
-surface. Duplicate task IDs are error-tier findings that name every conflicting
-path and require manual removal or renaming; task-record mutation commands
-refuse to operate on an affected ID until the conflict is resolved. Read-only
-list and validation commands remain available for diagnosis. Validation also
-reports warning-tier
+record issues, and broken relative Markdown links within tasks, research,
+ExecPlans, ADRs, and their generated indexes. Link discovery uses the
+metadata-selected current or legacy record roots plus ADR source files and the
+generated ADR index under `docs/adr/`; it does not scan general project
+documentation or project-owned agent instructions.
+Duplicate task IDs are error-tier findings that name every conflicting path and
+require manual removal or renaming; task-record mutation commands refuse to
+operate on an affected ID until the conflict is resolved. Read-only list and
+validation commands remain available for diagnosis. Validation also reports
+warning-tier
 `research_inbox_stale` findings for stale research inbox notes, in both current
 `.ahm/` and legacy `.agents/` record layouts. The warning names the available
 human dispositions; validation never moves, converts, or deletes the note.
@@ -327,9 +331,12 @@ Supported scopes:
 - `workflow` — managed file consistency, task front matter, dependency cycles,
   task bucket placement, ExecPlan references and lifecycle, ADR records,
   generated index freshness. This is the core workflow validation set.
-- `links` — relative Markdown link existence within the managed workflow
-  surface. Link validation is independent of workflow state and can be run
-  separately to focus on documentation drift.
+- `links` — relative Markdown link existence within task, research, ExecPlan,
+  and ADR records and their generated indexes. Link validation is independent
+  of workflow state and can be run separately to focus on record-integrity
+  drift. It does not scan README, CONTRIBUTING, ARCHITECTURE, general `docs/`,
+  `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records from the inactive
+  current/legacy layout.
 - `project-docs` — opt-in, read-only health checks over a project's own
   documentation. **Deprecated:** prefer `ahm docs check`. It discovers common
   documentation surfaces rather than assuming a fixed layout: root-level

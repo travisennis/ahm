@@ -109,8 +109,8 @@ Finding codes:
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
 | `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
 | `research_inbox_stale` | A research inbox note reached the configured stale threshold. This is a warning-tier finding that names the human disposition options. |
-| `markdown_link_missing` | A relative Markdown link inside the managed workflow surface points at a missing file. |
-| `markdown_link_check_failed` | A workflow Markdown link check could not be completed. |
+| `markdown_link_missing` | A relative Markdown link inside a task, research record, ExecPlan, ADR, or their generated indexes points at a missing file. |
+| `markdown_link_check_failed` | A structured-record Markdown link check could not be completed. |
 | `project_doc_link_missing` | A relative Markdown link in a discovered project documentation file points at a missing file. Emitted only under the opt-in `--check project-docs` scope. |
 | `project_doc_link_check_failed` | A project documentation Markdown link check could not be completed. Emitted only under the opt-in `--check project-docs` scope. |
 | `design_doc_unindexed` | A design-doc Markdown file under `docs/design-docs/` is not represented in `docs/design-docs/index.md`. Emitted only under the opt-in `--check project-docs` scope, and only when the repository already uses the `docs/design-docs/` convention with an `index.md`. |

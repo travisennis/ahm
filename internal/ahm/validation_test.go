@@ -705,7 +705,9 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
+	paths := workflowPathsFor(root)
+	linkPath := filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md")
+	writeFile(t, linkPath, "# Links\n\n[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -715,7 +717,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	got := out.String()
 	assertContainsAll(t, got,
 		`"code": "markdown_link_missing"`,
-		`"path": ".agents/.research/topics/links.md:3"`,
+		`"path": "`+relPath(root, linkPath)+`:3"`,
 		`relative Markdown link target does not exist: missing.md`,
 	)
 	assertNotContains(t, got, "also-missing.md")
@@ -754,10 +756,11 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
+	paths := workflowPathsFor(root)
 	// Quoted example links inside inline code spans and fenced code blocks must
 	// not be treated as navigation, but a real broken link on the same line
 	// (outside any backticks) must still be reported.
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"),
+	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"),
 		"# Links\n\n"+
 			"Span: `[ADRs](adr/index.md)` and span2: `[broken](also-missing.md)`.\n\n"+
 			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
@@ -776,6 +779,237 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	assertNotContains(t, got, "adr/index.md")
 	assertNotContains(t, got, "also-missing.md")
 	assertNotContains(t, got, "fenced-missing.md")
+}
+
+func TestValidateManagedRecordLinksByFamilyAndLayout(t *testing.T) {
+	layouts := []struct {
+		name  string
+		setup func(*testing.T, string)
+	}{
+		{name: "current", setup: setupAhmRepo},
+		{name: "legacy", setup: initAndCreateLegacyMetadata},
+	}
+	families := []struct {
+		name       string
+		dir        func(string, workflowPaths) string
+		sourceName string
+		targetName string
+	}{
+		{
+			name: "tasks",
+			dir: func(root string, paths workflowPaths) string {
+				return filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
+			},
+			sourceName: "001.md",
+			targetName: "002.md",
+		},
+		{
+			name: "research",
+			dir: func(root string, paths workflowPaths) string {
+				return filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics")
+			},
+			sourceName: "links.md",
+			targetName: "target.md",
+		},
+		{
+			name: "exec-plans",
+			dir: func(root string, paths workflowPaths) string {
+				return paths.execPlansDir("active")
+			},
+			sourceName: "links.md",
+			targetName: "target.md",
+		},
+		{
+			name: "adrs",
+			dir: func(root string, _ workflowPaths) string {
+				return filepath.Join(root, "docs", "adr")
+			},
+			sourceName: "001-links.md",
+			targetName: "002-target.md",
+		},
+	}
+
+	for _, layout := range layouts {
+		for _, family := range families {
+			t.Run(layout.name+"/"+family.name, func(t *testing.T) {
+				root := t.TempDir()
+				layout.setup(t, root)
+				paths := workflowPathsFor(root)
+				dir := family.dir(root, paths)
+				writeFile(t, filepath.Join(dir, family.targetName), "# Target\n")
+				writeFile(t, filepath.Join(dir, family.sourceName),
+					"# Links\n\n[valid]("+family.targetName+")\n[missing](missing.md)\n")
+
+				report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+				var findings []validationFinding
+				for _, finding := range report.Warnings {
+					if finding.Code == "markdown_link_missing" {
+						findings = append(findings, finding)
+					}
+				}
+				if len(findings) != 1 {
+					t.Fatalf("markdown_link_missing findings = %#v, want one", findings)
+				}
+				wantPath := relPath(root, filepath.Join(dir, family.sourceName)) + ":4"
+				if findings[0].Path != wantPath {
+					t.Errorf("finding path = %q, want %q", findings[0].Path, wantPath)
+				}
+				if strings.Contains(findings[0].Message, family.targetName) {
+					t.Errorf("valid link target was reported missing: %#v", findings[0])
+				}
+			})
+		}
+	}
+}
+
+func TestValidateManagedRecordLinksIncludesGeneratedIndexes(t *testing.T) {
+	layouts := []struct {
+		name  string
+		setup func(*testing.T, string)
+	}{
+		{name: "current", setup: setupAhmRepo},
+		{name: "legacy", setup: initAndCreateLegacyMetadata},
+	}
+
+	for _, layout := range layouts {
+		t.Run(layout.name, func(t *testing.T) {
+			root := t.TempDir()
+			layout.setup(t, root)
+			paths := workflowPathsFor(root)
+			indexes := []string{
+				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "index.md"),
+				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "index.md"),
+				filepath.Join(paths.execPlansDir("active"), "index.md"),
+				filepath.Join(root, "docs", "adr", "index.md"),
+			}
+			for _, path := range indexes {
+				writeFile(t, path, "# Index\n\n[missing](missing.md)\n")
+			}
+
+			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+			got := map[string]bool{}
+			for _, finding := range report.Warnings {
+				if finding.Code == "markdown_link_missing" {
+					got[strings.TrimSuffix(finding.Path, ":3")] = true
+				}
+			}
+			for _, path := range indexes {
+				rel := relPath(root, path)
+				if !got[rel] {
+					t.Errorf("missing generated-index link finding for %s: %#v", rel, report.Warnings)
+				}
+			}
+			if len(got) != len(indexes) {
+				t.Errorf("generated-index finding paths = %#v, want exactly %d", got, len(indexes))
+			}
+		})
+	}
+}
+
+func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
+	layouts := []struct {
+		name  string
+		setup func(*testing.T, string)
+	}{
+		{name: "current", setup: setupAhmRepo},
+		{name: "legacy", setup: initAndCreateLegacyMetadata},
+	}
+
+	for _, layout := range layouts {
+		t.Run(layout.name, func(t *testing.T) {
+			root := t.TempDir()
+			layout.setup(t, root)
+			paths := workflowPathsFor(root)
+			taskDir := filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
+			writeFile(t, filepath.Join(taskDir, "001.md"), "# Managed\n\n[missing](managed-missing.md)\n")
+
+			for _, path := range []string{
+				"README.md",
+				"AGENTS.md",
+				"CLAUDE.md",
+				"ARCHITECTURE.md",
+				"docs/guide.md",
+				".agents/NOTES.md",
+				".agents/skills/example/SKILL.md",
+			} {
+				writeFile(t, filepath.Join(root, filepath.FromSlash(path)),
+					"# Project owned\n\n[missing]("+strings.ReplaceAll(path, "/", "-")+"-missing.md)\n")
+			}
+			for _, path := range []string{
+				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "README.md"),
+				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "README.md"),
+				filepath.Join(root, filepath.FromSlash(paths.execPlansRel("")), "README.md"),
+				filepath.Join(root, "docs", "adr", "README.md"),
+			} {
+				writeFile(t, path, "# Preserved scaffold\n\n[missing](scaffold-missing.md)\n")
+			}
+			for _, path := range []string{
+				filepath.Join(paths.tasksBucketDir("active"), "project-notes", "guide.md"),
+				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "project-notes", "guide.md"),
+				filepath.Join(paths.execPlansDir("active"), "archive", "README.md"),
+			} {
+				writeFile(t, path, "# Nested project notes\n\n[missing](nested-missing.md)\n")
+			}
+			if paths.recordsDir == toolRecordsDirName {
+				writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "stale.md"),
+					"# Legacy record\n\n[missing](legacy-layout-missing.md)\n")
+			} else {
+				writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "stale.md"),
+					"# Current record\n\n[missing](current-layout-missing.md)\n")
+			}
+
+			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+			var findings []validationFinding
+			for _, finding := range report.Warnings {
+				if finding.Code == "markdown_link_missing" {
+					findings = append(findings, finding)
+				}
+			}
+			if len(findings) != 1 {
+				t.Fatalf("markdown_link_missing findings = %#v, want only the managed task finding", findings)
+			}
+			if !strings.Contains(findings[0].Message, "managed-missing.md") {
+				t.Errorf("unexpected managed link finding: %#v", findings[0])
+			}
+		})
+	}
+}
+
+func TestStatusAndDoctorManagedLinksScopesAndOutputModes(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	writeADRFile(t, root, "001-links.md",
+		"---\nstatus: accepted\ndate: 2026-07-27\n---\n"+
+			"# Links\n\n[missing](missing.md)\n")
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "status default text", args: []string{"status"}},
+		{name: "doctor default text", args: []string{"doctor"}},
+		{name: "status links JSON", args: []string{"--json", "status", "--check", "links"}},
+		{name: "doctor links plain", args: []string{"--plain", "doctor", "--check", "links"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"--root", root}, tt.args...)
+			stdout, stderr, code := runCLI(t, args...)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+			}
+			assertContainsAll(t, stdout,
+				"markdown_link_missing",
+				"docs/adr/001-links.md:7",
+				"relative Markdown link target does not exist: missing.md",
+			)
+		})
+	}
 }
 
 func TestValidateProjectDocsIgnoresCodeSpansAndFences(t *testing.T) {
@@ -874,13 +1108,14 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
+	paths := workflowPathsFor(root)
 	// Add a broken link.
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
 	// Create a workflow issue.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
+	writeTaskFile(t, paths.taskFile("active", "001"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
 	// Only link checks.
-	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, workflowPathsFor(root))
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
 	// Should find markdown_link_missing.
 	foundLinkMissing := false
 	for _, w := range report.Warnings {
@@ -1130,10 +1365,11 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	paths := workflowPathsFor(root)
+	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
 
 	// No scopes = default checks run.
-	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
+	report, _ := validateWorkflowScopedForPaths(root, nil, paths)
 	foundLinkMissing := false
 	for _, w := range report.Warnings {
 		if w.Code == "markdown_link_missing" {
@@ -1145,7 +1381,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 		t.Error("expected markdown_link_missing when running all checks")
 	}
 	// validateWorkflowScopedForPaths with nil scopes should produce the same result.
-	report2, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
+	report2, _ := validateWorkflowScopedForPaths(root, nil, paths)
 	if report.OK != report2.OK {
 		t.Error("validateWorkflowScopedForPaths(nil) should match validateWorkflowScopedForPaths with workflow+links")
 	}
