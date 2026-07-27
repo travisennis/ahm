@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-11
+status: superseded by ADR-021
+date: 2026-07-27
 decision-makers: Travis Ennis
 informed: task 160a
 ---
@@ -190,3 +190,7 @@ diff mode. Git usage is read-only within the existing safety boundary (the
   decided with task 160d.
 - Alias removal timing is an explicit follow-up, deferred until after 160b
   ships and hook configurations migrate.
+
+## Supersession
+
+Superseded by [ADR-021](021-limit-ahm-to-structured-workflow-records.md).
