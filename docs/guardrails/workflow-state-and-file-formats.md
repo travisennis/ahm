@@ -2,13 +2,13 @@
 
 ## Scope
 
-Read this guardrail for `.agents/ahm.json`, task files, research notes,
+Read this guardrail for `.ahm/config.json`, task files, research notes,
 ExecPlans, ADRs, generated indexes, install/upgrade/context/status/doctor
 behavior, embedded instructions, and file-format parsing or rendering.
 
 ## Compatibility Surfaces
 
-- Metadata fields in `.agents/ahm.json`.
+- Metadata fields in `.ahm/config.json`.
 - Task front matter order, grammar, dash sentinels, and unknown-field
   preservation.
 - ADR constrained-MADR front matter and lifecycle metadata.

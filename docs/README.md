@@ -33,6 +33,7 @@ changes, agent orchestration, etc.), see the **Workflow Routing** section in
 | ---- | ---- |
 | Look up a concept, type, or term | [glossary](references/glossary.md) |
 | Audit or update documentation | [documentation guardrail](guardrails/documentation.md), `ahm context docs` |
+| Change agent instructions or skills | [agent instructions guardrail](guardrails/agent-instructions.md) |
 
 ## Structure
 

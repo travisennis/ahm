@@ -4,23 +4,29 @@
 
 `ahm` is a Go CLI that manages repo-local agent workflow state. Tasks, research
 notes, ExecPlans, config, and indexes live under `.ahm/`; project guidance
-lives under `.agents/`. Records are branch-scoped and use normal Git behavior; `ahm` performs no ref or network operations.
+lives under `.agents/`. Records are branch-scoped and use normal Git behavior;
+`ahm` performs no ref or network operations.
 
 Compatibility surfaces include CLI behavior, workflow metadata and formats,
 indexes, templates, atomic writes, root detection, validation, orchestration,
-and releases. `ahm` does not patch source, stage files, move `HEAD`, mutate
-branches, or create project commits.
+and releases; [`ARCHITECTURE.md`](ARCHITECTURE.md) enumerates them. `ahm` does
+not patch source, stage files, move `HEAD`, mutate branches, or create project
+commits.
 
 ## Operating loop
 
-1. Run `ahm prime` before any work.
-2. If the request names a task, ExecPlan, ADR, or research record, inspect it through `ahm` before choosing implementation work.
-3. Read the smallest relevant code and tests. Load durable documentation only when the change affects its audience or contract.
-4. Preserve compatibility unless the task explicitly changes it.
-5. If work is managed, start and complete it through `ahm`.
-6. Make surgical edits and run risk-proportionate checks.
-7. After implementation edits, run a review in a subagent until no actionable findings remain, then perform preflight.
-8. Hand off changes, exact checks, skipped checks, and remaining risk.
+1. Run `ahm prime` before any work; re-run it after context compaction.
+2. If the request names a task, ExecPlan, ADR, or research record, inspect it
+   through `ahm` before choosing implementation work.
+3. Select the route below, load only its documents, and state both before
+   editing.
+4. Read the smallest relevant code and tests.
+5. Preserve compatibility unless the task explicitly changes it.
+6. If work is managed, start and complete it through `ahm`.
+7. Make surgical edits and run risk-proportionate checks.
+8. After implementation edits, run a review in a subagent until no actionable
+   findings remain, then perform preflight.
+9. Hand off per [Handoff](#handoff).
 
 Large or cross-cutting work requires an ExecPlan as directed by `ahm context plan`.
 
@@ -28,48 +34,101 @@ Large or cross-cutting work requires an ExecPlan as directed by `ahm context pla
 
 ### CLI, User Output, And Exit Behavior
 
-For command wiring, flags, help, exit codes, output, or dry-run behavior, load
-[`docs/guardrails/cli-and-user-output.md`](docs/guardrails/cli-and-user-output.md), [`docs/cli.md`](docs/cli.md),
-the relevant [`docs/references/cli/`](docs/references/cli/) page, and [`ARCHITECTURE.md`](ARCHITECTURE.md).
+For command wiring, flags, help, exit codes, output, or dry-run behavior, load:
+
+- [CLI and user output](docs/guardrails/cli-and-user-output.md), for wiring,
+  help-text, exit-code, and output-mode expectations.
+- [`docs/cli.md`](docs/cli.md), for the user-facing command overview.
+- The relevant page under [`docs/references/cli/`](docs/references/cli/), for the
+  exact per-command contract; [`global-contract.md`](docs/references/cli/global-contract.md)
+  owns behavior shared by every command.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md), for the CLI boundary.
 
 ### Workflow State, File Formats, And Upgrades
 
 For `.ahm/config.json`, workflow formats, indexes, install, upgrade, context,
-status, doctor, or templates, load [`docs/guardrails/workflow-state-and-file-formats.md`](docs/guardrails/workflow-state-and-file-formats.md),
-[`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), [`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md),
-and [`ARCHITECTURE.md`](ARCHITECTURE.md).
+status, doctor, or templates, load:
+
+- [Workflow state and file formats](docs/guardrails/workflow-state-and-file-formats.md),
+  for the rules governing on-disk workflow records.
+- [`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), for the
+  canonical format definitions.
+- [`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), for the
+  migration path a format change owes existing repositories.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md), for where state is owned.
 
 ### External Agent Orchestration
 
-For `ahm task work`, agent definitions, parsers, sessions, handoff, or golden transcripts, load
-[`docs/guardrails/external-agent-orchestration.md`](docs/guardrails/external-agent-orchestration.md) and [`docs/guides/testing.md`](docs/guides/testing.md).
+For `ahm task work`, agent definitions, parsers, sessions, handoff, or golden
+transcripts, load:
+
+- [External agent orchestration](docs/guardrails/external-agent-orchestration.md),
+  for the argument-building, parsing, and handoff contract.
+- [`docs/guides/testing.md`](docs/guides/testing.md), for golden-transcript
+  conventions.
 
 ### Safety, Permissions, And Atomic Writes
 
-For filesystem writes, paths, root detection, command execution, or safety, load
-[`docs/guardrails/safety-and-permissions.md`](docs/guardrails/safety-and-permissions.md), [`docs/references/workflow-spec.md`](docs/references/workflow-spec.md),
-and [ADR 001](docs/adr/001-atomic-writes-and-concurrency.md).
+For filesystem writes, paths, root detection, command execution, or safety,
+load:
+
+- [Safety and permissions](docs/guardrails/safety-and-permissions.md), for the
+  write, path, and execution boundaries.
+- [`docs/references/workflow-spec.md`](docs/references/workflow-spec.md), for the
+  durability requirements a record format assumes.
+- [ADR 001](docs/adr/001-atomic-writes-and-concurrency.md), for the atomic-write
+  and concurrency decision.
 
 ### Dependencies, Build, CI, And Release
 
-For dependencies, builds, CI, GoReleaser, version injection, or releases, load
-[`docs/guardrails/dependencies-build-ci-release.md`](docs/guardrails/dependencies-build-ci-release.md), [`CONTRIBUTING.md`](CONTRIBUTING.md),
-[`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), and [`.github/workflows/`](.github/workflows/).
+For dependencies, builds, CI, GoReleaser, version injection, or releases, load:
+
+- [Dependencies, build, CI, and release](docs/guardrails/dependencies-build-ci-release.md),
+  for dependency and release policy.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md), for the commands.
+- [`docs/guides/workflow-upgrades.md`](docs/guides/workflow-upgrades.md), when a
+  release changes a workflow format.
+- [`.github/workflows/`](.github/workflows/), which is the authority for CI
+  behavior.
 
 ### Architecture And Implementation Quality
 
-For refactors, module boundaries, helpers, validation, parsers, or performance, load
-[`docs/guardrails/implementation-quality.md`](docs/guardrails/implementation-quality.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), and relevant [ADRs](docs/adr/).
+For refactors, module boundaries, helpers, validation, parsers, or performance,
+load:
+
+- [Implementation quality](docs/guardrails/implementation-quality.md), for style
+  and structural expectations.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md), for the module map and the invariants a
+  refactor must preserve.
+- The relevant [ADRs](docs/adr/), for decisions already made in the changed area.
+
+### Documentation
+
+For README, architecture, CLI docs, workflow specs, upgrade docs, ADR prose, or
+context guidance, load:
+
+- [Documentation](docs/guardrails/documentation.md), for which surfaces require
+  which doc updates and where each one lives.
+
+### Agent Instructions And Skills
+
+For changes to this file, `.agents/`, or any other prose whose purpose is to
+change how an agent behaves, load:
+
+- [Agent-facing instructions](docs/guardrails/agent-instructions.md), for the
+  evidence a behavior-shaping edit requires.
 
 ### Build, Test, And Verification Commands
 
-Use [`CONTRIBUTING.md`](CONTRIBUTING.md) as the canonical command catalog and verification policy.
+Use [`CONTRIBUTING.md`](CONTRIBUTING.md) as the canonical command catalog and
+verification policy.
 
 ### Managed Work Intake With `ahm`
 
 Run `ahm prime` before intake and after compaction, then use its scoped command,
-such as `ahm context task` followed by `ahm task show <id>`. Reclassify implementation under the routes above.
-Never hand-edit indexes; use source records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
+such as `ahm context task` followed by `ahm task show <id>`. Reclassify
+implementation under the routes above. Never hand-edit indexes; use source
+records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
 
 ## Repository Rules
 
