@@ -24,8 +24,10 @@ commits.
 5. Preserve compatibility unless the task explicitly changes it.
 6. If work is managed, start and complete it through `ahm`.
 7. Make surgical edits and run risk-proportionate checks.
-8. After implementation edits, run a review in a subagent until no actionable
-   findings remain, then perform preflight.
+8. After implementation edits, run a review in a subagent and address findings
+   until none remain, then perform preflight. If a third round reports findings
+   of the same class, stop patching: report the finding class and the suspected
+   design flaw, and escalate to a design decision.
 9. Hand off per [Handoff](#handoff).
 
 Large or cross-cutting work requires an ExecPlan as directed by `ahm context plan`.
