@@ -34,22 +34,6 @@ const (
 	configMetadataRelPath = ".ahm/config.json"
 )
 
-// projectDocsConfig holds optional configuration for ahm docs check.
-// All fields are optional; with zero configuration the static checks run
-// with defaults.
-type projectDocsConfig struct {
-	EntryPointBudget int      `json:"entryPointBudget,omitempty"`
-	Exclude          []string `json:"exclude,omitempty"`
-	DocMap           []struct {
-		Paths []string `json:"paths"`
-		Docs  []string `json:"docs"`
-	} `json:"docMap,omitempty"`
-}
-
-// defaultEntryPointBudget is the line-count budget for root AGENTS.md when
-// projectDocs.entryPointBudget is unset or zero.
-const defaultEntryPointBudget = 150
-
 type metadata struct {
 	// Version preserves the obsolete template-version field in existing
 	// metadata. Fresh metadata omits it, and ahm no longer reads or updates it.
@@ -57,7 +41,6 @@ type metadata struct {
 	StrictAcceptance bool                       `json:"strict_acceptance"`
 	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
 	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
-	ProjectDocs      *projectDocsConfig         `json:"projectDocs,omitempty"`
 	Research         *researchConfig            `json:"research,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
@@ -78,6 +61,8 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 		"strict_acceptance",
 		"default_work_agent",
 		"taskWork",
+		// Consume the obsolete key without preserving it in Extra so the next
+		// metadata write, including upgrade, removes it.
 		"projectDocs",
 		"research",
 		"files",
@@ -113,11 +98,6 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if m.TaskWork != nil {
 		if err := writeJSONField(&buf, &first, "taskWork", m.TaskWork); err != nil {
-			return nil, err
-		}
-	}
-	if m.ProjectDocs != nil {
-		if err := writeJSONField(&buf, &first, "projectDocs", m.ProjectDocs); err != nil {
 			return nil, err
 		}
 	}

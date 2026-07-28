@@ -30,6 +30,21 @@ or legacy `.agents/ahm.json`) with the target repository files.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## General Documentation Surface Removal (2026-07-27)
+
+Ahm now limits validation to its structured workflow records: tasks, research,
+ExecPlans, ADRs, and their generated indexes. The `ahm docs` command group,
+`ahm docs check`, and the `project-docs` scope on `status` and `doctor` have
+been removed as intentional breaking CLI changes. Remove those invocations
+from hooks and CI; projects that still want general documentation checks should
+select and own their own tooling.
+
+The `projectDocs` configuration block no longer affects runtime behavior.
+Metadata reads tolerate the obsolete key during migration, and a real `ahm
+upgrade` removes it from `.ahm/config.json` or legacy `.agents/ahm.json` while
+preserving unrelated unknown top-level fields. `ahm --dry-run upgrade` leaves
+the file unchanged.
+
 ## Task Lifecycle Alignment In AGENTS.md (2026-07-20)
 
 The embedded `ahm context task` reference now explicitly states that

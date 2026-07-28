@@ -116,8 +116,8 @@ for a scope: `task`, `plan`, `adr`, `research`, `docs`, `groom`, `improve`,
 
 ### `status`
 
-Reports workflow health. No scope flag: runs the `workflow` validation scope
-by default.
+Reports workflow health. No scope flag: runs the `workflow` and `links`
+validation scopes by default.
 
 **Guarantees:**
 
@@ -182,13 +182,3 @@ Migrates workflow records from the legacy `.agents/` layout to `.ahm/`.
 ### `records doctor`
 
 Diagnoses migration state.
-
-### `docs check`
-
-Validates project documentation surface health: links, entry-point budget,
-index coverage.
-
-**Guarantees:**
-
-- Read-only. Reports findings without mutating files.
-- Exit code 1 when validation contains errors.

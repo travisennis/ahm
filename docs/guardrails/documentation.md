@@ -46,8 +46,7 @@ Require a documentation check when a change touches:
 - Prefer existing documentation locations and style.
 - Do not edit generated indexes by hand.
 - Run `just docs-md-lint` before committing markdown changes.
-- Run available link or documentation checks. For this repo, use
-  `ahm --check project-docs status` for project-doc link health when useful.
+- Run any project-owned link or documentation checks named by the repository.
 
 ## Enforcement
 

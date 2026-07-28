@@ -183,6 +183,67 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 	)
 }
 
+func TestUpgradeRemovesObsoleteProjectDocsAndPreservesUnknownMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		relPath string
+	}{
+		{name: "current layout", relPath: configMetadataRelPath},
+		{name: "legacy layout", relPath: legacyMetadataRelPath},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, filepath.FromSlash(tc.relPath))
+			writeFile(t, path, `{
+  "strict_acceptance": true,
+  "projectDocs": {
+    "entryPointBudget": 120,
+    "exclude": ["vendor/**"]
+  },
+  "research": {
+    "inboxStaleDays": 9
+  },
+  "vendorExtension": {
+    "enabled": true
+  },
+  "files": {}
+}`)
+
+			if _, err := readMetadata(root); err != nil {
+				t.Fatalf("ordinary metadata read rejected obsolete projectDocs: %v", err)
+			}
+
+			before := mustRead(t, path)
+			var dryOut strings.Builder
+			dry := app{opts: options{root: root, dryRun: true}, out: &dryOut}
+			if err := dry.install(true); err != nil {
+				t.Fatal(err)
+			}
+			if afterDryRun := mustRead(t, path); afterDryRun != before {
+				t.Fatalf("dry-run modified metadata:\nbefore: %s\nafter: %s", before, afterDryRun)
+			}
+
+			var out strings.Builder
+			a := app{opts: options{root: root}, out: &out}
+			if err := a.install(true); err != nil {
+				t.Fatal(err)
+			}
+
+			got := mustRead(t, path)
+			if strings.Contains(got, `"projectDocs"`) {
+				t.Errorf("obsolete projectDocs survived upgrade:\n%s", got)
+			}
+			assertContainsAll(t, got,
+				`"strict_acceptance": true`,
+				`"research": {`,
+				`"inboxStaleDays": 9`,
+				`"vendorExtension": {`,
+				`"enabled": true`,
+			)
+		})
+	}
+}
+
 func TestResearchConfigRoundTripsAndSurvivesUpgrade(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{

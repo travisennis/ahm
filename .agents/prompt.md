@@ -25,9 +25,9 @@ raise, not a call to improvise.
   project source. VISION.md is the canonical statement — if your change
   needs more than it allows, stop and flag; never renegotiate the
   boundary locally.
-- Hook-grade commands (`ahm prime`, `ahm docs check`) must be fast,
-  idempotent, and offline-tolerant: a failed sync or check degrades to
-  a warning, never a blocked session.
+- Hook-grade commands such as `ahm prime` must be fast, idempotent, and
+  offline-tolerant: a failed check degrades to a warning, never a blocked
+  session.
 - One structure, three renders: text, --plain, and --json come from
   the same struct (textRenderer pattern, internal/output).
 - Advisory stays advisory: findings that mean "may need review" never
@@ -40,10 +40,10 @@ raise, not a call to improvise.
 
 ## Coordinate (this is where parallel trees collide)
 
-- The deprecations (managed skills, unscoped `ahm context`,
-  `ahm agents suggestions`, `--check project-docs`, committed records)
-  land as ONE migration with one upgrade guide and onward
-  pointers; do not remove a surface ahead of the coordinated plan.
+- The deprecations for managed skills, unscoped `ahm context`, `ahm agents
+  suggestions`, and committed records land as one migration with one upgrade
+  guide and onward pointers; do not remove a surface ahead of the coordinated
+  plan.
 - Shared guidance docs (AGENTS.md, the workflow spec) are rewritten by
   tasks 145, 156g, and 160d. Before editing any of them, check the
   other trees' status, and note in your handoff what you touched so the

@@ -52,7 +52,7 @@ location map; this section describes what each group does.
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git`, `.ahm/`, or `.agents/`. |
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `records.go` | Atomic writes, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-layout resolution. |
 | Install & upgrade | `internal/ahm/install.go`, `onboard.go` | `init`, `upgrade`, metadata, legacy instruction removal, generated index writes, `onboard` snippet. |
-| Status & validation | `internal/ahm/status.go`, `validation.go`, `research_inbox.go` | `status`, `doctor`, workflow/link/ADR/task/project-doc validation, research inbox staleness. |
+| Status & validation | `internal/ahm/status.go`, `validation.go`, `research_inbox.go` | `status`, `doctor`, workflow/link/ADR/task validation, research inbox staleness. |
 | Context | `internal/ahm/context.go` | `context` command briefing and managed-work references. |
 | Records migration | `internal/ahm/records_commands.go` | `records migrate`, `records doctor` for legacy-to-.ahm migration. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_groom.go`, `task_work.go`, `task_agents.go`, `task_session.go`, `task_parsers.go`, `task_deps.go`, `task_migrate.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, agent delegation, session orchestration, backlog grooming, acceptance checking. |
@@ -79,8 +79,8 @@ location map; this section describes what each group does.
   metadata proves ownership, unless `--force` is used.
 - `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed
   file that `init`, `upgrade`, or `--force` can create, replace, or remove.
-- Validation is read-only. It reports workflow and documentation drift without
-  mutating files.
+- Validation is read-only. It reports workflow drift and structured-record
+  link-integrity findings without mutating files.
 - Ahm-owned Git subprocesses use an explicit repository root and ignore
   inherited Git repository-location variables that could redirect metadata,
   the worktree, or the index. ADR 018 defines this boundary.

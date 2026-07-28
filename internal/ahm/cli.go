@@ -18,7 +18,6 @@ type options struct {
 	text   bool
 	dryRun bool
 	force  bool
-	strict bool
 	check  []string
 }
 
@@ -236,8 +235,7 @@ Examples:
 Examples:
   ahm status
   ahm --check workflow status
-  ahm --check links --json status
-  ahm --check project-docs status`,
+  ahm --check links --json status`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := a.detectRoot(); err != nil {
@@ -249,7 +247,7 @@ Examples:
 			return a.status()
 		},
 	}
-	statusCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs (project-docs is deprecated; use ahm docs check)")
+	statusCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links")
 	root.AddCommand(statusCmd)
 
 	doctorCmd := &cobra.Command{
@@ -271,48 +269,8 @@ Examples:
 			return a.doctor()
 		},
 	}
-	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links, project-docs")
+	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links")
 	root.AddCommand(doctorCmd)
-
-	docsCmd := &cobra.Command{
-		Use:   "docs",
-		Short: "Project documentation health",
-		Long:  "Commands for project documentation health and validation.",
-		Args:  noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
-	docsCheckCmd := &cobra.Command{
-		Use:   "check",
-		Short: "Check project documentation health",
-		Long: `Run read-only structural checks over the project documentation surface.
-
-Reports broken relative links, non-portable link targets (file:// URIs,
-absolute paths, home-directory paths), entry-point line budget overages,
-generalized index coverage, and design-doc index coverage.
-
-Never calls models or edits files.
-
-Exit 0 when clean or warnings-only; exit 1 on errors. Use --strict to
-promote warnings to errors for CI use.
-
-Examples:
-  ahm docs check
-  ahm docs check --strict
-  ahm --json docs check
-  ahm --plain docs check`,
-		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			return a.docsCheck()
-		},
-	}
-	docsCheckCmd.Flags().BoolVar(&a.opts.strict, "strict", false, "Promote warnings to errors for CI")
-	docsCmd.AddCommand(docsCheckCmd)
-	root.AddCommand(docsCmd)
 
 	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", `Regenerate generated task, research, ExecPlan, and ADR indexes.
 

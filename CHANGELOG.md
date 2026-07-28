@@ -27,6 +27,12 @@ All notable user-facing changes to `ahm` are recorded here.
 
 ### Removed
 
+- *(docs)* **breaking:** Remove the `ahm docs` command group, `ahm docs
+  check`, the `project-docs` validation scope and deprecation alias,
+  `projectDocs` runtime configuration, and the general project-documentation
+  validators and finding codes. Projects should replace hooks or CI calls with
+  project-owned documentation tooling. `ahm upgrade` removes the obsolete
+  config key while preserving unrelated unknown metadata.
 - *(refs)* Ref-backed records commands (`records push`, `records pull`,
   `records sync`) and associated configuration fields (`store_mode`,
   `records_ref`, `records_remote`, `records_last_sync`) are removed.

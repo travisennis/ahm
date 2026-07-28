@@ -320,7 +320,7 @@ func contextCommands(scope string) []string {
 	case "plan":
 		return append([]string{"ahm index", "ahm --dry-run index"}, common...)
 	case "docs":
-		return append([]string{"ahm doctor --check project-docs"}, common...)
+		return common
 	default:
 		return append([]string{"ahm task next", "ahm task ready", "ahm task blocked", "ahm task show <id>"}, common...)
 	}

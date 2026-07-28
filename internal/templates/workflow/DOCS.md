@@ -44,9 +44,9 @@ distinct audience or responsibility that would make insertion into an
 existing document misleading, create a new document.
 
 New documents must follow the project's existing naming conventions, file
-location, cross-reference navigation, tone, and validation rules (run `ahm
-docs check`). Keep uncertainty and unfinished work in tasks, research, or
-ExecPlans rather than presenting it as settled project truth.
+location, cross-reference navigation, tone, and project-owned validation
+rules. Keep uncertainty and unfinished work in tasks, research, or ExecPlans
+rather than presenting it as settled project truth.
 
 ## Project Docs vs Agent Artifacts
 

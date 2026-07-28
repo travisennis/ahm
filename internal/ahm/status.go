@@ -11,7 +11,6 @@ import (
 )
 
 func (a *app) status() error {
-	a.warnProjectDocsScopeDeprecation()
 	validation, tasks := a.validateWorkflow(a.opts.check)
 	_, metaErr := readMetadata(a.opts.root)
 	var installedVersion any
@@ -36,7 +35,6 @@ func (a *app) status() error {
 }
 
 func (a *app) doctor() error {
-	a.warnProjectDocsScopeDeprecation()
 	_, gitErr := exec.LookPath("git")
 	_, metaErr := readMetadata(a.opts.root)
 	validation, _ := a.validateWorkflow(a.opts.check)
@@ -74,36 +72,4 @@ func addOnboardDoctorFinding(root string, report *validationReport) {
 	if !strings.Contains(string(data), "ahm prime") {
 		report.addInfo("agents_prime_missing", "AGENTS.md", "AGENTS.md does not reference `ahm prime`; run `ahm onboard` for the current bootstrap snippet")
 	}
-}
-
-// warnProjectDocsScopeDeprecation emits a deprecation warning when
-// --check project-docs is used on status or doctor.
-func (a *app) warnProjectDocsScopeDeprecation() {
-	if containsScope(a.opts.check, CheckScopeProjectDocs) {
-		a.addWarning("--check project-docs is deprecated; use `ahm docs check`")
-	}
-}
-
-// docsCheck runs the expanded project-docs validation scope and emits the
-// validation report. Exit 0 when clean or warnings-only; exit 1 on errors.
-// --strict promotes warnings to errors.
-func (a *app) docsCheck() error {
-	validation, _ := a.validateWorkflow([]string{CheckScopeProjectDocs})
-
-	// Under --strict, warnings become errors for exit-code purposes.
-	if a.opts.strict {
-		validation.Errors = append(validation.Errors, validation.Warnings...)
-		validation.Warnings = nil
-		validation.OK = len(validation.Errors) == 0
-	}
-
-	if err := a.emit(validation); err != nil {
-		return err
-	}
-	a.emitWarnings()
-
-	if len(validation.Errors) > 0 {
-		return errValidationFailed
-	}
-	return nil
 }
