@@ -184,22 +184,36 @@ func malformedADR(path string, err error) ADR {
 	return adr
 }
 
+// validateADRFrontMatterValue checks that a front matter value does not start with
+// a YAML block-scalar indicator (| or >). renderFrontMatterScalar would quote
+// these values correctly for round-trip safety, but rejecting them early gives
+// clearer user feedback when the value looks like a likely mistake.
+func validateADRFrontMatterValue(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
+		return usageError(fmt.Sprintf("unsupported block scalar in front matter field %q", field))
+	}
+	return nil
+}
+
 func renderADR(adr ADR) string {
 	var b strings.Builder
 	fmt.Fprintln(&b, "---")
-	fmt.Fprintf(&b, "status: %s\n", adr.Status)
-	fmt.Fprintf(&b, "date: %s\n", adr.Date)
+	fmt.Fprintf(&b, "status: %s\n", renderFrontMatterScalar(adr.Status))
+	fmt.Fprintf(&b, "date: %s\n", renderFrontMatterScalar(adr.Date))
 	if adr.DecisionMakers != "" {
-		fmt.Fprintf(&b, "decision-makers: %s\n", strings.ReplaceAll(strings.ReplaceAll(adr.DecisionMakers, "\r\n", " "), "\n", " "))
+		fmt.Fprintf(&b, "decision-makers: %s\n", renderFrontMatterScalar(adr.DecisionMakers))
 	}
 	if adr.Consulted != "" {
-		fmt.Fprintf(&b, "consulted: %s\n", adr.Consulted)
+		fmt.Fprintf(&b, "consulted: %s\n", renderFrontMatterScalar(adr.Consulted))
 	}
 	if adr.Informed != "" {
-		fmt.Fprintf(&b, "informed: %s\n", adr.Informed)
+		fmt.Fprintf(&b, "informed: %s\n", renderFrontMatterScalar(adr.Informed))
 	}
 	for _, k := range sortedKeys(adr.Extra) {
-		fmt.Fprintf(&b, "%s: %s\n", k, adr.Extra[k])
+		fmt.Fprintf(&b, "%s: %s\n", k, renderFrontMatterScalar(adr.Extra[k]))
 	}
 	fmt.Fprintln(&b, "---")
 	fmt.Fprintf(&b, "# %s\n\n", strings.ReplaceAll(strings.ReplaceAll(adr.Title, "\r\n", " "), "\n", " "))

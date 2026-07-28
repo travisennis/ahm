@@ -47,6 +47,53 @@ func TestADRCreateWritesParseableRecord(t *testing.T) {
 	}
 }
 
+func TestADRCreateRoundTripSpecialChars(t *testing.T) {
+	root := t.TempDir()
+	_, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+
+	// ADR with quoted value in decision-makers — should round-trip.
+	stdout, stderr, code := runCLI(t, "--root", root, "adr", "create", "Quoted DM",
+		"--decision-makers", `"Alice"`)
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	path := filepath.Join(root, "docs", "adr", "001-quoted-dm.md")
+	adr, err := parseADR(path)
+	if err != nil {
+		t.Fatalf("parse created ADR: %v", err)
+	}
+	if adr.DecisionMakers != `"Alice"` {
+		t.Errorf("decision-makers round-trip: got %q, want %q", adr.DecisionMakers, `"Alice"`)
+	}
+
+	// ADR with colon in decision-makers — should round-trip.
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "create", "Colon DM",
+		"--decision-makers", "Group: Team A")
+	if code != 0 {
+		t.Fatalf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	path2 := filepath.Join(root, "docs", "adr", "002-colon-dm.md")
+	adr2, err := parseADR(path2)
+	if err != nil {
+		t.Fatalf("parse created ADR: %v", err)
+	}
+	if adr2.DecisionMakers != "Group: Team A" {
+		t.Errorf("decision-makers round-trip: got %q, want %q", adr2.DecisionMakers, "Group: Team A")
+	}
+
+	// Verify both ADRs appear in adr list without malformed warnings.
+	_, stderr, code = runCLI(t, "--root", root, "adr", "list")
+	if code != 0 {
+		t.Errorf("adr list exit code = %d, stderr = %s", code, stderr)
+	}
+	if strings.Contains(stderr, "malformed") || strings.Contains(stderr, "skipped") {
+		t.Errorf("adr list should not report malformed ADRs, stderr = %s", stderr)
+	}
+}
+
 func TestADRCreateBodyFile(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
@@ -129,6 +176,8 @@ func TestADRCreateErrors(t *testing.T) {
 		{name: "title with newline", args: []string{"adr", "create", "Bad\ntitle"}, code: 2, want: "adr create title must not contain newlines"},
 		{name: "title with CRLF", args: []string{"adr", "create", "Bad\r\ntitle"}, code: 2, want: "adr create title must not contain newlines"},
 		{name: "decision-makers with newline", args: []string{"adr", "create", "Bad DM", "--decision-makers", "Travis\nAlice"}, code: 2, want: "adr create decision-makers must not contain newlines"},
+		{name: "decision-makers pipe block scalar", args: []string{"adr", "create", "Pipe DM", "--decision-makers", "| Alice"}, code: 2, want: "unsupported block scalar in front matter field"},
+		{name: "decision-makers gt block scalar", args: []string{"adr", "create", "Gt DM", "--decision-makers", "> Bob"}, code: 2, want: "unsupported block scalar in front matter field"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

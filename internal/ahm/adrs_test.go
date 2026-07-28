@@ -92,6 +92,69 @@ func TestRenderADRRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRenderADRRoundTripSpecialChars(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "011-special-chars.md")
+
+	tests := []struct {
+		name  string
+		field string
+		value string
+	}{
+		{name: "quoted value", field: "decision-makers", value: `"Alice"`},
+		{name: "colon value", field: "consulted", value: "a:b"},
+		{name: "hash prefix", field: "informed", value: "#note"},
+		{name: "pipe prefix", field: "decision-makers", value: "| Alice"},
+		{name: "gt prefix", field: "consulted", value: "> Bob"},
+		{name: "dash list prefix", field: "informed", value: "- item"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adr := ADR{
+				ID:     "011",
+				Slug:   "special-chars",
+				Title:  "Special Chars",
+				Status: "proposed",
+				Date:   "2026-07-28",
+				Path:   path,
+				Body:   "Body.\n",
+				Extra:  map[string]string{},
+			}
+			switch tt.field {
+			case "decision-makers":
+				adr.DecisionMakers = tt.value
+			case "consulted":
+				adr.Consulted = tt.value
+			case "informed":
+				adr.Informed = tt.value
+			}
+
+			rendered := renderADR(adr)
+			parsed, err := parseADRFromData([]byte(rendered), path)
+			if err != nil {
+				t.Errorf("parse rendered ADR: %v\nrendered:\n%s", err, rendered)
+			}
+			// Check that the value round-trips correctly.
+			var got string
+			switch tt.field {
+			case "decision-makers":
+				got = parsed.DecisionMakers
+			case "consulted":
+				got = parsed.Consulted
+			case "informed":
+				got = parsed.Informed
+			}
+			if got != tt.value {
+				t.Errorf("round-trip: got %q, want %q", got, tt.value)
+			}
+			// Verify re-render is stable.
+			if renderADR(parsed) != rendered {
+				t.Error("parse/render round trip is not stable")
+			}
+		})
+	}
+}
+
 func TestParseADRDetectsIDMismatch(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "009-title.md")
 	input := "---\n" +
