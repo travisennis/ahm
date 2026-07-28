@@ -220,9 +220,56 @@ Adds or removes a task dependency.
 
 Prints dependency cycles for non-completed, non-cancelled tasks.
 
-### `task dep tree`
+### `task dep tree <id>`
 
-Prints dependency trees for non-completed, non-cancelled tasks.
+Prints the dependency tree rooted at `<id>` for non-completed, non-cancelled
+tasks. The tree is rendered as a DAG: each node is fully expanded the first
+time it is encountered; subsequent references render as back-references to
+avoid exponential re-expansion of shared subtrees.
+
+**Text output:**
+
+```
+001 [Pending] Root task
+  002 [Pending] Dependency
+    003 [Pending] Sub-dependency
+      002 [already expanded]
+  999 [missing]
+```
+
+- Missing tasks show the ID followed by `[missing]`.
+- Cycles show `cycle to <id>` (unchanged from previous behavior).
+- Tasks that were already expanded elsewhere in the tree show `[already expanded]`.
+
+**JSON / plain output:**
+
+- The first occurrence of each node is a full `depTreeNode` with `id`, `title`,
+  `status`, and `dependencies`.
+- Subsequent non-cycle occurrences render as a stub node containing only `id`,
+  `title`, and `status` (no `dependencies`), signalling that the full subtree
+  appears earlier in the output.
+- Missing tasks render as `{"id": "<id>"}` with no other fields.
+- Cycle occurrences render as a stub node (same shape as a back-reference).
+
+JSON uses `--json` (pretty-printed with 2-space indent); `--plain` produces
+compact JSON. The structural shape is the same in both modes.
+
+**Guarantees:**
+
+- Output size grows linearly in node count (not exponentially) for DAG-shaped
+  dependency graphs. Each node is visited once for full expansion; each
+  additional edge adds at most one stub back-reference.
+- Cycle detection is unchanged: a cycle is detected when a node appears twice
+  in the current expansion path and renders as `cycle to <id>` in text or a
+  stub node in JSON/plain.
+
+**Examples:**
+
+```
+  ahm task dep tree 002
+  ahm --json task dep tree 002
+  ahm --plain task dep tree 002
+```
 
 ### `task work <id> [flags]`
 

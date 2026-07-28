@@ -224,12 +224,12 @@ func (a *app) taskDepTree(argv []string) error {
 	}
 
 	if a.opts.json || a.opts.plain {
-		tree := buildDepTree(root.ID, byID, map[string]bool{})
+		tree := buildDepTree(root.ID, byID, map[string]bool{}, map[string]bool{})
 		return a.emit(tree)
 	}
 
-	var walk func(id string, prefix string, seen map[string]bool)
-	walk = func(id string, prefix string, seen map[string]bool) {
+	var walk func(id string, prefix string, seen map[string]bool, visited map[string]bool)
+	walk = func(id string, prefix string, seen map[string]bool, visited map[string]bool) {
 		task, ok := byID[id]
 		if !ok {
 			fmt.Fprintf(a.out, "%s%s [missing]\n", prefix, id)
@@ -239,35 +239,44 @@ func (a *app) taskDepTree(argv []string) error {
 			fmt.Fprintf(a.out, "%s  cycle to %s\n", prefix, id)
 			return
 		}
+		if visited[id] {
+			fmt.Fprintf(a.out, "%s%s [already expanded]\n", prefix, id)
+			return
+		}
 		fmt.Fprintf(a.out, "%s%s [%s] %s\n", prefix, task.ID, task.Status, task.Title)
 		seen[id] = true
 		for _, dep := range task.DependsOn {
-			walk(dep, prefix+"  ", seen)
+			walk(dep, prefix+"  ", seen, visited)
 		}
 		delete(seen, id)
+		visited[id] = true
 	}
-	walk(root.ID, "", map[string]bool{})
+	walk(root.ID, "", map[string]bool{}, map[string]bool{})
 	return nil
 }
 
-func buildDepTree(id string, byID map[string]Task, seen map[string]bool) depTreeNode {
+func buildDepTree(id string, byID map[string]Task, seen map[string]bool, visited map[string]bool) depTreeNode {
 	task, ok := byID[id]
 	if !ok {
 		return depTreeNode{ID: id}
+	}
+	if seen[id] {
+		return depTreeNode{ID: task.ID, Title: task.Title, Status: task.Status}
+	}
+	if visited[id] {
+		return depTreeNode{ID: task.ID, Title: task.Title, Status: task.Status}
 	}
 	node := depTreeNode{
 		ID:     task.ID,
 		Title:  task.Title,
 		Status: task.Status,
 	}
-	if seen[id] {
-		return node
-	}
 	seen[id] = true
 	for _, dep := range task.DependsOn {
-		node.Dependencies = append(node.Dependencies, buildDepTree(dep, byID, seen))
+		node.Dependencies = append(node.Dependencies, buildDepTree(dep, byID, seen, visited))
 	}
 	delete(seen, id)
+	visited[id] = true
 	return node
 }
 

@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -377,6 +378,85 @@ func TestTaskDepTree_JSON(t *testing.T) {
 	// Catch the most visible cycle indicator — 002 appears as a dependency of 003.
 	if !strings.Contains(got, `"id": "003"`) {
 		t.Errorf("tree --json missing leaf id: %q", got)
+	}
+}
+
+func TestTaskDependencyTree_FibonacciScale(t *testing.T) {
+	// Build a Fibonacci-shaped dependency graph of 40 tasks where
+	// each task depends on the next two (task i depends on i+1 and i+2).
+	// Without memoization this produces exponential output;
+	// with memoization it must be linear in node count.
+	const n = 40
+	root := t.TempDir()
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("%03d", i+1)
+		var deps string
+		switch {
+		case i+2 < n:
+			deps = fmt.Sprintf("depends_on: %03d, %03d", i+2, i+3)
+		case i+1 < n:
+			deps = fmt.Sprintf("depends_on: %03d", i+2)
+		default:
+			deps = "depends_on: -"
+		}
+		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", id+".md"),
+			id, "Task "+id, "Pending", deps+"\n")
+	}
+
+	// --- Text mode ---
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskDepTree([]string{"001"}); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	lines := strings.Count(text, "\n")
+	// Linear bound: each node expands once plus one back-reference line per
+	// additional edge. For n=40 this is well under 200 lines.
+	if lines > 5*n {
+		t.Errorf("text output too large: %d lines (bound %d)", lines, 5*n)
+	}
+	t.Logf("text output: %d lines for %d tasks", lines, n)
+
+	// Verify we see the root and back-reference markers.
+	if !strings.Contains(text, "001 [Pending] Task 001") {
+		t.Errorf("text output missing root")
+	}
+	if !strings.Contains(text, "[already expanded]") {
+		t.Errorf("text output missing back-reference markers")
+	}
+
+	// --- JSON mode (indented) ---
+	out.Reset()
+	a2 := app{opts: options{root: root, json: true}, out: &out}
+	if err := a2.taskDepTree([]string{"001"}); err != nil {
+		t.Fatal(err)
+	}
+	jsonOut := out.String()
+	// Indented JSON for a deep chain grows O(n^2) due to indentation prefixes.
+	// Bound at 100 KiB to guarantee no exponential blowup.
+	if len(jsonOut) > 100*1024 {
+		t.Errorf("json output too large: %d bytes (bound %d)", len(jsonOut), 100*1024)
+	}
+	t.Logf("json output: %d bytes for %d tasks", len(jsonOut), n)
+	if !strings.Contains(jsonOut, `"id": "001"`) {
+		t.Errorf("json output missing root id")
+	}
+
+	// --- Plain (compact JSON) mode ---
+	out.Reset()
+	a3 := app{opts: options{root: root, plain: true}, out: &out}
+	if err := a3.taskDepTree([]string{"001"}); err != nil {
+		t.Fatal(err)
+	}
+	plainOut := out.String()
+	// Compact JSON should be O(n).
+	if len(plainOut) > 200*n {
+		t.Errorf("plain output too large: %d bytes (bound %d)", len(plainOut), 200*n)
+	}
+	t.Logf("plain output: %d bytes for %d tasks", len(plainOut), n)
+	if !strings.Contains(plainOut, `"id":"001"`) && !strings.Contains(plainOut, `"id": "001"`) {
+		t.Errorf("plain output missing root id")
 	}
 }
 
