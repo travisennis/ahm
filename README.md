@@ -50,8 +50,8 @@ Useful global flags:
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
-`ahm context` gives a live repository briefing; scoped
-`ahm context task|plan|adr|research|docs` prints managed-work references for
+`ahm prime` gives a live repository briefing; scoped
+`ahm context task|plan|adr|research` prints managed-work references for
 ahm-managed artifacts, while project `AGENTS.md` owns workflow routing.
 `AGENTS.md` is project-owned: `ahm init`, `ahm upgrade`, and `--force` never
 create, overwrite, or remove it.

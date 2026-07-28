@@ -111,10 +111,12 @@ ExecPlan:
 5. Run the repository's routed verification commands. Record material results
    and complete the task's Acceptance Notes so the record explains how the
    outcome was verified.
-6. Before task completion, assess documentation impact. Run `ahm context docs`
-   when durable user or contributor knowledge may have changed. Record the
-   documents checked and updated, or the reason no update was needed, in the
-   Acceptance Notes. Do not require documentation changes for every task.
+6. Before task completion, assess documentation impact. Documentation is an
+   ordinary project deliverable, not an ahm record type, so follow the
+   project's own documentation guidance when durable user or contributor
+   knowledge may have changed. Record the documents checked and updated, or
+   the reason no update was needed, in the Acceptance Notes.
+   Do not require documentation changes for every task.
 7. If the task has an ExecPlan, update its Outcomes & Retrospective, move it to
    the completed plan bucket, update the task's `exec_plan` path, and regenerate
    indexes for those manual plan changes.

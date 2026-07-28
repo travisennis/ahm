@@ -242,11 +242,10 @@ func scopedContextInstructionForPaths(scope string, paths workflowPaths) (contex
 		"adr":      {id: "adr-workflow", title: "ADR Workflow", source: "workflow/ADR.md"},
 		"research": {id: "research-workflow", title: "Research Workflow", source: "workflow/RESEARCH.md"},
 		"plan":     {id: "exec-plan-workflow", title: "ExecPlan Workflow", source: "workflow/PLANS.md"},
-		"docs":     {id: "docs-workflow", title: "Documentation Workflow", source: "workflow/DOCS.md"},
 	}
 	file, ok := files[scope]
 	if !ok {
-		return contextInstruction{}, usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)\n  ahm context <scope>", scope))
+		return contextInstruction{}, usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan)\n  ahm context <scope>", scope))
 	}
 	data, err := fs.ReadFile(templates.FS, file.source)
 	if err != nil {
@@ -319,8 +318,6 @@ func contextCommands(scope string) []string {
 		return append([]string{"ahm index", "ahm --dry-run index"}, common...)
 	case "plan":
 		return append([]string{"ahm index", "ahm --dry-run index"}, common...)
-	case "docs":
-		return common
 	default:
 		return append([]string{"ahm task next", "ahm task ready", "ahm task blocked", "ahm task show <id>"}, common...)
 	}

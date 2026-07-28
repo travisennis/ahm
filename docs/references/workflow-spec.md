@@ -41,7 +41,7 @@ Global flags:
 
 Commands:
 
-- `context`: print live repository briefing or managed-work reference.
+- `context`: print a scoped managed-work reference.
 - `init`: install the managed `.ahm` workflow state. On fresh installs
   (no prior workflow metadata), creates the committed `.ahm/` layout
   directly. On repositories with existing `.agents/ahm.json` metadata, the
@@ -257,7 +257,7 @@ The ownership categories are:
    not edit by hand. Update source records and run `ahm index`.
 
 2. **Managed-work references** — owned by the `ahm` binary and exposed
-   through scoped `ahm context task|plan|adr|research|docs`. Fresh `ahm init`
+   through scoped `ahm context task|plan|adr|research`. Fresh `ahm init`
    does not copy reference documents such as `.agents/TASKS.md`,
    `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
    Scoped commands such as `ahm context task` expose the
@@ -528,10 +528,12 @@ write of each file is still atomic (see Atomic Write Guarantee above); only
 the batch as a whole has no rollback or transaction semantics.
 
 Managed-work references are exposed by scoped
-`ahm context task|plan|adr|research|docs` instead of being copied into target
+`ahm context task|plan|adr|research` instead of being copied into target
 repositories. Each scoped command exposes the full workflow-specific reference,
 not the session briefing under a different label. Scoped reference output
 renders record and index paths for the repository's selected layout. `ahm prime`
 is the live session briefing with repository state and layout-specific workflow
 record paths; `--json` and `--plain` expose the same structured briefing for
-integrations. Unscoped `ahm context` is no longer a briefing command.
+integrations. Unscoped `ahm context` is no longer a briefing command. General
+project documentation is not a managed-work scope; each project owns its own
+documentation guidance.

@@ -26,6 +26,7 @@ func TestUnscopedContextErrorsWithGuidance(t *testing.T) {
 		"ahm context task",
 		"ahm context adr",
 	)
+	assertNotContains(t, stderr, "ahm context docs")
 	if stdout != "" {
 		t.Fatalf("unscoped context should not print any output to stdout, got:\n%s", stdout)
 	}
@@ -100,11 +101,6 @@ func TestScopedContextsRenderLayoutPaths(t *testing.T) {
 			want:  []string{"`ahm context plan`", "`.ahm/exec-plans/active/`", "`.ahm/exec-plans/completed/`"},
 			not:   []string{".agents/exec-plans/active/", "or `.ahm/exec-plans/active/`"},
 		},
-		{
-			scope: "docs",
-			want:  []string{"# Documentation Workflow", "working records under\n`.ahm/`", "their `.ahm/` records"},
-			not:   []string{"working records under `.agents/`"},
-		},
 	}
 	for _, tc := range cases {
 		stdout, stderr, code := runCLI(t, "--root", root, "context", tc.scope)
@@ -136,7 +132,7 @@ func TestContextResearchRendersDurableCreationThreshold(t *testing.T) {
 	)
 }
 
-func TestContextTaskRendersResearchAndDocsRouting(t *testing.T) {
+func TestContextTaskRendersResearchRouting(t *testing.T) {
 	root := t.TempDir()
 	writeAHMConfig(t, root)
 
@@ -146,30 +142,30 @@ func TestContextTaskRendersResearchAndDocsRouting(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"run `ahm context research`",
-		"ahm context docs",
+		"project's own documentation guidance",
 		"conceptual order: research evidence,",
 		"Record the",
 		"documents checked and updated",
 		"research, planning, or other material",
 	)
-	assertNotContains(t, stdout, ".agents/")
+	assertNotContains(t, stdout, ".agents/", "ahm context docs")
 }
 
-func TestContextDocsRendersDeliveryConcern(t *testing.T) {
+func TestContextDocsScopeIsRejected(t *testing.T) {
 	root := t.TempDir()
 	writeAHMConfig(t, root)
 
 	stdout, stderr, code := runCLI(t, "--root", root, "context", "docs")
-	if code != 0 {
-		t.Fatalf("context docs exit code = %d, stderr = %s", code, stderr)
+	if code != 2 {
+		t.Fatalf("context docs exit code = %d (expected 2), stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		"Documentation impact is a delivery concern for behavior-changing tasks",
-		"Record the documentation checked",
-		"Prefer updating the canonical existing document",
-		"no coherent existing owner",
-		"distinct audience or responsibility",
+	assertContainsAll(t, stderr,
+		`unknown context scope "docs"`,
+		"valid: task, adr, research, plan",
 	)
+	if stdout != "" {
+		t.Fatalf("rejected context scope should not print to stdout, got:\n%s", stdout)
+	}
 }
 
 func TestUnscopedContextJSONErrors(t *testing.T) {

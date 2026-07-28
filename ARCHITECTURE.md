@@ -73,7 +73,7 @@ location map; this section describes what each group does.
 - Post-mutation index generation and workflow validation may reuse a complete
   freshly parsed task set. Partial task parses and standalone `status`/`doctor`
   validation retain independent disk reads so validation findings stay intact.
-- Managed-work references are exposed by scoped `ahm context task|plan|adr|research|docs`;
+- Managed-work references are exposed by scoped `ahm context task|plan|adr|research`;
   procedures are binary-owned delegation/review prompts, not installed files.
 - Legacy managed instruction templates are removed by `upgrade` only when
   metadata proves ownership, unless `--force` is used.

@@ -24,10 +24,6 @@ func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 			want: "Research should usually flow from rough capture to durable project work",
 		},
 		{
-			path: "workflow/DOCS.md",
-			want: "Treat the repository's existing docs as the source",
-		},
-		{
 			path: "workflow/ADR.md",
 			want: "# Architecture Decision Records",
 		},
@@ -43,7 +39,7 @@ func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 	}
 }
 
-func TestTasksTemplateRoutesToResearchAndDocs(t *testing.T) {
+func TestTasksTemplateRoutesToResearch(t *testing.T) {
 	data, err := fs.ReadFile(FS, "workflow/TASKS.md")
 	if err != nil {
 		t.Fatal(err)
@@ -52,8 +48,11 @@ func TestTasksTemplateRoutesToResearchAndDocs(t *testing.T) {
 	if !strings.Contains(body, "run `ahm context research`") {
 		t.Fatal("tasks template should route to research context")
 	}
-	if !strings.Contains(body, "ahm context docs") {
-		t.Fatal("tasks template should route to docs context")
+	if strings.Contains(body, "ahm context docs") {
+		t.Fatal("tasks template should not route to a removed docs context")
+	}
+	if !strings.Contains(body, "project's own documentation guidance") {
+		t.Fatal("tasks template should defer documentation policy to the project")
 	}
 	if !strings.Contains(body, "conceptual order: research evidence,") {
 		t.Fatal("tasks template should state conceptual order of research -> ADR -> ExecPlan")
@@ -153,73 +152,5 @@ func TestResearchTemplatePreservesStorageAndIndexGuidance(t *testing.T) {
 		if !strings.Contains(body, s) {
 			t.Fatalf("research template should preserve %q", s)
 		}
-	}
-}
-
-func TestDocsTemplateIsProjectGeneric(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/DOCS.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	body := string(data)
-	for _, term := range []string{
-		"Go",
-		"Cobra",
-		"CLI reference",
-		"docs/cli.md",
-		"just ci",
-		"go test",
-		"cargo",
-		"npm",
-	} {
-		if strings.Contains(body, term) {
-			t.Fatalf("docs template should be project-generic, but contains %q", term)
-		}
-	}
-}
-
-func TestDocsTemplateFramesDeliveryConcern(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/DOCS.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(data)
-	if !strings.Contains(body, "Documentation impact is a delivery concern for behavior-changing tasks") {
-		t.Fatal("docs template should frame documentation as a delivery concern")
-	}
-	if !strings.Contains(body, "Record the documentation checked") {
-		t.Fatal("docs template should require recording docs disposition in Acceptance Notes")
-	}
-}
-
-func TestDocsTemplateDistinguishesUpdateVsCreate(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/DOCS.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(data)
-	if !strings.Contains(body, "Prefer updating the canonical existing document") {
-		t.Fatal("docs template should prefer updating existing docs")
-	}
-	if !strings.Contains(body, "no coherent existing owner") {
-		t.Fatal("docs template should justify new documents by missing owner")
-	}
-	if !strings.Contains(body, "distinct audience or responsibility") {
-		t.Fatal("docs template should justify new documents by distinct audience")
-	}
-}
-
-func TestDocsTemplatePreservesSeparationFromAgentRecords(t *testing.T) {
-	data, err := fs.ReadFile(FS, "workflow/DOCS.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(data)
-	if !strings.Contains(body, "working records under") {
-		t.Fatal("docs template should distinguish project docs from agent artifacts")
-	}
-	if !strings.Contains(body, "Keep these roles separate") {
-		t.Fatal("docs template should keep roles separate")
 	}
 }

@@ -42,7 +42,8 @@ Require a documentation check when a change touches:
 
 ## Required Checks
 
-- Run `ahm context docs` before auditing or updating documentation.
+- Treat this guardrail and the ownership table above as the authority; `ahm`
+  owns no general-documentation procedure and has no `docs` context scope.
 - Prefer existing documentation locations and style.
 - Do not edit generated indexes by hand.
 - Run `just docs-md-lint` before committing markdown changes.
@@ -77,7 +78,6 @@ When a doc is no longer current:
 
 ## Related Docs
 
-- `ahm context docs`
 - `README.md`
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`

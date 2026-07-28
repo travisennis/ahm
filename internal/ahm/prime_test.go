@@ -59,7 +59,6 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"- ExecPlan work → `ahm context plan`",
 		"- ADR work → `ahm context adr`",
 		"- Research notes → `ahm context research`",
-		"- Documentation work → `ahm context docs`",
 		"- Workflow records: tasks `.ahm/tasks/`, research `.ahm/research/`, ExecPlans `.ahm/exec-plans/`",
 		"ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).",
 		"Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.",
@@ -69,6 +68,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 	assertNotContains(t, stdout,
 		"# Dirty Worktree",
 		"run `ahm task ready` for",
+		"ahm context docs",
 	)
 }
 

@@ -41,4 +41,4 @@ behavior, embedded instructions, and file-format parsing or rendering.
 
 - `docs/references/workflow-spec.md`
 - `docs/guides/workflow-upgrades.md`
-- `ahm context task|plan|adr|research|docs`
+- `ahm context task|plan|adr|research`

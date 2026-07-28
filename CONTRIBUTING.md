@@ -124,7 +124,9 @@ behavior, setup, security, or compatibility.
 - ADR lifecycle and format changes must stay aligned with the embedded
   `ahm context adr` reference in `internal/templates/workflow/ADR.md`.
 
-Before auditing or changing docs, run `ahm context docs`.
+Before auditing or changing docs, read
+[the documentation guardrail](docs/guardrails/documentation.md). `ahm` does not
+own general project documentation and has no documentation context scope.
 
 ## Commit And PR Workflow
 

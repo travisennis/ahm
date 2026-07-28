@@ -30,6 +30,28 @@ or legacy `.agents/ahm.json`) with the target repository files.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Documentation Context Scope Removal (2026-07-28)
+
+`ahm context docs` has been removed as an intentional breaking CLI change. The
+supported scopes are now exactly `task`, `plan`, `adr`, and `research`, in the
+command's usage string, help text, usage errors, and text/JSON/plain output.
+Invoking `ahm context docs` now exits with the usage error code. Remove that
+invocation from hooks, scripts, and agent instructions.
+
+The binary-owned documentation procedure was removed with it, so `ahm` no
+longer ships a general-documentation workflow reference. The embedded
+`ahm context task` reference still asks an agent to assess documentation impact
+before completing a task and to record the outcome in Acceptance Notes, but it
+now routes to the project's own documentation guidance instead of an ahm
+procedure. `ahm prime` no longer lists documentation work as managed-work
+intake.
+
+Cleanup behavior is unchanged: `ahm upgrade` still removes a historically
+managed `.agents/DOCS.md` only when existing metadata proves ahm ownership of
+that exact content. Locally modified copies are preserved and reported as
+conflicts unless `--force` is used, and `ahm` never creates, overwrites, or
+adopts project-owned documentation.
+
 ## General Documentation Surface Removal (2026-07-27)
 
 Ahm now limits validation to its structured workflow records: tasks, research,

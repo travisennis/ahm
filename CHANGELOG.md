@@ -27,6 +27,14 @@ All notable user-facing changes to `ahm` are recorded here.
 
 ### Removed
 
+- *(context)* **breaking:** Remove the `docs` scope from `ahm context` and the
+  binary-owned documentation procedure. Supported scopes are now exactly
+  `task`, `plan`, `adr`, and `research`; `ahm context docs` exits with a usage
+  error, and `ahm prime` no longer lists documentation work as managed-work
+  intake. The embedded `ahm context task` reference still asks for a
+  documentation-impact assessment before completion, but routes to the
+  project's own documentation guidance. `ahm upgrade` still removes a
+  historically managed `.agents/DOCS.md` under the existing ownership rules.
 - *(docs)* **breaking:** Remove the `ahm docs` command group, `ahm docs
   check`, the `project-docs` validation scope and deprecation alias,
   `projectDocs` runtime configuration, and the general project-documentation

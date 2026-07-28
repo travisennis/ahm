@@ -359,7 +359,6 @@ func (r primeReport) RenderText(w io.Writer) error {
 	fmt.Fprintln(w, "- ExecPlan work → `ahm context plan`")
 	fmt.Fprintln(w, "- ADR work → `ahm context adr`")
 	fmt.Fprintln(w, "- Research notes → `ahm context research`")
-	fmt.Fprintln(w, "- Documentation work → `ahm context docs`")
 	fmt.Fprintln(w, "- Groom the backlog → `ahm task groom`")
 	fmt.Fprintln(w, "- Audit for improvements → `ahm audit`")
 	fmt.Fprintf(w, "- Workflow records: tasks `%s`, research `%s`, ExecPlans `%s`\n", r.Paths.TasksDir, r.Paths.ResearchDir, r.Paths.ExecPlansDir)

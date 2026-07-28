@@ -298,10 +298,9 @@ func (a *app) contextCommand() *cobra.Command {
 		"adr":      true,
 		"research": true,
 		"plan":     true,
-		"docs":     true,
 	}
 	return &cobra.Command{
-		Use:   "context <task|adr|research|plan|docs>",
+		Use:   "context <task|adr|research|plan>",
 		Short: "Managed-work reference",
 		Long: `Print a managed-work reference for one scope.
 
@@ -313,17 +312,16 @@ Scopes:
   adr      ADR workflow reference for numbering, naming, and template rules
   research Research workflow reference for organizing and using research notes
   plan     ExecPlan workflow reference for planning larger tasks
-  docs     Documentation workflow reference for auditing and updating docs
 
 Examples:
   ahm context task
   ahm --json context adr`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return usageError("session briefing moved to `ahm prime`\n  ahm prime\n\nValid scoped contexts:\n  ahm context task\n  ahm context adr\n  ahm context research\n  ahm context plan\n  ahm context docs")
+				return usageError("session briefing moved to `ahm prime`\n  ahm prime\n\nValid scoped contexts:\n  ahm context task\n  ahm context adr\n  ahm context research\n  ahm context plan")
 			}
 			if !validScopes[args[0]] {
-				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan, docs)\n  ahm context <scope>", args[0]))
+				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan)\n  ahm context <scope>", args[0]))
 			}
 			return nil
 		},

@@ -105,14 +105,15 @@ live repository briefing. The entry point for agent sessions.
 
 ### `context [scope]`
 
-Prints a live repository briefing (no scope) or full managed-work instructions
-for a scope: `task`, `plan`, `adr`, `research`, `docs`, `groom`, `improve`,
-`preflight`.
+Prints full managed-work instructions for one scope: `task`, `plan`, `adr`, or
+`research`. General project documentation is not an ahm scope; see
+[ADR 021](../../adr/021-limit-ahm-to-structured-workflow-records.md).
 
 **Guarantees:**
 
 - Scoped context prints binary-emitted procedures, not installed files.
-- Unsupported scope exits with an error listing valid scopes.
+- Unsupported or missing scope exits with a usage error listing valid scopes;
+  the unscoped form routes to `ahm prime`.
 
 ### `status`
 
