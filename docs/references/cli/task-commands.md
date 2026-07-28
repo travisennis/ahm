@@ -229,7 +229,7 @@ avoid exponential re-expansion of shared subtrees.
 
 **Text output:**
 
-```
+```text
 001 [Pending] Root task
   002 [Pending] Dependency
     003 [Pending] Sub-dependency
@@ -265,7 +265,7 @@ compact JSON. The structural shape is the same in both modes.
 
 **Examples:**
 
-```
+```shell
   ahm task dep tree 002
   ahm --json task dep tree 002
   ahm --plain task dep tree 002
