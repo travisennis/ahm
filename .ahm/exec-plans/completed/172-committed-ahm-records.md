@@ -7,7 +7,7 @@ date as work proceeds. This document is maintained in accordance with the
 
 Governing decision: [ADR 015](../../../docs/adr/015-use-committed-ahm-workflow-record-storage.md)
 (accepted 2026-07-11), which supersedes ADR 013. Review evidence:
-[`migrate-issues.md`](../../../migrate-issues.md) at the repository root.
+`migrate-issues.md` at the repository root.
 Tracker: task 172; children 172c through 172i sequence the implementation.
 
 ## Purpose / Big Picture
