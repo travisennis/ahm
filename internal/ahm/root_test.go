@@ -66,6 +66,25 @@ func TestDetectManagedRootFailsWithoutGitOrMetadata(t *testing.T) {
 	}
 }
 
+// assertDetectedRootEqual compares a detected root against the expected repo
+// root after canonicalizing both sides: on Windows the current directory may
+// resolve through an 8.3 short name (e.g. RUNNER~1) while EvalSymlinks returns
+// the long name, so a raw comparison would spuriously fail.
+func assertDetectedRootEqual(t *testing.T, got string, root string) {
+	t.Helper()
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatalf("canonicalize detected root %q: %v", got, err)
+	}
+	if canonical != want {
+		t.Errorf("root = %q, want %q", got, want)
+	}
+}
+
 func TestDetectManagedRootSucceedsWithDotGitFile(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /other/worktree/.git\n"), 0o644); err != nil {
@@ -89,13 +108,7 @@ func TestDetectManagedRootSucceedsWithDotGitFile(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	want, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Errorf("root = %q, want %q", got, want)
-	}
+	assertDetectedRootEqual(t, got, root)
 }
 
 func TestDetectManagedRootSucceedsWithDotGit(t *testing.T) {
@@ -121,13 +134,7 @@ func TestDetectManagedRootSucceedsWithDotGit(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	want, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Errorf("root = %q, want %q", got, want)
-	}
+	assertDetectedRootEqual(t, got, root)
 }
 
 func TestDetectManagedRootSucceedsWithMetadata(t *testing.T) {
@@ -157,13 +164,7 @@ func TestDetectManagedRootSucceedsWithMetadata(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	want, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Errorf("root = %q, want %q", got, want)
-	}
+	assertDetectedRootEqual(t, got, root)
 }
 
 func TestDetectManagedRootSucceedsWithAhmConfig(t *testing.T) {
@@ -193,13 +194,7 @@ func TestDetectManagedRootSucceedsWithAhmConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	want, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Errorf("root = %q, want %q", got, want)
-	}
+	assertDetectedRootEqual(t, got, root)
 }
 
 func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
@@ -256,6 +251,14 @@ func TestUpgradeSucceedsOutsideManagedRepository(t *testing.T) {
 
 func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	root := t.TempDir()
+	// Canonicalize up front: the status output echoes the current directory,
+	// which on Windows may resolve through an 8.3 short name when the temp
+	// directory is reached via its short form.
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root = canonicalRoot
 
 	// init succeeds outside managed repo
 	stdout, stderr, code := runCLIFromDir(t, root, "init")

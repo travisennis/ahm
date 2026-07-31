@@ -511,10 +511,13 @@ abandoned one. Stale lock reclamation uses a two-check pattern: it observes
 the modification time, waits a short delay, and observes again. It only
 reclaims when both observations show an unchanged modification time past the
 stale threshold, preventing the reclamation from stealing a lock from a
-heartbeating owner. The reclamation then atomically moves the observed
-directory into a unique quarantine and verifies its filesystem identity before
+heartbeating owner. Each acquire writes a unique owner token file named
+`owner` (hex content, mode 0600) inside the lock directory; locks left by
+pre-token versions of ahm have no such file and are reclaimed via a
+filesystem-identity fallback. The reclamation then atomically moves the observed
+directory into a unique quarantine and verifies its owner token before
 deletion, so a replacement lock is not removed. Release performs the same
-ownership check and reports an error when the acquired directory is missing
+owner-token check and reports an error when the acquired directory is missing
 or has been replaced.
 
 ### Generated Index Write Semantics

@@ -167,7 +167,8 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
 
 	// Manually create a lock directory so it looks like a stale lock from a
-	// previous crashed process.
+	// previous crashed process. It carries no owner token (pre-token layout),
+	// exercising the legacy reclamation fallback.
 	lockPath := filepath.Join(dir, ".agents", ".lock", "test-e")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -197,6 +198,15 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	}
 }
 
+// writeTestLockToken writes an owner token into a manually created lock
+// directory, simulating the token a crashed acquire would have left behind.
+func writeTestLockToken(t *testing.T, lockPath string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(lockPath, workflowLockOwnerFile), []byte("test-owner"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 	dir := t.TempDir()
 	saveLockStaleAfter(t)
@@ -209,31 +219,69 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// Simulate a crashed acquire: the stale lock carries an owner token.
+	writeTestLockToken(t, lockPath)
 	past := time.Now().Add(-2 * workflowLockStaleAfter)
 	if err := os.Chtimes(lockPath, past, past); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create the replacement before the stale lock is removed: an immediate
-	// re-creation at the same path can reuse the freed inode, which defeats
-	// the os.SameFile identity checks (observed on ext4 CI runners). A
-	// replacement allocated while the original still exists provably has a
-	// different identity.
-	scratch := filepath.Join(dir, "test-replacement-scratch")
-	if err := os.Mkdir(scratch, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
+	var replacementRelease func() error
 	err := removeStaleWorkflowLockAfterObservation(lockPath, func() {
-		if err := os.Remove(lockPath); err != nil {
+		if err := os.RemoveAll(lockPath); err != nil {
 			t.Fatalf("remove observed stale lock: %v", err)
 		}
-		if err := os.Rename(scratch, lockPath); err != nil {
-			t.Fatalf("replace observed stale lock: %v", err)
+		var err error
+		replacementRelease, err = tryAcquireWorkflowLock(dir, lockRoot, "test-replacement")
+		if err != nil {
+			t.Fatalf("acquire replacement lock: %v", err)
 		}
 	})
 	if !errors.Is(err, errWorkflowLockOwnershipLost) {
 		t.Fatalf("remove stale lock error = %v, want ownership lost", err)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("replacement lock was removed: %v", err)
+	}
+	if err := replacementRelease(); err != nil {
+		t.Fatalf("release replacement lock: %v", err)
+	}
+}
+
+// TestRemoveStaleWorkflowLock_DoesNotRemoveLegacyReplacement exercises the
+// token-less legacy fallback: a fresh replacement must not be claimed even
+// though the filesystem-identity check cannot distinguish it on Windows (file
+// IDs are resolved by path at comparison time). The claim-time staleness
+// re-check abandons the reclamation instead.
+func TestRemoveStaleWorkflowLock_DoesNotRemoveLegacyReplacement(t *testing.T) {
+	dir := t.TempDir()
+	saveLockStaleAfter(t)
+	saveLockStaleRecheckDelay(t)
+	workflowLockStaleAfter = 10 * time.Millisecond
+	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
+
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-legacy-replacement")
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * workflowLockStaleAfter)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	// Replace the observed stale lock with a fresh token-less directory before
+	// the claim runs.
+	err := removeStaleWorkflowLockAfterObservation(lockPath, func() {
+		if err := os.RemoveAll(lockPath); err != nil {
+			t.Fatalf("remove observed stale lock: %v", err)
+		}
+		if err := os.Mkdir(lockPath, 0o755); err != nil {
+			t.Fatalf("create replacement lock: %v", err)
+		}
+	})
+	if err != nil {
+		t.Fatalf("reclamation should abandon a fresh replacement, got %v", err)
 	}
 	if _, err := os.Stat(lockPath); err != nil {
 		t.Fatalf("replacement lock was removed: %v", err)
@@ -249,18 +297,15 @@ func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}
-
-	// See TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement: create the
-	// replacement before removing the acquired lock so the filesystem cannot
-	// reuse its inode, which would defeat the os.SameFile identity check.
-	scratch := filepath.Join(dir, "test-release-replacement-scratch")
-	if err := os.Mkdir(scratch, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(lockPath); err != nil {
+	if err := os.RemoveAll(lockPath); err != nil {
 		t.Fatalf("remove acquired lock: %v", err)
 	}
-	if err := os.Rename(scratch, lockPath); err != nil {
+	// A replacement lock has no owner token, so release must detect that it
+	// no longer owns the lock instead of deleting the replacement. Token
+	// identity is deterministic across platforms, unlike filesystem identity:
+	// inode reuse on Unix and Windows' path-based file-ID resolution both
+	// defeat os.SameFile for a remove-and-recreate at the same path.
+	if err := os.Mkdir(lockPath, 0o755); err != nil {
 		t.Fatalf("create replacement lock: %v", err)
 	}
 
@@ -281,7 +326,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}
-	if err := os.Remove(lockPath); err != nil {
+	if err := os.RemoveAll(lockPath); err != nil {
 		t.Fatalf("remove acquired lock: %v", err)
 	}
 
@@ -296,7 +341,7 @@ func TestWithWorkflowRecordLock_ReturnsReleaseOwnershipLoss(t *testing.T) {
 	lockPath := filepath.Join(dir, ".agents", ".lock", workflowRecordLockName)
 
 	err := a.withWorkflowRecordLock(true, func() error {
-		return os.Remove(lockPath)
+		return os.RemoveAll(lockPath)
 	})
 	if !errors.Is(err, errWorkflowLockOwnershipLost) {
 		t.Fatalf("withWorkflowRecordLock error = %v, want ownership lost", err)

@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -84,8 +85,14 @@ func TestPrimeJSONOutput(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("prime --json exit code = %d, stderr = %s", code, stderr)
 	}
+	// The emitted JSON escapes path separators (backslashes on Windows), so
+	// the expectation must use the same encoding as json.MarshalIndent.
+	rootJSON, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertContainsAll(t, stdout,
-		`"root": "`+root+`"`,
+		`"root": `+string(rootJSON),
 		`"commands":`,
 		`"in_progress":`,
 		`"ready":`,
@@ -110,7 +117,13 @@ func TestPrimePlainOutput(t *testing.T) {
 	if strings.Count(stdout, "\n") > 2 {
 		t.Fatalf("plain output should be compact JSON (single line), got %d lines:\n%s", strings.Count(stdout, "\n"), stdout)
 	}
-	assertContainsAll(t, stdout, `"root":"`+root+`"`, `"ready_total":`)
+	// Compact JSON escapes path separators (backslashes on Windows), so the
+	// expectation must use the same encoding as json.Marshal.
+	rootJSON, err := json.Marshal(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, stdout, `"root":`+string(rootJSON), `"ready_total":`)
 	assertNotContains(t, stdout, `"records"`)
 }
 

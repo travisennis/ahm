@@ -283,7 +283,7 @@ func taskUnblockPreview(tasks []Task) []map[string]any {
 	for _, task := range tasks {
 		preview = append(preview, map[string]any{
 			"id":     task.ID,
-			"path":   task.Path,
+			"path":   filepath.ToSlash(task.Path),
 			"status": "Pending",
 		})
 	}

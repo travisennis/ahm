@@ -4255,7 +4255,10 @@ func completeTaskOnDisk(root string, id string) error { //nolint:unparam // id v
 		}
 	}
 	content := string(data)
-	completedPath := strings.Replace(activePath, "/active/", "/completed/", 1)
+	// Build the completed path from the active path's parent bucket so the
+	// separator style cannot break the move (the previous forward-slash
+	// replacement never matched backslash paths on Windows).
+	completedPath := filepath.Join(filepath.Dir(filepath.Dir(activePath)), "completed", filepath.Base(activePath))
 	if err := os.MkdirAll(filepath.Dir(completedPath), 0o755); err != nil {
 		return err
 	}

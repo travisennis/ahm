@@ -59,10 +59,14 @@ modification time so that stale detection does not reclaim a live lock.
 Reclamation uses a two-check pattern (observe, wait, observe again) and only
 triggers when the modification time is past the stale threshold and unchanged
 between observations. Reclamation atomically renames the observed stale
-directory into a unique quarantine and verifies its filesystem identity before
+directory into a unique quarantine and verifies its owner token before
 deletion. Release also
-verifies the acquired directory's identity and reports lost ownership instead
-of treating a missing or replacement directory as a successful release.
+verifies the acquired directory's owner token and reports lost ownership
+instead of treating a missing or replacement directory as a successful
+release. Each acquire writes a unique owner token file inside the lock
+directory; token comparison works on every platform, where filesystem
+identity checks (os.SameFile) are unreliable — inode reuse on Unix and
+path-based file-ID resolution on Windows both defeat them.
 
 This ADR supersedes ADR 001 only for task-create ID allocation. ADR 001 remains
 accepted for the general atomic-write strategy and for rejecting broad advisory

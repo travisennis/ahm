@@ -1,6 +1,8 @@
 package ahm
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,10 @@ import (
 )
 
 const workflowRecordLockName = "workflow-records"
+
+// workflowLockOwnerFile is the name of the file inside a freshly acquired lock
+// directory that holds the owner token identifying that lock instance.
+const workflowLockOwnerFile = "owner"
 
 var errWorkflowLockOwnershipLost = errors.New("workflow lock ownership lost")
 
@@ -127,9 +133,10 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 	lockPath := filepath.Join(lockRoot, name)
 	err := os.Mkdir(lockPath, 0o755) // #nosec G301 // workflow lock directories use standard permissions
 	if err == nil {
-		owner, statErr := os.Stat(lockPath)
-		if statErr != nil {
-			return nil, fmt.Errorf("acquire workflow lock %s: inspect ownership: %w", relPath(root, lockPath), statErr)
+		token, tokenErr := writeWorkflowLockToken(lockPath)
+		if tokenErr != nil {
+			_ = os.RemoveAll(lockPath)
+			return nil, fmt.Errorf("acquire workflow lock %s: write owner token: %w", relPath(root, lockPath), tokenErr)
 		}
 
 		heartbeatDone := make(chan struct{})
@@ -137,7 +144,7 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 
 		return func() error {
 			close(heartbeatDone)
-			if err := removeWorkflowLockIfOwned(lockPath, owner); err != nil {
+			if err := removeWorkflowLockIfOwned(lockPath, token); err != nil {
 				return fmt.Errorf("release workflow lock %s: %w", relPath(root, lockPath), err)
 			}
 			return nil
@@ -176,8 +183,11 @@ func removeStaleWorkflowLock(lockPath string) error {
 // To avoid reclaiming a live lock whose owner is heartbeating, it uses a
 // two-check pattern: it observes the modification time, waits a short delay,
 // observes again, and only reclaims when both observations are past the stale
-// threshold and the modification time is unchanged.
+// threshold and the modification time is unchanged. The owner token is read up
+// front so that the claim (which re-reads it) can detect a replacement lock
+// acquired between the observations and the claim.
 func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation func()) error {
+	token, hasToken := workflowLockToken(lockPath)
 	info, err := os.Stat(lockPath)
 	if err != nil || !info.IsDir() {
 		return nil
@@ -205,13 +215,93 @@ func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation f
 	if afterObservation != nil {
 		afterObservation()
 	}
-	return removeWorkflowLockIfOwned(lockPath, info2)
+	if hasToken {
+		return removeWorkflowLockIfOwned(lockPath, token)
+	}
+	// Legacy lock without an owner token (left by a pre-token ahm version that
+	// crashed): fall back to the filesystem-identity claim, passing the second
+	// observation so a replacement in the observe-to-claim window is detected.
+	// The two-check modtime observation remains the primary guard against
+	// reclaiming a live lock; newly acquired locks always carry a token and
+	// use token identity.
+	return reclaimLegacyWorkflowLock(lockPath, info2)
+}
+
+// writeWorkflowLockToken writes a fresh unique owner token into the lock
+// directory and returns it. The token lets release and stale reclamation verify
+// they are acting on the exact lock instance they acquired or observed.
+func writeWorkflowLockToken(lockPath string) (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(b[:])
+	if err := os.WriteFile(filepath.Join(lockPath, workflowLockOwnerFile), []byte(token), 0o600); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// workflowLockToken reads the owner token from the lock directory. The second
+// return value reports whether the lock carries a token; locks created by
+// pre-token versions of ahm have none.
+func workflowLockToken(lockPath string) (string, bool) {
+	data, err := os.ReadFile(filepath.Join(lockPath, workflowLockOwnerFile)) // #nosec G304 // lockPath is built from the repository root by acquire/reclaim callers
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
+}
+
+// workflowLockOwned reports whether the directory at lockPath belongs to the
+// holder of token, i.e. it still contains exactly that owner token. A
+// replacement lock written by a different acquire carries a different token,
+// so identity checks work on every platform: filesystem identity via
+// os.SameFile is defeated by inode reuse on Unix and by Windows' path-based
+// file-ID resolution.
+func workflowLockOwned(lockPath string, token string) bool {
+	got, ok := workflowLockToken(lockPath)
+	return ok && got == token
 }
 
 // removeWorkflowLockIfOwned atomically moves a lock into a unique quarantine
-// before deleting it. Identity checks on both sides of the rename prevent a
-// stale observer or former owner from deleting a replacement lock.
-func removeWorkflowLockIfOwned(lockPath string, owner os.FileInfo) error {
+// before deleting it. Ownership is verified by comparing the owner token on
+// both sides of the rename, so a stale observer or former owner never deletes
+// a replacement lock.
+func removeWorkflowLockIfOwned(lockPath string, token string) error {
+	if !workflowLockOwned(lockPath, token) {
+		return errWorkflowLockOwnershipLost
+	}
+
+	quarantine, err := os.MkdirTemp(filepath.Dir(lockPath), "."+filepath.Base(lockPath)+".reclaim-")
+	if err != nil {
+		return fmt.Errorf("create lock reclamation directory: %w", err)
+	}
+	claimedPath := filepath.Join(quarantine, filepath.Base(lockPath))
+	if err := os.Rename(lockPath, claimedPath); err != nil {
+		_ = os.Remove(quarantine)
+		if errors.Is(err, os.ErrNotExist) {
+			return errWorkflowLockOwnershipLost
+		}
+		return fmt.Errorf("claim lock for removal: %w", err)
+	}
+
+	if !workflowLockOwned(claimedPath, token) {
+		return fmt.Errorf("%w: replacement moved to %s", errWorkflowLockOwnershipLost, claimedPath)
+	}
+	if err := os.RemoveAll(quarantine); err != nil {
+		return fmt.Errorf("remove claimed lock: %w", err)
+	}
+	return nil
+}
+
+// reclaimLegacyWorkflowLock removes a token-less lock directory using
+// filesystem-identity checks. It exists to reclaim stale locks left by
+// pre-token versions of ahm; newly acquired locks always carry an owner token
+// and are reclaimed through removeWorkflowLockIfOwned. observed is the
+// FileInfo captured by the second modtime observation, so a replacement lock
+// appearing between the observations and the claim is not deleted.
+func reclaimLegacyWorkflowLock(lockPath string, observed os.FileInfo) error {
 	current, err := os.Stat(lockPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -219,7 +309,13 @@ func removeWorkflowLockIfOwned(lockPath string, owner os.FileInfo) error {
 		}
 		return err
 	}
-	if !os.SameFile(owner, current) {
+	// A replacement is a fresh acquire with a recent modification time; the
+	// os.SameFile check below cannot distinguish one on Windows (file IDs are
+	// resolved by path at comparison time), so re-verify staleness at claim.
+	if time.Since(current.ModTime()) <= workflowLockStaleAfter {
+		return nil
+	}
+	if !os.SameFile(observed, current) {
 		return errWorkflowLockOwnershipLost
 	}
 
@@ -240,7 +336,7 @@ func removeWorkflowLockIfOwned(lockPath string, owner os.FileInfo) error {
 	if err != nil {
 		return fmt.Errorf("%w: inspect claimed lock %s: %v", errWorkflowLockOwnershipLost, claimedPath, err)
 	}
-	if !os.SameFile(owner, claimed) {
+	if !os.SameFile(current, claimed) {
 		return fmt.Errorf("%w: replacement moved to %s", errWorkflowLockOwnershipLost, claimedPath)
 	}
 	if err := os.RemoveAll(quarantine); err != nil {
