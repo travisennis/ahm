@@ -183,11 +183,14 @@ func removeStaleWorkflowLock(lockPath string) error {
 // To avoid reclaiming a live lock whose owner is heartbeating, it uses a
 // two-check pattern: it observes the modification time, waits a short delay,
 // observes again, and only reclaims when both observations are past the stale
-// threshold and the modification time is unchanged. The owner token is read up
-// front so that the claim (which re-reads it) can detect a replacement lock
-// acquired between the observations and the claim.
+// threshold and the modification time is unchanged. The owner token is read
+// only once the lock is genuinely stale, before the claim (which re-reads it)
+// runs, so a replacement lock acquired between the read and the claim is
+// detected. Reading the token for fresh locks is deliberately avoided: on
+// Windows, os.ReadFile opens the token file without FILE_SHARE_DELETE, and a
+// concurrent rename of the lock directory fails with ACCESS_DENIED while such
+// a handle is open.
 func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation func()) error {
-	token, hasToken := workflowLockToken(lockPath)
 	info, err := os.Stat(lockPath)
 	if err != nil || !info.IsDir() {
 		return nil
@@ -211,6 +214,8 @@ func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation f
 		// Modification time changed between observations; owner is heartbeating.
 		return nil
 	}
+
+	token, hasToken := workflowLockToken(lockPath)
 
 	if afterObservation != nil {
 		afterObservation()
