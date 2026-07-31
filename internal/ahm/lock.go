@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -133,17 +134,30 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 	lockPath := filepath.Join(lockRoot, name)
 	err := os.Mkdir(lockPath, 0o755) // #nosec G301 // workflow lock directories use standard permissions
 	if err == nil {
-		token, tokenErr := writeWorkflowLockToken(lockPath)
+		token, tokenErr := workflowLockTokenWriter(lockPath)
 		if tokenErr != nil {
 			_ = os.RemoveAll(lockPath)
 			return nil, fmt.Errorf("acquire workflow lock %s: write owner token: %w", relPath(root, lockPath), tokenErr)
 		}
 
 		heartbeatDone := make(chan struct{})
-		go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+		var heartbeatWG sync.WaitGroup
+		heartbeatWG.Add(1)
+		go func() {
+			defer heartbeatWG.Done()
+			heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone, workflowLockChtimes)
+		}()
 
 		return func() error {
 			close(heartbeatDone)
+			// Join the heartbeat goroutine before touching the lock directory so
+			// no os.Chtimes can be in flight once release returns. Without the
+			// join, a heartbeat already inside os.Chtimes could refresh the
+			// modification time of a successor's lock after this owner has
+			// released it, undermining the ownership reasoning. The join
+			// intentionally trades release latency for that guarantee: release
+			// waits out any in-flight heartbeat write.
+			heartbeatWG.Wait()
 			if err := removeWorkflowLockIfOwned(lockPath, token); err != nil {
 				return fmt.Errorf("release workflow lock %s: %w", relPath(root, lockPath), err)
 			}
@@ -156,17 +170,23 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 	return nil, err
 }
 
+// workflowLockChtimes refreshes a lock directory's modification time during
+// heartbeats. It is read once per acquire and passed to heartbeatLock so tests
+// can observe heartbeat writes and hold one open to verify the release closure
+// joins the heartbeat goroutine.
+var workflowLockChtimes = os.Chtimes
+
 // heartbeatLock periodically updates the lock directory's modification time so
 // that the stale-lock reclamation does not reclaim a live lock. It exits when
-// done is closed.
-func heartbeatLock(lockPath string, interval time.Duration, done <-chan struct{}) {
+// done is closed. chtimes performs the actual modification-time refresh.
+func heartbeatLock(lockPath string, interval time.Duration, done <-chan struct{}, chtimes func(string, time.Time, time.Time) error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			now := time.Now()
-			_ = os.Chtimes(lockPath, now, now)
+			_ = chtimes(lockPath, now, now)
 		case <-done:
 			return
 		}
@@ -232,6 +252,11 @@ func removeStaleWorkflowLockAfterObservation(lockPath string, afterObservation f
 	return reclaimLegacyWorkflowLock(lockPath, info2)
 }
 
+// workflowLockTokenWriter writes the owner token into a freshly created lock
+// directory. It is a variable so tests can inject a failure after lock creation
+// and verify the partially created lock directory is removed.
+var workflowLockTokenWriter = writeWorkflowLockToken
+
 // writeWorkflowLockToken writes a fresh unique owner token into the lock
 // directory and returns it. The token lets release and stale reclamation verify
 // they are acting on the exact lock instance they acquired or observed.
@@ -269,6 +294,12 @@ func workflowLockOwned(lockPath string, token string) bool {
 	return ok && got == token
 }
 
+// workflowLockClaimHook, when non-nil, runs after a stale lock is renamed into
+// its quarantine directory and before the post-rename ownership check. It lets
+// tests deterministically simulate the concurrent replacement that triggers
+// the ownership-lost paths. It is never set in production code.
+var workflowLockClaimHook func(claimedPath string)
+
 // removeWorkflowLockIfOwned atomically moves a lock into a unique quarantine
 // before deleting it. Ownership is verified by comparing the owner token on
 // both sides of the rename, so a stale observer or former owner never deletes
@@ -291,7 +322,12 @@ func removeWorkflowLockIfOwned(lockPath string, token string) error {
 		return fmt.Errorf("claim lock for removal: %w", err)
 	}
 
+	if workflowLockClaimHook != nil {
+		workflowLockClaimHook(claimedPath)
+	}
+
 	if !workflowLockOwned(claimedPath, token) {
+		_ = os.RemoveAll(quarantine)
 		return fmt.Errorf("%w: replacement moved to %s", errWorkflowLockOwnershipLost, claimedPath)
 	}
 	if err := os.RemoveAll(quarantine); err != nil {
@@ -337,11 +373,17 @@ func reclaimLegacyWorkflowLock(lockPath string, observed os.FileInfo) error {
 		return fmt.Errorf("claim lock for removal: %w", err)
 	}
 
+	if workflowLockClaimHook != nil {
+		workflowLockClaimHook(claimedPath)
+	}
+
 	claimed, err := os.Stat(claimedPath)
 	if err != nil {
+		_ = os.RemoveAll(quarantine)
 		return fmt.Errorf("%w: inspect claimed lock %s: %v", errWorkflowLockOwnershipLost, claimedPath, err)
 	}
 	if !os.SameFile(current, claimed) {
+		_ = os.RemoveAll(quarantine)
 		return fmt.Errorf("%w: replacement moved to %s", errWorkflowLockOwnershipLost, claimedPath)
 	}
 	if err := os.RemoveAll(quarantine); err != nil {

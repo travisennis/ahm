@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -402,7 +403,7 @@ func TestHeartbeatPreventsStaleReclamation(t *testing.T) {
 
 	// Start a heartbeat to simulate a live lock owner.
 	heartbeatDone := make(chan struct{})
-	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone, os.Chtimes)
 	defer close(heartbeatDone)
 
 	// Wait long enough for the stale threshold to pass and for the heartbeat
@@ -446,7 +447,7 @@ func TestHeartbeatStopsAndLockBecomesReclaimable(t *testing.T) {
 
 	// Run the heartbeat briefly so that ModTime gets refreshed, then stop it.
 	heartbeatDone := make(chan struct{})
-	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone)
+	go heartbeatLock(lockPath, workflowLockHeartbeatInterval, heartbeatDone, os.Chtimes)
 	time.Sleep(30 * time.Millisecond) // let heartbeat fire at least once
 	close(heartbeatDone)
 	time.Sleep(10 * time.Millisecond) // let goroutine exit
@@ -466,5 +467,228 @@ func TestHeartbeatStopsAndLockBecomesReclaimable(t *testing.T) {
 	// The lock directory should be gone.
 	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
 		t.Errorf("expected lock directory to be removed, stat: %v", err)
+	}
+}
+
+// TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock covers the
+// partial-acquire path: the lock directory is created, then writing the owner
+// token fails. The created lock must be removed so the repository is not left
+// locked with no live owner. This is the equivalent seam for the stat-failure
+// path that predated owner tokens: the token write is the only step between
+// lock creation and returning a release closure.
+func TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockPath := filepath.Join(lockRoot, "test-token-failure")
+
+	orig := workflowLockTokenWriter
+	tokenErr := errors.New("injected token write failure")
+	workflowLockTokenWriter = func(string) (string, error) { return "", tokenErr }
+	t.Cleanup(func() { workflowLockTokenWriter = orig })
+
+	_, err := tryAcquireWorkflowLock(dir, lockRoot, "test-token-failure")
+	if !errors.Is(err, tokenErr) {
+		t.Fatalf("acquire error = %v, want injected token write failure", err)
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Errorf("created lock directory was not removed after token write failure: %v", err)
+	}
+}
+
+// TestRemoveWorkflowLockIfOwned_PostRenameMismatchCleansQuarantine drives the
+// ownership-lost return after the rename succeeds in removeWorkflowLockIfOwned:
+// the owner token inside the quarantine is replaced between the two ownership
+// checks, so the post-rename check fails. The quarantine directory must not
+// survive the error return.
+func TestRemoveWorkflowLockIfOwned_PostRenameMismatchCleansQuarantine(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-post-rename-token")
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(lockPath, workflowLockOwnerFile), []byte("original-token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := workflowLockClaimHook
+	workflowLockClaimHook = func(claimedPath string) {
+		// Simulate a replacement lock taking over the quarantined path: its
+		// owner token differs, so the post-rename identity check fails.
+		if err := os.WriteFile(filepath.Join(claimedPath, workflowLockOwnerFile), []byte("replacement-token"), 0o600); err != nil {
+			t.Errorf("rewrite owner token in quarantine: %v", err)
+		}
+	}
+	t.Cleanup(func() { workflowLockClaimHook = orig })
+
+	err := removeWorkflowLockIfOwned(lockPath, "original-token")
+	if !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("remove error = %v, want ownership lost", err)
+	}
+	assertNoReclaimDirs(t, lockRoot)
+}
+
+// TestReclaimLegacyLock_StatFailureAfterRenameCleansQuarantine drives the
+// ownership-lost return in reclaimLegacyWorkflowLock where the quarantined
+// lock disappears before it can be re-inspected. The quarantine directory must
+// not survive the error return.
+func TestReclaimLegacyLock_StatFailureAfterRenameCleansQuarantine(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-legacy-stat-failure")
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	saveLockStaleAfter(t)
+	workflowLockStaleAfter = 10 * time.Millisecond
+	observed, err := os.Stat(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	orig := workflowLockClaimHook
+	workflowLockClaimHook = func(claimedPath string) {
+		// Simulate the quarantined lock disappearing before inspection.
+		if err := os.RemoveAll(claimedPath); err != nil {
+			t.Errorf("remove quarantined lock: %v", err)
+		}
+	}
+	t.Cleanup(func() { workflowLockClaimHook = orig })
+
+	err = reclaimLegacyWorkflowLock(lockPath, observed)
+	if !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("reclaim error = %v, want ownership lost", err)
+	}
+	assertNoReclaimDirs(t, lockRoot)
+}
+
+// TestReclaimLegacyLock_IdentityMismatchAfterRenameCleansQuarantine drives the
+// ownership-lost return in reclaimLegacyWorkflowLock where the quarantined
+// lock is replaced by a different directory before the post-rename identity
+// check. On Unix the fresh directory has a distinct identity and reclamation
+// aborts with ownership lost; on Windows the identity check is path-based and
+// may or may not distinguish the replacement. Either way the quarantine
+// directory must not survive.
+func TestReclaimLegacyLock_IdentityMismatchAfterRenameCleansQuarantine(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockPath := filepath.Join(lockRoot, "test-legacy-identity")
+	if err := os.MkdirAll(lockPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	saveLockStaleAfter(t)
+	workflowLockStaleAfter = 10 * time.Millisecond
+	observed, err := os.Stat(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	orig := workflowLockClaimHook
+	workflowLockClaimHook = func(claimedPath string) {
+		// Replace the quarantined lock with a fresh directory so the
+		// post-rename identity check sees a different file.
+		if err := os.RemoveAll(claimedPath); err != nil {
+			t.Errorf("remove quarantined lock: %v", err)
+		}
+		if err := os.Mkdir(claimedPath, 0o755); err != nil {
+			t.Errorf("create replacement quarantined lock: %v", err)
+		}
+	}
+	t.Cleanup(func() { workflowLockClaimHook = orig })
+
+	err = reclaimLegacyWorkflowLock(lockPath, observed)
+	if err != nil && !errors.Is(err, errWorkflowLockOwnershipLost) {
+		t.Fatalf("reclaim error = %v, want ownership lost or success", err)
+	}
+	assertNoReclaimDirs(t, lockRoot)
+}
+
+// TestAcquireWorkflowLock_ReleaseJoinsHeartbeat proves the release closure
+// joins the heartbeat goroutine: release must not return while an os.Chtimes
+// is in flight, so no heartbeat write can touch the lock path (or a successor's
+// lock at that path) after the owner has released it.
+func TestAcquireWorkflowLock_ReleaseJoinsHeartbeat(t *testing.T) {
+	dir := t.TempDir()
+	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	saveLockHeartbeatInterval(t)
+	workflowLockHeartbeatInterval = 1 * time.Millisecond
+
+	origChtimes := workflowLockChtimes
+	releaseChtimes := make(chan struct{})
+	var closeOnce sync.Once
+	closeChtimes := func() { closeOnce.Do(func() { close(releaseChtimes) }) }
+	defer closeChtimes()
+
+	var inFlight, completed atomic.Int64
+	workflowLockChtimes = func(path string, atime, mtime time.Time) error {
+		inFlight.Add(1)
+		<-releaseChtimes // hold the call open so release can race it
+		completed.Add(1)
+		return nil
+	}
+	t.Cleanup(func() { workflowLockChtimes = origChtimes })
+
+	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-join-heartbeat")
+	if err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+
+	// Wait until the heartbeat is inside os.Chtimes.
+	deadline := time.Now().Add(2 * time.Second)
+	for inFlight.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("heartbeat never fired before release")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	released := make(chan error, 1)
+	go func() { released <- release() }()
+
+	// Release must block until the in-flight heartbeat completes. A release
+	// that returns here would let a later Chtimes touch a successor's lock.
+	select {
+	case err := <-released:
+		t.Fatalf("release returned while heartbeat Chtimes was in flight: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	closeChtimes() // let the in-flight heartbeat finish
+
+	if err := <-released; err != nil {
+		t.Fatalf("release failed: %v", err)
+	}
+
+	// The heartbeat goroutine is joined: no Chtimes may complete after release
+	// has returned, no matter how many intervals pass.
+	afterRelease := completed.Load()
+	time.Sleep(3 * workflowLockHeartbeatInterval)
+	if got := completed.Load(); got != afterRelease {
+		t.Errorf("heartbeat completed %d Chtimes after release returned", got-afterRelease)
+	}
+}
+
+// assertNoReclaimDirs fails the test if any quarantine directory from an
+// unfinished lock reclamation survives under root.
+func assertNoReclaimDirs(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read lock root %s: %v", root, err)
+	}
+	for _, e := range entries {
+		if e.IsDir() && strings.HasPrefix(e.Name(), ".") && strings.Contains(e.Name(), ".reclaim-") {
+			t.Errorf("quarantine directory %s survived the ownership-lost return", filepath.Join(root, e.Name()))
+		}
 	}
 }
