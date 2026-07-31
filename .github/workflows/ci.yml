@@ -11,7 +11,13 @@ permissions:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # GoReleaser publishes linux, darwin, and windows binaries for amd64
+        # and arm64; the matrix must exercise the Windows targets too.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6

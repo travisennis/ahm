@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 )
 
 type taskWorkRoleConfig struct {
@@ -342,7 +341,7 @@ func (a *app) removeObsoleteManagedFiles(upgrade bool, meta *metadata, result ma
 		delete(meta.Files, item.Target)
 		for _, dir := range item.EmptyDirs {
 			err := os.Remove(filepath.Join(a.opts.root, dir))
-			if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+			if err != nil && !errors.Is(err, os.ErrNotExist) && !isDirNotEmpty(err) {
 				return err
 			}
 		}

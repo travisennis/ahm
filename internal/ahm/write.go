@@ -16,7 +16,9 @@ import (
 //  2. Write data and sync to disk.
 //  3. Rename the temp file to the target path (atomic on Unix when
 //     source and destination are on the same filesystem).
-//  4. Sync the parent directory to ensure the rename is durable.
+//  4. Sync the parent directory to ensure the rename is durable. On Windows
+//     the directory sync is skipped (see fsyncDir): directory handles cannot
+//     be synced there, and the rename itself remains atomic.
 //
 // Using a unique temp file name per invocation avoids races when multiple
 // processes write the same path concurrently (the previous fixed-name .tmp
@@ -89,19 +91,6 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	}
 
 	return nil
-}
-
-// fsyncDir opens the directory, calls Sync, and closes it.
-func fsyncDir(path string) error {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0) // #nosec G304 // path is canonical; caller validates non-canonical paths
-	if err != nil {
-		return err
-	}
-	err = f.Sync()
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-	return err
 }
 
 // cleanupStaleTempMaxAge is the minimum age a .tmp file must reach before

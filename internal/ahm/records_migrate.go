@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 )
 
 const (
@@ -348,7 +347,7 @@ func removeEmptyRecordDirs(root string, roots []string) error {
 		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
 		for _, path := range dirs {
 			err := os.Remove(path)
-			if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+			if err != nil && !errors.Is(err, os.ErrNotExist) && !isDirNotEmpty(err) {
 				return err
 			}
 		}

@@ -3,6 +3,7 @@ package ahm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -263,6 +264,9 @@ func TestCleanupStaleTemps(t *testing.T) {
 }
 
 func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only directory permissions do not block file removal on Windows")
+	}
 	if os.Geteuid() == 0 {
 		t.Skip("test relies on filesystem permissions; root bypasses them")
 	}
@@ -441,6 +445,9 @@ func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
 }
 
 func TestWriteFileAtomic_Permissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not model Unix file permissions; the execute bit is meaningless there")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "exec.sh")
 

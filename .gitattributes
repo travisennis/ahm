@@ -1,0 +1,4 @@
+# Normalize line endings to LF on every platform. This keeps CI matrix legs
+# (including windows-latest) and contributors on Windows from checking out
+# CRLF text files, which would fail gofmt and other LF-sensitive checks.
+* text=auto eol=lf
