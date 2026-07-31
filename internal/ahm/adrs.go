@@ -38,12 +38,22 @@ type ADR struct {
 
 func adrFilePaths(root string) ([]string, error) {
 	dir := filepath.Join(root, "docs", "adr")
-	entries, err := os.ReadDir(dir)
+	info, err := os.Stat(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", dir, err)
+		return nil, fmt.Errorf("reading %s: %w", relPath(root, dir), err)
+	}
+	if !info.IsDir() {
+		// On Windows, os.ReadDir of a regular file does not fail (it has no
+		// ENOTDIR semantics), so the non-directory case must be checked
+		// explicitly to keep collection errors platform-consistent.
+		return nil, fmt.Errorf("reading %s: not a directory", relPath(root, dir))
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", relPath(root, dir), err)
 	}
 	var files []string
 	for _, entry := range entries {

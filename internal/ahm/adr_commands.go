@@ -265,7 +265,7 @@ func (a *app) adrCreateParsedLocked(parsed adrCreateArgs, body string) error {
 		Kind:           adrKindMADR,
 	}
 	if a.opts.dryRun {
-		return a.emit(map[string]any{"create": path, "id": id})
+		return a.emit(map[string]any{"create": filepath.ToSlash(path), "id": id})
 	}
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("adr id %s already exists at %s; retry adr create", id, relPath(a.opts.root, path))

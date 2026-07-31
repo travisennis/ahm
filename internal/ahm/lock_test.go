@@ -214,15 +214,22 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var replacementRelease func() error
+	// Create the replacement before the stale lock is removed: an immediate
+	// re-creation at the same path can reuse the freed inode, which defeats
+	// the os.SameFile identity checks (observed on ext4 CI runners). A
+	// replacement allocated while the original still exists provably has a
+	// different identity.
+	scratch := filepath.Join(dir, "test-replacement-scratch")
+	if err := os.Mkdir(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
 	err := removeStaleWorkflowLockAfterObservation(lockPath, func() {
 		if err := os.Remove(lockPath); err != nil {
 			t.Fatalf("remove observed stale lock: %v", err)
 		}
-		var err error
-		replacementRelease, err = tryAcquireWorkflowLock(dir, lockRoot, "test-replacement")
-		if err != nil {
-			t.Fatalf("acquire replacement lock: %v", err)
+		if err := os.Rename(scratch, lockPath); err != nil {
+			t.Fatalf("replace observed stale lock: %v", err)
 		}
 	})
 	if !errors.Is(err, errWorkflowLockOwnershipLost) {
@@ -230,9 +237,6 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 	}
 	if _, err := os.Stat(lockPath); err != nil {
 		t.Fatalf("replacement lock was removed: %v", err)
-	}
-	if err := replacementRelease(); err != nil {
-		t.Fatalf("release replacement lock: %v", err)
 	}
 }
 
@@ -245,10 +249,18 @@ func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}
+
+	// See TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement: create the
+	// replacement before removing the acquired lock so the filesystem cannot
+	// reuse its inode, which would defeat the os.SameFile identity check.
+	scratch := filepath.Join(dir, "test-release-replacement-scratch")
+	if err := os.Mkdir(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(lockPath); err != nil {
 		t.Fatalf("remove acquired lock: %v", err)
 	}
-	if err := os.Mkdir(lockPath, 0o755); err != nil {
+	if err := os.Rename(scratch, lockPath); err != nil {
 		t.Fatalf("create replacement lock: %v", err)
 	}
 

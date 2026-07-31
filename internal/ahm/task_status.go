@@ -180,7 +180,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		unblocked = a.taskUnblockDependents(allTasks, task.ID, now)
 	}
 	if a.opts.dryRun {
-		preview := map[string]any{"move": target, "status": status}
+		preview := map[string]any{"move": filepath.ToSlash(target), "status": status}
 		if status == "Cancelled" {
 			preview["reason"] = cancelReason
 		}

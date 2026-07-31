@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -111,7 +112,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	}
 	content := renderTask(task)
 	if a.opts.dryRun {
-		return a.emit(map[string]any{"create": path, "id": id})
+		return a.emit(map[string]any{"create": filepath.ToSlash(path), "id": id})
 	}
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("task id %s already exists at %s; retry task create", id, relPath(a.opts.root, path))

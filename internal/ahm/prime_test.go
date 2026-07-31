@@ -245,7 +245,9 @@ func TestPrimeDirtyWorktreeWarning(t *testing.T) {
 	if out, err := exec.Command("git", "-C", root, "add", "tracked.txt").CombinedOutput(); err != nil {
 		t.Fatalf("git add: %v: %s", err, out)
 	}
-	if out, err := exec.Command("git", "-C", root, "commit", "-m", "initial", "--allow-empty").CombinedOutput(); err != nil {
+	// CI runners have no git identity configured; set one for this repo so the
+	// commit succeeds everywhere.
+	if out, err := exec.Command("git", "-C", root, "-c", "user.name=Test User", "-c", "user.email=test@example.com", "commit", "-m", "initial", "--allow-empty").CombinedOutput(); err != nil {
 		t.Fatalf("git commit: %v: %s", err, out)
 	}
 	// Now dirty the tracked file
