@@ -301,7 +301,9 @@ The ownership categories are:
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, duplicate task IDs across task files, task status and bucket
-mismatches, broken task dependencies, completed task acceptance-note drift,
+mismatches, broken task dependencies, tracking tasks with at least one child
+whose child tasks are all Completed or Cancelled, completed task
+acceptance-note drift,
 task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, ADR
 record issues, and broken relative Markdown links within tasks, research,
 ExecPlans, ADRs, and their generated indexes. Link discovery uses the

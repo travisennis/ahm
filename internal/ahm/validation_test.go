@@ -31,6 +31,60 @@ depends_on: -
 - [ ] Preserve validation findings.
 `)
 
+	// Tracking task with all children resolved: the tracking-children warning
+	// must agree between the standalone and reused validation paths.
+	writeFile(t, paths.taskFile("active", "302"), `---
+id: 302
+title: Tracker done
+status: Tracking
+priority: P1
+effort: M
+labels: type:task
+exec_plan: -
+depends_on: -
+---
+# Tracker done
+`)
+	writeFile(t, paths.taskFile("completed", "302a"), `---
+id: 302a
+title: Child done
+status: Completed
+priority: P1
+effort: S
+labels: type:task
+exec_plan: -
+depends_on: -
+parent: 302
+---
+# Child done
+`)
+	// Tracking task with a still-open child: no warning in either path.
+	writeFile(t, paths.taskFile("active", "303"), `---
+id: 303
+title: Tracker open
+status: Tracking
+priority: P1
+effort: M
+labels: type:task
+exec_plan: -
+depends_on: -
+---
+# Tracker open
+`)
+	writeFile(t, paths.taskFile("active", "303a"), `---
+id: 303a
+title: Child open
+status: Pending
+priority: P1
+effort: S
+labels: type:task
+exec_plan: -
+depends_on: -
+parent: 303
+---
+# Child open
+`)
+
 	tasks, err := collectTasksForPaths(root, paths)
 	if err != nil {
 		t.Fatal(err)
@@ -188,6 +242,50 @@ func TestValidationReportsBlockedDepsComplete(t *testing.T) {
 	)
 	// 004 should not appear in the blocked-deps-complete findings.
 	assertNotContains(t, got, "004")
+}
+
+func TestValidationReportsTrackingChildrenComplete(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	// 001 is Tracking with all children Completed or Cancelled — should warn.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Tracker Done", "Tracking", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "depends_on: -\nparent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "001b.md"), "001b", "Child B", "Cancelled", "depends_on: -\nparent: 001\n")
+	// 002 is Tracking with a child still open — no warning.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Tracker Open", "Tracking", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002a.md"), "002a", "Child Open", "Pending", "depends_on: -\nparent: 002\n")
+	// 003 is Tracking with no children — no warning.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Empty Tracker", "Tracking", "depends_on: -\n")
+	// 004 is Tracking with all children resolved but its own dependency is
+	// still open — no warning until the tracker's dependencies are satisfied.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Tracker Waiting", "Tracking", "depends_on: 005\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "004a.md"), "004a", "Child Done", "Completed", "depends_on: -\nparent: 004\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "005.md"), "005", "Open Dep", "Pending", "depends_on: -\n")
+	// 006 is Tracking with all children resolved but depends on a Cancelled
+	// task — its own dependency is unsatisfiable, so no tracking warning
+	// (task_dependency_cancelled already covers the dep itself).
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "006.md"), "006", "Tracker Cancelled Dep", "Tracking", "depends_on: 007\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "006a.md"), "006a", "Child Done", "Completed", "depends_on: -\nparent: 006\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "007.md"), "007", "Cancelled Dep", "Cancelled", "depends_on: -\n")
+
+	// Generate indexes so doctor doesn't report missing-index errors.
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out strings.Builder
+	a := app{opts: options{root: root, json: true}, out: &out}
+	if err := a.doctor(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got,
+		`"code": "task_tracking_children_complete"`,
+		`task 001 is Tracking but all its child tasks are Completed or Cancelled`,
+	)
+	assertNotContains(t, got, "task 002 is Tracking", "task 003 is Tracking", "task 004 is Tracking", "task 006 is Tracking")
 }
 
 func TestDoctorReportsMalformedTaskEnums(t *testing.T) {

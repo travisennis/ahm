@@ -118,6 +118,7 @@ func validateWorkflowScopedForPaths(root string, scopes []string, paths workflow
 		tasks = validateManagedFiles(root, paths, &report)
 		validateTaskDependencies(root, tasks, &report)
 		validateBlockedDepsComplete(root, tasks, &report)
+		validateTrackingChildrenComplete(root, tasks, &report)
 		validateTaskBuckets(root, paths, tasks, &report)
 		validateTaskExecPlans(root, paths, tasks, &report)
 		validateExecPlans(root, paths, tasks, &report)
@@ -150,6 +151,7 @@ func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Tas
 	}
 	validateTaskDependencies(root, tasks, &report)
 	validateBlockedDepsComplete(root, tasks, &report)
+	validateTrackingChildrenComplete(root, tasks, &report)
 	validateTaskBuckets(root, paths, tasks, &report)
 	validateTaskExecPlans(root, paths, tasks, &report)
 	validateExecPlans(root, paths, tasks, &report)
@@ -351,6 +353,45 @@ func validateBlockedDepsComplete(root string, tasks []Task, report *validationRe
 		}
 		if depsAllComplete {
 			report.addWarning("task_blocked_deps_complete", relPath(root, task.Path), fmt.Sprintf("task %s is Blocked but all its dependencies are Completed", task.ID))
+		}
+	}
+}
+
+// validateTrackingChildrenComplete warns when an active Tracking task has at
+// least one child, every child task is Completed or Cancelled, and the
+// tracker's own dependencies are satisfied — leaving only the tracker itself
+// to be closed. A Tracking task with no children is a valid intermediate
+// state during intake, so it does not warn.
+func validateTrackingChildrenComplete(root string, tasks []Task, report *validationReport) {
+	completed := map[string]bool{}
+	for _, task := range tasks {
+		if task.Status == "Completed" {
+			completed[task.ID] = true
+		}
+	}
+	childrenByParent := map[string][]Task{}
+	for _, task := range tasks {
+		if task.Parent != "" {
+			childrenByParent[task.Parent] = append(childrenByParent[task.Parent], task)
+		}
+	}
+	for _, task := range tasks {
+		if task.Status != "Tracking" || task.Bucket != "active" || !depsComplete(task, completed) {
+			continue
+		}
+		children := childrenByParent[task.ID]
+		if len(children) == 0 {
+			continue
+		}
+		allResolved := true
+		for _, child := range children {
+			if child.Status != "Completed" && child.Status != "Cancelled" {
+				allResolved = false
+				break
+			}
+		}
+		if allResolved {
+			report.addWarning("task_tracking_children_complete", relPath(root, task.Path), fmt.Sprintf("task %s is Tracking but all its child tasks are Completed or Cancelled", task.ID))
 		}
 	}
 }

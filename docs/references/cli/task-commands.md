@@ -122,8 +122,10 @@ Lists parsed tasks.
 
 ### `task ready`
 
-Lists Open or Pending tasks with all dependencies satisfied, sorted by
-priority.
+Lists Pending tasks with all dependencies satisfied, plus Tracking tasks with
+at least one child whose child tasks are all Completed or Cancelled and whose
+own dependencies are satisfied (the tracker itself is the only remaining
+work), sorted by priority.
 
 **Guarantees:**
 

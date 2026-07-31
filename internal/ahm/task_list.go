@@ -334,6 +334,9 @@ func filterTasks(tasks []Task, mode string) []Task {
 			if task.Status == "Pending" && depsComplete(task, completed) {
 				out = append(out, task)
 			}
+			if task.Status == "Tracking" && depsComplete(task, completed) && childrenAllResolved(task, tasks) {
+				out = append(out, task)
+			}
 		case "blocked":
 			if task.Status == "Blocked" || (task.Status == "Pending" && !depsComplete(task, completed)) {
 				out = append(out, task)
@@ -454,6 +457,23 @@ func depsComplete(task Task, completed map[string]bool) bool {
 		}
 	}
 	return true
+}
+
+// childrenAllResolved reports whether a Tracking task has at least one child
+// and every child task is Completed or Cancelled, so the tracker itself is the
+// only remaining work. A Tracking task with no children is not ready.
+func childrenAllResolved(task Task, tasks []Task) bool {
+	hasChild := false
+	for _, other := range tasks {
+		if other.Parent != task.ID {
+			continue
+		}
+		hasChild = true
+		if other.Status != "Completed" && other.Status != "Cancelled" {
+			return false
+		}
+	}
+	return hasChild
 }
 
 func priorityRank(priority string) int {

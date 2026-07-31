@@ -26,9 +26,12 @@ other states.
 When choosing from the queue:
 
 1. Work lower priority numbers first: `P0`, then `P1` through `P4`.
-2. Start only `Pending` tasks. `Open` tasks need triage, and `Blocked` or
-   `Tracking` tasks are not directly workable. Resume an `In Progress` task
-   only when the user asks.
+2. Start only `Pending` tasks. `Open` tasks need triage, and `Blocked` tasks
+   are not directly workable. A `Tracking` task whose child tasks are all
+   completed or cancelled appears in `ahm task ready` and is warned on by
+   `ahm doctor`; complete the tracker itself instead of starting
+   implementation work. Resume an `In Progress` task only when the user
+   asks.
 3. Check dependencies before starting. Work an incomplete dependency first or
    explain why the requested task is blocked.
 4. Treat parent trackers as planning records and work their children in the

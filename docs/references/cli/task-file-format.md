@@ -87,6 +87,8 @@ Finding codes:
 | `task_dependency_missing` | A task depends on an ID that does not exist. |
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
 | `task_dependency_cancelled` | A non-completed task depends on a cancelled task, which can never be satisfied. |
+| `task_blocked_deps_complete` | A Blocked task has all its dependencies Completed, so it can be unblocked. This is a warning-tier finding. |
+| `task_tracking_children_complete` | A Tracking task has at least one child and every child task is Completed or Cancelled, so only the tracker remains to be closed. This is a warning-tier finding. |
 | `task_acceptance_missing` | A completed task is missing an acceptance section. |
 | `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |
 | `task_acceptance_unchecked` | A completed task acceptance section contains unchecked `- [ ]` or `* [ ]` items. |

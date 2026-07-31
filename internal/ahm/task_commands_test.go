@@ -1742,6 +1742,93 @@ func TestTaskReadyFiltersLabels(t *testing.T) {
 	assertNotContains(t, stdout, "003 [Pending]", "004 [Pending]")
 }
 
+func TestTaskReadyIncludesTrackingWithAllChildrenResolved(t *testing.T) {
+	root := t.TempDir()
+	// 001 is Tracking with all children Completed or Cancelled — ready.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Tracker Done", "Tracking", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "001b.md"), "001b", "Child B", "Cancelled", "parent: 001\n")
+	// 002 is Tracking with a child still open — not ready.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Tracker Open", "Tracking", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002a.md"), "002a", "Child Open", "Pending", "parent: 002\n")
+	// 003 is Tracking with no children — not ready.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Empty Tracker", "Tracking", "")
+	// 005 is Tracking with all children Completed but its own dependency is
+	// still open — not ready.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "005.md"), "005", "Tracker Waiting", "Tracking", "depends_on: 006\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "005a.md"), "005a", "Child Done", "Completed", "parent: 005\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "006.md"), "006", "Open Dep", "Pending", "")
+	// 007 is Tracking with all children Completed but depends on a Cancelled
+	// task — its own dependency is unsatisfiable, so not ready.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "007.md"), "007", "Tracker Cancelled Dep", "Tracking", "depends_on: 008\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "007a.md"), "007a", "Child Done", "Completed", "parent: 007\n")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "008.md"), "008", "Cancelled Dep", "Cancelled", "")
+	// 004 is Pending with no deps — ready as before.
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Plain Ready", "Pending", "")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "ready")
+	if code != 0 {
+		t.Fatalf("ready exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"001 [Tracking] P2 S Tracker Done",
+		"004 [Pending] P2 S Plain Ready",
+	)
+	assertNotContains(t, stdout, "002 [Tracking]", "003 [Tracking]", "005 [Tracking]", "007 [Tracking]")
+}
+
+func TestTaskCompleteLastChildWarnsTrackerChildrenComplete(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// Create a tracker and two children through the CLI.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Tracker", "--status", "Tracking")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create tracker stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child A", "--parent", "001")
+	if code != 0 || strings.TrimSpace(stdout) != "001a" {
+		t.Fatalf("create child A stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child B", "--parent", "001")
+	if code != 0 || strings.TrimSpace(stdout) != "001b" {
+		t.Fatalf("create child B stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Completing the first child leaves one open, so no tracking warning.
+	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "001a")
+	if code != 0 {
+		t.Fatalf("complete child A exit code = %d, stderr = %s", code, stderr)
+	}
+	assertNotContains(t, stderr, "task 001 is Tracking")
+
+	// Completing the last child must warn through post-mutation validation.
+	_, stderr, code = runCLI(t, "--root", root, "task", "complete", "001b")
+	if code != 0 {
+		t.Fatalf("complete child B exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stderr, "warning: task 001 is Tracking but all its child tasks are Completed or Cancelled")
+}
+
+func TestTaskNextSelectsHighestPriorityReadyTracking(t *testing.T) {
+	root := t.TempDir()
+	// P1 tracker with all children Completed beats the P2 pending task.
+	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "P1 Tracker", "Tracking", "P1", "")
+	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P2 Pending", "Pending", "P2", "")
+
+	var out strings.Builder
+	a := app{opts: options{root: root}, out: &out}
+	if err := a.taskNext(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	assertContainsAll(t, got, "001 [Tracking] P1 S P1 Tracker")
+	assertNotContains(t, got, "002 [Pending]")
+}
+
 func TestTaskLabelsListsCounts(t *testing.T) {
 	root := t.TempDir()
 	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:feature, area:cli\n")

@@ -39,6 +39,20 @@ func TestWorkflowTemplatesKeepCoreGuidance(t *testing.T) {
 	}
 }
 
+func TestTasksTemplateDirectsTrackerCompletion(t *testing.T) {
+	data, err := fs.ReadFile(FS, "workflow/TASKS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	if !strings.Contains(body, "appears in `ahm task ready` and is warned on by") {
+		t.Fatal("tasks template should route completed trackers to closure via ahm task ready and ahm doctor")
+	}
+	if !strings.Contains(body, "complete the tracker itself") {
+		t.Fatal("tasks template should direct completing the tracker itself")
+	}
+}
+
 func TestTasksTemplateRoutesToResearch(t *testing.T) {
 	data, err := fs.ReadFile(FS, "workflow/TASKS.md")
 	if err != nil {

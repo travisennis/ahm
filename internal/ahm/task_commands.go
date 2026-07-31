@@ -77,7 +77,7 @@ Examples:
   ahm task list --priority P0
   ahm task list --priority P0,P1 --effort S,M
   ahm task list --sort updated --reverse`))
-	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready", `List pending tasks whose dependencies are all completed.
+	task.AddCommand(a.taskListCommand("ready", nil, "List ready tasks", "ready", `List pending tasks whose dependencies are all completed, plus tracking tasks (with at least one child) whose child tasks are all completed or cancelled and whose own dependencies are satisfied.
 
 Examples:
   ahm task ready
