@@ -91,7 +91,15 @@ Concurrent creates are serialized with a repo-local workflow lock.
 - `--body-file` and `--description` are mutually exclusive.
 - Title and `--labels` must not contain leading/trailing whitespace, newlines,
   or carriage returns. Empty labels canonicalize to `-`.
-- `--dry-run` prints the target path and ID without creating.
+- `--depends-on <ids>` accepts a comma-separated list of task IDs. Each ID is
+  resolved with the normal ID resolution rules, canonicalized to the
+  zero-padded form, and written to the `depends_on` field sorted by ID. A
+  missing, ambiguous, Completed, or Cancelled dependency is rejected; a
+  dependency on the ID that `task create` is about to allocate is rejected as
+  a self-cycle. `--depends-on` combines with `--parent`.
+- `--dry-run` prints the target path and ID without creating, plus the planned
+  `depends_on` when `--depends-on` is set. Dependency validation still runs in
+  dry-run mode.
 
 ### `task list` / `task ls`
 

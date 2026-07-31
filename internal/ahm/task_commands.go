@@ -41,7 +41,8 @@ Examples:
 Examples:
   ahm task create "Add release workflow"
   ahm task create "Fix bug" --priority P1 --effort S --labels "type:bug,area:cli"
-  ahm task create "Complex work" --priority P2 --effort M --body-file body.md`,
+  ahm task create "Complex work" --priority P2 --effort M --body-file body.md
+  ahm task create "Follow-up" --depends-on 001,002`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return usageError("task create requires a title\n  ahm task create <title>")
@@ -63,6 +64,7 @@ Examples:
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
 	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
 	create.Flags().StringVar(&createArgs.parent, "parent", "", "Parent task ID for subtask creation; allocates a suffixed child ID like 137a, 137b")
+	create.Flags().StringVar(&createArgs.dependsOn, "depends-on", "", "Comma-separated task IDs this task depends on")
 	task.AddCommand(create)
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.

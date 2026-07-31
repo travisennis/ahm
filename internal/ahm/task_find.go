@@ -47,6 +47,13 @@ func resolveTaskFromTasks(pattern string, tasks []Task) (Task, error) {
 	return matches[0], nil
 }
 
+// isTaskNotFoundError reports whether err is the resolver's not-found error
+// (as opposed to its ambiguity error). The resolver constructs exactly two
+// error forms, so matching the message is stable.
+func isTaskNotFoundError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found")
+}
+
 func (a *app) resolveTask(pattern string) (Task, error) {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()

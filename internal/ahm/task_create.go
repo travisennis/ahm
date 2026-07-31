@@ -6,20 +6,23 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
 
 type taskCreateArgs struct {
-	title            string
-	priority         string
-	effort           string
-	labels           string
-	status           string
-	description      string
-	bodyFile         string
-	parent           string
-	resolvedParentID string // set after parent validation, used inside locked section
+	title             string
+	priority          string
+	effort            string
+	labels            string
+	status            string
+	description       string
+	bodyFile          string
+	parent            string
+	dependsOn         string
+	resolvedParentID  string   // set after parent validation, used inside locked section
+	resolvedDependsOn []string // parsed --depends-on IDs, validated inside locked section
 }
 
 func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
@@ -43,6 +46,13 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	}
 	if err := validateTaskCreateEnums(parsed); err != nil {
 		return err
+	}
+	if parsed.dependsOn != "" {
+		deps, err := parseTaskDependsOn(parsed.dependsOn)
+		if err != nil {
+			return usageError(err.Error())
+		}
+		parsed.resolvedDependsOn = deps
 	}
 	if parsed.parent != "" {
 		// Resolve parent upfront for fast validation (read-only, no lock needed).
@@ -110,9 +120,20 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	if parsed.resolvedParentID != "" {
 		task.Parent = parsed.resolvedParentID
 	}
+	if len(parsed.resolvedDependsOn) > 0 {
+		deps, err := a.validateTaskCreateDeps(tasks, task, parsed.resolvedDependsOn)
+		if err != nil {
+			return err
+		}
+		task.DependsOn = deps
+	}
 	content := renderTask(task)
 	if a.opts.dryRun {
-		return a.emit(map[string]any{"create": filepath.ToSlash(path), "id": id})
+		payload := map[string]any{"create": filepath.ToSlash(path), "id": id}
+		if len(task.DependsOn) > 0 {
+			payload["depends_on"] = task.DependsOn
+		}
+		return a.emit(payload)
 	}
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("task id %s already exists at %s; retry task create", id, relPath(a.opts.root, path))
@@ -127,6 +148,95 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	}
 	fmt.Fprintln(a.out, id)
 	return nil
+}
+
+// parseTaskDependsOn parses the --depends-on flag value into task IDs. An
+// empty value means no dependencies. Comma-separated parts are trimmed; an
+// empty part is an error rather than being silently dropped.
+func parseTaskDependsOn(value string) ([]string, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("--depends-on must be a comma-separated list of task IDs")
+	}
+	parts := strings.Split(value, ",")
+	ids := make([]string, 0, len(parts))
+	for _, part := range parts {
+		id := strings.TrimSpace(part)
+		if id == "" {
+			return nil, fmt.Errorf("--depends-on must be a comma-separated list of task IDs")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// validateTaskCreateDeps validates the --depends-on patterns against the tasks
+// read under the workflow lock, after the new task ID has been allocated. It
+// rejects missing, ambiguous, duplicated, Completed, Cancelled, and
+// self-referential dependencies, verifies the new dependency set introduces no
+// cycle, and returns the canonical (zero-padded) dependency IDs sorted by
+// taskLess.
+func (a *app) validateTaskCreateDeps(tasks []Task, task Task, patterns []string) ([]string, error) {
+	deps := make([]string, 0, len(patterns))
+	seen := make(map[string]bool, len(patterns))
+	for _, pattern := range patterns {
+		dep, err := resolveTaskFromTasks(pattern, tasks)
+		if err != nil {
+			// A pattern matching the ID about to be allocated is a
+			// self-reference: the dependency does not exist yet, so resolution
+			// reports it as missing. Surface it as the cycle it actually is. An
+			// ambiguity error keeps its own message: the pattern matches
+			// existing tasks, not the one being created.
+			if sameTaskID(pattern, task.ID) && isTaskNotFoundError(err) {
+				return nil, usageError(fmt.Sprintf("task %s cannot depend on itself", task.ID))
+			}
+			return nil, usageError(fmt.Sprintf("dependency task %q: %s", pattern, err))
+		}
+		// Defensive: the allocated ID is guaranteed free because ID allocation
+		// scans parsed tasks and task files, so resolution cannot return it.
+		if dep.ID == task.ID {
+			return nil, usageError(fmt.Sprintf("task %s cannot depend on itself", task.ID))
+		}
+		switch dep.Status {
+		case "Completed":
+			return nil, usageError(fmt.Sprintf("task %s cannot depend on completed task %s", task.ID, dep.ID))
+		case "Cancelled":
+			return nil, usageError(fmt.Sprintf("task %s cannot depend on cancelled task %s", task.ID, dep.ID))
+		}
+		if seen[dep.ID] {
+			continue
+		}
+		seen[dep.ID] = true
+		deps = append(deps, dep.ID)
+	}
+	sort.Slice(deps, func(i, j int) bool { return taskLess(deps[i], deps[j]) })
+
+	canonical := task
+	canonical.DependsOn = deps
+	if err := checkTaskDepsNotDuplicated(tasks, canonical, a.opts.root); err != nil {
+		return nil, err
+	}
+	// Simulate the new task in the dependency graph. A cycle arises when the
+	// new task depends on itself (rejected above) or on a task whose depends_on
+	// already references the ID about to be allocated; this guards the same
+	// invariant as `task dep add`.
+	simulated := make([]Task, 0, len(tasks)+1)
+	simulated = append(simulated, tasks...)
+	simulated = append(simulated, canonical)
+	if cycles := taskDependencyCycles(simulated); len(cycles) > 0 {
+		return nil, usageError(fmt.Sprintf("adding dependencies to task %s would create a cycle: %s", task.ID, strings.Join(cycles[0], " -> ")))
+	}
+	return deps, nil
+}
+
+// sameTaskID reports whether the two patterns denote the same task ID,
+// comparing numeric value and optional letter suffix.
+func sameTaskID(a string, b string) bool {
+	an, as, aok := splitTaskID(a)
+	bn, bs, bok := splitTaskID(b)
+	return aok && bok && an == bn && as == bs
 }
 
 // resolveTaskCreateBody returns the Markdown body to render after the H1 title.

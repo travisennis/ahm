@@ -714,6 +714,368 @@ func TestTaskCreateTopLevelUnchangedWithParentFlag(t *testing.T) {
 	assertNotContains(t, content, "parent:")
 }
 
+func TestTaskCreateDependsOn(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	for _, title := range []string{"Dep One", "Dep Two"} {
+		stdout, stderr, code = runCLI(t, "--root", root, "task", "create", title)
+		if code != 0 {
+			t.Fatalf("create %q: exit code = %d, stdout = %s, stderr = %s", title, code, stdout, stderr)
+		}
+	}
+
+	// Multiple IDs (comma-separated) land in depends_on front matter, sorted
+	// and canonicalized regardless of input order.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Depends Task", "--depends-on", "2,1")
+	if code != 0 || strings.TrimSpace(stdout) != "003" {
+		t.Fatalf("create with depends-on stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"))
+	assertContainsAll(t, content, "id: 003", "depends_on: 001, 002", "title: Depends Task")
+
+	// Duplicate patterns resolve to one dependency entry.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Deduped Deps", "--depends-on", "1,001,2")
+	if code != 0 || strings.TrimSpace(stdout) != "004" {
+		t.Fatalf("create deduped stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content = mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"))
+	assertContainsAll(t, content, "depends_on: 001, 002")
+	if strings.Contains(content, "001, 001") || strings.Contains(content, "001, 002, 002") {
+		t.Errorf("duplicate dependency IDs were not deduped:\n%s", content)
+	}
+
+	// A single short-form ID is canonicalized to the zero-padded ID.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Single Dep", "--depends-on", "1")
+	if code != 0 || strings.TrimSpace(stdout) != "005" {
+		t.Fatalf("create single dep stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content = mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "005.md"))
+	assertContainsAll(t, content, "depends_on: 001")
+
+	// A task with no --depends-on still renders the dash sentinel.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "No Deps")
+	if code != 0 || strings.TrimSpace(stdout) != "006" {
+		t.Fatalf("create no deps stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content = mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "006.md"))
+	assertContainsAll(t, content, "depends_on: -")
+
+	// Suffixed IDs are deduped by canonical ID too.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Parent Seven", "--status", "Tracking")
+	if code != 0 || strings.TrimSpace(stdout) != "007" {
+		t.Fatalf("create parent seven stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child A", "--parent", "007")
+	if code != 0 || strings.TrimSpace(stdout) != "007a" {
+		t.Fatalf("create child a stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Suffixed Deps", "--depends-on", "7a,007a")
+	if code != 0 || strings.TrimSpace(stdout) != "008" {
+		t.Fatalf("create suffixed deps stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content = mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "008.md"))
+	assertContainsAll(t, content, "depends_on: 007a")
+	if strings.Contains(content, "007a, 007a") {
+		t.Errorf("suffixed duplicate dependency IDs were not deduped:\n%s", content)
+	}
+}
+
+func TestTaskCreateDependsOnResolvesBeforeSelfCycleCheck(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// 001 exists and 002 is the ID about to be allocated. The child 002a
+	// (parent 002 missing) makes the short pattern "2" resolvable by prefix
+	// matching, so it must resolve instead of being mistaken for a
+	// self-reference to the allocated 002.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Top", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002a.md"), "002a", "Child A", "Pending", "depends_on: -\nparent: 002\n")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Resolves", "--depends-on", "2")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create with resolvable pattern stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"))
+	assertContainsAll(t, content, "id: 002", "depends_on: 002a")
+}
+
+func TestTaskCreateDependsOnRejectsMissing(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Missing Dep", "--depends-on", "999")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "not found") {
+		t.Errorf("stderr = %q, want missing dependency error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("missing dependency rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsSelfCycle(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// In a fresh repo the next ID is 001; depending on it is a self-cycle.
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Self Dep", "--depends-on", "001")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "cannot depend on itself") {
+		t.Errorf("stderr = %q, want self-dependency cycle error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("cycle rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsDanglingCycle(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Task 001 (hand-edited) already references the ID about to be allocated
+	// (002). Creating 002 with a dependency back on 001 would close a cycle.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dangling", "Pending", "depends_on: 002\n")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Cycler", "--depends-on", "001")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "would create a cycle") {
+		t.Errorf("stderr = %q, want dependency cycle error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("cycle rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsAmbiguous(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Two child tasks with no parent 001 make the short pattern "1" ambiguous,
+	// while a top-level task keeps the allocated ID away from 001.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001a.md"), "001a", "Child A", "Pending", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001b.md"), "001b", "Child B", "Pending", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Top Level", "Pending", "depends_on: -\n")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Ambiguous Dep", "--depends-on", "1")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "ambiguous") {
+		t.Errorf("stderr = %q, want ambiguous dependency error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "003.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("ambiguous rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsAmbiguousNotSelfCycle(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Orphaned 002a/002b (parent 002 missing) make "2" ambiguous, even though
+	// 002 is the ID about to be allocated; the ambiguity message must win over
+	// the self-cycle fallback.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Top", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002a.md"), "002a", "Child A", "Pending", "depends_on: -\nparent: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002b.md"), "002b", "Child B", "Pending", "depends_on: -\nparent: 002\n")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "Ambiguous Dep", "--depends-on", "2")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "ambiguous") {
+		t.Errorf("stderr = %q, want ambiguous dependency error", stderr)
+	}
+	if strings.Contains(stderr, "cannot depend on itself") {
+		t.Errorf("stderr = %q, ambiguous pattern mislabeled as self-cycle", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("ambiguous rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsDuplicatedBucketID(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// The same ID in two buckets makes the dependency ambiguous at write time.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Active Dup", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Completed Dup", "Completed", "depends_on: -\n")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "New Dep", "--depends-on", "001")
+	// Repo-state conflict (duplicate ID) is a runtime error, not a usage error.
+	if code != 1 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "duplicated") {
+		t.Errorf("stderr = %q, want duplicated dependency error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("duplicate rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsCompleted(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done Dep", "Completed", "depends_on: -\n")
+
+	// The duplicate pattern (001,1) must still be rejected: status checks run
+	// before dedupe skips a repeated ID.
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "New Dep", "--depends-on", "001,1")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "cannot depend on completed task 001") {
+		t.Errorf("stderr = %q, want completed dependency error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("completed dependency rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsCancelled(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md"), "001", "Cancelled Dep", "Cancelled", "depends_on: -\n")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "create", "New Dep", "--depends-on", "001")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "cannot depend on cancelled task 001") {
+		t.Errorf("stderr = %q, want cancelled dependency error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("cancelled dependency rejection should not create a task file: %v", err)
+	}
+}
+
+func TestTaskCreateDependsOnRejectsEmptyPart(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	for _, value := range []string{"001,", ",001", "001,,002", " ", ","} {
+		_, stderr, code = runCLI(t, "--root", root, "task", "create", "Bad Deps", "--depends-on", value)
+		if code != 2 {
+			t.Errorf("--depends-on %q: exit code = %d, stderr = %s", value, code, stderr)
+		}
+		if !strings.Contains(stderr, "comma-separated list of task IDs") {
+			t.Errorf("--depends-on %q: stderr = %q, want list format error", value, stderr)
+		}
+	}
+}
+
+func TestTaskCreateDependsOnWithParent(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	// Parent task (top-level) and a dependency task.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Parent Task", "--status", "Tracking")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create parent stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dep Task")
+	if code != 0 || strings.TrimSpace(stdout) != "002" {
+		t.Fatalf("create dep stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// A child task can also depend on other tasks.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Child Dep", "--parent", "001", "--depends-on", "002")
+	if code != 0 || strings.TrimSpace(stdout) != "001a" {
+		t.Fatalf("create child with dep stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	content := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "001a.md"))
+	assertContainsAll(t, content, "id: 001a", "parent: 001", "depends_on: 002")
+}
+
+func TestTaskCreateDependsOnDryRun(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Dep Task")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("create dep stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	// Dry-run prints the planned path, ID, and depends_on without creating.
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "create", "Dry Deps", "--depends-on", "001")
+	if code != 0 {
+		t.Fatalf("dry-run stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	assertContainsAll(t, stdout, "002", "001")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dry-run should not create task file: %v", err)
+	}
+
+	// Dry-run still validates dependencies and creates nothing on failure.
+	_, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "create", "Dry Bad", "--depends-on", "999")
+	if code != 2 {
+		t.Errorf("dry-run missing dep exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "not found") {
+		t.Errorf("dry-run missing dep stderr = %q, want not found error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "002.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dry-run validation failure should not create a task file: %v", err)
+	}
+
+	// JSON dry-run emits depends_on as an array.
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "--dry-run", "task", "create", "Dry Deps JSON", "--depends-on", "001")
+	if code != 0 {
+		t.Fatalf("json dry-run stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+	assertContainsAll(t, stdout, `"depends_on": [`, `"001"`, `"id": "002"`)
+}
+
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
