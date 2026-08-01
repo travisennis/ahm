@@ -240,8 +240,10 @@ func TestValidationReportsBlockedDepsComplete(t *testing.T) {
 		`"code": "task_blocked_deps_complete"`,
 		`task 002 is Blocked but all its dependencies are Completed`,
 	)
-	// 004 should not appear in the blocked-deps-complete findings.
-	assertNotContains(t, got, "004")
+	// 004 has an incomplete dependency, so it must not be reported. Match the
+	// finding text rather than the bare id: the report echoes the temp-dir root,
+	// whose random suffix can contain "004" on its own.
+	assertNotContains(t, got, "task 004 is Blocked")
 }
 
 func TestValidationReportsTrackingChildrenComplete(t *testing.T) {
