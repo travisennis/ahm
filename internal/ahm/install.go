@@ -469,9 +469,14 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// readWorkflowFileHook supports instrumented tests that count filesystem reads
+// of managed workflow files.
+var readWorkflowFileHook = func(string) {}
+
 // readWorkflowFile reads a file and normalizes CRLF (\r\n) line endings to
 // LF (\n) so that downstream parsing functions do not need to handle both.
 func readWorkflowFile(path string) ([]byte, error) {
+	readWorkflowFileHook(path)
 	data, err := os.ReadFile(path) // #nosec G304 // path is under project root, read from managed workflow files
 	if err != nil {
 		return nil, err

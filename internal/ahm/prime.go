@@ -95,7 +95,7 @@ func (a *app) regenerateIndexes() error {
 		// Partial results with errors; use what we got.
 	}
 	for _, path := range sortedKeys(writes) {
-		if !isStaleIndex(path, writes[path]) {
+		if !isStaleIndex(nil, path, writes[path]) {
 			continue
 		}
 		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
@@ -160,7 +160,7 @@ func (a *app) primeActivePlans() []primePlanSummary {
 			continue
 		}
 		fpath := filepath.Join(dir, entry.Name())
-		title, err := markdownTitle(fpath)
+		title, err := markdownTitle(nil, fpath)
 		if err != nil {
 			continue
 		}
@@ -206,7 +206,7 @@ func (a *app) primeRecentResearchAt(now time.Time) []primeResearchNote {
 				continue
 			}
 			fpath := filepath.Join(dir, entry.Name())
-			title, err := markdownTitle(fpath)
+			title, err := markdownTitle(nil, fpath)
 			if err != nil {
 				continue
 			}

@@ -145,7 +145,7 @@ func TestCollectMarkdownDocsUsesHeadingFallbackAndIgnoresIndex(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "alpha.md"), "No heading here.\n")
 	writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "index.md"), "# Ignore Me\n")
 
-	docs, err := collectMarkdownDocs(root, ".agents/.research", []string{"topics"})
+	docs, err := collectMarkdownDocs(nil, root, ".agents/.research", []string{"topics"})
 	if err != nil {
 		t.Error(err)
 	}
@@ -196,7 +196,7 @@ func TestIndexWritesForReturnsADRCollectionFailures(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "docs", "adr"), "not a directory\n")
 
-	_, err := indexWritesForPaths(root, nil, workflowPathsFor(root))
+	_, err := indexWritesForPaths(root, nil, workflowPathsFor(root), nil)
 	if err == nil {
 		t.Error("expected ADR collection failure")
 	}
@@ -215,7 +215,7 @@ func TestIndexWritesForReturnsPartialADRParseErrors(t *testing.T) {
 	// Write a malformed ADR with a block scalar in front matter.
 	writeADRFile(t, root, "002-bad.md", "---\nkey: >\n---\n# Bad\n")
 
-	writes, err := indexWritesForPaths(root, nil, workflowPathsFor(root))
+	writes, err := indexWritesForPaths(root, nil, workflowPathsFor(root), nil)
 	if err == nil {
 		t.Error("expected partial ADR parse error")
 	}

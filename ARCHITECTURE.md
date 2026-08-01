@@ -50,7 +50,7 @@ location map; this section describes what each group does.
 | Entrypoint | `cmd/ahm/main.go` | Binary entrypoint. |
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git`, `.ahm/`, or `.agents/`. |
-| Infrastructure | `internal/ahm/lock.go`, `write.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `records.go` | Atomic writes, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-layout resolution. |
+| Infrastructure | `internal/ahm/lock.go`, `write.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `records.go`, `recordcache.go` | Atomic writes, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-layout resolution, per-command record read reuse. |
 | Install & upgrade | `internal/ahm/install.go`, `onboard.go` | `init`, `upgrade`, metadata, legacy instruction removal, generated index writes, `onboard` snippet. |
 | Status & validation | `internal/ahm/status.go`, `validation.go`, `research_inbox.go` | `status`, `doctor`, workflow/link/ADR/task validation, research inbox staleness. |
 | Context | `internal/ahm/context.go` | `context` command briefing and managed-work references. |
@@ -73,6 +73,11 @@ location map; this section describes what each group does.
 - Post-mutation index generation and workflow validation may reuse a complete
   freshly parsed task set. Partial task parses and standalone `status`/`doctor`
   validation retain independent disk reads so validation findings stay intact.
+- Record reuse across steps goes through an explicitly passed `recordCache`
+  scoped to one command, never a process-lifetime cache. Every command still
+  reads each record from disk, so standalone `status`/`doctor` keep detecting
+  out-of-band edits and stale indexes. Any write made while a cache is live must
+  be reported to it, or a later read in the same command sees pre-write bytes.
 - Managed-work references are exposed by scoped `ahm context task|plan|adr|research`;
   procedures are binary-owned delegation/review prompts, not installed files.
 - Legacy managed instruction templates are removed by `upgrade` only when

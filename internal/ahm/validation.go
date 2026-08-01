@@ -19,11 +19,12 @@ type validationReport struct {
 	Warnings []validationFinding `json:"warnings"`
 	Info     []validationFinding `json:"info"`
 
-	// execPlanSectionsCache memoizes parsed exec-plan sections per path
-	// within a single validation run so that each plan file is parsed at
-	// most once. It is scoped to the report so concurrent validation runs
-	// and tests do not share state.
-	execPlanSectionsCache map[string]map[string]execPlanSection
+	// cache holds records already read within this command so each ExecPlan,
+	// ADR, and generated index is read from disk at most once. It is scoped to
+	// the report so concurrent validation runs and tests do not share state.
+	// Mutation paths hand in the cache their index generation filled; every
+	// other path gets a fresh one and reads everything from disk.
+	cache *recordCache
 }
 
 // RenderText implements the textRenderer interface for validationReport.
@@ -108,7 +109,15 @@ func (a *app) validateWorkflow(scopes []string) (validationReport, []Task) {
 }
 
 func validateWorkflowScopedForPaths(root string, scopes []string, paths workflowPaths) (validationReport, []Task) {
-	report := newValidationReport()
+	return validateWorkflowScopedForPathsWithCache(root, scopes, paths, newRecordCache())
+}
+
+// validateWorkflowScopedForPathsWithCache is the disk-reading validation path.
+// The cache only dedupes reads within this one run — status and doctor pass a
+// fresh cache, so they still see the current on-disk state and still report
+// out-of-band edits and stale indexes.
+func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths workflowPaths, cache *recordCache) (validationReport, []Task) {
+	report := newValidationReportWithCache(cache)
 
 	all := len(scopes) == 0
 	want := func(s string) bool { return all || containsScope(scopes, s) }
@@ -134,15 +143,22 @@ func validateWorkflowScopedForPaths(root string, scopes []string, paths workflow
 }
 
 func newValidationReport() validationReport {
-	return validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
+	return newValidationReportWithCache(newRecordCache())
+}
+
+func newValidationReportWithCache(cache *recordCache) validationReport {
+	return validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}, cache: cache}
 }
 
 // validateWorkflowStateForPaths validates a complete, already-parsed task set
 // and already-rendered generated indexes. Mutation paths use it only when the
 // task parse had no errors; standalone status and doctor keep the independent
 // disk-reading path above.
-func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string) validationReport {
-	report := newValidationReport()
+//
+// cache carries the records the caller's index generation already read, so this
+// pass reuses them instead of re-reading. Pass nil to read everything fresh.
+func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache) validationReport {
+	report := newValidationReportWithCache(cache)
 	validateMetadata(root, &report)
 	validateTaskDuplicateIDs(root, tasks, &report)
 	for _, task := range tasks {
@@ -210,15 +226,19 @@ func containsScope(scopes []string, target string) bool {
 // workflow drift. The validation runs on every writeIndexes call, which
 // covers task create, lifecycle commands, dep updates, comments, ADR lifecycle
 // commands, and explicit ahm index.
-func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, reuseState bool) {
+//
+// cache carries the records the index generation for this mutation already
+// read, including the generated indexes it just wrote, so this pass reads none
+// of them a second time.
+func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, reuseState bool, cache *recordCache) {
 	if a.opts.dryRun {
 		return
 	}
 	var report validationReport
 	if reuseState {
-		report = validateWorkflowStateForPaths(a.opts.root, a.workflowPaths(), tasks, writes)
+		report = validateWorkflowStateForPaths(a.opts.root, a.workflowPaths(), tasks, writes, cache)
 	} else {
-		report, _ = a.validateWorkflow([]string{CheckScopeWorkflow})
+		report, _ = validateWorkflowScopedForPathsWithCache(a.opts.root, []string{CheckScopeWorkflow}, a.workflowPaths(), cache)
 	}
 	for _, finding := range report.Errors {
 		a.addWarning("%s", finding.Message)
@@ -473,7 +493,7 @@ func validateExecPlans(root string, paths workflowPaths, tasks []Task, report *v
 			continue
 		}
 		for _, path := range plans {
-			sections, err := report.getCachedExecPlanSections(path)
+			sections, err := report.cache.execPlanSections(path)
 			if err != nil {
 				continue
 			}
@@ -524,6 +544,10 @@ func parseExecPlanSections(path string) (map[string]execPlanSection, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseExecPlanSectionsFromData(data), nil
+}
+
+func parseExecPlanSectionsFromData(data []byte) map[string]execPlanSection {
 	sections := map[string]execPlanSection{}
 	current := ""
 	for _, line := range strings.Split(string(data), "\n") {
@@ -542,7 +566,7 @@ func parseExecPlanSections(path string) (map[string]execPlanSection, error) {
 			sections[current] = section
 		}
 	}
-	return sections, nil
+	return sections
 }
 
 func execPlanSectionHeading(line string) (string, bool) {
@@ -639,23 +663,8 @@ func resolveExecPlanReference(paths workflowPaths, ref string) (string, string, 
 	return "", "", false
 }
 
-func (r *validationReport) getCachedExecPlanSections(path string) (map[string]execPlanSection, error) {
-	if r.execPlanSectionsCache == nil {
-		r.execPlanSectionsCache = map[string]map[string]execPlanSection{}
-	}
-	if sections, ok := r.execPlanSectionsCache[path]; ok {
-		return sections, nil
-	}
-	sections, err := parseExecPlanSections(path)
-	if err != nil {
-		return nil, err
-	}
-	r.execPlanSectionsCache[path] = sections
-	return sections, nil
-}
-
 func execPlanHasRetrospective(path string, report *validationReport) bool {
-	sections, err := report.getCachedExecPlanSections(path)
+	sections, err := report.cache.execPlanSections(path)
 	if err != nil {
 		return false
 	}
@@ -689,7 +698,7 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 	if !validateGeneratedIndexMetadata(root, report) {
 		return
 	}
-	writes, err := indexWritesForPaths(root, tasks, paths)
+	writes, err := indexWritesForPaths(root, tasks, paths, report.cache)
 	if err != nil {
 		if writes == nil {
 			report.addWarning("generated_index_check_failed", "", err.Error())
@@ -713,7 +722,7 @@ func validateGeneratedIndexMetadata(root string, report *validationReport) bool 
 
 func validateGeneratedIndexWrites(root string, writes map[string]string, report *validationReport) {
 	for _, path := range sortedKeys(writes) {
-		data, err := readWorkflowFile(path)
+		data, err := report.cache.readFile(path)
 		if errors.Is(err, os.ErrNotExist) {
 			report.addError("generated_index_missing", relPath(root, path), "generated index is missing; run ahm index")
 			continue
@@ -729,7 +738,7 @@ func validateGeneratedIndexWrites(root string, writes map[string]string, report 
 }
 
 func validateADRs(root string, report *validationReport) {
-	adrs, _ := collectADRs(root)
+	adrs, _ := report.cache.adrList(root)
 	byID := map[string][]ADR{}
 	for _, adr := range adrs {
 		if adr.ID != "" {
@@ -883,7 +892,7 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 }
 
 func validateMarkdownFileLinks(root string, path string, report *validationReport) {
-	data, err := readWorkflowFile(path)
+	data, err := report.cache.readFile(path)
 	if err != nil {
 		report.addWarning("markdown_link_check_failed", relPath(root, path), err.Error())
 		return

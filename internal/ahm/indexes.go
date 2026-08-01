@@ -23,7 +23,11 @@ func (a *app) writeIndexes() error {
 }
 
 func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
-	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
+	// One cache spans generation, the staleness checks, and the post-mutation
+	// validation below, so each ExecPlan, ADR, and generated index is read once
+	// per mutation instead of once per step.
+	cache := newRecordCache()
+	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths(), cache)
 	if err != nil {
 		if writes == nil {
 			return err
@@ -40,17 +44,21 @@ func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 	// semantics) is overengineered for regenerated output.
 	for _, path := range paths {
 		if a.opts.dryRun {
-			if isStaleIndex(path, writes[path]) {
+			if isStaleIndex(cache, path, writes[path]) {
 				fmt.Fprintln(a.out, relPath(a.opts.root, path))
 			}
 			continue
 		}
-		if !isStaleIndex(path, writes[path]) {
+		if !isStaleIndex(cache, path, writes[path]) {
 			continue
 		}
-		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
+		data := []byte(writes[path])
+		if err := writeFileAtomic(path, data, 0o644); err != nil {
 			return err
 		}
+		// Record what is now on disk so the validation below compares against
+		// the bytes this loop just wrote rather than re-reading them.
+		cache.put(path, data)
 	}
 	// Run post-mutation workflow validation to surface findings the
 	// mutation just created or left behind. This uses only the workflow
@@ -59,15 +67,15 @@ func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 	if completeState {
 		a.tasksCache = tasks
 	}
-	a.emitPostMutationFindings(tasks, writes, completeState)
+	a.emitPostMutationFindings(tasks, writes, completeState, cache)
 	return nil
 }
 
 // isStaleIndex returns true when the file at path is missing or its content
 // differs from want. It is used by writeIndexes to skip unchanged writes
 // and by dry-run mode to report only indexes that would change.
-func isStaleIndex(path string, want string) bool {
-	data, err := readWorkflowFile(path)
+func isStaleIndex(cache *recordCache, path string, want string) bool {
+	data, err := cache.readFile(path)
 	if err != nil {
 		// File missing or unreadable — stale.
 		return true
@@ -83,7 +91,7 @@ func (a *app) indexWrites() (map[string]string, error) {
 		}
 		a.addWarning("some task files could not be parsed and were skipped: %s", err)
 	}
-	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths())
+	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths(), nil)
 	if err != nil {
 		if writes == nil {
 			return nil, err
@@ -101,7 +109,7 @@ func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
 		}
 		a.addWarning("some task files could not be parsed and were skipped: %s", err)
 	}
-	writes, err := indexWritesForPaths(a.opts.root, tasks, paths)
+	writes, err := indexWritesForPaths(a.opts.root, tasks, paths, nil)
 	if err != nil {
 		if writes == nil {
 			return nil, err
@@ -118,21 +126,25 @@ func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
 // indexWritesForPaths generates the complete set of index file writes for the
 // given task set and workflow paths. It is used by both the index-writing and
 // validation paths to avoid re-parsing the task tree.
-func indexWritesForPaths(root string, tasks []Task, paths workflowPaths) (map[string]string, error) {
+//
+// The records it reads (ExecPlans and ADRs) land in cache, so a validation pass
+// later in the same command reuses them instead of re-reading. Pass a nil cache
+// when there is nothing to hand off.
+func indexWritesForPaths(root string, tasks []Task, paths workflowPaths, cache *recordCache) (map[string]string, error) {
 	indexWritesForPathsHook()
-	research, err := collectMarkdownDocs(root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})
+	research, err := collectMarkdownDocs(cache, root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})
 	if err != nil {
 		return nil, err
 	}
-	activePlans, err := collectMarkdownDocs(root, paths.execPlansRel("active"), []string{""})
+	activePlans, err := collectMarkdownDocs(cache, root, paths.execPlansRel("active"), []string{""})
 	if err != nil {
 		return nil, err
 	}
-	completedPlans, err := collectMarkdownDocs(root, paths.execPlansRel("completed"), []string{""})
+	completedPlans, err := collectMarkdownDocs(cache, root, paths.execPlansRel("completed"), []string{""})
 	if err != nil {
 		return nil, err
 	}
-	adrs, adrErr := collectADRs(root)
+	adrs, adrErr := cache.adrList(root)
 	if adrErr != nil && len(adrs) == 0 {
 		return nil, adrErr
 	}
@@ -241,7 +253,7 @@ type markdownDoc struct {
 	Title string
 }
 
-func collectMarkdownDocs(root string, base string, buckets []string) (map[string][]markdownDoc, error) {
+func collectMarkdownDocs(cache *recordCache, root string, base string, buckets []string) (map[string][]markdownDoc, error) {
 	docs := map[string][]markdownDoc{}
 	for _, bucket := range buckets {
 		docs[bucket] = nil
@@ -258,7 +270,7 @@ func collectMarkdownDocs(root string, base string, buckets []string) (map[string
 				continue
 			}
 			path := filepath.Join(dir, entry.Name())
-			title, err := markdownTitle(path)
+			title, err := markdownTitle(cache, path)
 			if err != nil {
 				return nil, err
 			}
@@ -275,8 +287,8 @@ func collectMarkdownDocs(root string, base string, buckets []string) (map[string
 	return docs, nil
 }
 
-func markdownTitle(path string) (string, error) {
-	data, err := readWorkflowFile(path)
+func markdownTitle(cache *recordCache, path string) (string, error) {
+	data, err := cache.readFile(path)
 	if err != nil {
 		return "", err
 	}
