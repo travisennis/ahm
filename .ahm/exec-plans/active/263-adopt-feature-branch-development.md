@@ -123,8 +123,9 @@ protection's "require the ci check" meaningful.
 Edit `scripts/prepare-release.sh`. Today it computes `current_branch` after
 the clean-worktree check and prints `git push origin $current_branch` as the
 final step, so a release prepared on a feature branch would be pushed to that
-branch. Add a guard immediately after the clean-worktree check that refuses
-any branch other than `master`:
+branch. Add a guard at the top of the script, before the svu/git-cliff tool
+checks, so a feature branch fails fast with the master-only message without
+requiring those tools:
 
 ```text
 current_branch="$(git branch --show-current)"
@@ -449,7 +450,13 @@ Acceptance for 263g:
       commands (263a); release flow moved to a release branch + PR (263e);
       self-merge allowed after green CI (263b); Milestone 6 assigned to the
       agent with push/PR authorization, `gh` 2.97.0 verified.
-- [ ] Milestone 1 (263e): CI on all pushes; release master guard.
+- [x] (2026-08-01) Milestone 1 (263e) implemented on `feat/263e-ci-releases`:
+      ci.yml runs on all pushes; prepare-release.sh guards master at the top
+      of the script and prints release-branch + PR instructions;
+      docs/release.md rewritten for the release-branch + PR flow. Local
+      checks passed (`just ci`; guard exits 1 on the feature branch); push
+      and PR CI green on GitHub; master-path clone test verified the guard,
+      changelog regeneration, and printed release-branch instructions.
 - [ ] Milestone 2 (263a): worktree workflow documented in CONTRIBUTING.md
       (no helper script).
 - [ ] Milestone 3 (263d): master-commit guard hook.
@@ -587,6 +594,15 @@ Acceptance for 263g:
   review requirement and no actor exemptions.
   Rationale: the owner is the only committer; protection exists to block
   direct pushes, not to add review overhead.
+  Date/Author: 2026-08-01, Travis + agent.
+
+- Decision: 263e-263f implementation proceeds on feature branches in the
+  main checkout rather than per-task worktrees.
+  Rationale: the agent sandbox cannot write outside the project directory,
+  so sibling worktrees are unavailable for this session; sequential
+  milestones need no parallelism. The documented worktree flow still stands
+  for parallel work, and Milestone 6's parallel proof will be run by the
+  repository owner.
   Date/Author: 2026-08-01, Travis + agent.
 
 ## Outcomes & Retrospective

@@ -6,6 +6,18 @@ usage() {
 	exit 2
 }
 
+# Releases are cut from master only. Guard before the svu/git-cliff tool
+# checks so a feature branch fails fast with this message.
+current_branch="$(git branch --show-current)"
+if [[ -z "$current_branch" ]]; then
+	echo "prepare-release: cannot determine current branch" >&2
+	exit 1
+fi
+if [[ "$current_branch" != "master" ]]; then
+	echo "prepare-release: releases are cut from master; current branch is $current_branch" >&2
+	exit 1
+fi
+
 version="${1:-}"
 if [[ -z "$version" ]]; then
 	if ! command -v svu >/dev/null 2>&1; then
@@ -35,11 +47,6 @@ if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
 fi
 
 previous_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-current_branch="$(git branch --show-current)"
-if [[ -z "$current_branch" ]]; then
-	echo "prepare-release: cannot determine current branch" >&2
-	exit 1
-fi
 
 if [[ -n "$previous_tag" ]]; then
 	git-cliff --tag "$version" --output CHANGELOG.md
@@ -52,12 +59,16 @@ just release-check
 cat <<EOF
 Prepared $version.
 
-Review CHANGELOG.md, then run:
+Review CHANGELOG.md, then run (master is branch-protected, so the
+changelog commit lands via a release branch and PR; the tag pushes
+directly):
 
+  git checkout -b release/$version
   git add CHANGELOG.md
   git commit -m "chore(release): prepare $version"
+  git push -u origin release/$version   # open a PR and merge it to master
+  git checkout master && git pull
   git tag -a $version -m "$version"
-  git push origin $current_branch
   git push origin $version
 
 EOF
