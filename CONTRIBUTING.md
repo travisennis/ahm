@@ -21,6 +21,25 @@ prek install
 prek install --hook-type commit-msg
 ```
 
+### Worktree Setup
+
+Worktrees are the parallel-work mechanism: each worktree is a separate working
+directory sharing one repository, so two agents can implement different
+branches at once.
+
+Create one for a task with `git worktree add -b feat/<slug> ../ahm-<slug>
+master` from the repository root, then `cd ../ahm-<slug>` and run `ahm prime`
+before any work (prime regenerates the branch's indexes and prints the
+briefing).
+
+Linked worktrees share the main checkout's hooks directory (verify with
+`git rev-parse --git-path hooks` from the worktree), so one `prek install` at
+the main checkout covers all worktrees and no per-worktree hook install is
+needed.
+
+Cleanup after the PR merges: `git worktree remove ../ahm-<slug>` and
+`git branch -d feat/<slug>`.
+
 ## Command Catalog
 
 ```bash
