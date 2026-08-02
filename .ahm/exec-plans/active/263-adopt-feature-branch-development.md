@@ -457,8 +457,13 @@ Acceptance for 263g:
       checks passed (`just ci`; guard exits 1 on the feature branch); push
       and PR CI green on GitHub; master-path clone test verified the guard,
       changelog regeneration, and printed release-branch instructions.
-- [ ] Milestone 2 (263a): worktree workflow documented in CONTRIBUTING.md
-      (no helper script).
+- [x] (2026-08-01) Milestone 2 (263a) implemented on
+      `feat/263a-worktree-docs`: CONTRIBUTING.md gained a Worktree Setup
+      subsection under Local Setup (create, prime, shared hooks, cleanup);
+      no script or justfile recipe. Verified: docs-md-lint clean; scratch
+      linked worktree ran `ahm prime` with `git.branch=feat/<slug>` in
+      `--json` output and hooks resolving to the main checkout's `.git/hooks`;
+      `just ci` green on the branch.
 - [ ] Milestone 3 (263d): master-commit guard hook.
 - [ ] Milestone 4 (263c): AGENTS.md, CONTRIBUTING.md, and
       safety-and-permissions instructions with evidence and probe.
@@ -606,4 +611,14 @@ Acceptance for 263g:
   Date/Author: 2026-08-01, Travis + agent.
 
 ## Outcomes & Retrospective
+
+- (2026-08-01) Milestone 2 (263a) delivered: CONTRIBUTING.md documents the
+  worktree create (`git worktree add -b feat/<slug> ../ahm-<slug> master`),
+  prime, shared-hooks, and cleanup flow with no helper script, per the
+  Decision Log. The worktree claim was verified empirically: a scratch linked
+  worktree's `ahm prime --json` reports `git.branch` and `git rev-parse
+  --git-path hooks` resolves to the main checkout's `.git/hooks`. One
+  sandbox caveat: the agent shell cannot write outside the project directory,
+  so the verification worktree used an in-repo path; the documented
+  `../ahm-<slug>` path is equivalent and Milestone 6 will exercise it.
 
