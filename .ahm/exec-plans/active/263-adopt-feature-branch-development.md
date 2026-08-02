@@ -184,27 +184,37 @@ Scope: give humans and agents the exact worktree commands without adding a
 helper script.
 
 Decision (see Decision Log): no `scripts/new-worktree.sh` and no `justfile`
-recipe. Agents manage git worktrees directly (`git worktree add`), and the
-operating loop already mandates `ahm prime` before any work, which regenerates
-the branch-scoped indexes a fresh worktree needs. A script would duplicate
-git's own command surface for little gain.
+recipe. Worktrees are created only when the user asks for multiple tasks to
+be worked in parallel; single-task work happens on a `feat/<slug>` branch in
+the main checkout. Agents do not create worktrees: the cake agent runtime's
+shell sandbox cannot write outside the project directory, so sibling
+worktrees are unavailable to agents until cake is patched (the documented
+flow is for humans, and for agent use once cake supports it). The operating
+loop already mandates `ahm prime` before any work, which regenerates the
+branch-scoped indexes a fresh worktree needs. A script would duplicate git's
+own command surface for little gain.
 
 Add a "Worktree Setup" subsection to `CONTRIBUTING.md` under Local Setup with
-exactly this content:
+this content (amended 2026-08-01 to scope worktrees to parallel work and to
+state the cake sandbox limitation):
 
-- Worktrees are the parallel-work mechanism: each worktree is a separate
-  working directory sharing one repository, so two agents can implement
-different branches at once.
-- Create one for a task with `git worktree add -b feat/<slug> ../ahm-<slug>
-  master` from the repository root, then `cd ../ahm-<slug>` and run `ahm
-  prime` before any work (prime regenerates the branch's indexes and prints
-the briefing).
+- Worktrees are the parallel-work mechanism, used only when multiple tasks
+  are worked at the same time; for a single task, work directly on a
+  `feat/<slug>` branch in the main checkout.
+- Create a worktree for a task with `git worktree add -b feat/<slug>
+  ../ahm-<slug> master` from the repository root, then `cd ../ahm-<slug>` and
+  run `ahm prime` before any work (prime regenerates the branch's indexes and
+  prints the briefing).
 - Linked worktrees share the main checkout's hooks directory (verify with
   `git rev-parse --git-path hooks` from the worktree), so one `prek install`
-at the main checkout covers all worktrees and no per-worktree hook install is
-needed.
+  at the main checkout covers all worktrees and no per-worktree hook install
+  is needed.
 - Cleanup after the PR merges: `git worktree remove ../ahm-<slug>` and
   `git branch -d feat/<slug>`.
+- Agents do not create worktrees: the cake runtime's sandbox cannot write
+  sibling directories until cake is patched, so agents work in the main
+  checkout; the worktree flow is for humans (and for agents once cake
+  supports it).
 
 Acceptance for 263a:
 
@@ -389,8 +399,10 @@ Scope: demonstrate the whole loop, including two parallel worktrees.
 This milestone runs after 263a through 263f are complete. It is a proof, not
 new code. It requires explicit authorization to push branches and open pull
 requests on GitHub (granted by the repository owner on 2026-08-01); the `gh`
-CLI is available (version 2.97.0, verified 2026-08-01). Execute and record a
-transcript:
+CLI is available (version 2.97.0, verified 2026-08-01). Its two parallel
+worktrees require either the cake patch that lets agents create
+sibling-directory worktrees or a human terminal, so the repository owner
+runs it. Execute and record a transcript:
 
 First, two parallel worktrees. From the repository root, run
 `git worktree add -b feat/alpha ../ahm-alpha master` and
@@ -464,6 +476,11 @@ Acceptance for 263g:
       linked worktree ran `ahm prime` with `git.branch=feat/<slug>` in
       `--json` output and hooks resolving to the main checkout's `.git/hooks`;
       `just ci` green on the branch.
+- [x] (2026-08-01) Milestone 2 docs amended post-merge per owner feedback:
+      CONTRIBUTING.md now scopes worktrees to user-requested parallel work
+      only, and states that agents do not create worktrees because cake's
+      sandbox cannot write sibling directories until cake is patched;
+      Decision Log and Milestone 6 updated to match.
 - [x] (2026-08-01) Milestone 3 (263d) implemented on
       `feat/263d-master-guard`: `scripts/hooks/require-feature-branch.sh`
       wired into `.pre-commit-config.yaml` as a pre-commit-stage local hook
@@ -614,6 +631,17 @@ Acceptance for 263g:
   milestones need no parallelism. The documented worktree flow still stands
   for parallel work, and Milestone 6's parallel proof will be run by the
   repository owner.
+  Date/Author: 2026-08-01, Travis + agent.
+
+- Decision: worktrees are created only when the user asks for multiple tasks
+  to be worked in parallel; single-task work happens on a `feat/<slug>`
+  branch in the main checkout, and the documented flow must not rely on cake
+  creating sibling-directory worktrees through its shell sandbox.
+  Rationale: the worktree overhead (separate checkout, cleanup) buys nothing
+  for sequential work, and cake's Bash sandbox cannot write outside the
+  project directory, so agent-created sibling worktrees would fail until cake
+  is patched. The worktree flow remains for humans and for agent use once
+  cake supports it.
   Date/Author: 2026-08-01, Travis + agent.
 
 ## Outcomes & Retrospective
