@@ -464,7 +464,13 @@ Acceptance for 263g:
       linked worktree ran `ahm prime` with `git.branch=feat/<slug>` in
       `--json` output and hooks resolving to the main checkout's `.git/hooks`;
       `just ci` green on the branch.
-- [ ] Milestone 3 (263d): master-commit guard hook.
+- [x] (2026-08-01) Milestone 3 (263d) implemented on
+      `feat/263d-master-guard`: `scripts/hooks/require-feature-branch.sh`
+      wired into `.pre-commit-config.yaml` as a pre-commit-stage local hook
+      with no bypass. Verified: empty commit on a clean master worktree
+      failed with the guard message and HEAD did not move; the hook files
+      were committed on the feat branch with the guard passing; `prek run
+      --all-files` and `just ci` green.
 - [ ] Milestone 4 (263c): AGENTS.md, CONTRIBUTING.md, and
       safety-and-permissions instructions with evidence and probe.
 - [ ] Milestone 4b (263f): reconcile .agents/prompt.md.
@@ -621,4 +627,12 @@ Acceptance for 263g:
   sandbox caveat: the agent shell cannot write outside the project directory,
   so the verification worktree used an in-repo path; the documented
   `../ahm-<slug>` path is equivalent and Milestone 6 will exercise it.
+
+- (2026-08-01) Milestone 3 (263d) delivered: the no-bypass master-commit
+  guard hook ships as `scripts/hooks/require-feature-branch.sh` wired into
+  `.pre-commit-config.yaml`. Verified through the real pre-commit path: an
+  empty commit on a clean master worktree was refused with the guard message
+  and HEAD did not move, while the same hook files committed normally on the
+  feature branch. The hook is a local nudge only; GitHub branch protection
+  (Milestone 5) remains the real gate.
 

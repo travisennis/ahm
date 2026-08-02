@@ -1,6 +1,13 @@
 repos:
   - repo: local
     hooks:
+      - id: require-feature-branch
+        name: require feature branch
+        entry: scripts/hooks/require-feature-branch.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
       - id: go-fmt-check
         name: go fmt check
         entry: scripts/hooks/go-fmt-check.sh
