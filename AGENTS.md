@@ -134,7 +134,15 @@ records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
 
 ## Repository Rules
 
-- Do not commit or push unless explicitly asked.
+- Never commit directly to `master`: not development work, not planning or
+  intake records, not release prep (release commits live on a
+  `release/vX.Y.Z` branch). Work happens on `feat/<slug>` branches and merges
+  to `master` only through a pull request with CI green.
+- Do not commit or push unless explicitly asked. A task or instruction that
+  names branch work authorizes commits on that feature branch; pushing and
+  opening a PR require an explicit instruction or a proof step that asks for
+  them. After finishing, hand off with the branch name and whether a PR was
+  opened.
 - Assume uncommitted changes belong to the user; do not revert or clean files
   you did not intentionally change.
 - Inspect `git status --short` before broad edits.
