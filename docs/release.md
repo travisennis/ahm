@@ -51,7 +51,10 @@ Release prep requires:
 - `git-cliff`
 - GoReleaser, installed by `just install-tools`
 
-The repository release branch is currently `master`.
+Releases are prepared on `master`; because master is branch-protected and a
+guard hook blocks direct master commits, the changelog commit moves to a
+short-lived `release/vX.Y.Z` branch and merges via pull request. Tags are
+created on master and pushed directly (tag pushes are not branch-protected).
 
 ## Weekly Release Checklist
 
@@ -83,18 +86,25 @@ scripts/prepare-release.sh v0.3.0
 ```
 
 1. Review the changelog diff.
-2. Commit the changelog:
+2. Move the changelog to a release branch, commit it, and open a PR. Direct
+   commits to master are blocked by the guard hook, and master is
+   branch-protected, so the changelog commit always lands via PR:
 
 ```bash
+git checkout -b release/v0.3.0
 git add CHANGELOG.md
 git commit -m "chore(release): prepare v0.3.0"
+git push -u origin release/v0.3.0
+gh pr create --title "chore(release): prepare v0.3.0" --body "Release prep for v0.3.0."
 ```
 
-1. Create and push the tag:
+1. Merge the PR once CI is green, then create and push the tag from master
+   (the release branch is deleted by the merge):
 
 ```bash
+gh pr merge --squash --delete-branch
+git checkout master && git pull
 git tag -a v0.3.0 -m "v0.3.0"
-git push origin master
 git push origin v0.3.0
 ```
 
