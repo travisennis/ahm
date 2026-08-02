@@ -518,7 +518,15 @@ Acceptance for 263g:
       migration tasks) dropped per owner decision, with the still-valid
       coordination rules retained. Evidence and probe deferral recorded in
       the commit message.
-- [ ] Milestone 5 (263b): GitHub branch protection enabled (manual).
+- [x] (2026-08-02) Milestone 5 (263b): GitHub branch protection enabled on
+      `master` via the GitHub API — required PRs (0 required approvals,
+      self-merge allowed), required `ci` status check with strict/up-to-date
+      branches (contexts `ci (ubuntu-latest)` and `ci (windows-latest)` —
+      GitHub does not satisfy a bare `ci` context for a matrix job),
+      `enforce_admins: true`, force pushes and deletions disabled.
+      Verified: `gh api` shows the protection; a direct push to `master` was
+      rejected with `GH006: Protected branch update failed` (2026-08-02).
+      Settings recorded in task 263b's body.
 - [ ] Milestone 6 (263g): end-to-end proof with two parallel worktrees.
 
 ## Surprises & Discoveries
@@ -578,6 +586,16 @@ Acceptance for 263g:
   original per-worktree install assumption was wrong and was corrected.
   Evidence: `git rev-parse --git-path hooks` from a linked worktree in a
   scratch repo, 2026-08-01.
+
+- Observation: GitHub does not satisfy a required status check context named
+  after a matrix job's bare job name. The `ci` job in `.github/workflows/ci.yml`
+  runs on `ubuntu-latest` and `windows-latest`, so its check runs are named
+  `ci (ubuntu-latest)` and `ci (windows-latest)`; requiring context `ci` left
+  PR #8 unmergeable ("Required status check \"ci\" is expected", HTTP 405)
+  until the protection required the two matrix-expanded contexts. Evidence:
+  merge attempt on 2026-08-02; `gh api .../branches/master/protection` after
+  the fix. Implication: if the CI matrix gains a new OS, that check must be
+  added to the required contexts (the protection lists exact check names).
 
 ## Decision Log
 
@@ -742,4 +760,20 @@ Acceptance for 263g:
   by `ahm task work` (documented compatibility surface). Behavior-shaping
   evidence and the deferred fresh-session probe are recorded in the commit
   message per docs/guardrails/agent-instructions.md.
+
+- (2026-08-02) Milestone 5 (263b) delivered: `master` is branch-protected on
+  GitHub. Enabled via the API: required PRs before merging (0 required
+  approvals so self-merge of a green PR works), required `ci` status check
+  with strict (up-to-date) branches, `enforce_admins: true` so no actor or
+  rule is exempt from the required-PR rule, and force pushes/deletions
+  disabled. One discovery along the way: GitHub will not satisfy a required
+  status check named after a matrix job's bare job name, so the required
+  contexts are the matrix check runs `ci (ubuntu-latest)` and
+  `ci (windows-latest)` (see Surprises & Discoveries). Verified by reading
+  the protection back through `gh api` and by a real push attempt:
+  `git push origin <temp>:master` was rejected with
+  `GH006: Protected branch update failed for refs/heads/master`. The settings
+  changed and date are recorded in task 263b's body. The green-PR merge
+  acceptance is proven by the 263b record-keeping PR itself, which merged
+  after its `ci` check passed.
 
