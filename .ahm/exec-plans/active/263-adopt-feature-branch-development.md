@@ -454,8 +454,9 @@ Acceptance for 263g:
       ci.yml runs on all pushes; prepare-release.sh guards master at the top
       of the script and prints release-branch + PR instructions;
       docs/release.md rewritten for the release-branch + PR flow. Local
-      checks passed (`just ci`; guard exits 1 on the feature branch);
-      push/PR CI and the master-path clone test pending before completion.
+      checks passed (`just ci`; guard exits 1 on the feature branch); push
+      and PR CI green on GitHub; master-path clone test verified the guard,
+      changelog regeneration, and printed release-branch instructions.
 - [ ] Milestone 2 (263a): worktree workflow documented in CONTRIBUTING.md
       (no helper script).
 - [ ] Milestone 3 (263d): master-commit guard hook.
