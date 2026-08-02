@@ -358,13 +358,25 @@ description (`.ahm/` source records, gitignored indexes). Preserve the
 work. This is a behavior-shaping edit: same evidence-and-probe requirement as
 Milestone 4, and the probe can be the same fresh-session run.
 
+Superseded 2026-08-02 by owner decision (see Decision Log): the file was
+rewritten in full rather than surgically edited, and the "coordinate parallel
+trees" section was dropped rather than preserved — it referenced the
+completed multi-tree migration (tasks 145, 156g, 160d) and a deprecation that
+has already landed. The still-valid coordination rules (records via `ahm`
+commands, never hand-edit generated indexes, task comments) are retained in
+the rewritten "Working the task" section.
+
 Acceptance for 263f:
 
 - [ ] `.agents/prompt.md` contains no reference to ref-backed records or
       `refs/ahm/*`.
 - [ ] The Git-safety bullet describes the ahm binary's boundary and defers
       the agent's own commit behavior to `AGENTS.md`.
-- [ ] The "coordinate parallel trees" guidance is intact.
+- [ ] The "coordinate parallel trees" guidance is intact. (Amended
+      2026-08-01: dropped by owner decision; see the milestone note and
+      Decision Log. The acceptance becomes: the still-valid coordination
+      rules — records via `ahm` commands, never hand-edit generated
+      indexes, task comments — are retained.)
 - [ ] The commit message carries the evidence and probe record.
 - [ ] `just docs-md-lint` passes (or the file's linter, if prompt.md is
       outside the lint glob, state that).
@@ -498,7 +510,14 @@ Acceptance for 263g:
       distinguishes the ahm binary boundary from project-agent behavior.
       Evidence and probe deferral recorded in the commit message per
       docs/guardrails/agent-instructions.md.
-- [ ] Milestone 4b (263f): reconcile .agents/prompt.md.
+- [x] (2026-08-02) Milestone 4b (263f) implemented on
+      `feat/263f-prompt-reconcile`: `.agents/prompt.md` rewritten in full —
+      ref-backed vision (refs/ahm/*, VISION) removed; Git-safety bullet now
+      states the binary boundary and defers agent commit behavior to
+      AGENTS.md; the stale "coordinate parallel trees" section (completed
+      migration tasks) dropped per owner decision, with the still-valid
+      coordination rules retained. Evidence and probe deferral recorded in
+      the commit message.
 - [ ] Milestone 5 (263b): GitHub branch protection enabled (manual).
 - [ ] Milestone 6 (263g): end-to-end proof with two parallel worktrees.
 
@@ -662,6 +681,23 @@ Acceptance for 263g:
   create live GitHub artifacts without that authorization.
   Date/Author: 2026-08-01, Travis + agent.
 
+- Decision: `.agents/prompt.md` is rewritten, not deleted. The owner
+  proposed deletion; the agent pushed back because the file is the default
+  `promptFile` consumed by `ahm task work` (a documented compatibility
+  surface, `docs/references/workflow-spec.md`), and this repo configures
+  `taskWork`. Deletion would silently disable the `## Project Instructions`
+  section of every delegated task-work session. Rewrite keeps the surface
+  working with accurate content. The rewrite drops the stale "coordinate
+  parallel trees" section rather than preserving it (contra the milestone
+  text): it referenced the completed multi-tree migration (tasks 145, 156g,
+  160d) and a landed deprecation; the still-valid coordination rules are
+  retained in "Working the task".
+  Rationale: an instruction no trajectory ever used has no evidence of
+  effect (agent-instructions guardrail), and stale instructions that
+  contradict the current workflow ("never commit... open PRs") are actively
+  harmful to delegated sessions.
+  Date/Author: 2026-08-02, Travis + agent.
+
 ## Outcomes & Retrospective
 
 - (2026-08-01) Milestone 2 (263a) delivered: CONTRIBUTING.md documents the
@@ -694,4 +730,16 @@ Acceptance for 263g:
   milestone. Behavior-shaping evidence and the deferred fresh-session probe
   are recorded in the task notes and commit message per
   docs/guardrails/agent-instructions.md.
+
+- (2026-08-02) Milestone 4b (263f) delivered: `.agents/prompt.md` rewritten
+  in full. The ref-backed vision (refs/ahm/*, VISION as canonical) is gone;
+  the Git-safety bullet now states the ahm binary's boundary and defers the
+  agent's own commit behavior to AGENTS.md; the "coordinate parallel trees"
+  section, which referenced the completed multi-tree migration, was dropped
+  by owner decision with the still-valid coordination rules retained in a
+  new "Working the task" section. The owner had proposed deletion; the
+  rewrite was chosen because the file is the default `promptFile` consumed
+  by `ahm task work` (documented compatibility surface). Behavior-shaping
+  evidence and the deferred fresh-session probe are recorded in the commit
+  message per docs/guardrails/agent-instructions.md.
 
