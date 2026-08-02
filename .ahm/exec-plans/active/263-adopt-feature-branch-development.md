@@ -488,8 +488,16 @@ Acceptance for 263g:
       failed with the guard message and HEAD did not move; the hook files
       were committed on the feat branch with the guard passing; `prek run
       --all-files` and `just ci` green.
-- [ ] Milestone 4 (263c): AGENTS.md, CONTRIBUTING.md, and
-      safety-and-permissions instructions with evidence and probe.
+- [x] (2026-08-01) Milestone 4 (263c) implemented on
+      `feat/263c-branch-workflow` (includes the 263a worktree amendment from
+      owner feedback): AGENTS.md Repository Rules gained the feature-branch
+      rule and the redefined "explicitly asked"; CONTRIBUTING.md Commit And
+      PR Workflow now describes branch naming, the standard sequence, the
+      rebase sync strategy, the guard hook, and the release-branch flow;
+      Release Workflow rewritten to match; safety-and-permissions.md
+      distinguishes the ahm binary boundary from project-agent behavior.
+      Evidence and probe deferral recorded in the commit message per
+      docs/guardrails/agent-instructions.md.
 - [ ] Milestone 4b (263f): reconcile .agents/prompt.md.
 - [ ] Milestone 5 (263b): GitHub branch protection enabled (manual).
 - [ ] Milestone 6 (263g): end-to-end proof with two parallel worktrees.
@@ -644,6 +652,16 @@ Acceptance for 263g:
   cake supports it.
   Date/Author: 2026-08-01, Travis + agent.
 
+- Decision: the fresh-session probe for 263c's behavior-shaping edits is
+  deferred; the exact probe is recorded in the ExecPlan's Milestone 4 scope
+  and the 263c task notes, and the commit message names the deferral.
+  Milestone 6's end-to-end proof (263g) is the probe's natural execution
+  point.
+  Rationale: a real probe pushes branches and opens PRs, which requires the
+  push/PR authorization that only Milestone 6 holds; running it earlier would
+  create live GitHub artifacts without that authorization.
+  Date/Author: 2026-08-01, Travis + agent.
+
 ## Outcomes & Retrospective
 
 - (2026-08-01) Milestone 2 (263a) delivered: CONTRIBUTING.md documents the
@@ -663,4 +681,17 @@ Acceptance for 263g:
   and HEAD did not move, while the same hook files committed normally on the
   feature branch. The hook is a local nudge only; GitHub branch protection
   (Milestone 5) remains the real gate.
+
+- (2026-08-01) Milestone 4 (263c) delivered: feature-branch rules now live in
+  AGENTS.md Repository Rules (never commit to master; feat/<slug> branches;
+  merges only via PR with CI green; what "explicitly asked" now means), and
+  CONTRIBUTING.md documents the branch + worktree flow, the rebase sync
+  strategy, the guard hook, and the release-branch flow (Release Workflow
+  rewritten to match docs/release.md). The safety-and-permissions guardrail
+  now states the no-implicit-git-ops boundary is the ahm binary's, not the
+  project agent's. The owner-feedback worktree amendment (parallel work only;
+  no agent-created worktrees until cake is patched) rode in with this
+  milestone. Behavior-shaping evidence and the deferred fresh-session probe
+  are recorded in the task notes and commit message per
+  docs/guardrails/agent-instructions.md.
 
