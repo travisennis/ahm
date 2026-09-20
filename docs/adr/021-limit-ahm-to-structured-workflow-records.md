@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-27
+status: superseded by ADR-022
+date: 2026-09-20
 decision-makers: Travis Ennis
 ---
 # Limit ahm to structured workflow records
@@ -142,3 +142,7 @@ procedure.
   [Workflow Upgrades](../guides/workflow-upgrades.md).
 
 - Supersedes [ADR-016](016-ahm-docs-check-command-and-project-docs-deprecation.md).
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

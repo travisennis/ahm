@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-12
+status: superseded by ADR-022
+date: 2026-09-20
 decision-makers: Travis Ennis
 informed: tasks 178, 179, 180
 ---
@@ -244,3 +244,7 @@ validation-error list as structured correction metadata.
 - Live supported-agent verification is tracked by task 180.
 - The task file format and unknown-field preservation rules are documented in
   [`docs/references/workflow-spec.md`](../references/workflow-spec.md).
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

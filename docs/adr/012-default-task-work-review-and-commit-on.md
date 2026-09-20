@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-06-26
+status: superseded by ADR-022
+date: 2026-09-20
 ---
 # Default Task Work Review and Commit On
 
@@ -39,3 +39,7 @@ Chosen option: review and commit run by default, with `--no-review` and `--no-co
 - Implements task 118.
 - Supersedes [ADR-008](008-delegated-task-work-commit-handoff.md), which introduced the now-replaced opt-in commit design.
 - See also task 119, which removed the `--complete` flag (completion is agent-driven via the base work prompt).
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

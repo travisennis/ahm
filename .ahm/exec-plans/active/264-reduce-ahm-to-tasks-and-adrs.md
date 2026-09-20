@@ -115,8 +115,13 @@ stage a `.go` change and run `prek run`.
       appended a trailing blank line, so every created ADR failed
       `just docs-md-lint` with MD012. Fixed in `internal/ahm/adrs.go` with a
       regression test; task 265 completed.
-- [ ] The nine ADRs that ADR 022 replaces marked superseded (`ahm adr
-      supersede`).
+- [x] (2026-09-20) The nine ADRs that ADR 022 replaces are marked superseded
+      (`ahm adr supersede` for 004, 006, 011, 012, 014, 017, 019, 020, 021;
+      019 was `proposed` and was accepted first).
+- [x] (2026-09-20) Second defect found while superseding: the replacement ADR
+      lost its final newline when its More Information section was last, which
+      failed `just docs-md-lint` with MD047. Fixed by normalizing rewritten ADR
+      content in `rewriteADR`; task 266 completed.
 - [ ] Milestone 1 (264g) complete: moot backlog tasks cancelled, tracker 263
       closed.
 - [ ] Milestone 2 (264a) complete: delegation surface deleted.
@@ -151,6 +156,18 @@ stage a `.go` change and run `prek run`.
   are never compiled, so there is nothing to upgrade in this module.
   Evidence: `grep -E "go-md2man|go.yaml.in|check.v1" go.sum` shows only
   `/go.mod` hashes.
+
+- Observation: `ahm adr supersede` deleted the replacement ADR's final newline
+  whenever its `More Information` section was the last section in the file, so
+  ADR 022 failed `just docs-md-lint` with MD047 right after the nine
+  supersessions. The defect predates this work: `upsertADRMoreInformationLine`
+  trims the section's trailing blank lines and re-joins the lines, which drops
+  the end-of-file newline regardless of how the body was written.
+  Evidence: a binary built from `master` reproduces it in a scratch repository:
+  create ADR 001 as accepted, create ADR 002 whose last section is
+  `## More Information`, run `ahm adr supersede 001 --by 002`, and the
+  replacement file ends `...decision.md).` with no newline. Fixed by
+  `ensureSingleTrailingNewline` in `rewriteADR` (task 266).
 
 ## Decision Log
 
@@ -203,6 +220,14 @@ stage a `.go` change and run `prek run`.
   Rationale: the deletion milestones are independent and each leaves the tree
   green, so a failure in one is isolated to one branch; the documentation
   rewrite must follow the code it describes; the release must come last.
+  Date/Author: 2026-09-20, Travis Ennis.
+
+- Decision: leave the blank-line-separated `- Supersedes …` items that
+  `ahm adr supersede` writes into ADR 022's `More Information` section as the
+  tool produced them, rather than hand-tidying them into one list.
+  Rationale: ADR-015 and ADR-021 already carry that layout, so ADR 022 matches
+  repository precedent and stays stable when the tool appends another item;
+  hand-tidying would have to be repeated on every future supersession.
   Date/Author: 2026-09-20, Travis Ennis.
 
 ## Outcomes & Retrospective
@@ -646,3 +671,7 @@ ADR family `ahm` still manages.
   `docs/workflow/adrs.md`. Milestone 4 and the Concrete Steps now salvage the
   prose before deleting `context.go`, and milestone 6 registers the new
   documentation surfaces.
+- (2026-09-20) The nine supersessions ADR 022 requires are done, and a second
+  ADR defect surfaced while doing them: a replaced ADR lost its final newline.
+  The fix normalizes every rewritten ADR to end with one newline, and the
+  discovery is recorded above.

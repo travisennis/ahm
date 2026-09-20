@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-19
+status: superseded by ADR-022
+date: 2026-09-20
 decision-makers: Travis Ennis, Codex
 ---
 # Report stale research inbox notes
@@ -88,3 +88,7 @@ delete material that has no continuing value.
 - `internal/ahm/validation.go` — workflow validation implementation.
 - `internal/ahm/prime.go` — session briefing and structured research summary.
 - `internal/ahm/install.go` — repository metadata round-trip behavior.
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

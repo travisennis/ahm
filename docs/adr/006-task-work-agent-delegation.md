@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-06-06
+status: superseded by ADR-022
+date: 2026-09-20
 ---
 # Task Work Agent Delegation
 
@@ -147,3 +147,7 @@ the user's installed CLI configuration.
 - `docs/references/workflow-spec.md`
 - `internal/ahm/task_work.go`, `internal/ahm/task_agents.go`, `internal/ahm/task_session.go`, and `internal/ahm/task_parsers.go`
 - `internal/ahm/install.go`
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

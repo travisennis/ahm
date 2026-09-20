@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-06-19
+status: superseded by ADR-022
+date: 2026-09-20
 ---
 # Expose agent instructions through context command
 
@@ -103,3 +103,7 @@ Task 117 narrowed the role of `ahm context` to align with the primitives model:
 This refinement does not reverse ADR 011's core decision to stop installing
 workflow guide templates into consumer repositories. Scoped context commands
 continue to expose the full embedded reference documents on demand.
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

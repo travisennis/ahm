@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-06-04
+status: superseded by ADR-022
+date: 2026-09-20
 ---
 # ExecPlan Lifecycle Validation
 
@@ -78,3 +78,7 @@ Only errors affect `ok` and command exit status.
 - `internal/ahm/validation.go` — workflow validation implementation
 - `docs/cli.md` — validation finding reference
 - `docs/references/workflow-spec.md` — workflow validation semantics
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

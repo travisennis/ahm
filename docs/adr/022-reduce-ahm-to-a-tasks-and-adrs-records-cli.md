@@ -197,10 +197,26 @@ The release implementing this decision must:
   `docs/workflow/adrs.md`, with design plans under `docs/exec-plans/`.
   Delivery sequence: ExecPlan `.ahm/exec-plans/active/264-reduce-ahm-to-tasks-and-adrs.md`,
   tracker task 264, and children 264a-264g.
-- Supersedes ADR-004, ADR-006, ADR-011, ADR-012, ADR-014, ADR-017, ADR-019,
-  ADR-020, and ADR-021, each of which decided a surface removed here.
 - Unaffected decisions that continue to guide the reduced tool: ADR-001
   (atomic writes), ADR-003 (task create body input), ADR-005 (acceptance
   checks), ADR-007 (cancellation reasons), ADR-009 (MADR ADRs), ADR-010 (ID
   allocation lock), ADR-015 (committed `.ahm` record storage), and ADR-018
   (git-environment scrubbing).
+
+- Supersedes [ADR-004](004-exec-plan-lifecycle-validation.md).
+
+- Supersedes [ADR-006](006-task-work-agent-delegation.md).
+
+- Supersedes [ADR-011](011-expose-agent-instructions-through-context-command.md).
+
+- Supersedes [ADR-012](012-default-task-work-review-and-commit-on.md).
+
+- Supersedes [ADR-014](014-replace-managed-skills-with-command-based-procedures.md).
+
+- Supersedes [ADR-017](017-apply-structured-task-revisions-during-grooming.md).
+
+- Supersedes [ADR-019](019-add-plan-and-research-lifecycle-commands.md).
+
+- Supersedes [ADR-020](020-report-stale-research-inbox-notes.md).
+
+- Supersedes [ADR-021](021-limit-ahm-to-structured-workflow-records.md).

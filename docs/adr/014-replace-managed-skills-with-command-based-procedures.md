@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-07-07
+status: superseded by ADR-022
+date: 2026-09-20
 decision-makers: Travis Ennis
 ---
 # Replace managed skills with command-based procedures
@@ -303,3 +303,7 @@ should add an ExecPlan before implementation.
   project-owned and ahm-managed workflow state under `.ahm/`.
 
 - Supersedes [ADR-002](002-advisory-agents-suggestions.md).
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).

@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-07-19
+status: superseded by ADR-022
+date: 2026-09-20
 decision-makers: Travis Ennis
 ---
 # Add Plan and Research Lifecycle Commands
@@ -221,3 +221,7 @@ rendering ship with the binary version.
   indexes.
 - `internal/templates/workflow/PLANS.md` and `RESEARCH.md`: current embedded
   workflow guidance.
+
+## Supersession
+
+Superseded by [ADR-022](022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md).
