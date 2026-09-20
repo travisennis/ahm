@@ -106,5 +106,5 @@ prek install
 prek install --hook-type commit-msg
 ```
 
-Commit messages and pull request titles must follow Conventional Commits, for
-example `feat: add release workflow` or `fix: handle missing task metadata`.
+Commit messages must follow Conventional Commits, for example
+`feat: add release workflow` or `fix: handle missing task metadata`.

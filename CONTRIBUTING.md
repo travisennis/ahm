@@ -39,8 +39,8 @@ Linked worktrees share the main checkout's hooks directory (verify with
 the main checkout covers all worktrees and no per-worktree hook install is
 needed.
 
-Cleanup after the PR merges: `git worktree remove ../ahm-<slug>` and
-`git branch -d feat/<slug>`.
+Cleanup after the branch merges or is abandoned: `git worktree remove
+../ahm-<slug>` and `git branch -d feat/<slug>`.
 
 Agents: the cake agent runtime cannot yet create sibling-directory worktrees
 through its shell sandbox (writes are restricted to the project directory),
@@ -155,37 +155,27 @@ Before auditing or changing docs, read
 [the documentation guardrail](docs/guardrails/documentation.md). `ahm` does not
 own general project documentation and has no documentation context scope.
 
-## Commit And PR Workflow
+## Commit Workflow
 
-All work happens on a feature branch named `feat/<slug>` (for example,
-`feat/263c-branch-workflow`); nothing is committed directly to `master`, and
-commits reach `master` only through a pull request with CI green. For a
-single task, create the branch in the main checkout; use a worktree only when
-multiple tasks are worked in parallel (see Worktree Setup above).
+Work happens on `master`: commit directly to it. CI runs on every push, and
+the repository has a single maintainer, so a feature branch and a pull request
+add ceremony without adding a gate. Create a `feat/<slug>` branch, or a
+worktree, only when you want isolation for an experiment or when two streams of
+work run in parallel (see Worktree Setup above).
 
 The standard sequence:
 
-1. Create the branch from an updated master: `git checkout -b feat/<slug>`.
+1. Sync `master`: `git pull --ff-only`.
 2. Run `ahm prime` before any work and after any checkout; it regenerates the
    branch-scoped indexes and prints the briefing.
-3. Implement, then commit on the branch. Do not commit or push unless
-   explicitly asked: a task or instruction that names branch work authorizes
-   commits on the branch, while pushing and opening a PR require an explicit
-   instruction or a proof step that asks for them.
-4. Rebase the branch onto master before opening or updating the PR
-   (`git fetch origin && git rebase origin/master`).
-5. Push, open a pull request, wait for CI to pass, then merge.
-6. Return to `master`, pull, and run `ahm prime` to regenerate master's
-   indexes.
+3. Implement, then commit on `master`. Do not commit or push unless explicitly
+   asked.
+4. Push with `git push origin master`. CI runs on the push; check it with
+   `gh run list --limit 5` rather than waiting on a merge gate.
+5. Hand off with the commit hash, the branch, the worktree status, and any
+   remaining modified, deleted, or untracked files.
 
-A pre-commit guard hook (`scripts/hooks/require-feature-branch.sh`, installed
-by `prek install`) refuses commits on `master` with no bypass, and GitHub
-branch protection enforces the same rule for pushes. The release flow is the
-one deliberate exception: `just prepare-release` runs on `master`, and the
-changelog commit it produces moves to a `release/vX.Y.Z` branch that merges
-via PR (see Release Workflow below and `docs/release.md`).
-
-Commit messages and pull request titles must use Conventional Commits:
+Commit messages must use Conventional Commits:
 
 ```text
 <type>[(scope)]: <description>
@@ -213,19 +203,16 @@ worktree cleanliness, and any remaining modified, deleted, or untracked files.
 ## Release Workflow
 
 Releases are tag-driven GitHub Releases built by GoReleaser, prepared on
-`master`. Because the guard hook blocks direct master commits and master is
-branch-protected, the changelog commit moves to a short-lived
-`release/vX.Y.Z` branch and merges via pull request; the tag is then created
-on master and pushed directly (tag pushes are not branch-protected). To
-prepare a release, install `svu` and `git-cliff`, then run:
+`master`. The changelog commit lands on `master` like any other commit, and
+the tag is created on `master` and pushed directly. To prepare a release,
+install `svu` and `git-cliff`, then run:
 
 ```bash
 just prepare-release
 ```
 
 The script uses `svu` to calculate the next SemVer tag, updates
-`CHANGELOG.md`, runs the release checks, and prints the exact commit, PR, and
-tag commands. Follow [`docs/release.md`](docs/release.md) for the full
-checklist: review the changelog diff, move it to a `release/vX.Y.Z` branch,
-commit and open a PR, merge once CI is green, then create and push the tag
-from master.
+`CHANGELOG.md`, runs the release checks, and prints the exact commit and tag
+commands. Follow [`docs/release.md`](docs/release.md) for the full checklist:
+review the changelog diff, commit it on `master`, push, wait for CI, then
+create and push the tag.

@@ -134,15 +134,16 @@ records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
 
 ## Repository Rules
 
-- Never commit directly to `master`: not development work, not planning or
-  intake records, not release prep (release commits live on a
-  `release/vX.Y.Z` branch). Work happens on `feat/<slug>` branches and merges
-  to `master` only through a pull request with CI green.
-- Do not commit or push unless explicitly asked. A task or instruction that
-  names branch work authorizes commits on that feature branch; pushing and
-  opening a PR require an explicit instruction or a proof step that asks for
-  them. After finishing, hand off with the branch name and whether a PR was
-  opened.
+- Work happens on `master`. Commit directly to it, including development
+  work, planning records, and release prep. CI runs on every push, and the
+  repository has one maintainer, so a branch and a pull request add ceremony
+  without adding a gate. Reach for a `feat/<slug>` branch, or a worktree, only
+  when you want isolation for an experiment or when several streams of work
+  run in parallel.
+- Do not commit or push unless explicitly asked. An instruction to fix, build,
+  commit, or ship authorizes the commits and the push it needs; say so in the
+  handoff. After finishing, hand off with the commit hashes, the branch, and
+  the worktree status.
 - Assume uncommitted changes belong to the user; do not revert or clean files
   you did not intentionally change.
 - Inspect `git status --short` before broad edits.

@@ -7,7 +7,8 @@ usage() {
 }
 
 # Releases are cut from master only. Guard before the svu/git-cliff tool
-# checks so a feature branch fails fast with this message.
+# checks so a feature branch fails fast with this message. Master takes direct
+# commits, so the changelog commit below lands on master like any other.
 current_branch="$(git branch --show-current)"
 if [[ -z "$current_branch" ]]; then
 	echo "prepare-release: cannot determine current branch" >&2
@@ -59,15 +60,12 @@ just release-check
 cat <<EOF
 Prepared $version.
 
-Review CHANGELOG.md, then run (master is branch-protected, so the
-changelog commit lands via a release branch and PR; the tag pushes
-directly):
+Review CHANGELOG.md, then run:
 
-  git checkout -b release/$version
   git add CHANGELOG.md
   git commit -m "chore(release): prepare $version"
-  git push -u origin release/$version   # open a PR and merge it to master
-  git checkout master && git pull
+  git push origin master
+  gh run list --limit 3                 # confirm CI is green on that commit
   git tag -a $version -m "$version"
   git push origin $version
 

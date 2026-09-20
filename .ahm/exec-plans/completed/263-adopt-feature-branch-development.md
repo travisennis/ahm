@@ -527,7 +527,9 @@ Acceptance for 263g:
       Verified: `gh api` shows the protection; a direct push to `master` was
       rejected with `GH006: Protected branch update failed` (2026-08-02).
       Settings recorded in task 263b's body.
-- [ ] Milestone 6 (263g): end-to-end proof with two parallel worktrees.
+- [x] (2026-09-20) Milestone 6 (263g) cancelled, not delivered: the owner
+      reversed this plan's workflow, so the parallel-worktree proof has nothing
+      left to prove.
 
 ## Surprises & Discoveries
 
@@ -776,4 +778,16 @@ Acceptance for 263g:
   changed and date are recorded in task 263b's body. The green-PR merge
   acceptance is proven by the 263b record-keeping PR itself, which merged
   after its `ci` check passed.
+
+- (2026-09-20) Reversed, and the plan closes here. The owner removed the
+  feature-branch workflow this plan adopted: the repository commits directly to
+  `master` again. The `require-feature-branch` guard hook and its script are
+  deleted, `semantic-pr.yml` is deleted, GitHub's required-pull-request rule on
+  `master` is being removed, and `AGENTS.md`, `CONTRIBUTING.md`,
+  `docs/release.md`, and `scripts/prepare-release.sh` now describe
+  direct-to-master work with CI on every push. Milestone 6 (263g, the
+  end-to-end worktree proof) is cancelled as moot, and tracker 263 is cancelled
+  rather than completed. Milestones 1-5 stay in this record as the history of
+  what the workflow was: the repository keeps the reasoning it acted on, it
+  does not rewrite it.
 

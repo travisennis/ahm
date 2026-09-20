@@ -66,9 +66,9 @@ documentation, such as the task bucket indexes.
 Two rules constrain every edit in this plan. First, `AGENTS.md` at the
 repository root is project-owned: no `ahm` code path may create, replace, or
 remove it. Second, `ahm` never performs implicit Git operations: it does not
-commit, stage, push, move `HEAD`, or modify branches. Every branch, commit,
-and pull request in this plan is a human or agent action performed with
-ordinary `git`, not with `ahm`.
+commit, stage, push, move `HEAD`, or modify branches. Every commit and push in
+this plan is a human or agent action performed with ordinary `git`, not with
+`ahm`.
 
 The commands used to check work are declared in `justfile`:
 
@@ -89,12 +89,10 @@ content `ahm` owns and hashes so it can update it later without clobbering a
 user's edits; the metadata field `files` in `.ahm/config.json` stores those
 hashes.
 
-The repository requires a feature branch for all work, never a commit on
-`master`, and a pull request with green CI to merge. Git hooks installed by
-`prek` (a Rust reimplementation of `pre-commit`) enforce this locally:
-`scripts/hooks/require-feature-branch.sh` refuses a commit on `master`, and
-`scripts/hooks/go-*.sh` run formatting, tidy, test, and lint checks when a
-`*.go` file is staged. Note the exact condition: those Go hooks exit 0
+The repository commits directly to `master`; there is no pull request step. Git
+hooks installed by `prek` (a Rust reimplementation of `pre-commit`) run
+formatting, tidy, test, and lint checks when a `*.go` file is staged, and CI
+runs on every push. Note the exact condition: those Go hooks exit 0
 immediately unless `git diff --cached --name-only` lists a `.go` file, so
 `prek run --all-files` proves nothing about them; to exercise them you must
 stage a `.go` change and run `prek run`.
@@ -122,6 +120,14 @@ stage a `.go` change and run `prek run`.
       lost its final newline when its More Information section was last, which
       failed `just docs-md-lint` with MD047. Fixed by normalizing rewritten ADR
       content in `rewriteADR`; task 266 completed.
+- [ ] (2026-09-20) Workflow reversal applied locally: `AGENTS.md` and
+      `CONTRIBUTING.md` describe direct commits to `master`, the
+      `require-feature-branch` hook and `semantic-pr.yml` are deleted, and
+      `docs/release.md` and `scripts/prepare-release.sh` drop the
+      release-branch flow. ExecPlan 263 and task 263g are cancelled.
+- [ ] (2026-09-20) GitHub still requires a pull request on `master`; the owner
+      must remove that rule (see the Revision Notes) before
+      `git push origin master` publishes these commits.
 - [ ] Milestone 1 (264g) complete: moot backlog tasks cancelled, tracker 263
       closed.
 - [ ] Milestone 2 (264a) complete: delegation surface deleted.
@@ -168,6 +174,16 @@ stage a `.go` change and run `prek run`.
   `## More Information`, run `ahm adr supersede 001 --by 002`, and the
   replacement file ends `...decision.md).` with no newline. Fixed by
   `ensureSingleTrailingNewline` in `rewriteADR` (task 266).
+
+- Observation: the required-pull-request rule on `master` cannot be removed
+  from an agent shell. Deleting the protection rule over the API was refused
+  by the environment even with the owner's explicit confirmation, so the owner
+  changes it, not the agent.
+  Evidence: `gh api -X DELETE
+  repos/:owner/:repo/branches/master/protection/required_pull_request_reviews`
+  is blocked; the pre-change configuration is saved at
+  `/tmp/ahm-master-protection-backup.json`, and the settings that matter are
+  reproduced in the Revision Notes below.
 
 ## Decision Log
 
@@ -216,10 +232,22 @@ stage a `.go` change and run `prek run`.
   Date/Author: 2026-09-20, Travis Ennis.
 
 - Decision: milestone order is 264g, 264a, 264b, 264c, 264d, 264e, 264f, with
-  each milestone on its own `feat/<slug>` branch and its own pull request.
+  each milestone as its own commit on `master` (a `feat/<slug>` branch is
+  optional and only for isolation).
   Rationale: the deletion milestones are independent and each leaves the tree
-  green, so a failure in one is isolated to one branch; the documentation
-  rewrite must follow the code it describes; the release must come last.
+  green, so a failure is isolated to one commit that can be reverted; the
+  documentation rewrite must follow the code it describes; the release must
+  come last.
+  Date/Author: 2026-09-20, Travis Ennis.
+
+- Decision: this repository works directly on `master` with no pull requests,
+  reversing the workflow that ExecPlan 263 adopted on 2026-08-01.
+  Rationale: one maintainer and CI on every push meant a branch plus pull
+  request added ceremony without a gate. The guard hook and its script, the
+  required-pull-request rule on GitHub, and the release-branch flow are removed
+  together, because the local hook alone would keep refusing commits on
+  `master`. Only the owner can drop the GitHub rule; the agent environment
+  refuses that API call.
   Date/Author: 2026-09-20, Travis Ennis.
 
 - Decision: leave the blank-line-separated `- Supersedes …` items that
@@ -463,8 +491,8 @@ before adopting v2.
 
 Result: v2.0.0 is tagged and published with a migration note.
 
-Proof: `just release-check` and `just ci` pass on the release branch; the
-release branch merges through a pull request with CI green; artifacts exist
+Proof: `just release-check` and `just ci` pass on the release commit on
+`master`; CI is green on that commit before the tag is pushed; artifacts exist
 for the six target platforms.
 
 ## Concrete Steps
@@ -474,7 +502,6 @@ All commands run from the repository root unless stated otherwise.
 To start any milestone:
 
     git switch master && git pull --ff-only
-    git switch -c feat/<slug>
     ahm prime
 
 Milestone 1 (264g):
@@ -531,8 +558,8 @@ Milestone 6 (264e): edit prose, then
 
 Milestone 7 (264f): follow `docs/release.md`.
 
-Every milestone ends with a commit on its branch, a pull request, and a merge
-with CI green. Commits use Conventional Commits, for example
+Every milestone ends with a commit on `master`, a push, and CI green on that
+commit. Commits use Conventional Commits, for example
 `refactor(cli): remove task work, audit, and groom`.
 
 ## Validation and Acceptance
@@ -586,9 +613,8 @@ counts and validation findings without any routing prose.
 ## Idempotence and Recovery
 
 Every step in this plan is a file deletion or a prose edit, and every step is
-committed on its own branch, so recovery is `git switch master` and abandon
-the branch. No step mutates a database, a remote, or the user's worktree
-outside the repository.
+its own commit on `master`, so recovery is `git revert <hash>`. No step mutates
+a database, a remote, or the user's worktree outside the repository.
 
 Two steps deserve care. Deleting a file that a surviving file still references
 breaks the build; run `go build ./...` after each `git rm` batch and let the
@@ -675,3 +701,15 @@ ADR family `ahm` still manages.
   ADR defect surfaced while doing them: a replaced ADR lost its final newline.
   The fix normalizes every rewritten ADR to end with one newline, and the
   discovery is recorded above.
+- (2026-09-20) Workflow reversal: the repository commits directly to `master`.
+  The guard hook, `semantic-pr.yml`, and the release-branch flow are gone, and
+  `AGENTS.md`, `CONTRIBUTING.md`, `docs/release.md`, and
+  `scripts/prepare-release.sh` describe the new sequence. ExecPlan 263 and task
+  263g are cancelled.
+
+  To restore the previous GitHub protection on `master`, re-apply the settings
+  captured before the change (also saved at
+  `/tmp/ahm-master-protection-backup.json`): required pull request reviews with
+  `required_approving_review_count: 0`, required status checks
+  `ci (ubuntu-latest)` and `ci (windows-latest)` with `strict: true`,
+  `enforce_admins: true`, and force pushes and deletions disabled.
