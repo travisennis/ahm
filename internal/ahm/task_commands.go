@@ -121,24 +121,6 @@ Examples:
 		},
 	})
 	task.AddCommand(&cobra.Command{
-		Use:   "migrate",
-		Short: "Normalize legacy task front matter",
-		Long: `Normalize legacy task front matter to the current schema.
-
-Examples:
-  ahm --dry-run task migrate
-  ahm task migrate
-  ahm --json task migrate
-  ahm --json task migrate --dry-run`,
-		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			return a.taskMigrate()
-		},
-	})
-	task.AddCommand(&cobra.Command{
 		Use:   "show <id> [<id>...]",
 		Short: "Show one or more tasks",
 		Long: `Show one or more tasks by ID.

@@ -101,7 +101,7 @@ func TestSortTaskListDomainRanks(t *testing.T) {
 
 func TestTaskListCommandsSupportSorting(t *testing.T) {
 	root := t.TempDir()
-	active := filepath.Join(root, ".agents", ".tasks", "active")
+	active := filepath.Join(root, ".ahm", "tasks", "active")
 	writeTaskFile(t, filepath.Join(active, "001.md"), "001", "Zulu", "Pending", "")
 	writeTaskFile(t, filepath.Join(active, "002.md"), "002", "Alpha", "Pending", "")
 	writeTaskFile(t, filepath.Join(active, "003.md"), "003", "Middle", "Blocked", "effort: M\n")
@@ -130,7 +130,7 @@ func TestTaskListCommandsSupportSorting(t *testing.T) {
 
 func TestTaskListSortOrderAcrossOutputModes(t *testing.T) {
 	root := t.TempDir()
-	active := filepath.Join(root, ".agents", ".tasks", "active")
+	active := filepath.Join(root, ".ahm", "tasks", "active")
 	writeTaskFile(t, filepath.Join(active, "001.md"), "001", "First task", "Pending", "")
 	writeTaskFile(t, filepath.Join(active, "002.md"), "002", "Second task", "Pending", "")
 	writeTaskFile(t, filepath.Join(active, "003.md"), "003", "Third task", "Pending", "")

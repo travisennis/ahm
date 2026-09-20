@@ -3,7 +3,7 @@
 ## Scope
 
 Read this guardrail for `.ahm/config.json`, task files, ADRs, generated
-indexes, install/upgrade/status/doctor behavior, and file-format parsing or
+indexes, init/status/doctor behavior, and file-format parsing or
 rendering.
 
 ## Compatibility Surfaces
@@ -13,15 +13,15 @@ rendering.
   preservation.
 - ADR constrained-MADR front matter and lifecycle metadata.
 - Generated task and ADR index contents.
-- Legacy instruction/procedure-file removal and upgrade conflict behavior.
+- Retired-file ownership boundaries and install reconciliation behavior.
 - CRLF normalization and LF output.
 
 ## Required Checks
 
 - Update `docs/references/workflow-spec.md` when durable workflow semantics or
   file formats change.
-- Update `docs/guides/workflow-upgrades.md` when install, upgrade, or legacy
-  instruction behavior changes.
+- Update `docs/guides/workflow-upgrades.md` when install or cross-version
+  migration behavior changes.
 - Keep `ahm prime` a pure state report: regenerated indexes, validation
   findings, and record counts. Workflow instructions belong to the project's
   own prose under `docs/workflow/`.

@@ -1,72 +1,44 @@
 package ahm
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestPrimeMemoizesWorkflowPathsPerCommand(t *testing.T) {
+func TestWorkflowPathsResolveTheAhmLayout(t *testing.T) {
 	root := t.TempDir()
-	setupAhmRepo(t, root)
-	loads := 0
-	var out, errOut strings.Builder
-	a := app{
-		opts: options{root: root}, out: &out, err: &errOut,
-		pathsLoad: func(root string) workflowPaths {
-			loads++
-			return workflowPathsFor(root)
-		},
-	}
+	paths := workflowPathsFor(root)
 
-	if err := a.prime(); err != nil {
-		t.Fatal(err)
+	if got, want := paths.tasksRel(), ".ahm/tasks"; got != want {
+		t.Errorf("tasksRel() = %q, want %q", got, want)
 	}
-	if loads != 1 {
-		t.Fatalf("workflow path resolver calls = %d, want 1", loads)
+	if got, want := paths.tasksBucketDir("active"), filepath.Join(root, ".ahm", "tasks", "active"); got != want {
+		t.Errorf("tasksBucketDir(active) = %q, want %q", got, want)
+	}
+	if got, want := paths.taskFile("active", "001"), filepath.Join(root, ".ahm", "tasks", "active", "001.md"); got != want {
+		t.Errorf("taskFile() = %q, want %q", got, want)
+	}
+	// The root bucket directory is the tasks directory itself.
+	if got, want := paths.tasksBucketDir(""), filepath.Join(root, ".ahm", "tasks"); got != want {
+		t.Errorf("tasksBucketDir(\"\") = %q, want %q", got, want)
 	}
 }
 
-func TestAppInvalidatesWorkflowPathsAfterConfigAnchorChange(t *testing.T) {
+// TestWorkflowPathsIgnoreMetadata pins the collapse of the dual layout: record
+// paths no longer depend on which metadata file anchors the repository, so a
+// legacy .agents/ahm.json config cannot move them.
+func TestWorkflowPathsIgnoreMetadata(t *testing.T) {
 	root := t.TempDir()
-	loads := 0
-	a := app{
-		opts: options{root: root},
-		pathsLoad: func(root string) workflowPaths {
-			loads++
-			return workflowPathsFor(root)
-		},
-	}
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), `{"version":"0.6.4"}`+"\n")
 
-	if got := a.workflowPaths().recordsDir; got != legacyRecordsDirName {
-		t.Fatalf("initial records dir = %q, want %q", got, legacyRecordsDirName)
-	}
-	writeAHMConfig(t, root)
-	if got := a.workflowPaths().recordsDir; got != legacyRecordsDirName {
-		t.Fatalf("cached records dir = %q, want %q", got, legacyRecordsDirName)
-	}
-	a.invalidateWorkflowPaths()
-	if got := a.workflowPaths().recordsDir; got != toolRecordsDirName {
-		t.Fatalf("records dir after invalidation = %q, want %q", got, toolRecordsDirName)
-	}
-	if loads != 2 {
-		t.Fatalf("workflow path resolver calls = %d, want 2", loads)
-	}
-}
+	withMetadata := workflowPathsFor(root).taskFile("active", "001")
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{"strict_acceptance":false,"files":{}}`+"\n")
+	withConfig := workflowPathsFor(root).taskFile("active", "001")
 
-func TestAppWorkflowPathsPreserveCorruptConfigLayout(t *testing.T) {
-	root := t.TempDir()
-	path := filepath.Join(root, ".ahm", "config.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
+	if withMetadata != withConfig {
+		t.Errorf("task path changed with metadata location: %q vs %q", withMetadata, withConfig)
 	}
-	if err := os.WriteFile(path, []byte("{invalid"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	a := app{opts: options{root: root}}
-	if got := a.workflowPaths().recordsDir; got != toolRecordsDirName {
-		t.Fatalf("records dir = %q, want %q for corrupt .ahm config", got, toolRecordsDirName)
+	if want := filepath.Join(root, ".ahm", "tasks", "active", "001.md"); withConfig != want {
+		t.Errorf("task path = %q, want %q", withConfig, want)
 	}
 }

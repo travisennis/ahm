@@ -55,7 +55,7 @@ func TestDetectManagedRootFailsWithoutGitOrMetadata(t *testing.T) {
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "no .git, .ahm/config.json, or .agents/ahm.json found") {
+	if !strings.Contains(err.Error(), "no .git or .ahm/config.json found") {
 		t.Errorf("error should mention missing markers: %v", err)
 	}
 	if !strings.Contains(err.Error(), "--root") {
@@ -137,34 +137,82 @@ func TestDetectManagedRootSucceedsWithDotGit(t *testing.T) {
 	assertDetectedRootEqual(t, got, root)
 }
 
-func TestDetectManagedRootSucceedsWithMetadata(t *testing.T) {
+// TestDetectManagedRootFailsOnLegacyLayout covers the one layout this version
+// cannot read: a repository whose ahm metadata is still .agents/ahm.json. Root
+// detection refuses it and names the final v1 release that can migrate it,
+// because initializing over it would leave its records behind.
+func TestDetectManagedRootFailsOnLegacyLayout(t *testing.T) {
 	root := t.TempDir()
-	metaDir := filepath.Join(root, ".agents")
-	if err := os.MkdirAll(metaDir, 0o755); err != nil {
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), "{}\n")
+
+	withWorkingDir(t, root, func() {
+		_, err := detectManagedRoot()
+		if err == nil {
+			t.Fatal("detectManagedRoot accepted a legacy .agents/ahm.json repository")
+		}
+		assertContainsAll(t, err.Error(), ".agents/ahm.json", finalV1Release)
+	})
+}
+
+// TestDetectManagedRootFailsOnLegacyLayoutInParent covers the same refusal when
+// the legacy metadata sits in an ancestor directory.
+func TestDetectManagedRootFailsOnLegacyLayoutInParent(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte("{}"), 0o644); err != nil {
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), "{}\n")
+	nested := filepath.Join(root, "nested", "deeper")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
+	withWorkingDir(t, nested, func() {
+		_, err := detectManagedRoot()
+		if err == nil {
+			t.Fatal("detectManagedRoot accepted a nested path inside a legacy repository")
+		}
+		assertContainsAll(t, err.Error(), finalV1Release)
+	})
+}
+
+// TestDetectManagedRootSucceedsWithBothMetadataFiles covers the ordering rule:
+// `.ahm/config.json` wins over a leftover `.agents/ahm.json`, because the v1
+// migration wrote the config after moving the records.
+func TestDetectManagedRootSucceedsWithBothMetadataFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), "{}\n")
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{}\n")
+
+	withWorkingDir(t, root, func() {
+		got, err := detectManagedRoot()
+		if err != nil {
+			t.Fatalf("detectManagedRoot() = %v, want the managed root", err)
+		}
+		assertDetectedRootEqual(t, got, root)
+	})
+}
+
+// withWorkingDir runs f with the process working directory set to dir and
+// restores the original directory afterwards.
+func withWorkingDir(t *testing.T, dir string, f func()) {
+	t.Helper()
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		if chErr := os.Chdir(origDir); chErr != nil {
 			t.Errorf("failed to restore working directory: %v", chErr)
 		}
-	}()
-	if err := os.Chdir(root); err != nil {
+	})
+	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-
-	got, err := detectManagedRoot()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	assertDetectedRootEqual(t, got, root)
+	f()
 }
 
 func TestDetectManagedRootSucceedsWithAhmConfig(t *testing.T) {
@@ -199,7 +247,7 @@ func TestDetectManagedRootSucceedsWithAhmConfig(t *testing.T) {
 
 func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
 	root := t.TempDir()
-	// Temp dir has no .git and no .agents/ahm.json
+	// Temp dir has no .git and no .ahm/config.json
 
 	for _, args := range [][]string{
 		{"status"},
@@ -213,7 +261,7 @@ func TestStrictCommandsFailOutsideManagedRepository(t *testing.T) {
 			if code != 1 {
 				t.Errorf("exit code = %d, want 1; stderr = %s", code, stderr)
 			}
-			if !strings.Contains(stderr, "no .git, .ahm/config.json, or .agents/ahm.json found") {
+			if !strings.Contains(stderr, "no .git or .ahm/config.json found") {
 				t.Errorf("stderr should mention missing root markers: %s", stderr)
 			}
 		})
@@ -226,27 +274,28 @@ func TestInitSucceedsOutsideManagedRepository(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "  .ahm/config.json", "indexes:")
+	assertContainsAll(t, stdout, "created:", "  .ahm/config.json", "indexes:")
 	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
 }
 
-func TestUpgradeSucceedsOutsideManagedRepository(t *testing.T) {
+// TestInitIsIdempotentOutsideManagedRepository proves the acceptance criterion
+// that init on an up-to-date repository writes nothing: every file ahm owns
+// keeps its content and its modification time.
+func TestInitIsIdempotentOutsideManagedRepository(t *testing.T) {
 	root := t.TempDir()
-
-	// upgrade without prior install: lenient, acts like init
-	stdout, stderr, code := runCLIFromDir(t, root, "upgrade")
-	if code != 0 {
-		t.Errorf("upgrade exit code = %d, stderr = %s", code, stderr)
+	if _, stderr, code := runCLIFromDir(t, root, "init"); code != 0 {
+		t.Fatalf("first init exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
-	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
+	before := snapshotTree(t, root)
 
-	// upgrade again: should skip unchanged files
-	stdout, stderr, code = runCLIFromDir(t, root, "upgrade")
+	stdout, stderr, code := runCLIFromDir(t, root, "init")
 	if code != 0 {
-		t.Errorf("second upgrade exit code = %d, stderr = %s", code, stderr)
+		t.Errorf("second init exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "  .agents/ahm.json", "indexes:")
+	if strings.TrimSpace(stdout) != "" {
+		t.Errorf("second init reported work on an up-to-date repository:\n%s", stdout)
+	}
+	assertTreeUnchanged(t, root, before)
 }
 
 func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
@@ -265,7 +314,7 @@ func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {
 	if code != 0 {
 		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "indexes:")
+	assertContainsAll(t, stdout, "created:")
 
 	// status now succeeds because .ahm/config.json exists
 	stdout, stderr, code = runCLIFromDir(t, root, "status")

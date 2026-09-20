@@ -80,13 +80,13 @@ func TestRenderBucketIndexGolden(t *testing.T) {
 // the retired trees untouched.
 func TestMainIndexSkipsRetiredRecordFamilies(t *testing.T) {
 	root := t.TempDir()
-	initAndCreateLegacyMetadata(t, root)
-	writeFile(t, filepath.Join(root, ".agents", ".research", "investigations", "cli-indexes.md"), "# CLI Indexes\n\nFindings.\n")
-	writeFile(t, filepath.Join(root, ".agents", "exec-plans", "active", "generate-indexes.md"), "# Generate Indexes\n\nPlan.\n")
+	setupAhmRepo(t, root)
+	writeFile(t, filepath.Join(root, ".ahm", "research", "investigations", "cli-indexes.md"), "# CLI Indexes\n\nFindings.\n")
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "generate-indexes.md"), "# Generate Indexes\n\nPlan.\n")
 	writeADRFile(t, root, "009-madr-adr-management.md", "---\nstatus: accepted\ndate: 2026-06-14\n---\n# MADR ADR Management\n\nBody.\n")
 	stale := []string{
-		filepath.Join(root, ".agents", ".research", "index.md"),
-		filepath.Join(root, ".agents", "exec-plans", "active", "index.md"),
+		filepath.Join(root, ".ahm", "research", "index.md"),
+		filepath.Join(root, ".ahm", "exec-plans", "active", "index.md"),
 	}
 	for _, path := range stale {
 		writeFile(t, path, "stale\n")
@@ -183,8 +183,8 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install legacy workflow scaffold.
-	initAndCreateLegacyMetadata(t, root)
+	// Install the ahm workflow scaffold.
+	setupAhmRepo(t, root)
 
 	// Create a task so indexes are non-trivial.
 	stdout, stderr, code := cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
@@ -208,7 +208,7 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	}
 
 	// Case 2: Stale a generated index and verify dry-run reports it.
-	cancelledIndex := filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md")
+	cancelledIndex := filepath.Join(root, ".ahm", "tasks", "cancelled", "index.md")
 	if err := os.WriteFile(cancelledIndex, []byte("stale content\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if !strings.Contains(stdout, ".agents/.tasks/cancelled/index.md") {
+	if !strings.Contains(stdout, ".ahm/tasks/cancelled/index.md") {
 		t.Errorf("dry-run index should report stale cancelled task index, got:\n%s", stdout)
 	}
 
@@ -228,7 +228,7 @@ func TestIndexDryRunReportsOnlyStaleIndexes(t *testing.T) {
 	if code != 0 {
 		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	if !strings.Contains(stdout, ".agents/.tasks/cancelled/index.md") {
+	if !strings.Contains(stdout, ".ahm/tasks/cancelled/index.md") {
 		t.Errorf("dry-run index should report missing cancelled task index, got:\n%s", stdout)
 	}
 
@@ -269,8 +269,8 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install legacy workflow scaffold and create a task.
-	initAndCreateLegacyMetadata(t, root)
+	// Install the ahm workflow scaffold and create a task.
+	setupAhmRepo(t, root)
 	stdout, stderr, code := cli("task", "create", "Test Task", "--priority", "P1", "--effort", "S")
 	if code != 0 {
 		t.Errorf("task create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -288,10 +288,10 @@ func TestIndexSkipsUnchangedFiles(t *testing.T) {
 		mtime time.Time
 	}
 	targets := []string{
-		filepath.Join(root, ".agents", ".tasks", "index.md"),
-		filepath.Join(root, ".agents", ".tasks", "active", "index.md"),
-		filepath.Join(root, ".agents", ".tasks", "completed", "index.md"),
-		filepath.Join(root, ".agents", ".tasks", "cancelled", "index.md"),
+		filepath.Join(root, ".ahm", "tasks", "index.md"),
+		filepath.Join(root, ".ahm", "tasks", "active", "index.md"),
+		filepath.Join(root, ".ahm", "tasks", "completed", "index.md"),
+		filepath.Join(root, ".ahm", "tasks", "cancelled", "index.md"),
 		filepath.Join(root, "docs", "adr", "index.md"),
 	}
 	var before []fileInfo
@@ -327,8 +327,8 @@ func TestIndexWithMalformedADRPrintsWarning(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install legacy workflow scaffold which creates docs/adr/.
-	initAndCreateLegacyMetadata(t, root)
+	// Install the ahm workflow scaffold, which creates docs/adr/.
+	setupAhmRepo(t, root)
 
 	// Write a valid ADR.
 	writeADRFile(t, root, "001-valid.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Valid ADR\n\nBody.\n")
@@ -360,8 +360,8 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install legacy workflow scaffold.
-	initAndCreateLegacyMetadata(t, root)
+	// Install the ahm workflow scaffold.
+	setupAhmRepo(t, root)
 
 	// Create a valid task so there's at least one parsed task.
 	stdout, stderr, code := cli("task", "create", "Valid Task")
@@ -371,7 +371,7 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 
 	// Write a malformed task file in active/. Use invalid front matter key
 	// to trigger a parse error.
-	malformed := filepath.Join(root, ".agents", ".tasks", "active", "bad.md")
+	malformed := filepath.Join(root, ".ahm", "tasks", "active", "bad.md")
 	if err := os.WriteFile(malformed, []byte("---\ninvalid : key\n---\n# Bad\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestIndexWithMalformedTaskPrintsWarning(t *testing.T) {
 	}
 
 	// The valid task should still appear in generated indexes.
-	indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+	indexPath := filepath.Join(root, ".ahm", "tasks", "index.md")
 	assertFileContainsAll(t, indexPath, "Valid Task")
 }
 
@@ -399,8 +399,8 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 		return runCLI(t, append([]string{"--root", root}, args...)...)
 	}
 
-	// Install legacy workflow scaffold.
-	initAndCreateLegacyMetadata(t, root)
+	// Install the ahm workflow scaffold.
+	setupAhmRepo(t, root)
 
 	// Create an initial generated index so we can check it survives.
 	if _, _, code := cli("index"); code != 0 {
@@ -409,7 +409,7 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 
 	// Replace one of the task directories with a regular file so
 	// os.ReadDir fails with a non-ErrNotExist error.
-	activeDir := filepath.Join(root, ".agents", ".tasks", "active")
+	activeDir := filepath.Join(root, ".ahm", "tasks", "active")
 	if err := os.RemoveAll(activeDir); err != nil {
 		t.Error(err)
 	}
@@ -427,7 +427,7 @@ func TestIndexWithUnreadableTaskDirAborts(t *testing.T) {
 	}
 
 	// Generated indexes from init should still exist — failure does not wipe them.
-	indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+	indexPath := filepath.Join(root, ".ahm", "tasks", "index.md")
 	if _, err := os.Stat(indexPath); err != nil {
 		t.Errorf("generated index should be preserved after aborted index: %v", err)
 	}

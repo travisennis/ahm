@@ -120,11 +120,11 @@ func TestWriteFileAtomic_SucceedsWithStaleFixedTmp(t *testing.T) {
 
 func TestWriteFileAtomic_StaleTmpCleanedByCleanupStaleTemps(t *testing.T) {
 	dir := t.TempDir()
-	agentsDir := filepath.Join(dir, ".agents")
-	path := filepath.Join(agentsDir, "test.txt")
+	stateDir := filepath.Join(dir, ".ahm")
+	path := filepath.Join(stateDir, "test.txt")
 	stalePath := path + ".tmp"
 
-	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -207,9 +207,9 @@ func TestWriteFileAtomic_AcceptsCanonicalParentTraversal(t *testing.T) {
 func TestCleanupStaleTemps(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create .agents directory.
-	agentsDir := filepath.Join(dir, ".agents")
-	taskDir := filepath.Join(agentsDir, ".tasks", "active")
+	// Create the .ahm state directory.
+	stateDir := filepath.Join(dir, ".ahm")
+	taskDir := filepath.Join(stateDir, ".tasks", "active")
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -271,13 +271,13 @@ func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
 		t.Skip("test relies on filesystem permissions; root bypasses them")
 	}
 	dir := t.TempDir()
-	agentsDir := filepath.Join(dir, ".agents")
+	stateDir := filepath.Join(dir, ".ahm")
 
 	// A read-only subdirectory holds a .tmp file that cannot be removed:
 	// on Unix, removing a file requires write permission on its parent dir.
 	// WalkDir visits directories in lexical order, so "locked" is walked
 	// before "writable" — proving the walk continues past the failure.
-	lockedDir := filepath.Join(agentsDir, "locked")
+	lockedDir := filepath.Join(stateDir, "locked")
 	if err := os.MkdirAll(lockedDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
 	}
 
 	// A removable orphan .tmp in a separate writable directory.
-	writableDir := filepath.Join(agentsDir, "writable")
+	writableDir := filepath.Join(stateDir, "writable")
 	if err := os.MkdirAll(writableDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -334,18 +334,18 @@ func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
 func TestCleanupStaleTemps_NoAgentsDir(t *testing.T) {
 	dir := t.TempDir()
 
-	// No .agents directory — should not error.
+	// No .ahm state directory — should not error.
 	if err := cleanupStaleTemps(dir); err != nil {
-		t.Errorf("cleanupStaleTemps on dir without .agents: %v", err)
+		t.Errorf("cleanupStaleTemps on dir without .ahm: %v", err)
 	}
 }
 
 func TestCleanupStaleTemps_SkipsFreshTemp(t *testing.T) {
 	dir := t.TempDir()
-	agentsDir := filepath.Join(dir, ".agents")
-	freshTmp := filepath.Join(agentsDir, "fresh.md.tmp")
+	stateDir := filepath.Join(dir, ".ahm")
+	freshTmp := filepath.Join(stateDir, "fresh.md.tmp")
 
-	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(freshTmp, []byte("fresh"), 0o644); err != nil {
@@ -363,10 +363,10 @@ func TestCleanupStaleTemps_SkipsFreshTemp(t *testing.T) {
 
 func TestCleanupStaleTemps_RemovesOldOrphanTemp(t *testing.T) {
 	dir := t.TempDir()
-	agentsDir := filepath.Join(dir, ".agents")
-	orphanTmp := filepath.Join(agentsDir, "orphan.md.tmp")
+	stateDir := filepath.Join(dir, ".ahm")
+	orphanTmp := filepath.Join(stateDir, "orphan.md.tmp")
 
-	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(orphanTmp, []byte("orphan"), 0o644); err != nil {
@@ -389,8 +389,8 @@ func TestCleanupStaleTemps_RemovesOldOrphanTemp(t *testing.T) {
 
 func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
 	dir := t.TempDir()
-	agentsDir := filepath.Join(dir, ".agents")
-	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+	stateDir := filepath.Join(dir, ".ahm")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -401,7 +401,7 @@ func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		f, err := os.CreateTemp(agentsDir, "active.md.*.tmp")
+		f, err := os.CreateTemp(stateDir, "active.md.*.tmp")
 		if err != nil {
 			t.Errorf("create active temp: %v", err)
 			close(ready)

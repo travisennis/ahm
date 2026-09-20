@@ -10,9 +10,8 @@ embedded into the CLI at build time.
 
 ## Status
 
-Initial implementation. The CLI supports workflow install/upgrade/status,
-native task index generation, task management, and handing a resolved task to a
-supported external coding-agent CLI.
+Initial implementation. The CLI supports workflow init/status, native task
+index generation, task management, ADR management, and record validation.
 
 ## Quickstart
 
@@ -44,17 +43,14 @@ Useful global flags:
 - `--json`: print structured JSON.
 - `--plain`: print stable line-oriented output.
 - `--dry-run`: preview write operations for commands that support it.
-- `--force`: remove conflicting legacy instruction files or override strict
-  acceptance when supported.
+- `--force`: override strict acceptance when supported.
 
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
-`ahm prime` gives a live repository briefing; scoped
-`ahm context task|plan|adr|research` prints managed-work references for
-ahm-managed artifacts, while project `AGENTS.md` owns workflow routing.
-`AGENTS.md` is project-owned: `ahm init`, `ahm upgrade`, and `--force` never
-create, overwrite, or remove it.
+`ahm prime` gives a live repository briefing.
+`AGENTS.md` is project-owned: `ahm init` and `--force` never create, overwrite,
+or remove it.
 
 ## Safety
 

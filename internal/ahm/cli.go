@@ -28,8 +28,6 @@ type app struct {
 	in         io.Reader
 	tasksCache []Task   // cached result of collectTasks, nil when stale
 	warnings   []string // non-fatal errors accumulated during a command
-	pathsCache *workflowPaths
-	pathsLoad  func(string) workflowPaths
 }
 
 func (a *app) addWarning(format string, args ...any) {
@@ -66,19 +64,7 @@ func (a *app) getTasks() ([]Task, error) {
 }
 
 func (a *app) workflowPaths() workflowPaths {
-	if a.pathsCache == nil {
-		load := workflowPathsFor
-		if a.pathsLoad != nil {
-			load = a.pathsLoad
-		}
-		paths := load(a.opts.root)
-		a.pathsCache = &paths
-	}
-	return *a.pathsCache
-}
-
-func (a *app) invalidateWorkflowPaths() {
-	a.pathsCache = nil
+	return workflowPathsFor(a.opts.root)
 }
 
 // invalidateTasks clears the cached task list so the next call to
@@ -131,9 +117,9 @@ func (a *app) run(argv []string) error {
 func (a *app) command() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "ahm",
-		Short: "Manage repo-local .agents workflows",
-		Long: `Manage repo-local .agents workflow files for tasks, ADRs, and
-indexes.
+		Short: "Manage repo-local task and ADR records",
+		Long: `Manage repo-local task and ADR records under .ahm/ for tasks and
+docs/adr/ for ADRs, with generated indexes for both.
 
 When run with no command, ahm runs 'status', which exits with code 1
 when validation errors are found. For a session briefing with live backlog
@@ -181,21 +167,21 @@ Examples:
 			return nil
 		},
 	})
-	root.AddCommand(a.lenientCommand("init", "Install workflow files", `Install the managed .agents workflow into the target repository root.
+	root.AddCommand(a.lenientCommand("init", "Create or reconcile ahm-owned workflow state", `Create ahm-owned workflow state when it is absent and reconcile it when
+it is present.
+
+The command creates the .ahm/ record directories, .ahm/config.json, the
+managed .ahm/.gitignore, and the generated indexes when they are missing,
+and rewrites them when they differ from what ahm owns. Obsolete ahm-owned
+configuration keys are dropped and unknown metadata is preserved. An
+up-to-date repository is left untouched. Project-owned files, including
+AGENTS.md, are never created, replaced, or removed.
 
 Examples:
   ahm init
   ahm --dry-run init
   ahm --force init`, func() error {
-		return a.install(false)
-	}))
-	root.AddCommand(a.lenientCommand("upgrade", "Update managed workflow files", `Update managed workflow files.
-
-Examples:
-  ahm upgrade
-  ahm --force upgrade
-  ahm --dry-run upgrade`, func() error {
-		return a.install(true)
+		return a.install()
 	}))
 	primeCmd := &cobra.Command{
 		Use:   "prime",
@@ -284,7 +270,6 @@ Examples:
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.adrCommand())
-	root.AddCommand(a.recordsCommand())
 	root.AddCommand(a.taskCommand())
 	return root
 }

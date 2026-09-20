@@ -141,7 +141,6 @@ All ADR management commands operate on the `docs/adr/` directory and regenerate 
 | `ahm adr deprecate <id>` | Set status to `deprecated`. Only from `accepted`. |
 | `ahm adr propose <id>` | Return status to `proposed`. Only from `accepted`. |
 | `ahm adr supersede <old-id> --by <new-id>` | Mark one ADR as superseded by another with bidirectional body references. Old ADR must be `accepted`; replacement must also be `accepted`. |
-| `ahm adr migrate` | Convert legacy bold-metadata ADRs to the constrained MADR profile (metadata only). |
 
 These commands update only front matter and managed body references (supersession notes). ADR body prose is user-owned and is not rewritten by lifecycle commands.
 
@@ -153,4 +152,4 @@ These commands update only front matter and managed body references (supersessio
 ahm index
 ```
 
-`ahm status` and `ahm doctor` report ADR workflow issues, including malformed records, invalid statuses, filename/metadata ID mismatches, supersession references to missing ADRs, stale generated indexes, and legacy-format ADRs that need migration.
+`ahm status` and `ahm doctor` report ADR workflow issues, including malformed records, invalid statuses, filename/metadata ID mismatches, supersession references to missing ADRs, stale generated indexes, and legacy-format ADRs that a person must convert to MADR front matter by hand.

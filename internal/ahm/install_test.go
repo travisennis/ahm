@@ -65,266 +65,97 @@ func TestReadWorkflowFile_BOM(t *testing.T) {
 	}
 }
 
-func TestReadMetadataUsesLegacyPathWhenConfigMissing(t *testing.T) {
+func TestFreshInitWritesConfigGitignoreAndIndexes(t *testing.T) {
 	root := t.TempDir()
-	if err := writeMetadata(root, metadata{
-		Version: "0.1.0",
-		Files:   map[string]string{},
-	}); err != nil {
-		t.Fatal(err)
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-
-	meta, source, err := readMetadataWithSource(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if source != legacyMetadataRelPath {
-		t.Fatalf("source = %q, want %q", source, legacyMetadataRelPath)
-	}
-	if meta.Version != "0.1.0" {
-		t.Errorf("version = %q, want 0.1.0", meta.Version)
-	}
-}
-
-func TestReadMetadataPrefersAhmConfig(t *testing.T) {
-	root := t.TempDir()
-	if err := writeMetadata(root, metadata{
-		Version: "0.1.0",
-		Files:   map[string]string{},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeConfigMetadata(root, metadata{
-		Version: "0.2.0",
-		Files:   map[string]string{},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	meta, source, err := readMetadataWithSource(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if source != configMetadataRelPath {
-		t.Fatalf("source = %q, want %q", source, configMetadataRelPath)
-	}
-	if meta.Version != "0.2.0" {
-		t.Errorf("read wrong metadata: version=%q, want 0.2.0", meta.Version)
-	}
-}
-
-func TestWriteMetadataUsesAhmConfigWhenPresent(t *testing.T) {
-	root := t.TempDir()
-	if err := writeMetadata(root, metadata{
-		Version: "0.1.0",
-		Files:   map[string]string{},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeConfigMetadata(root, metadata{
-		Version: "0.2.0",
-		Files:   map[string]string{},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	meta, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta.StrictAcceptance = true
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"strict_acceptance": true`)
-	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"strict_acceptance": false`)
-}
-
-func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
-  "version": "0.1.0",
-  "strict_acceptance": true,
-  "store_mode": "ref",
-  "records_ref": "refs/ahm/custom",
-  "future_object": {
-    "enabled": true
-  },
-  "future_string": "kept",
-  "files": {
-    ".agents/skills/preflight/SKILL.md": "abc"
-  }
-}`)
-
-	meta, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta.Version = "0.3.0"
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got,
-		`"future_object": {`,
-		`"enabled": true`,
-		`"future_string": "kept"`,
-		`"version": "0.3.0"`,
-		// Ref fields are now preserved as unknown extra fields.
-		`"records_ref": "refs/ahm/custom"`,
-		`"store_mode": "ref"`,
+	assertContainsAll(t, stdout,
+		"created:",
+		"  .ahm/.gitignore",
+		"  .ahm/config.json",
+		"directories:",
+		"  .ahm/tasks/active",
+		"  docs/adr",
+		"indexes:",
+		"  .ahm/tasks/index.md",
+		"  .ahm/tasks/active/index.md",
+		"  docs/adr/index.md",
 	)
+	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
+	assertNotContains(t, stdout, ".ahm/.tasks", ".ahm/.research", ".ahm/exec-plans")
+
+	config := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	assertContainsAll(t, config, `"strict_acceptance": false`, `"files": {}`)
+	assertNotContains(t, config, `"version":`, "taskWork", "projectDocs", "research")
+	gitignore := mustRead(t, filepath.Join(root, ".ahm", ".gitignore"))
+	if gitignore != string(recordsGitignoreContent()) {
+		t.Errorf(".ahm/.gitignore = %q, want the managed content", gitignore)
+	}
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"),
+		"# Task Index",
+		"- Pending: 0",
+		"## Next Ready Queue",
+		"None.",
+	)
+	for _, target := range []string{
+		"AGENTS.md",
+		".agents/TASKS.md",
+		".agents/PLANS.md",
+		".agents/RESEARCH.md",
+		".agents/DOCS.md",
+		".agents/.tasks/README.md",
+		".agents/.research/README.md",
+		".agents/skills",
+		".ahm/tasks/README.md",
+		"docs/adr/README.md",
+		".ahm/research/index.md",
+		".ahm/exec-plans/active/index.md",
+	} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(target))); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s should not be installed, err = %v", target, err)
+		}
+	}
 }
 
-func TestUpgradeRemovesObsoleteProjectDocsAndPreservesUnknownMetadata(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		relPath string
-	}{
-		{name: "current layout", relPath: configMetadataRelPath},
-		{name: "legacy layout", relPath: legacyMetadataRelPath},
+// TestInitIsIdempotent is acceptance criterion one of task 264d: init on an
+// up-to-date repository exits 0 and writes nothing. The second run reports no
+// work, and every file ahm owns keeps its content and modification time.
+func TestInitIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("first init exit code = %d, stderr = %s", code, stderr)
+	}
+	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Project Agent Instructions\n\nKeep this.\n")
+	before := snapshotTree(t, root)
+
+	for _, args := range [][]string{
+		{"init"},
+		{"--force", "init"},
+		{"--dry-run", "init"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			root := t.TempDir()
-			path := filepath.Join(root, filepath.FromSlash(tc.relPath))
-			writeFile(t, path, `{
-  "strict_acceptance": true,
-  "projectDocs": {
-    "entryPointBudget": 120,
-    "exclude": ["vendor/**"]
-  },
-  "research": {
-    "inboxStaleDays": 9
-  },
-  "vendorExtension": {
-    "enabled": true
-  },
-  "files": {}
-}`)
-
-			if _, err := readMetadata(root); err != nil {
-				t.Fatalf("ordinary metadata read rejected obsolete projectDocs: %v", err)
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout, stderr, code := runCLI(t, append([]string{"--root", root}, args...)...)
+			if code != 0 {
+				t.Fatalf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 			}
-
-			before := mustRead(t, path)
-			var dryOut strings.Builder
-			dry := app{opts: options{root: root, dryRun: true}, out: &dryOut}
-			if err := dry.install(true); err != nil {
-				t.Fatal(err)
+			if strings.TrimSpace(stdout) != "" {
+				t.Errorf("reported work on an up-to-date repository:\n%s", stdout)
 			}
-			if afterDryRun := mustRead(t, path); afterDryRun != before {
-				t.Fatalf("dry-run modified metadata:\nbefore: %s\nafter: %s", before, afterDryRun)
-			}
-
-			var out strings.Builder
-			a := app{opts: options{root: root}, out: &out}
-			if err := a.install(true); err != nil {
-				t.Fatal(err)
-			}
-
-			got := mustRead(t, path)
-			if strings.Contains(got, `"projectDocs"`) {
-				t.Errorf("obsolete projectDocs survived upgrade:\n%s", got)
-			}
-			if strings.Contains(got, `"research"`) {
-				t.Errorf("retired research config survived upgrade:\n%s", got)
-			}
-			assertContainsAll(t, got,
-				`"strict_acceptance": true`,
-				`"vendorExtension": {`,
-				`"enabled": true`,
-			)
+			assertTreeUnchanged(t, root, before)
 		})
 	}
 }
 
-func TestResearchConfigKeyIsDroppedOnWrite(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
-  "version": "0.1.0",
-  "research": {
-    "inboxStaleDays": 9
-  },
-  "future_setting": true,
-  "files": {}
-}`)
-
-	// Reading tolerates the retired block so a v1 repository still opens; the
-	// next metadata write removes it.
-	if _, err := readMetadata(root); err != nil {
-		t.Fatal(err)
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(true); err != nil {
-		t.Fatal(err)
-	}
-
-	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got, `"future_setting": true`)
-	assertNotContains(t, got, "research", "inboxStaleDays")
-}
-
-func TestRetiredResearchConfigToleratesAnyValue(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
-  "version": "0.6.4",
-  "research": {
-    "inboxStaleDays": -1
-  },
-  "files": {}
-}`)
-
-	if _, err := readMetadata(root); err != nil {
-		t.Fatalf("readMetadata rejected the retired research block: %v", err)
-	}
-}
-
-func TestMetadataDropsObsoleteAgentKeys(t *testing.T) {
+// TestInitDropsObsoleteKeysAndPreservesUnknownMetadata is acceptance criterion
+// two of task 264d: the obsolete taskWork key goes, and every unrelated field
+// stays.
+func TestInitDropsObsoleteKeysAndPreservesUnknownMetadata(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
   "version": "0.2.0",
-  "default_work_agent": "codex",
-  "taskWork": {
-    "promptFile": ".agents/prompt.md",
-    "implementation": {
-      "agent": "codex",
-      "model": "gpt-5-codex"
-    },
-    "review": {
-      "agent": "claude",
-      "model": "sonnet"
-    }
-  },
-  "files": {}
-}`)
-
-	meta, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta.Version != "0.2.0" {
-		t.Errorf("version = %q, want 0.2.0", meta.Version)
-	}
-
-	// Round-trip: the obsolete agent-selection keys are consumed on read and
-	// gone from the rewritten metadata.
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got, `"version": "0.2.0"`)
-	assertNotContains(t, got, `taskWork`, `default_work_agent`, `promptFile`, `"agent": "codex"`, `"agent": "claude"`)
-}
-
-func TestMetadataRewritePreservesUnknownFieldsAndDropsAgentKeys(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
-  "version": "0.2.0",
+  "strict_acceptance": true,
   "default_work_agent": "codex",
   "taskWork": {
     "promptFile": ".agents/prompt.md",
@@ -336,215 +167,117 @@ func TestMetadataRewritePreservesUnknownFieldsAndDropsAgentKeys(t *testing.T) {
       "agent": "claude"
     }
   },
-  "future_field": "preserved",
-  "files": {}
+  "projectDocs": {
+    "entryPointBudget": 120
+  },
+  "research": {
+    "inboxStaleDays": 9
+  },
+  "vendorExtension": {
+    "enabled": true
+  },
+  "files": {
+    ".agents/skills/preflight/SKILL.md": "abc"
+  }
 }`)
 
-	meta, err := readMetadata(root)
-	if err != nil {
+	before := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
+	var dryOut strings.Builder
+	dry := app{opts: options{root: root, dryRun: true}, out: &dryOut}
+	if err := dry.install(); err != nil {
 		t.Fatal(err)
+	}
+	if afterDryRun := mustRead(t, filepath.Join(root, ".ahm", "config.json")); afterDryRun != before {
+		t.Fatalf("dry-run modified metadata:\nbefore: %s\nafter: %s", before, afterDryRun)
+	}
+	assertContainsAll(t, dryOut.String(), "updated:", "  .ahm/config.json")
+
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
 	}
 
-	// Write back and verify unknown top-level field is preserved.
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
 	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got, `"future_field": "preserved"`)
-	assertNotContains(t, got, `taskWork`, `default_work_agent`, `"implementation":`, `"review":`)
+	assertNotContains(t, got, "taskWork", "default_work_agent", "projectDocs", "research", "promptFile")
+	assertContainsAll(t, got, `"version": "0.2.0"`, `"strict_acceptance": true`, `"vendorExtension": {`, `"enabled": true`)
 }
 
-func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
+func TestInitRewritesDriftedManagedGitignore(t *testing.T) {
+	root := t.TempDir()
+	// A repository that ran the retired records migration keeps the broad
+	// index.md line that no longer describes ahm-managed state.
+	writeFile(t, filepath.Join(root, ".ahm", ".gitignore"), "# Managed by ahm.\nindex.md\n")
+
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	got := mustRead(t, filepath.Join(root, ".ahm", ".gitignore"))
+	if got != string(recordsGitignoreContent()) {
+		t.Errorf(".ahm/.gitignore = %q, want the managed content", got)
+	}
+
+	before := snapshotTree(t, root)
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("second init exit code = %d, stderr = %s", code, stderr)
+	}
+	assertTreeUnchanged(t, root, before)
+}
+
+func TestInitDryRunPreviewsWritesWithoutWriting(t *testing.T) {
 	root := t.TempDir()
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
-	if err := a.install(false); err != nil {
+	if err := a.install(); err != nil {
 		t.Fatal(err)
 	}
 
 	got := out.String()
 	for _, want := range []string{
+		"created:",
+		"  .ahm/.gitignore",
+		"  .ahm/config.json",
 		"directories:",
 		"  .ahm/tasks/active",
 		"  docs/adr",
-		"metadata:",
-		"  .ahm/config.json",
 		"indexes:",
+		"  .ahm/tasks/index.md",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("dry-run output missing %q:\n%s", want, got)
 		}
 	}
 	assertNotContains(t, got, "AGENTS.md", ".agents/TASKS.md")
-	if _, err := os.Stat(filepath.Join(root, ".ahm")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("dry-run wrote .ahm directory, err = %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, ".agents")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("dry-run wrote .agents directory, err = %v", err)
+	for _, dir := range []string{".ahm", ".agents", "docs"} {
+		if _, err := os.Stat(filepath.Join(root, dir)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("dry-run created %s, err = %v", dir, err)
+		}
 	}
 }
 
-func TestInstallDryRunDoesNotMutateMetadata(t *testing.T) {
+func TestInitDryRunReportsNothingWhenUpToDate(t *testing.T) {
 	root := t.TempDir()
-	oldVersion := "0.0.1"
-	initialMeta := metadata{
-		Version: oldVersion,
-		Files: map[string]string{
-			".agents/TASKS.md": "abc123",
-			".agents/PLANS.md": "def456",
-		},
-	}
-	if err := writeMetadata(root, initialMeta); err != nil {
-		t.Fatal(err)
-	}
-	metaPath := filepath.Join(root, ".agents", "ahm.json")
-	before, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatal(err)
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
 	}
 
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
-	if err := a.install(false); err != nil {
+	if err := a.install(); err != nil {
 		t.Fatal(err)
 	}
-
-	// Metadata on disk must be unchanged.
-	after, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(after) != string(before) {
-		t.Errorf("metadata was modified by dry-run:\nbefore: %s\nafter:  %s", before, after)
-	}
-
-	// Dry-run output must still contain the expected sections.
-	got := out.String()
-	for _, want := range []string{
-		"metadata:",
-		"  .agents/ahm.json",
-		"indexes:",
-		"  .agents/.tasks/index.md",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("dry-run output missing %q:\n%s", want, got)
-		}
+	if strings.TrimSpace(out.String()) != "" {
+		t.Errorf("dry-run reported work on an up-to-date repository:\n%s", out.String())
 	}
 }
 
-func TestInstallWritesExpectedScaffoldOutput(t *testing.T) {
-	root := t.TempDir()
-	stdout, stderr, code := runCLI(t, "--root", root, "init")
-	if code != 0 {
-		t.Errorf("exit code = %d, stderr = %s", code, stderr)
-	}
-	assertContainsAll(t, stdout,
-		"metadata:",
-		"  .ahm/config.json",
-		"indexes:",
-		"  .ahm/tasks/index.md",
-		"  .ahm/tasks/active/index.md",
-		"  docs/adr/index.md",
-	)
-	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
-	assertNotContains(t, stdout, ".agents/.tasks", ".agents/.research", ".agents/exec-plans")
-	assertNotContains(t, stdout, ".ahm/tasks/README.md", ".ahm/research/README.md", "docs/adr/README.md")
-	for _, target := range []string{
-		".ahm/tasks/README.md",
-		".ahm/research/README.md",
-		"docs/adr/README.md",
-	} {
-		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(target))); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("fresh init created obsolete scaffold %s, err = %v", target, err)
-		}
-	}
-
-	config := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertNotContains(t, config, `"version":`, ".agents/TASKS.md", "docs/adr/README.md")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"),
-		"# Task Index",
-		"- Pending: 0",
-		"## Next Ready Queue",
-		"None.",
-	)
-	for _, target := range []string{
-		".ahm/research/index.md",
-		".ahm/exec-plans/active/index.md",
-		".ahm/exec-plans/completed/index.md",
-	} {
-		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(target))); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("fresh init created a retired-family index %s, err = %v", target, err)
-		}
-	}
-	for _, target := range []string{
-		"AGENTS.md",
-		".agents/TASKS.md",
-		".agents/PLANS.md",
-		".agents/RESEARCH.md",
-		".agents/DOCS.md",
-		".agents/.tasks/README.md",
-		".agents/.research/README.md",
-		".agents/skills",
-	} {
-		if _, err := os.Stat(filepath.Join(root, target)); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("%s should not be installed, err = %v", target, err)
-		}
-	}
-}
-
-func TestInstallJSONResultSchema(t *testing.T) {
-	wantKeys := []string{
-		"adopted",
-		"conflicts",
-		"created",
-		"indexes",
-		"metadata",
-		"removed",
-		"skipped",
-		"updated",
-	}
-	for _, command := range []string{"init", "upgrade"} {
-		t.Run(command, func(t *testing.T) {
-			root := t.TempDir()
-			if command == "upgrade" {
-				if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
-					t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
-				}
-			}
-
-			stdout, stderr, code := runCLI(t, "--root", root, "--json", command)
-			if code != 0 {
-				t.Fatalf("%s --json exit code = %d, stderr = %s", command, code, stderr)
-			}
-			var result map[string]json.RawMessage
-			if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-				t.Fatalf("%s --json returned invalid JSON: %v\n%s", command, err, stdout)
-			}
-			if len(result) != len(wantKeys) {
-				t.Fatalf("%s --json keys = %v, want exactly %v", command, result, wantKeys)
-			}
-			for _, key := range wantKeys {
-				value, ok := result[key]
-				if !ok {
-					t.Errorf("%s --json missing key %q", command, key)
-					continue
-				}
-				var items []string
-				if err := json.Unmarshal(value, &items); err != nil {
-					t.Errorf("%s --json key %q is not a string array: %s", command, key, value)
-				}
-			}
-		})
-	}
-}
-
-func TestInstallLeavesExistingAgentsEntrypointAlone(t *testing.T) {
+// TestInitLeavesProjectOwnedAgentsMdAlone is acceptance criterion three of task
+// 264d: no install path creates, replaces, or removes AGENTS.md.
+func TestInitLeavesProjectOwnedAgentsMdAlone(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "AGENTS.md"), "# Project Agent Instructions\n\nKeep this.\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--force", "init")
 	if code != 0 {
-		t.Errorf("exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
 	}
 	assertNotContains(t, stdout, "AGENTS.md")
 	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "Keep this.")
@@ -558,372 +291,141 @@ func TestInstallLeavesExistingAgentsEntrypointAlone(t *testing.T) {
 	}
 }
 
-func TestUpgradeRemovesOwnedInstructionTemplatesAndPreservesProjectAgents(t *testing.T) {
+func TestInitRelinquishesRetiredManagedFileHashes(t *testing.T) {
 	root := t.TempDir()
-	meta := metadata{
-		Version: "0.0.1",
-		Files: map[string]string{
-			"AGENTS.md":                             hashBytes([]byte("old managed agents\n")),
-			".agents/TASKS.md":                      hashBytes([]byte("old managed tasks\n")),
-			".agents/PLANS.md":                      hashBytes([]byte("old managed plans\n")),
-			".agents/RESEARCH.md":                   hashBytes([]byte("locally changed research\n")),
-			".agents/DOCS.md":                       hashBytes([]byte("old managed docs\n")),
-			".agents/.tasks/README.md":              hashBytes([]byte("old managed tasks readme\n")),
-			".agents/.research/README.md":           hashBytes([]byte("old managed research readme\n")),
-			".agents/.research/index.md":            hashBytes([]byte("old managed research index\n")),
-			".agents/exec-plans/active/index.md":    hashBytes([]byte("old active plan index\n")),
-			".agents/exec-plans/completed/index.md": hashBytes([]byte("old completed plan index\n")),
-			"docs/adr/README.md":                    hashBytes([]byte("old managed adr\n")),
-			".agents/skills/preflight/SKILL.md":     hashBytes([]byte("old managed skill\n")),
-		},
+	meta := metadata{Version: "0.4.6", Files: map[string]string{"unrelated/tool.json": "keep"}}
+	for _, target := range retiredManagedFiles {
+		content := []byte("managed " + target + "\n")
+		meta.Files[target] = hashBytes(content)
+		writeFile(t, filepath.Join(root, filepath.FromSlash(target)), string(content))
 	}
-	for target := range meta.Files {
-		content := "old managed\n"
-		switch target {
-		case "AGENTS.md":
-			content = "old managed agents\n"
-		case ".agents/TASKS.md":
-			content = "old managed tasks\n"
-		case ".agents/PLANS.md":
-			content = "old managed plans\n"
-		case ".agents/RESEARCH.md":
-			content = "local edit that should conflict\n"
-		case ".agents/DOCS.md":
-			content = "old managed docs\n"
-		case ".agents/.tasks/README.md":
-			content = "old managed tasks readme\n"
-		case ".agents/.research/README.md":
-			content = "old managed research readme\n"
-		case ".agents/.research/index.md":
-			content = "old managed research index\n"
-		case ".agents/exec-plans/active/index.md":
-			content = "locally edited active plan index\n"
-		case ".agents/exec-plans/completed/index.md":
-			content = "locally edited completed plan index\n"
-		case "docs/adr/README.md":
-			content = "old managed adr\n"
-		case ".agents/skills/preflight/SKILL.md":
-			content = "old managed skill\n"
-		}
-		writeFile(t, filepath.Join(root, target), content)
-	}
-	if err := writeMetadata(root, meta); err != nil {
+	config, err := marshalMetadata(meta)
+	if err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), string(config))
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(true); err != nil {
+	if err := a.install(); err != nil {
 		t.Fatal(err)
 	}
-	got := out.String()
-	assertContainsAll(t, got,
-		"removed:",
-		"  .agents/DOCS.md",
-		"  .agents/PLANS.md",
-		"  .agents/TASKS.md",
-		"  .agents/.tasks/README.md",
-		"  .agents/.research/README.md",
-		"conflicts:",
-		"  .agents/RESEARCH.md",
-	)
-	assertNotContains(t, got, "  AGENTS.md")
-	assertNotContains(t, got, ".agents/skills/preflight/SKILL.md")
+	for _, target := range retiredManagedFiles {
+		assertNotContains(t, out.String(), target)
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(target))); err != nil {
+			t.Errorf("retired managed file %s should remain, err=%v", target, err)
+		}
+	}
 
 	after, err := readMetadata(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Version != "0.0.1" {
-		t.Errorf("metadata version = %q, want %q (version should be preserved)", after.Version, "0.0.1")
-	}
-	for _, target := range []string{
-		".agents/TASKS.md",
-		".agents/PLANS.md",
-		".agents/DOCS.md",
-		".agents/.tasks/README.md",
-		".agents/.research/README.md",
-		".agents/.research/index.md",
-		".agents/exec-plans/active/index.md",
-		".agents/exec-plans/completed/index.md",
-		".agents/skills/preflight/SKILL.md",
-		"docs/adr/README.md",
-	} {
+	for _, target := range retiredManagedFiles {
 		if _, ok := after.Files[target]; ok {
 			t.Errorf("%s should not remain in metadata", target)
 		}
 	}
-	for _, target := range []string{
-		".agents/TASKS.md",
-		".agents/PLANS.md",
-		".agents/DOCS.md",
-		".agents/.tasks/README.md",
-		".agents/.research/README.md",
-	} {
-		if _, err := os.Stat(filepath.Join(root, target)); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("%s should have been removed, err = %v", target, err)
-		}
+	if after.Files["unrelated/tool.json"] != "keep" {
+		t.Errorf("unrelated file hash = %q, want it preserved", after.Files["unrelated/tool.json"])
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", "skills", "preflight", "SKILL.md"), "old managed skill")
-	assertFileContainsAll(t, filepath.Join(root, "docs", "adr", "README.md"), "old managed adr")
-	// The retired families are no longer generated, so an upgrade leaves their
-	// files exactly as the project left them instead of rewriting them.
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".research", "index.md"),
-		"old managed research index",
-	)
-	assertFileContainsAll(t, filepath.Join(root, ".agents", "exec-plans", "active", "index.md"),
-		"locally edited active plan index",
-	)
-
-	var forceOut strings.Builder
-	forced := app{opts: options{root: root, force: true}, out: &forceOut}
-	if err := forced.install(true); err != nil {
-		t.Error(err)
-	}
-	assertContainsAll(t, forceOut.String(), "removed:", "  .agents/RESEARCH.md")
-	assertFileContainsAll(t, filepath.Join(root, "AGENTS.md"), "old managed agents")
-	if _, err := os.Stat(filepath.Join(root, ".agents", "RESEARCH.md")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("forced upgrade should remove modified instruction template, err = %v", err)
-	}
-	afterForce, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if afterForce.Version != "0.0.1" {
-		t.Errorf("forced metadata version = %q, want %q", afterForce.Version, "0.0.1")
+	if _, ok := after.Files[".ahm/tasks/index.md"]; ok {
+		t.Error("generated indexes should not carry ownership hashes")
 	}
 }
 
-func TestUpgradeRemovesObsoleteManagedSkill(t *testing.T) {
+func TestInitJSONResultSchema(t *testing.T) {
+	wantKeys := []string{"created", "directories", "indexes", "updated"}
+
 	root := t.TempDir()
-	oldTarget := ".agents/skills/deslop/SKILL.md"
-	oldContent := []byte("old managed skill\n")
-	meta := metadata{
-		Version: "0.2.0",
-		Files: map[string]string{
-			oldTarget: hashBytes(oldContent),
-		},
-	}
-	writeFile(t, filepath.Join(root, oldTarget), string(oldContent))
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(true); err != nil {
-		t.Fatal(err)
-	}
-
-	assertContainsAll(t, out.String(),
-		"removed:",
-		"  .agents/skills/deslop/SKILL.md",
-	)
-	if _, err := os.Stat(filepath.Join(root, oldTarget)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("obsolete skill file should be removed, err = %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, ".agents", "skills", "deslop")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("obsolete skill directory should be removed when empty, err = %v", err)
-	}
-
-	after, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := after.Files[oldTarget]; ok {
-		t.Error("obsolete skill should not remain in metadata")
-	}
-}
-
-func TestUpgradePreservesModifiedObsoleteManagedSkillAsConflict(t *testing.T) {
-	root := t.TempDir()
-	oldTarget := ".agents/skills/deslop/SKILL.md"
-	oldContent := []byte("old managed skill\n")
-	localContent := "locally modified skill\n"
-	meta := metadata{
-		Version: "0.2.0",
-		Files: map[string]string{
-			oldTarget: hashBytes(oldContent),
-		},
-	}
-	writeFile(t, filepath.Join(root, oldTarget), localContent)
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(true); err != nil {
-		t.Fatal(err)
-	}
-
-	assertContainsAll(t, out.String(),
-		"conflicts:",
-		"  .agents/skills/deslop/SKILL.md",
-	)
-	assertFileContainsAll(t, filepath.Join(root, oldTarget), localContent)
-	after, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after.Files[oldTarget] != hashBytes(oldContent) {
-		t.Error("modified obsolete skill metadata should be preserved for conflict reporting")
-	}
-}
-
-func TestUpgradeRelinquishesFormerManagedSkills(t *testing.T) {
-	root := t.TempDir()
-	meta := metadata{Version: "0.4.6", Files: map[string]string{}}
-	for _, target := range projectOwnedProcedureSkills {
-		content := []byte("managed " + target + "\n")
-		meta.Files[target] = hashBytes(content)
-		writeFile(t, filepath.Join(root, target), string(content))
-	}
-	modified := ".agents/skills/finding-improvements/SKILL.md"
-	writeFile(t, filepath.Join(root, modified), "locally edited audit skill\n")
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-
-	var preview strings.Builder
-	dry := app{opts: options{root: root, dryRun: true}, out: &preview}
-	if err := dry.install(true); err != nil {
-		t.Fatal(err)
-	}
-	for _, target := range projectOwnedProcedureSkills {
-		assertNotContains(t, preview.String(), target)
-		if _, err := os.Stat(filepath.Join(root, target)); err != nil {
-			t.Fatalf("dry-run removed %s: %v", target, err)
-		}
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(true); err != nil {
-		t.Fatal(err)
-	}
-	for _, target := range projectOwnedProcedureSkills {
-		assertNotContains(t, out.String(), target)
-		if _, err := os.Stat(filepath.Join(root, target)); err != nil {
-			t.Errorf("project-owned skill %s should remain, err=%v", target, err)
-		}
-	}
-	assertFileContainsAll(t, filepath.Join(root, modified), "locally edited")
-	after, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, target := range projectOwnedProcedureSkills {
-		if _, ok := after.Files[target]; ok {
-			t.Errorf("project-owned skill %s should not remain in metadata", target)
-		}
-	}
-
-	var forcedOut strings.Builder
-	forced := app{opts: options{root: root, force: true}, out: &forcedOut}
-	if err := forced.install(true); err != nil {
-		t.Fatal(err)
-	}
-	for _, target := range projectOwnedProcedureSkills {
-		assertNotContains(t, forcedOut.String(), target)
-		if _, err := os.Stat(filepath.Join(root, target)); err != nil {
-			t.Errorf("forced upgrade removed project-owned skill %s: %v", target, err)
-		}
-	}
-}
-
-func TestInstallIgnoresUntrackedFormerInstructionFile(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".agents", "TASKS.md"), "# Local project instructions\n")
-
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	if err := a.install(false); err != nil {
-		t.Fatal(err)
-	}
-	got := out.String()
-	assertNotContains(t, got, ".agents/TASKS.md")
-	assertNotContains(t, got, "adopted:")
-	assertNotContains(t, got, "conflicts:")
-	meta, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := meta.Files[".agents/TASKS.md"]; ok {
-		t.Error("former instruction file should not be recorded in metadata")
-	}
-	assertFileContainsAll(t, filepath.Join(root, ".agents", "TASKS.md"), "# Local project instructions")
-}
-
-func TestMainUpgradeIntegration(t *testing.T) {
-	root := t.TempDir()
-	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	stdout, stderr, code := runCLI(t, "--root", root, "--json", "init")
 	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Fatalf("init --json exit code = %d, stderr = %s", code, stderr)
 	}
-	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("init --json returned invalid JSON: %v\n%s", err, stdout)
+	}
+	if len(result) != len(wantKeys) {
+		t.Fatalf("init --json keys = %v, want exactly %v", result, wantKeys)
+	}
+	for _, key := range wantKeys {
+		value, ok := result[key]
+		if !ok {
+			t.Errorf("init --json missing key %q", key)
+			continue
+		}
+		var items []string
+		if err := json.Unmarshal(value, &items); err != nil {
+			t.Errorf("init --json key %q is not a string array: %s", key, value)
+		}
+	}
+
+	// A second init reports no work at all.
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "init")
 	if code != 0 {
-		t.Errorf("upgrade exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Fatalf("second init --json exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		"metadata:",
-		"  .ahm/config.json",
-		"indexes:",
-	)
-	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
-	assertNotContains(t, mustRead(t, filepath.Join(root, ".ahm", "config.json")), `"version":`)
+	result = nil
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("second init --json returned invalid JSON: %v\n%s", err, stdout)
+	}
+	for _, key := range wantKeys {
+		var items []string
+		if err := json.Unmarshal(result[key], &items); err != nil {
+			t.Fatalf("second init --json key %q is not a string array: %s", key, result[key])
+		}
+		if len(items) != 0 {
+			t.Errorf("second init reported %s = %v, want none", key, items)
+		}
+	}
 }
 
-func TestInstallFailsOnCorruptMetadata(t *testing.T) {
+func TestInitFailsOnCorruptMetadata(t *testing.T) {
 	root := t.TempDir()
-	// Init first to create valid metadata.
-	stdout, stderr, code := runCLI(t, "--root", root, "init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
 	}
 
-	// Corrupt the metadata file.
 	metaPath := filepath.Join(root, ".ahm", "config.json")
 	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// init should fail with a clear error about corrupt metadata.
-	stdout, stderr, code = runCLI(t, "--root", root, "init")
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code == 0 {
 		t.Errorf("expected init to fail on corrupt metadata, stdout = %s", stdout)
 	}
 	assertContainsAll(t, stderr, "corrupt workflow metadata .ahm/config.json")
 }
 
-func TestUpgradeFailsOnCorruptMetadata(t *testing.T) {
+// TestInitRefusesLegacyLayout is acceptance criterion five of task 264d: a
+// repository still on .agents/ahm.json is reported, with the final v1 release
+// named, instead of being initialized over as if it were unmanaged.
+func TestInitRefusesLegacyLayout(t *testing.T) {
 	root := t.TempDir()
-	// Init first to create valid metadata.
-	stdout, stderr, code := runCLI(t, "--root", root, "init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), `{"version":"0.6.4"}`+"\n")
 
-	// Corrupt the metadata file.
-	metaPath := filepath.Join(root, ".ahm", "config.json")
-	if err := os.WriteFile(metaPath, []byte("{invalid json}"), 0o644); err != nil {
-		t.Fatal(err)
+	stdout, stderr, code := runCLIFromDir(t, root, "init")
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1; stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-
-	// upgrade should fail with a clear error about corrupt metadata.
-	stdout, stderr, code = runCLI(t, "--root", root, "upgrade")
-	if code == 0 {
-		t.Errorf("expected upgrade to fail on corrupt metadata, stdout = %s", stdout)
+	assertContainsAll(t, stderr, ".agents/ahm.json", finalV1Release)
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("init created .ahm/config.json in a legacy repository, err = %v", err)
 	}
-	assertContainsAll(t, stderr, "corrupt workflow metadata .ahm/config.json")
 }
 
-func TestInstallSucceedsWithMissingMetadata(t *testing.T) {
+func TestInitRefusesLegacyLayoutForExplicitRoot(t *testing.T) {
 	root := t.TempDir()
-	// No prior init, no metadata. Should succeed as a fresh install.
+	writeFile(t, filepath.Join(root, ".agents", "ahm.json"), `{"version":"0.6.4"}`+"\n")
+
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
-	if code != 0 {
-		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1; stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "metadata:", "indexes:")
+	assertContainsAll(t, stderr, ".agents/ahm.json", finalV1Release)
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("init created .ahm/config.json in a legacy repository, err = %v", err)
+	}
 }

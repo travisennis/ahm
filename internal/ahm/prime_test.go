@@ -73,7 +73,7 @@ func TestPrimeJSONOutput(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +232,7 @@ func TestPrimeNoWrites(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -293,7 +293,7 @@ func TestPrimeReportsValidationFindingsWithoutFailing(t *testing.T) {
 
 func TestPrimeWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {

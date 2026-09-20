@@ -24,8 +24,7 @@ func newGitRepo(t *testing.T) string {
 	return root
 }
 
-// writeAHMConfig writes a minimal .ahm/config.json so workflow paths resolve
-// to the migrated .ahm/ layout.
+// writeAHMConfig writes a minimal .ahm/config.json.
 func writeAHMConfig(t *testing.T, root string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{

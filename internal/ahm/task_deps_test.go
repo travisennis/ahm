@@ -10,12 +10,12 @@ import (
 
 func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: []\n"+
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: []\n"+
 		"created: 2026-05-01\n"+
 		"updated: 2026-05-02\n"+
 		"parent: 000\n"+
 		"external_ref: gh-123\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -23,7 +23,7 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 		t.Error(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,12 +49,12 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 
 func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending",
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending",
 		"assignee: alice\n"+
 			"due: 2026-06-01\n"+
 			"tags: bug, urgent\n"+
 			"ticket: JIRA-456\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependency", "Pending", "depends_on: []\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -62,7 +62,7 @@ func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 		t.Error(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "001.md"))
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,9 +82,9 @@ func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 
 func TestTaskDependencyTreeOutput(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -143,10 +143,10 @@ func TestTaskDependencyCycleNoAliasing(t *testing.T) {
 
 func TestTaskDepCyclesCommand(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "003.md"), "003", "Completed Cycle", "Completed", "depends_on: 004\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Ignored Active", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "003.md"), "003", "Completed Cycle", "Completed", "depends_on: 004\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Ignored Active", "Pending", "depends_on: 003\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -164,8 +164,8 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 
 func TestTaskDepAddNoOp(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Existing Dep", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Existing Dep", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -180,7 +180,7 @@ func TestTaskDepAddNoOp(t *testing.T) {
 	}
 
 	// Read the file and save content.
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -207,10 +207,10 @@ func TestTaskDepAddNoOp(t *testing.T) {
 
 func TestTaskDepRemoveNoOp(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Not A Dep", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Not A Dep", "Pending", "depends_on: -\n")
 
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +237,7 @@ func TestTaskDepRemoveNoOp(t *testing.T) {
 
 func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -252,8 +252,8 @@ func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
 
 func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -268,8 +268,8 @@ func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
 
 func TestTaskDepAddRejectsCycle(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task A", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Task B", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Task A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Task B", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -302,7 +302,7 @@ func TestMainDependencyCyclesIntegration(t *testing.T) {
 
 func TestTaskDepCyclesCommand_JSON_NoCycles(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -317,8 +317,8 @@ func TestTaskDepCyclesCommand_JSON_NoCycles(t *testing.T) {
 
 func TestTaskDepCyclesCommand_JSON_WithCycles(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -337,7 +337,7 @@ func TestTaskDepCyclesCommand_JSON_WithCycles(t *testing.T) {
 
 func TestTaskDepCyclesCommand_Plain_NoCycles(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Alone", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, plain: true}, out: &out}
@@ -352,9 +352,9 @@ func TestTaskDepCyclesCommand_Plain_NoCycles(t *testing.T) {
 
 func TestTaskDepTree_JSON(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -399,7 +399,7 @@ func TestTaskDependencyTree_FibonacciScale(t *testing.T) {
 		default:
 			deps = "depends_on: -"
 		}
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", id+".md"),
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", id+".md"),
 			id, "Task "+id, "Pending", deps+"\n")
 	}
 
@@ -462,8 +462,8 @@ func TestTaskDependencyTree_FibonacciScale(t *testing.T) {
 
 func TestTaskDepTree_Plain(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Child", "Pending", "depends_on: -\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Child", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, plain: true}, out: &out}

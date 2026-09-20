@@ -9,7 +9,7 @@ they need.
 - [Global contract](references/cli/global-contract.md): usage, root selection,
   global flags, output modes, and exit codes.
 - [Commands](references/cli/commands.md): non-task commands including ADR,
-  install, upgrade, status, doctor, and index behavior.
+  init, status, doctor, and index behavior.
 - [Task commands](references/cli/task-commands.md): task lifecycle,
   dependencies, completion, cancellation, and reopening.
 - [Task file and validation formats](references/cli/task-file-format.md): task
@@ -22,9 +22,9 @@ output, plain output, dry-run behavior, and validation finding codes are
 compatibility surfaces. Preserve them unless a task explicitly changes the CLI
 contract.
 
-Structured `init` and `upgrade` summaries have a stable set of array-valued
-keys: `adopted`, `created`, `updated`, `removed`, `skipped`, `conflicts`,
-`metadata`, and `indexes`. Empty result groups remain present as empty arrays.
+Structured `init` summaries have a stable set of array-valued keys:
+`created`, `updated`, `directories`, and `indexes`. Every key remains present as
+an empty array when a reconcile pass changed nothing.
 
 `task list`, `task ready`, and `task blocked` share configurable deterministic
 ordering through `--sort` and `--reverse`; the supported fields and rank rules

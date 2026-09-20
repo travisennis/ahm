@@ -34,14 +34,7 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 	if !mutating {
 		return f()
 	}
-	firstResolution := true
-	release, err := acquireWorkflowRecordLockWithResolver(a.opts.root, func() workflowPaths {
-		if !firstResolution {
-			a.invalidateWorkflowPaths()
-		}
-		firstResolution = false
-		return a.workflowPaths()
-	})
+	release, err := acquireWorkflowRecordLock(a.opts.root)
 	if err != nil {
 		return err
 	}
@@ -49,58 +42,11 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 	return f()
 }
 
-func acquireWorkflowRecordLockWithResolver(root string, resolve func() workflowPaths) (func() error, error) {
-	deadline := time.Now().Add(workflowLockTimeout)
-	for {
-		lockRoot := filepath.Join(root, resolve().recordsDir, ".lock")
-		release, err := tryAcquireWorkflowLock(root, lockRoot, workflowRecordLockName)
-		if err == nil {
-			return release, nil
-		}
-		if !errors.Is(err, os.ErrExist) {
-			return nil, err
-		}
-		lockPath := filepath.Join(lockRoot, workflowRecordLockName)
-		_ = removeStaleWorkflowLock(lockPath)
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timed out waiting for workflow lock %s", relPath(root, lockPath))
-		}
-		time.Sleep(workflowLockRetryDelay)
-	}
-}
-
-// acquireWorkflowRecordMigrationLocks holds the record-mutation lock for both
-// the current record root and the `.ahm` target root during records migration.
-// This prevents the lock namespace from splitting while the repository's record
-// layout changes.
-func acquireWorkflowRecordMigrationLocksForPaths(root string, paths workflowPaths) (func() error, error) {
-	currentRoot := filepath.Join(root, paths.recordsDir, ".lock")
-	targetRoot := filepath.Join(root, toolRecordsDirName, ".lock")
-
-	releaseCurrent, err := acquireNamedWorkflowLock(root, currentRoot, workflowRecordLockName)
-	if err != nil {
-		return nil, err
-	}
-	if currentRoot == targetRoot {
-		return releaseCurrent, nil
-	}
-
-	releaseTarget, err := acquireNamedWorkflowLock(root, targetRoot, workflowRecordLockName)
-	if err != nil {
-		_ = releaseCurrent()
-		return nil, err
-	}
-
-	return func() error {
-		var firstErr error
-		if err := releaseTarget(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		if err := releaseCurrent(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		return firstErr
-	}, nil
+// acquireWorkflowRecordLock holds the record-mutation lock for the repository.
+// Every ahm workflow mutation serializes on the same lock file under .ahm/.
+func acquireWorkflowRecordLock(root string) (func() error, error) {
+	lockRoot := filepath.Join(root, toolRecordsDirName, ".lock")
+	return acquireNamedWorkflowLock(root, lockRoot, workflowRecordLockName)
 }
 
 // acquireNamedWorkflowLock waits for the named lock under a fixed lock root,

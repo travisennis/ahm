@@ -99,28 +99,6 @@ func (a *app) indexWrites() (map[string]string, error) {
 	return writes, nil
 }
 
-func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
-	tasks, err := collectTasksForPaths(a.opts.root, paths)
-	if err != nil {
-		if tasks == nil {
-			return nil, err
-		}
-		a.addWarning("some task files could not be parsed and were skipped: %s", err)
-	}
-	writes, err := indexWritesForPaths(a.opts.root, tasks, paths, nil)
-	if err != nil {
-		if writes == nil {
-			return nil, err
-		}
-		a.addWarning("%s", err)
-	}
-	targets := make([]string, 0, len(writes))
-	for _, path := range sortedKeys(writes) {
-		targets = append(targets, relPath(a.opts.root, path))
-	}
-	return targets, nil
-}
-
 // indexWritesForPaths generates the complete set of index file writes for the
 // given task set and workflow paths. It is used by both the index-writing and
 // validation paths to avoid re-parsing the task tree.

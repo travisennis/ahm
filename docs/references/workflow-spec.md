@@ -12,10 +12,10 @@ workflow state.
 - No model or coding-agent calls, and no delegation to another program. Git is
   the only subprocess `ahm` runs.
 - No source-code patching.
-- No implicit git commits, pushes, PRs, or branch operations. Explicit
-  records commands may read and write under `.ahm/`, but they must not move
+- No implicit git commits, pushes, PRs, or branch operations. Workflow
+  commands may read and write under `.ahm/`, but they must not move
   `HEAD`, create branch commits, stage files, write the project index, or
-  modify project-owned `.agents/` content.
+  modify project-owned files.
 - No database.
 
 ## CLI Contract
@@ -40,15 +40,13 @@ Global flags:
 
 Commands:
 
-- `init`: install the managed `.ahm` workflow state. On fresh installs
-  (no prior workflow metadata), creates the committed `.ahm/` layout
-  directly. On repositories with existing `.agents/ahm.json` metadata, the
-  existing layout is preserved.
-- `upgrade`: update managed workflow state.
+- `init`: create or reconcile the managed `.ahm` workflow state. Creates the
+  committed `.ahm/` layout when it is absent and rewrites only ahm-owned files
+  whose content drifted; an up-to-date repository is untouched. Refuses a
+  repository that still holds `.agents/ahm.json`.
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
-- `records`: migrate records to `.ahm/` and diagnose migration state.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
 
@@ -65,26 +63,17 @@ Exit codes:
 
 ## Workflow State
 
-Workflow state is repo-local. Legacy committed-record repositories keep
-ahm-managed records under `.agents/`. The opt-in records migration
-(`ahm records migrate`) moves ahm-managed state to
-tool-owned `.ahm/` while leaving project-owned agent content under `.agents/`.
+Workflow state is repo-local and lives under tool-owned `.ahm/`: committed
+source records, committed configuration at `.ahm/config.json`, the managed
+`.ahm/.gitignore`, and generated indexes. Project-owned agent content stays
+outside it, including `AGENTS.md` and files under `.agents/`.
 
-Workflow commands are record-layout aware. In legacy repositories (metadata
-source `.agents/ahm.json`), task, index, validation, and install behavior is
-unchanged and uses `.agents/` paths. After migration, the same commands read
-and write task records under `.ahm/tasks/`, and generated indexes are
-regenerated at the same relative paths under `.ahm/`.
-
-After migration, supported record mutations (`ahm task` lifecycle
-and metadata commands, and `ahm index` after hand edits to records) write
-source records directly to `.ahm/`. Generated indexes remain local-only
-under `.ahm/`. Record writes never touch branches, `HEAD`, or the project
-index.
-
-`ahm` writes `.agents/ahm.json` with the managed file hashes for any legacy managed templates, and repository-scoped workflow
-settings. This metadata lets future versions remove or migrate files that have
-not been locally changed while preserving user edits.
+Workflow commands resolve one layout. Task records live under `.ahm/tasks/`,
+ADRs under `docs/adr/`, and generated indexes are regenerated at the same
+relative paths under `.ahm/`. Record writes never touch branches, `HEAD`, or
+the project index. A repository whose metadata is still the retired
+`.agents/ahm.json` layout, without `.ahm/config.json`, is refused by root
+detection, which names the final v1 release (`v1.0.0`) that can migrate it.
 
 When `ahm` invokes Git, it scopes the command to the detected repository root
 and removes inherited `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
@@ -93,19 +82,13 @@ environment. This prevents Git hooks or parent processes from redirecting
 ahm-owned Git operations to another repository's metadata, worktree, or index.
 See ADR 018.
 
-`ahm` reads workflow metadata from committed `.ahm/config.json` when it
-is present, falling back to legacy `.agents/ahm.json` otherwise. Fresh
-`ahm init` (no prior metadata) creates `.ahm/config.json` and the
-committed `.ahm/` layout directly. When `.agents/ahm.json` already
-represents the repository, `init` respects the existing layout.
+Supported record mutations (`ahm task` lifecycle and metadata commands, and
+`ahm index` after hand edits to records) write source records directly to
+`.ahm/`. Generated indexes remain local-only under `.ahm/`.
 
-After an explicit migration creates `.ahm/config.json`, metadata reads
-prefer it over the legacy `.agents/ahm.json`.
-
-Metadata reads tolerate the obsolete top-level `projectDocs` key without
-applying runtime behavior. A real `ahm upgrade` omits that key when it
-atomically rewrites ahm-owned metadata, while preserving unrelated unknown
-top-level fields. A dry-run reports the upgrade without changing the file.
+`ahm` writes `.ahm/config.json` with repository-scoped workflow settings and
+the managed file hashes it still tracks. This metadata lets future versions
+recognize files they own while preserving user edits.
 
 Example:
 
@@ -138,11 +121,20 @@ dependencies, and blocked tasks that do not depend on the completed task, are
 left unchanged. `--dry-run` reports the completion move and dependent unblock
 changes without writing task files or indexes.
 
-All workflow record mutations (`ahm task` lifecycle and metadata commands,
-`ahm adr` lifecycle commands, `ahm records migrate`, and `ahm task|adr
-migrate`) serialize on a single repository-local workflow record lock. The lock lives under `.agents/.lock/workflow-records` or
-`.ahm/.lock/workflow-records` depending on the repository's record layout. It is
-held across the full read-compute-write sequence for each command, including ID
+`ahm` reads workflow metadata from committed `.ahm/config.json`. `ahm init`
+creates it when it is missing and reconciles it when it is present.
+
+Metadata reads tolerate the obsolete top-level `taskWork`,
+`default_work_agent`, `projectDocs`, and `research` keys without applying
+runtime behavior. `ahm init` omits those keys when it rewrites ahm-owned
+metadata, while preserving unrelated unknown top-level fields. A dry-run
+reports the rewrite without changing the file, and an up-to-date file is left
+untouched.
+
+All workflow record mutations (`ahm task` lifecycle and metadata commands and
+`ahm adr` lifecycle commands) serialize on a single repository-local workflow
+record lock. The lock lives under `.ahm/.lock/workflow-records`. It is held
+across the full read-compute-write sequence for each command, including ID
 allocation, file writes, and index regeneration. `--dry-run` and read-only
 preview paths do not take the lock and do not write workflow state.
 
@@ -163,7 +155,7 @@ for using `ahm` commands.
 The ownership categories are:
 
 1. **Generated indexes** (the task index and its bucket indexes under
-   `.agents/.tasks/` or `.ahm/tasks/`, plus `docs/adr/index.md`) — owned by
+   `.ahm/tasks/`, plus `docs/adr/index.md`) — owned by
    `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
 2. **Workflow procedures** — project-owned. `ahm` emits no procedure text:
@@ -172,28 +164,25 @@ The ownership categories are:
    such as `.agents/TASKS.md`, `.agents/DOCS.md`, or `docs/adr/README.md`
    into consumer repositories. Existing `.ahm/tasks/README.md`,
    `.ahm/research/README.md`, and `docs/adr/README.md` scaffold copies from
-   older releases are preserved and relinquished from metadata ownership;
-   `ahm upgrade` does not remove them.
+   older releases are preserved and relinquished from metadata ownership; no
+   command removes them.
 
-3. **Obsolete managed instruction files** — older releases copied workflow
-   guides into repositories. `upgrade` removes pristine hash-owned copies and
-   reports locally edited copies as conflicts; `--force` removes those
-   obsolete copies. The former preflight, grooming-backlog, and
-   finding-improvements skill files are project-owned: ahm leaves them in
-   place, discards any old ownership hashes during init, upgrade, or records
-   migration, and never inspects, reports, overwrites, or removes them. Fresh
-   installs create none.
+3. **Retired managed files** — older releases copied workflow guides into
+   repositories and tracked ownership hashes for them. `ahm init` discards
+   those hashes and never creates, inspects, overwrites, or removes the
+   files. The former preflight, grooming-backlog, and finding-improvements
+   skill files are project-owned: ahm leaves them in place and never inspects,
+   reports, overwrites, or removes them. Fresh installs create none.
 
-4. **Workflow source records** — task files live under `.agents/` in legacy
-   committed-record repositories and under tool-owned `.ahm/tasks/` after
-   migration. Update them through their
+4. **Workflow source records** — task files live under `.ahm/tasks/`. Update
+   them through their
    documented workflows (e.g., `ahm task create`, `ahm task complete <id>`, or
-   `ahm index` after manual edits). In migrated repositories, these records
+   `ahm index` after manual edits). These records
    are committed project files under `.ahm/`. ADRs under
    `docs/adr/` remain project-owned durable documentation and use `ahm adr`
    lifecycle commands.
 
-5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
+5. **`AGENTS.md`** — project-owned. `ahm init` and `--force`
    never create, overwrite, or remove `AGENTS.md`. Bootstrap text is README
    prose the project writes for itself; `ahm` prints no snippet and inspects
    no project instruction file.
@@ -204,7 +193,7 @@ mismatches, broken task dependencies, tracking tasks with at least one child
 whose child tasks are all Completed or Cancelled, completed task
 acceptance-note drift, ADR record issues, and broken relative Markdown links
 within tasks, ADRs, and their generated indexes. Link discovery uses the
-metadata-selected current or legacy record roots plus ADR source files and the
+current record root for tasks plus ADR source files and the
 generated ADR index under `docs/adr/`; it does not scan general project
 documentation or project-owned agent instructions.
 Duplicate task IDs are error-tier findings that name every conflicting path and
@@ -229,8 +218,8 @@ Supported scopes:
   their generated indexes. Link validation is independent
   of workflow state and can be run separately to focus on record-integrity
   drift. It does not scan README, CONTRIBUTING, ARCHITECTURE, general `docs/`,
-  `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records from the inactive
-  current/legacy layout.
+  `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records outside the
+  `.ahm/tasks/` and `docs/adr/` record roots.
 
 Scopes compose: `--check workflow --check links` or `--check workflow,links`
 runs both the workflow and link validators. Passing an unknown scope value is a
@@ -248,8 +237,8 @@ ADR validation is part of the `workflow` scope. `ahm` reports malformed ADR
 records, invalid constrained-MADR statuses, filename/metadata ID mismatches,
 duplicate ADR IDs, supersession statuses that point at missing ADRs, and stale
 `docs/adr/index.md` content. Legacy bold-metadata ADR files are warning-tier
-findings that point at `ahm adr migrate`; they do not make `status` or
-`doctor` fail before migration is run.
+findings that say to convert them to MADR front matter by hand; they do not
+make `status` or `doctor` fail.
 
 ## File Format
 
@@ -368,8 +357,8 @@ grammar used in task creation (where `ahm task create` seeds `depends_on: -`).
 
 ## Atomic Write Guarantee
 
-All managed writes (metadata, generated indexes, task files, and installed or
-upgraded workflow files) use a temporary-file-then-atomic-rename strategy that
+All managed writes (metadata, generated indexes, task files, and installed
+workflow files) use a temporary-file-then-atomic-rename strategy that
 guarantees crash safety:
 
 1. Content is written to a unique sibling temp file in the same directory.
@@ -380,11 +369,11 @@ guarantees crash safety:
 
 A crash before the rename leaves the original file intact. A crash after the
 rename is indistinguishable from a successful write. Stale `.tmp` files left
-by a crash are cleaned up opportunistically at the start of `init`, `upgrade`,
-and `index` commands.
+by a crash are cleaned up opportunistically at the start of the `index`
+command.
 
 All workflow record mutations share a single repository-local lock under
-`.agents/.lock/workflow-records` or `.ahm/.lock/workflow-records` to serialize
+`.ahm/.lock/workflow-records` to serialize
 read-compute-write sequences across concurrent `ahm` invocations. Dry-run and
 read-only preview paths do not take the lock. While the lock is held, a
 background heartbeat periodically refreshes the lock directory's modification

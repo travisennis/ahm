@@ -26,17 +26,18 @@ Exit codes:
 Most commands operate on a target repository root.
 
 By default, `ahm` walks upward from the current working directory until it finds
-a `.git` directory, `.ahm/config.json`, or `.agents/ahm.json`. If none are
-found, the command fails with an error message that explains how to use
-`--root` or `ahm init`.
+a `.git` directory or `.ahm/config.json`. If neither is found, the command
+fails with an error message that explains how to use `--root` or `ahm init`.
+A repository whose metadata is still the retired `.agents/ahm.json` is refused
+with an error that names the final v1 release (`v1.0.0`) to upgrade with first;
+`ahm` never treats such a repository as unmanaged.
 
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
-`init` and `upgrade` are lenient: they can run in any
-directory. `init` creates the `.ahm` workflow scaffolding and `upgrade`
-refreshes it. `prime` and all other state-aware commands require a managed
-repository (`.git`, `.ahm/config.json`, or `.agents/ahm.json`).
+`init` is lenient: it can run in any directory and creates the `.ahm` workflow
+scaffolding there. `prime` and all other state-aware commands require a managed
+repository (`.git` or `.ahm/config.json`).
 
 ## Global Flags
 
@@ -44,12 +45,12 @@ Global flags must appear before the command.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--root <path>` | Sets the target repository root. Defaults to the nearest git root, `.ahm/config.json` parent, or `.agents/ahm.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
+| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records migrate`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
-| `--force` | Forces supported removals during `upgrade`, and overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, task status transitions, and task dependency add/remove. |
+| `--force` | Overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
 
@@ -58,7 +59,7 @@ Examples:
 ```bash
 ahm --root /path/to/repo status
 ahm --json doctor
-ahm --dry-run upgrade
+ahm --dry-run init
 ```
 
 ## Output Modes
@@ -105,7 +106,7 @@ validation:
     "errors": [
       {
         "code": "metadata_missing",
-        "path": ".agents/ahm.json",
+        "path": ".ahm/config.json",
         "message": "workflow metadata is missing"
       }
     ],
@@ -114,8 +115,8 @@ validation:
   }
 ```
 
-Install and upgrade operations always print grouped text sections such as
-`adopted:`, `created:`, `updated:`, `skipped:`, and `conflicts:`.
+`init` prints grouped text sections such as `created:`, `updated:`, `directories:`,
+and `indexes:`; an up-to-date repository reports none of them.
 
 Some task commands use command-specific text output regardless of the output
 mode:
@@ -125,7 +126,6 @@ mode:
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task labels` prints label summary lines.
 - `task show` prints the task Markdown file unless `--json` is used.
-- `task migrate --dry-run` prints grouped task migration changes.
 - Task status transitions print `<id> -> <status>`; if the task already has the target status, prints `<id> already <status>` instead and skips writing.
 - Dependency updates print `<id> depends_on: <dependencies>`; if the dependency is already present (add) or absent (remove), prints `<id> already depends on <dep>` or `<id> does not depend on <dep>` instead and skips writing.
 - Dependency tree and cycle commands print tree/path text.

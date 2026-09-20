@@ -1,7 +1,6 @@
 package ahm
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -149,7 +148,7 @@ func TestADRCreateBodyFileFromStdin(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -526,74 +525,6 @@ func TestADRCommandsTolerateMalformedRecords(t *testing.T) {
 	})
 }
 
-func TestADRMigrateDryRunReportsChanges(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "001-legacy.md", "# ADR 001: Legacy\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\nBody.\n")
-	writeADRFile(t, root, "002-old.md", "# ADR 002: Old\n\n**Status:** Accepted\n**Date:** 2026-06-02\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
-	if code != 0 {
-		t.Errorf("exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrations:", "docs/adr/001-legacy.md:", "docs/adr/002-old.md:")
-}
-
-func TestADRMigrateStructuredOutputPreservesWriteSemantics(t *testing.T) {
-	tests := []struct {
-		name   string
-		format string
-		dryRun bool
-	}{
-		{name: "json applies", format: "--json"},
-		{name: "json previews", format: "--json", dryRun: true},
-		{name: "plain applies", format: "--plain"},
-		{name: "plain previews", format: "--plain", dryRun: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			root := t.TempDir()
-			writeADRFile(t, root, "001-legacy.md", "# ADR 001: Legacy\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\nBody.\n")
-			path := filepath.Join(root, "docs", "adr", "001-legacy.md")
-			args := []string{"--root", root, tt.format}
-			if tt.dryRun {
-				args = append(args, "--dry-run")
-			}
-			stdout, stderr, code := runCLI(t, append(args, "adr", "migrate")...)
-			if code != 0 {
-				t.Fatalf("exit code = %d, stderr = %s", code, stderr)
-			}
-			var report adrMigrationReport
-			if err := json.Unmarshal([]byte(stdout), &report); err != nil {
-				t.Fatalf("structured output is not JSON: %v\n%s", err, stdout)
-			}
-			if report.DryRun != tt.dryRun || len(report.Migrations) != 1 {
-				t.Fatalf("report = %#v", report)
-			}
-			content := mustRead(t, path)
-			if got := strings.HasPrefix(content, "---\n"); got == tt.dryRun {
-				t.Fatalf("front matter present = %v, dry run = %v\n%s", got, tt.dryRun, content)
-			}
-		})
-	}
-}
-
-func TestADRMigrateIdempotent(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "001-legacy.md", "# ADR 001: Legacy\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
-	if code != 0 {
-		t.Errorf("first migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrated 1 ADR files")
-
-	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
-	if code != 0 {
-		t.Errorf("second dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "No ADR migrations found")
-}
-
 func bodyAfterRawFrontMatter(t *testing.T, text string) string {
 	t.Helper()
 	_, body, _, ok, err := splitRawFrontMatter(text)
@@ -606,129 +537,11 @@ func bodyAfterRawFrontMatter(t *testing.T, text string) string {
 	return body
 }
 
-func TestADRMigrateContentFormat(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "001-legacy.md", "# ADR 001: Legacy Decision\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\n## Context\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
-	if code != 0 {
-		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrated 1 ADR files")
-
-	path := filepath.Join(root, "docs", "adr", "001-legacy.md")
-	content := mustRead(t, path)
-	assertContainsAll(t, content,
-		"---",
-		"status: accepted",
-		"date: 2026-06-01",
-		"---",
-		"# Legacy Decision",
-		"## Context",
-		"Body.",
-	)
-	assertNotContains(t, content, "ADR 001")
-	assertNotContains(t, content, "**Status:**")
-	assertNotContains(t, content, "**Date:**")
-}
-
-func TestADRMigratePartialSupersession(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "006-legacy.md", "# ADR 006: Partially Superseded\n\n**Status:** Accepted, superseded in part by ADR 008\n**Date:** 2026-06-06\n\n## Context\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
-	if code != 0 {
-		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrated 1 ADR files")
-
-	content := mustRead(t, filepath.Join(root, "docs", "adr", "006-legacy.md"))
-	assertContainsAll(t, content,
-		"status: accepted",
-		"# Partially Superseded",
-		"## Supersession",
-		"Superseded in part by ADR-008.",
-		"## Context",
-	)
-	assertNotContains(t, content, "ADR 006")
-	assertNotContains(t, content, "superseded in part by")
-}
-
-func TestADRMigrateSkipsAlreadyMigrated(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "001-migrated.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Already Migrated\n\n## Context\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
-	if code != 0 {
-		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "No ADR migrations found")
-}
-
-func TestADRMigratePreservesBodyContent(t *testing.T) {
-	root := t.TempDir()
-	body := "## Context\n\nThe old way was broken.\n\n## Decision\n\nWe will adopt MADR.\n\n## Rationale\n\nConsistency.\n\n## Consequences\n\n- Good.\n- Bad.\n"
-	writeADRFile(t, root, "005-legacy.md", "# ADR 005: Body Preservation Test\n\n**Status:** Accepted\n**Date:** 2026-06-05\n\n"+body)
-
-	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
-	if code != 0 {
-		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrated 1 ADR files")
-
-	content := mustRead(t, filepath.Join(root, "docs", "adr", "005-legacy.md"))
-	assertContainsAll(t, content,
-		"## Context",
-		"The old way was broken.",
-		"## Decision",
-		"We will adopt MADR.",
-		"## Rationale",
-		"Consistency.",
-		"## Consequences",
-		"- Good.",
-		"- Bad.",
-	)
-	assertNotContains(t, content, "**Status:**")
-	assertNotContains(t, content, "**Date:**")
-}
-
-func TestADRMigrateFullSupersession(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "002-superseded.md", "# ADR 002: Superseded Decision\n\n**Status:** Superseded\n**Date:** 2026-06-02\n\nSuperseded by ADR 005.\n\n## Context\n\nOld decision body.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "adr", "migrate")
-	if code != 0 {
-		t.Errorf("migrate exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "migrated 1 ADR files")
-
-	content := mustRead(t, filepath.Join(root, "docs", "adr", "002-superseded.md"))
-	assertContainsAll(t, content,
-		"status: superseded by ADR-005",
-		"# Superseded Decision",
-		"## Context",
-		"Old decision body.",
-	)
-	assertNotContains(t, content, "**Status:**")
-	assertNotContains(t, content, "ADR 002")
-}
-
-func TestADRMigrateUnrecognizedStatus(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "003-bad.md", "# ADR 003: Unknown Status\n\n**Status:** In Review\n**Date:** 2026-06-03\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
-	if code != 0 {
-		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, `unrecognized status "In Review"; fix manually`)
-}
-
 func TestADRCreateParallelAllocatesUniqueIDs(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1004,15 +817,4 @@ func TestADRProposeDryRun(t *testing.T) {
 	content := mustRead(t, filepath.Join(root, "docs", "adr", "001-accepted.md"))
 	assertContainsAll(t, content, "status: accepted")
 	assertNotContains(t, content, "status: proposed")
-}
-
-func TestADRMigrateMissingBoldLines(t *testing.T) {
-	root := t.TempDir()
-	writeADRFile(t, root, "004-nodate.md", "# ADR 004: No Date\n\n**Status:** Accepted\n\n## Context\n\nBody.\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "adr", "migrate")
-	if code != 0 {
-		t.Errorf("dry-run exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	assertContainsAll(t, stdout, "missing Status or Date bold lines; fix manually")
 }

@@ -289,7 +289,7 @@ func TestParseTask_CRLF(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,12 +417,12 @@ func TestNextTaskID(t *testing.T) {
 func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	root := t.TempDir()
 	// Create a valid task and a malformed one
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Valid", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Valid", "Pending", "")
 	// Malformed file with id 005 — should be picked up by filesystem scan
-	if err := os.MkdirAll(filepath.Join(root, ".agents", ".tasks", "active"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".ahm", "tasks", "active"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".agents", ".tasks", "active", "005.md"), []byte("garbage"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, ".ahm", "tasks", "active", "005.md"), []byte("garbage"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -445,7 +445,7 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 func TestNextTaskIDIgnoresOverflowingNumericIDs(t *testing.T) {
 	root := t.TempDir()
 	overflow := strings.Repeat("9", 100)
-	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", overflow+".md"), "# Malformed overflow task\n")
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", overflow+".md"), "# Malformed overflow task\n")
 
 	got := nextTaskIDForPaths([]Task{{ID: "001"}, {ID: overflow}}, workflowPathsFor(root))
 	if got != "002" {
@@ -482,16 +482,16 @@ func TestSplitTaskID(t *testing.T) {
 
 func TestResolveTask(t *testing.T) {
 	root := t.TempDir()
-	initDir := filepath.Join(root, ".agents", ".tasks")
+	initDir := filepath.Join(root, ".ahm", "tasks")
 	for _, dir := range []string{"active", "completed", "cancelled"} {
 		if err := os.MkdirAll(filepath.Join(initDir, dir), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Task One", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Task Two", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "010.md"), "010", "Task Ten", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "011.md"), "011", "Task Eleven", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Task One", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Task Two", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "010.md"), "010", "Task Ten", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "011.md"), "011", "Task Eleven", "Pending", "")
 	a := app{opts: options{root: root}}
 
 	t.Run("exact match", func(t *testing.T) {
@@ -562,7 +562,7 @@ func TestResolveTask(t *testing.T) {
 
 	t.Run("exact numeric match preferred over prefix match", func(t *testing.T) {
 		// Add a task with a suffix that also has num=1
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001a.md"), "001a", "Task One A", "Pending", "")
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001a.md"), "001a", "Task One A", "Pending", "")
 		a.invalidateTasks()
 		task, err := a.resolveTask("1")
 		if err != nil {

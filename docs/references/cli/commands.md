@@ -12,7 +12,7 @@ only compatibility guarantees that generated help cannot express.
 All non-task commands share these guarantees unless stated otherwise:
 
 - **`--dry-run`**: previews the operation without writing files. Supported by
-  `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records migrate`.
+  `init`, `index`, `adr create`, ADR lifecycle commands.
 - **`--json` / `--plain`**: structured output mode. Unsupported commands print
   text regardless of the flag.
 
@@ -104,28 +104,24 @@ state.
 
 ### `init`
 
-Installs the managed `.ahm` workflow state in the target repository.
+Creates ahm-owned workflow state when it is absent and reconciles it when it
+is present.
 
 **Guarantees:**
 
-- On fresh installs (no prior metadata): creates the `.ahm/` layout.
-- On repositories with existing `.agents/ahm.json`: preserves the existing
-  layout.
+- Creates `.ahm/config.json`, the managed `.ahm/.gitignore`, the record
+  directories, and the generated indexes when they are missing.
+- Rewrites an ahm-owned file only when its bytes differ from what ahm owns, so
+  an up-to-date repository is left untouched and a repeated run writes nothing.
+- Drops obsolete ahm-owned configuration keys (`taskWork`,
+  `default_work_agent`, `projectDocs`, `research`) and preserves unknown
+  metadata, including `files` hashes for files ahm still owns.
 - Never creates, overwrites, or removes project-owned `AGENTS.md`.
-- `--dry-run` previews all write operations.
-
-### `upgrade`
-
-Updates managed workflow state to match the current binary.
-
-**Guarantees:**
-
-- Missing directories, metadata, and indexes are created.
-- Legacy instruction files matching the previous managed hash are removed.
-- Locally modified files are preserved and reported as conflicts.
-- Project-owned `AGENTS.md` is never created, overwritten, or removed, even
-  with `--force`.
-- `--dry-run` previews all write operations.
+- Refuses a repository whose metadata is still `.agents/ahm.json` and names
+  `v1.0.0`, the final v1 release, as the release to upgrade with first. A
+  repository that also holds `.ahm/config.json` is managed: the v1 migration
+  wrote the config after moving the records, so the legacy file is stale.
+- `--dry-run` previews every write without touching the filesystem.
 
 ### `index`
 
@@ -135,17 +131,3 @@ Regenerates all generated indexes from source records.
 
 - Deterministic sort order.
 - Never edits source records.
-
-### `records migrate`
-
-Migrates workflow records from the legacy `.agents/` layout to `.ahm/`.
-
-**Guarantees:**
-
-- Preview mode prints changes without writing.
-- Preserves project-owned `.agents/` content.
-- Does not stage files or move `HEAD`.
-
-### `records doctor`
-
-Diagnoses migration state.

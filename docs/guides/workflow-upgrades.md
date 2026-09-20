@@ -1,34 +1,53 @@
 # Workflow Upgrades
 
-`ahm` owns workflow state and managed-work references. To update the
-workflow, edit the relevant implementation or instruction source in this
-repository, rebuild `ahm`, and run:
+`ahm` owns workflow state, and `ahm init` reconciles it:
 
 ```bash
-ahm upgrade
+ahm init
 ```
 
-The upgrade process compares the installed metadata (in `.ahm/config.json`
-or legacy `.agents/ahm.json`) with the target repository files.
+`ahm init` creates `.ahm/` state when it is absent and reconciles it when it is
+present. It rewrites only the files ahm owns — `.ahm/config.json`, the managed
+`.ahm/.gitignore`, and the generated indexes — and only when their bytes differ
+from what ahm owns, so an up-to-date repository is left completely untouched.
 
-- Missing workflow directories, metadata, and generated indexes are created.
-- Legacy instruction files that still match the previous managed hash are
-  removed because managed-work references now come from scoped `ahm context`.
-- Former preflight, grooming-backlog, and finding-improvements procedure skills
-  are left in place as project-owned files. Any old ownership hashes are
-  discarded; ahm no longer inspects, reports, overwrites, or removes them.
-- Files with local modifications are preserved and reported as conflicts.
+- Obsolete ahm-owned configuration keys (`taskWork`, `default_work_agent`,
+  `projectDocs`, `research`) are dropped. Unrelated unknown top-level fields,
+  including `files` hashes for files ahm still owns, are preserved.
+- Retired managed files stay exactly as the project left them. Older releases
+  installed instruction templates, procedure skills, and record scaffold
+  READMEs and tracked ownership hashes for them; `ahm init` discards those
+  stale hashes and never creates, inspects, overwrites, or removes the files.
 - `AGENTS.md` is project-owned. `ahm` never creates, overwrites, or removes it,
   even with `--force`.
 - Generated indexes are regenerated.
-- User-owned task files, research notes, and ExecPlans are not overwritten.
-- Locally customized legacy instruction files such as `.agents/TASKS.md` are
-  preserved and reported as conflicts unless `--force` is used.
-- Existing task, research, and ADR README scaffold files are preserved and
-  relinquished from metadata ownership; even `--force` does not remove them.
+- `--dry-run` previews every write without touching the filesystem.
 
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
+
+## Migrating A Legacy `.agents/ahm.json` Repository
+
+This version reads only `.ahm/config.json`. Root detection refuses a repository
+whose metadata is still `.agents/ahm.json`, so a legacy tree is never
+half-adopted:
+
+```text
+error: legacy ahm workflow layout <root>/.agents/ahm.json: this version
+reads only .ahm/config.json; upgrade the repository with the final v1
+release (ahm v1.0.0) before using this version
+```
+
+A repository on that layout must move with the final v1 release first. Run
+`ahm upgrade` and then `ahm records migrate` with ahm v1.0.0: `ahm upgrade`
+refreshes the managed files, and `ahm records migrate` moves the records to
+`.ahm/`, writes `.ahm/config.json`, and removes `.agents/ahm.json`. Then run
+`ahm init` with this version.
+
+## Release History
+
+The sections below are the dated release history of the workflow state format
+and its commands. They are records of releases that are no longer current.
 
 ## Documentation Context Scope Removal (2026-07-28)
 

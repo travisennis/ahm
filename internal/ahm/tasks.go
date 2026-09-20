@@ -1,6 +1,8 @@
 package ahm
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -16,13 +18,16 @@ type taskFileInfo struct {
 	Bucket string
 }
 
-// taskFilePaths collects all task markdown file paths across the
-// active, completed, and cancelled buckets. It skips index.md and
-// non-.md entries. Directories that do not exist are silently skipped.
-func taskFilePaths(root string) ([]taskFileInfo, error) {
-	return taskFilePathsFor(workflowPathsFor(root))
+// hashBytes is the SHA-256 digest of a record's bytes, used for the task
+// source hash.
+func hashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
+// taskFilePathsFor collects all task markdown file paths across the
+// active, completed, and cancelled buckets. It skips index.md and
+// non-.md entries. Directories that do not exist are silently skipped.
 func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 	var files []taskFileInfo
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
@@ -233,14 +238,6 @@ func parseFrontMatterLine(line string) (string, string, bool, error) {
 
 func isDoubleQuoted(value string) bool {
 	return strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") && len(value) >= 2
-}
-
-func frontMatterValue(line string) string {
-	_, value, ok := strings.Cut(line, ":")
-	if !ok {
-		return ""
-	}
-	return unquoteFrontMatterScalar(value)
 }
 
 func unquoteFrontMatterScalar(value string) string {

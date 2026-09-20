@@ -99,23 +99,20 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 // an active writer will have a recent modification time and will be skipped.
 var cleanupStaleTempMaxAge = 5 * time.Minute
 
-// cleanupStaleTemps scans the workflow state directories inside root
-// (.agents and, for migrated repositories, .ahm) for orphaned .tmp files left
-// behind by a crash during an atomic write. Only .tmp files whose modification
-// time is older than cleanupStaleTempMaxAge are removed, so temp files from an
-// active writer are never reaped.
+// cleanupStaleTemps scans the workflow state directory inside root (.ahm) for
+// orphaned .tmp files left behind by a crash during an atomic write. Only .tmp
+// files whose modification time is older than cleanupStaleTempMaxAge are
+// removed, so temp files from an active writer are never reaped.
 //
-// Only regular files under the scanned directories are considered; files in
+// Only regular files under the scanned directory are considered; files in
 // subdirectories like .git/ are not scanned.
 func cleanupStaleTemps(root string) error {
 	// removeFailures collects .tmp files that could not be removed for a reason
 	// other than "already gone". A single unremovable file (permission denied,
 	// for example) must not abort cleanup of the remaining stale .tmp files.
 	var removeFailures []string
-	for _, dir := range []string{legacyRecordsDirName, toolRecordsDirName} {
-		if err := cleanupStaleTempsIn(filepath.Join(root, dir), &removeFailures); err != nil {
-			return err
-		}
+	if err := cleanupStaleTempsIn(filepath.Join(root, toolRecordsDirName), &removeFailures); err != nil {
+		return err
 	}
 	if len(removeFailures) > 0 {
 		return fmt.Errorf("could not remove %d stale .tmp file(s): %s", len(removeFailures), strings.Join(removeFailures, "; "))

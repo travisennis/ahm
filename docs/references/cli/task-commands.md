@@ -9,10 +9,8 @@ only compatibility guarantees that generated help cannot express.
 
 ## Task Record Locations
 
-Task files live under the current record layout:
-
-- `.agents/` in legacy committed-record repositories.
-- `.ahm/` after migration.
+Task files live under `.ahm/tasks/`, in one of the `active/`, `completed/`, or
+`cancelled/` buckets. ADRs live under `docs/adr/`.
 
 Task statuses: `Open`, `Pending`, `In Progress`, `Blocked`, `Tracking`,
 `Completed`, `Cancelled`.
@@ -266,12 +264,3 @@ compact JSON. The structural shape is the same in both modes.
   ahm --json task dep tree 002
   ahm --plain task dep tree 002
 ```
-
-### `task migrate [flags]`
-
-Migrates task metadata to the current format.
-
-**Guarantees:**
-
-- `--dry-run` prints grouped migration changes.
-- Idempotent: re-running after migration reports no changes.

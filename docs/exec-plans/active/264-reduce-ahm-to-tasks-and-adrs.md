@@ -145,8 +145,11 @@ deleted, and the binary runs no program but Git.
       prescription are gone. The three surviving procedures are project-owned
       documents under `docs/workflow/`, design plans live under
       `docs/exec-plans/`, and no command emits workflow instructions.
-- [ ] Milestone 5 (264d) complete: install collapsed to one idempotent
-      `ahm init`.
+- [x] Milestone 5 (264d) complete: install collapsed to one idempotent
+      `ahm init`, the legacy `.agents/ahm.json` layout refused, and the four
+      record migrations and their commands deleted. The prose rule is applied
+      to the live docs that named them, and `docs/guides/workflow-upgrades.md`
+      now opens with the v2 migration note.
 - [ ] Milestone 6 (264e) complete: documentation and instructions rewritten.
 - [ ] Milestone 7 (264f) complete: v2.0.0 released.
 
@@ -395,7 +398,202 @@ deleted, and the binary runs no program but Git.
   the file only to collect `missing` entries, and `writeRecordsGitignore`
   appends them.
 
+- Observation: the legacy layout was load-bearing for the test suite, not just
+  for the binary. About 180 fixtures wrote task files under `.agents/.tasks/`
+  and relied on the no-metadata default layout to read them back, two
+  `validation_test.go` tables existed only to run each case twice (once per
+  layout), and the install suite was mostly upgrade-removal and conflict cases
+  that the new boundary deletes outright. The milestone's file list named none
+  of that; the mechanical repoint is `".agents", ".tasks"` to `".ahm", "tasks"`.
+  Evidence: `rg -c '"\.agents", "\.tasks"' *_test.go` counted 167 occurrences
+  across seven files before the repoint, and `git diff --stat` shows those files.
+
+- Observation: `records.go` held only `runGit` and `runGitBytes`, whose sole
+  caller was the records migration's tracked-path check, so deleting the
+  migration made the whole file dead. `hashBytes` moved to `tasks.go`, where its
+  remaining caller is the task source hash, and `indexWriteTargetsFor`,
+  `taskFilePaths`, and `frontMatterValue` were dead once their callers went.
+  Evidence: `just lint` reported `func runGit is unused`, `func runGitBytes is
+  unused`, `func taskFilePaths is unused`, and `func frontMatterValue is unused`
+  before the cleanup, and reports `0 issues` after it.
+
+- Observation: the legacy ADR validation finding was the one place a validator
+  still named a removed command. `adr_legacy_format` read "run ahm adr
+  migrate", so the milestone reworded it to "convert it to MADR front matter
+  manually" and updated the two documents that quote it. The finding code and
+  severity are unchanged.
+  Evidence: `rg -n "adr migrate" internal/ docs/` before the change hits
+  `validation.go`, `docs/references/cli/task-file-format.md`,
+  `docs/references/workflow-spec.md`, `docs/workflow/adrs.md`, and
+  `validation_test.go`; after it, only the dated release history and the ADRs
+  name it.
+
+- Observation: the milestone changed two shapes the v2 release notes owe.
+  `init`'s diagnostic report is now the reconcile set — `created`, `updated`,
+  `directories`, and the stale `indexes` — instead of
+  `adopted`/`created`/`updated`/`removed`/`skipped`/`conflicts`/`metadata`/`indexes`,
+  and an up-to-date repository prints nothing at all. `--force` also stops
+  having any install-path effect: its only remaining reader is `task
+  complete`'s strict-acceptance override.
+  Evidence: `docs/cli.md` and `docs/references/cli/global-contract.md` were
+  updated for both, and `TestInitJSONResultSchema` pins the four keys.
+
+- Observation: `.ahm/.gitignore` is reconciled unconditionally rather than
+  guarded by an ownership hash and `--force`. It is a tool-owned file whose own
+  header says ahm manages it, the milestone's requirement is to prune drifted
+  ahm-owned state (the broad `index.md` line a `records migrate` left behind),
+  and recording hashes for it would reintroduce the conflict reporting this
+  milestone deletes. A project that needs extra ignore lines has the
+  repository-root `.gitignore`, which ahm never touches.
+  Evidence: `reconcileFile` rewrites `.ahm/.gitignore` only when its bytes
+  differ from `recordsGitignoreContent()`, and
+  `TestInitRewritesDriftedManagedGitignore` covers both the drift and the
+  no-op case.
+
+- Observation: the milestone applied the prose rule to the live documents that
+  named the removed commands and left the coherent rewrites to milestone 6. It
+  touched `docs/references/cli/{commands,global-contract,task-commands,task-file-format}.md`,
+  `docs/references/{workflow-spec,glossary}.md`, `docs/cli.md`,
+  `docs/README.md`,
+  `docs/guardrails/{agent-instructions,documentation,safety-and-permissions,workflow-state-and-file-formats}.md`,
+  `docs/workflow/adrs.md`, `docs/VISION.md`, `ARCHITECTURE.md`,
+  `CONTRIBUTING.md`, `AGENTS.md`, and `README.md`, and rewrote the head of
+  `docs/guides/workflow-upgrades.md` as the v2 migration note the prose rule's
+  first exception covers.
+  Evidence: `rg -n "ahm upgrade|records migrate|records doctor|ahm records|task
+  migrate|adr migrate" docs/ README.md AGENTS.md CONTRIBUTING.md ARCHITECTURE.md
+  .agents/` now hits only `docs/adr/**` (historical record), this plan's own
+  milestone text, and that note, whose two remaining references name the final
+  v1 release deliberately.
+
+- Observation: `README.md`, `.agents/prompt.md`, and its two skills still
+  describe removed commands and the retired layout. This milestone left them to
+  milestone 6 rather than patching them piecemeal, because both files need a
+  coherent rewrite and the plan names them there. The spots are `README.md`
+  lines 4, 36, and 59 (`.agents` intro, `ahm task work 001` in the quickstart,
+  and the delegation paragraph in Safety), `.agents/prompt.md`'s opening
+  paragraph, and
+  `.agents/skills/{grooming-backlog,finding-improvements}/SKILL.md`.
+  Evidence: `rg -n "ahm task work|\.agents/" README.md .agents/prompt.md`
+  before handoff.
+
+- Observation: the plan's milestone-5 acceptance case for the surviving product
+  does not run as written: `ahm task complete <id> --body "did the thing"`
+  fails with `unknown flag: --body`, because completion takes no body flag and
+  the record's Acceptance Notes carry the outcome. The case is corrected in
+  place, and the rest of the sequence — init, task create, accept, start,
+  complete, `ahm adr create`, `ahm index`, `ahm prime` — runs end to end on a
+  scratch repository.
+  Evidence: the acceptance case in "Validation and Acceptance" is now
+  `ahm task complete <id>`, and every step was run against a scratch clone.
+
+- Observation: root detection refuses exactly one retired layout, the
+  `.agents/ahm.json` metadata file the acceptance notes name. The other retired
+  shape, the dot-prefixed `.ahm/.tasks/` tree that an early `.ahm` migration
+  created, is not checked: a `.ahm/.tasks/` directory can also be an empty
+  leftover, so refusing on its existence alone would block `init` in a
+  repository with nothing to migrate, and the v1 `records migrate` path that
+  normalized it is gone. A repository on that layout therefore reports an empty
+  backlog instead of an error. This is a deliberate scoping decision and a
+  release-note candidate.
+  Evidence: `rejectLegacyLayout` checks only `.agents/ahm.json` and the
+  `.ahm/config.json` exemption, and `legacyDotRecordMigrationRoots` was deleted
+  with `records_migrate.go`.
+
+- Observation: this milestone's independent review was self-performed, not run
+  in a subagent. The session exposed no subagent tool, and the reviewer CLIs on
+  the machine are unusable from here (codex is excluded by the owner's
+  instruction, the `claude` shim points at a missing version directory, and
+  `amp` fails at startup on its cache directory). The preflight skill's three
+  L/XL passes therefore ran against the diff directly and produced seven fixes:
+  the explicit `--root` path bypassed the legacy refusal, `.ahm/config.json`
+  now wins over a leftover legacy file, `reconcileFile`'s parameter shadowed the
+  package `relPath` helper, `directories` marshalled as `null`, `hashBytes`
+  claimed a purpose its only caller does not have, a test variable still said
+  `agentsDir`, and `records_test.go` named a deleted subject. Deferred probe: a
+  subagent or independent review pass over this commit.
+  Evidence: every fix is in the tree with a covering test or an updated comment;
+  `just ci` is green afterwards.
+
+- Observation: two structures were kept that a stricter reading could remove,
+  and the milestone chose the smaller diff for both. `workflowPaths` survives as
+  a root-carrying path value (`tasksRel`, `tasksBucketDir`, `taskFile`) rather
+  than being deleted and its parameter threaded out of `collectTasksForPaths`,
+  `indexWritesForPaths`, and the validation entry points; and `init` renders the
+  index set twice, once to classify drift and once inside `writeIndexes`, which
+  is the same double render the previous `init` did with
+  `indexWriteTargetsFor` plus `writeIndexes`.
+  Evidence: `rg -c "workflowPaths" internal/ahm/*.go` totals 68 mentions
+  across the package and its tests, and `reconcileIndexes` calls `indexWrites`
+  then `writeIndexes`.
+
 ## Decision Log
+
+- Decision: root detection refuses `.agents/ahm.json` only when
+  `.ahm/config.json` is absent, and every root-resolution entry point checks
+  the refusal, including an explicit `--root`.
+  Rationale: `.ahm/config.json` is the stronger signal. The v1 records
+  migration moved the records first, wrote the config second, and removed the
+  legacy file last, so a repository holding both has finished its move and only
+  has stale metadata left; refusing it would block a manageable repository and
+  offer the wrong remedy. Checking the explicit `--root` path too means
+  `ahm --root <legacy> status` names the layout instead of reporting missing
+  metadata, so no command reads a legacy tree as if it were managed.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
+
+- Decision: milestone 5 implements `ahm init` as create-or-reconcile and
+  changes its diagnostic report to the reconcile set: `created`, `updated`,
+  `directories`, and the stale `indexes`, with nothing printed for an up-to-date
+  repository.
+  Rationale: the acceptance criterion is that a second run writes nothing, and
+  a report that always names the metadata file and every index target cannot
+  show that. `created` and `updated` are computed by comparing the bytes ahm
+  would write against the bytes on disk, so the report and the write set cannot
+  disagree; the old `removed`, `skipped`, `conflicts`, and `adopted` keys
+  described upgrade behavior that no longer exists. The shape change is
+  breaking and belongs in the v2 release notes.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
+
+- Decision: `ahm init` reconciles the managed `.ahm/.gitignore` to ahm's own
+  content whenever it differs, with no ownership hash and no `--force` gate; the
+  retired managed files are handled by discarding their stale hashes only.
+  Rationale: `.ahm/.gitignore` is a tool-owned file that declares ahm as its
+  manager, the milestone exists partly to prune drifted ahm-owned state, and
+  hash-gated rewriting would reintroduce the conflict reporting this milestone
+  deletes. The retired instruction templates, skills, and scaffold READMEs are
+  the opposite case — project-owned or no longer generated — so no command may
+  remove them, which is what ADR 022's release treatment requires.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
+
+- Decision: `--force` keeps its place in the global flag set even though install
+  no longer has anything to force, and the `init` help text stops advertising
+  it.
+  Rationale: `task complete` still reads it as the strict-acceptance override,
+  so removing the flag would be a second breaking change the ADR does not ask
+  for, and the acceptance notes themselves exercise `ahm init --force`.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
+
+- Decision: the legacy ADR validation finding is reworded rather than removed:
+  `adr_legacy_format` now says to convert the record to MADR front matter by
+  hand.
+  Rationale: the finding code and severity are compatibility surfaces and
+  legacy ADRs still exist in the wild, but its message was the last place a
+  validator told a reader to run a command this release deletes. ADR 022 keeps
+  record validation; it removes the migration that used to satisfy it.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
+
+- Decision: milestone 5 applied the prose rule to every live document that named
+  `ahm upgrade`, `records migrate`, `records doctor`, `task migrate`, or
+  `adr migrate`, and wrote the v2 migration note into
+  `docs/guides/workflow-upgrades.md` now, while leaving that guide's dated
+  sections and the milestone-6 files alone.
+  Rationale: the prose rule's first exception is the migration documentation
+  ADR 022 requires, so the note is the one place the removed commands may
+  appear; the dated sections are release history, and milestone 6 owns the
+  coherent rewrite of `README.md`, `.agents/`, and the architecture prose. The
+  alternative — leaving a live document that offers a command the binary no
+  longer has — is the defect this milestone would otherwise create.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264d).
 
 - Decision: milestone 4 moves this plan into `docs/exec-plans/active/`,
   creates `docs/exec-plans/completed/`, and registers both buckets in
@@ -956,6 +1154,37 @@ removes that key, keeps unknown keys, and reports success. A directory holding
 only a fake `.agents/ahm.json` fails with the v1 message rather than being
 treated as unmanaged.
 
+Disposition (2026-09-20): done, and wider than the Work paragraph. Deleted:
+`records_commands.go`, `records_migrate.go`, `task_migrate.go`,
+`adr_migrate.go`, their tests, `records.go` (the `runGit`/`runGitBytes` helpers
+whose only caller was the records migration), and the three
+`dir_notempty*` files plus their test once the upgrade-time obsolete-file
+removal was gone. `init` is now create-or-reconcile: it writes a file only when
+the bytes differ from what ahm owns, which makes a second run silent and
+byte-identical, and it drops the obsolete ahm-owned configuration keys while
+preserving unknown metadata and `files` hashes. The retired-file ownership
+boundary replaces upgrade's removal and conflict reporting: `ahm init` discards
+stale hashes and never creates, inspects, overwrites, or removes those files.
+Root detection accepts only `.git` and `.ahm/config.json` and refuses a
+`.agents/ahm.json` repository with a message naming `v1.0.0`; the collapse also
+dropped the layout resolver, the path cache, and the migration lock namespace,
+leaving one `.ahm/.lock/workflow-records` lock. Test-suite changes went well
+beyond the named files: `install_test.go` was rewritten around the idempotence,
+obsolete-key, `AGENTS.md`, and legacy-refusal criteria; the `current/legacy`
+layout tables in `validation_test.go` collapsed to one layout; and about 180
+fixtures across `task_commands_test.go`, `task_deps_test.go`, `tasks_test.go`,
+`indexes_test.go`, `lock_test.go`, `task_list_test.go`, `write_test.go`, and
+`prime_test.go` were repointed from `.agents/` paths to `.ahm/`.
+
+Result: a repository needs one command to adopt or maintain `ahm`, an
+unmodified `AGENTS.md` survives every install path, and no command reads the
+retired layout.
+
+Proof: `ahm init` in a scratch repository prints the created files, its second
+run prints nothing and leaves every mtime and byte identical, and `ahm init` in
+a directory holding only `.agents/ahm.json` exits 1 with the v1 message and
+creates nothing.
+
 ### Milestone 6 — Rewrite documentation and instructions (task 264e)
 
 Scope: every prose surface describes the reduced tool.
@@ -1119,7 +1348,7 @@ proves the surviving product end to end:
     ahm init
     ahm task create "Try the reduced tool" --priority P1 --effort S
     ahm task accept <id> && ahm task start <id>
-    ahm task complete <id> --body "did the thing"
+    ahm task complete <id>
     ahm adr create "Records only" --status accepted
     ahm index && ahm prime
 
@@ -1197,6 +1426,31 @@ After milestone 3, measured on 2026-09-20:
     exec-plan and research finding codes), docs/references/workflow-spec.md
     (task front matter, research config block, index shape), docs/cli.md,
     docs/guides/workflow-upgrades.md (v2 migration note), and the glossary
+
+After milestone 5, measured on 2026-09-20:
+
+    7246 total non-test Go lines in cmd/ and internal/, down from 8767
+    11900 total test Go lines across the repository, down from 13642
+    deleted: records_commands.go, records_migrate.go, task_migrate.go,
+    adr_migrate.go, records.go, the three dir_notempty files, and their tests
+    ahm init twice in a row: the second run prints nothing, exits 0, and leaves
+    every file's bytes and modification time unchanged
+    ahm init in a repository holding only .agents/ahm.json: exit 1 with
+    "legacy ahm workflow layout ... upgrade the repository with the final v1
+    release (ahm v1.0.0) before using this version"
+    ahm --help lists adr, doctor, index, init, prime, status, task, and version
+    only; upgrade, records, context, onboard, audit, task migrate, and adr
+    migrate are all unknown commands
+    ahm doctor and ahm status on this repository: "ok": true, no findings
+    milestone 6 owes: README.md (the .agents intro, the quickstart, and the
+    Safety paragraph), .agents/prompt.md and
+    .agents/skills/{grooming-backlog,finding-improvements}, ARCHITECTURE.md's
+    remaining system-boundary prose, and the stale retired generated indexes
+    under .ahm/exec-plans/ and .ahm/research/
+    release notes owe: the removal of upgrade, records migrate, records doctor,
+    task migrate, and adr migrate; the init report's new key set; the refusal of
+    the .agents/ahm.json layout with v1.0.0 named; and the reworded
+    adr_legacy_format finding
 
 After milestone 4, measured on 2026-09-20:
 

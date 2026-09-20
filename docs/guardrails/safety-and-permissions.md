@@ -13,7 +13,8 @@ atomic writes, and dry-run behavior.
   boundary of the `ahm` binary, not a prohibition on the human or agent
   working in the repository, whose commit and branch behavior is governed by
   `AGENTS.md` and `CONTRIBUTING.md`.
-- Root detection from `.git` and `.agents/ahm.json`.
+- Root detection from `.git` and `.ahm/config.json`, including refusal of the
+  retired `.agents/ahm.json` layout.
 - Git subprocess isolation from inherited repository-location environment.
 - Atomic write and stale temp-file cleanup behavior.
 - Dry-run no-write guarantees.

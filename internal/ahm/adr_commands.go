@@ -172,29 +172,6 @@ Examples:
 	supersede.Flags().StringVar(&supersedeBy, "by", "", "Replacement ADR id")
 	adr.AddCommand(supersede)
 
-	adr.AddCommand(&cobra.Command{
-		Use:   "migrate",
-		Short: "Migrate legacy ADRs to MADR front matter",
-		Long: `Migrate legacy ADRs to MADR front matter.
-
-CRLF line endings are normalized to LF during migration. This is a side effect of
-internal file handling and may appear as line-ending changes in version control
-diffs.
-
-Examples:
-  ahm adr migrate --dry-run
-  ahm adr migrate
-  ahm --json adr migrate
-  ahm --json adr migrate --dry-run`,
-		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			return a.adrMigrate()
-		},
-	})
-
 	return adr
 }
 

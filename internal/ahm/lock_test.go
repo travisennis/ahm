@@ -45,7 +45,7 @@ func saveLockStaleRecheckDelay(t *testing.T) {
 
 func TestAcquireWorkflowLock_AcquireRelease(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 
 	// First acquire must succeed.
 	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-a")
@@ -70,7 +70,7 @@ func TestAcquireWorkflowLock_AcquireRelease(t *testing.T) {
 
 func TestAcquireWorkflowLock_BlocksContention(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockTimeout(t)
 	workflowLockTimeout = 50 * time.Millisecond
 
@@ -94,7 +94,7 @@ func TestAcquireWorkflowLock_BlocksContention(t *testing.T) {
 
 func TestAcquireWorkflowLock_ConcurrentSerialization(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockTimeout(t)
 	workflowLockTimeout = 10 * time.Second // generous; each acquire should be near-instant
 
@@ -126,7 +126,7 @@ func TestAcquireWorkflowLock_ConcurrentSerialization(t *testing.T) {
 
 func TestAcquireWorkflowLock_Timeout(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockTimeout(t)
 	workflowLockTimeout = 10 * time.Millisecond
 
@@ -158,7 +158,7 @@ func TestAcquireWorkflowLock_Timeout(t *testing.T) {
 
 func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockStaleAfter(t)
 	saveLockStaleRecheckDelay(t)
 
@@ -170,7 +170,7 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	// Manually create a lock directory so it looks like a stale lock from a
 	// previous crashed process. It carries no owner token (pre-token layout),
 	// exercising the legacy reclamation fallback.
-	lockPath := filepath.Join(dir, ".agents", ".lock", "test-e")
+	lockPath := filepath.Join(dir, ".ahm", ".lock", "test-e")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 	workflowLockStaleAfter = 10 * time.Millisecond
 	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
 
-	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockRoot := filepath.Join(dir, ".ahm", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-replacement")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveLegacyReplacement(t *testing.T) {
 	workflowLockStaleAfter = 10 * time.Millisecond
 	workflowLockStaleRecheckDelay = 1 * time.Millisecond // short so the test doesn't block
 
-	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockRoot := filepath.Join(dir, ".ahm", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-legacy-replacement")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -291,7 +291,7 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveLegacyReplacement(t *testing.T) {
 
 func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-release-replacement")
 
 	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-release-replacement")
@@ -320,7 +320,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
 
 func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-release-missing")
 
 	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-release-missing")
@@ -339,7 +339,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
 func TestWithWorkflowRecordLock_ReturnsReleaseOwnershipLoss(t *testing.T) {
 	dir := t.TempDir()
 	a := app{opts: options{root: dir}}
-	lockPath := filepath.Join(dir, ".agents", ".lock", workflowRecordLockName)
+	lockPath := filepath.Join(dir, ".ahm", ".lock", workflowRecordLockName)
 
 	err := a.withWorkflowRecordLock(true, func() error {
 		return os.RemoveAll(lockPath)
@@ -351,7 +351,7 @@ func TestWithWorkflowRecordLock_ReturnsReleaseOwnershipLoss(t *testing.T) {
 
 func TestAcquireWorkflowLock_NonStaleLockIsNotRemoved(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockTimeout(t)
 	saveLockStaleAfter(t)
 
@@ -359,7 +359,7 @@ func TestAcquireWorkflowLock_NonStaleLockIsNotRemoved(t *testing.T) {
 	workflowLockStaleAfter = 10 * time.Minute // long enough to not be stale
 
 	// Manually create a recent lock directory.
-	lockPath := filepath.Join(dir, ".agents", ".lock", "test-f")
+	lockPath := filepath.Join(dir, ".ahm", ".lock", "test-f")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +380,7 @@ func TestAcquireWorkflowLock_NonStaleLockIsNotRemoved(t *testing.T) {
 
 func TestHeartbeatPreventsStaleReclamation(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-heartbeat")
 
 	// Create a lock directory with a past modification time.
@@ -425,7 +425,7 @@ func TestHeartbeatPreventsStaleReclamation(t *testing.T) {
 
 func TestHeartbeatStopsAndLockBecomesReclaimable(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-heartbeat-stop")
 
 	saveLockStaleAfter(t)
@@ -478,7 +478,7 @@ func TestHeartbeatStopsAndLockBecomesReclaimable(t *testing.T) {
 // lock creation and returning a release closure.
 func TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-token-failure")
 
 	orig := workflowLockTokenWriter
@@ -502,7 +502,7 @@ func TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock(t *testing.T) {
 // survive the error return.
 func TestRemoveWorkflowLockIfOwned_PostRenameMismatchCleansQuarantine(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockRoot := filepath.Join(dir, ".ahm", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-post-rename-token")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -534,7 +534,7 @@ func TestRemoveWorkflowLockIfOwned_PostRenameMismatchCleansQuarantine(t *testing
 // not survive the error return.
 func TestReclaimLegacyLock_StatFailureAfterRenameCleansQuarantine(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockRoot := filepath.Join(dir, ".ahm", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-legacy-stat-failure")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -576,7 +576,7 @@ func TestReclaimLegacyLock_StatFailureAfterRenameCleansQuarantine(t *testing.T) 
 // directory must not survive.
 func TestReclaimLegacyLock_IdentityMismatchAfterRenameCleansQuarantine(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, ".agents", ".lock")
+	lockRoot := filepath.Join(dir, ".ahm", ".lock")
 	lockPath := filepath.Join(lockRoot, "test-legacy-identity")
 	if err := os.MkdirAll(lockPath, 0o755); err != nil {
 		t.Fatal(err)
@@ -619,7 +619,7 @@ func TestReclaimLegacyLock_IdentityMismatchAfterRenameCleansQuarantine(t *testin
 // lock at that path) after the owner has released it.
 func TestAcquireWorkflowLock_ReleaseJoinsHeartbeat(t *testing.T) {
 	dir := t.TempDir()
-	lockRoot := filepath.Join(dir, workflowPathsFor(dir).recordsDir, ".lock")
+	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	saveLockHeartbeatInterval(t)
 	workflowLockHeartbeatInterval = 1 * time.Millisecond
 

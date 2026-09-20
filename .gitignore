@@ -3,4 +3,4 @@ bin/
 dist/
 
 # Orphaned temp files from atomic writes
-.agents/**/*.tmp
+.ahm/**/*.tmp

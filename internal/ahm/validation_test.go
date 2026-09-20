@@ -176,7 +176,7 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Active Task", "Pending", "depends_on: 002\n")
@@ -199,11 +199,11 @@ func TestValidationReportsBlockedDepsComplete(t *testing.T) {
 	root := t.TempDir()
 	// 002 is Blocked but all its deps (001) are Completed.
 	// Use writeTaskFileWithDeps for all tasks so depends_on is always present.
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done Dep", "Completed", "-")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Still Blocked Task", "Blocked", "001")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done Dep", "Completed", "-")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Still Blocked Task", "Blocked", "001")
 	// 003 is Pending with no deps — should not trigger the warning.
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Pending Dep", "Pending", "-")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Legitimately Blocked", "Blocked", "003")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Pending Dep", "Pending", "-")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Legitimately Blocked", "Blocked", "003")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -342,7 +342,7 @@ func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -395,7 +395,7 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: []\n")
@@ -534,7 +534,7 @@ func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeADRFile(t, root, "001-legacy-decision.md", "# ADR 001: Legacy Decision\n\n**Status:** Accepted\n**Date:** 2026-06-01\n\n## Context\n\nBody.\n")
@@ -547,7 +547,7 @@ func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
 	assertContainsAll(t, statusOut.String(),
 		`"ok": true`,
 		`"code": "adr_legacy_format"`,
-		`run ahm adr migrate`,
+		`convert it to MADR front matter manually`,
 	)
 
 	var doctorOut strings.Builder
@@ -565,7 +565,7 @@ func TestStatusReportsADRErrors(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeADRFile(t, root, "001-invalid-status.md", "---\nstatus: doing\ndate: 2026-06-01\n---\n# Invalid Status\n\nBody.\n")
@@ -586,7 +586,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	linkPath := writeLinkCarrierTask(t, root, "001", "[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
@@ -655,7 +655,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	// Quoted example links inside inline code spans and fenced code blocks must
@@ -681,14 +681,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	assertNotContains(t, got, "fenced-missing.md")
 }
 
-func TestValidateManagedRecordLinksByFamilyAndLayout(t *testing.T) {
-	layouts := []struct {
-		name  string
-		setup func(*testing.T, string)
-	}{
-		{name: "current", setup: setupAhmRepo},
-		{name: "legacy", setup: initAndCreateLegacyMetadata},
-	}
+func TestValidateManagedRecordLinksByFamily(t *testing.T) {
 	families := []struct {
 		name       string
 		dir        func(string, workflowPaths) string
@@ -713,121 +706,15 @@ func TestValidateManagedRecordLinksByFamilyAndLayout(t *testing.T) {
 		},
 	}
 
-	for _, layout := range layouts {
-		for _, family := range families {
-			t.Run(layout.name+"/"+family.name, func(t *testing.T) {
-				root := t.TempDir()
-				layout.setup(t, root)
-				paths := workflowPathsFor(root)
-				dir := family.dir(root, paths)
-				writeFile(t, filepath.Join(dir, family.targetName), "# Target\n")
-				writeFile(t, filepath.Join(dir, family.sourceName),
-					"# Links\n\n[valid]("+family.targetName+")\n[missing](missing.md)\n")
-
-				report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
-				var findings []validationFinding
-				for _, finding := range report.Warnings {
-					if finding.Code == "markdown_link_missing" {
-						findings = append(findings, finding)
-					}
-				}
-				if len(findings) != 1 {
-					t.Fatalf("markdown_link_missing findings = %#v, want one", findings)
-				}
-				wantPath := relPath(root, filepath.Join(dir, family.sourceName)) + ":4"
-				if findings[0].Path != wantPath {
-					t.Errorf("finding path = %q, want %q", findings[0].Path, wantPath)
-				}
-				if strings.Contains(findings[0].Message, family.targetName) {
-					t.Errorf("valid link target was reported missing: %#v", findings[0])
-				}
-			})
-		}
-	}
-}
-
-func TestValidateManagedRecordLinksIncludesGeneratedIndexes(t *testing.T) {
-	layouts := []struct {
-		name  string
-		setup func(*testing.T, string)
-	}{
-		{name: "current", setup: setupAhmRepo},
-		{name: "legacy", setup: initAndCreateLegacyMetadata},
-	}
-
-	for _, layout := range layouts {
-		t.Run(layout.name, func(t *testing.T) {
+	for _, family := range families {
+		t.Run(family.name, func(t *testing.T) {
 			root := t.TempDir()
-			layout.setup(t, root)
+			setupAhmRepo(t, root)
 			paths := workflowPathsFor(root)
-			indexes := []string{
-				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "index.md"),
-				filepath.Join(root, "docs", "adr", "index.md"),
-			}
-			for _, path := range indexes {
-				writeFile(t, path, "# Index\n\n[missing](missing.md)\n")
-			}
-
-			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
-			got := map[string]bool{}
-			for _, finding := range report.Warnings {
-				if finding.Code == "markdown_link_missing" {
-					got[strings.TrimSuffix(finding.Path, ":3")] = true
-				}
-			}
-			for _, path := range indexes {
-				rel := relPath(root, path)
-				if !got[rel] {
-					t.Errorf("missing generated-index link finding for %s: %#v", rel, report.Warnings)
-				}
-			}
-			if len(got) != len(indexes) {
-				t.Errorf("generated-index finding paths = %#v, want exactly %d", got, len(indexes))
-			}
-		})
-	}
-}
-
-func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
-	layouts := []struct {
-		name  string
-		setup func(*testing.T, string)
-	}{
-		{name: "current", setup: setupAhmRepo},
-		{name: "legacy", setup: initAndCreateLegacyMetadata},
-	}
-
-	for _, layout := range layouts {
-		t.Run(layout.name, func(t *testing.T) {
-			root := t.TempDir()
-			layout.setup(t, root)
-			paths := workflowPathsFor(root)
-			taskDir := filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
-			writeFile(t, filepath.Join(taskDir, "001.md"), "# Managed\n\n[missing](managed-missing.md)\n")
-
-			for _, path := range []string{
-				"README.md",
-				"AGENTS.md",
-				"CLAUDE.md",
-				"ARCHITECTURE.md",
-				"docs/guide.md",
-				".agents/NOTES.md",
-				".agents/skills/example/SKILL.md",
-			} {
-				writeFile(t, filepath.Join(root, filepath.FromSlash(path)),
-					"# Project owned\n\n[missing]("+strings.ReplaceAll(path, "/", "-")+"-missing.md)\n")
-			}
-			for _, path := range []string{
-				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "README.md"),
-				filepath.Join(root, "docs", "adr", "README.md"),
-			} {
-				writeFile(t, path, "# Preserved scaffold\n\n[missing](scaffold-missing.md)\n")
-			}
-			for _, path := range []string{
-				filepath.Join(paths.tasksBucketDir("active"), "project-notes", "guide.md"),
-			} {
-				writeFile(t, path, "# Nested project notes\n\n[missing](nested-missing.md)\n")
-			}
+			dir := family.dir(root, paths)
+			writeFile(t, filepath.Join(dir, family.targetName), "# Target\n")
+			writeFile(t, filepath.Join(dir, family.sourceName),
+				"# Links\n\n[valid]("+family.targetName+")\n[missing](missing.md)\n")
 
 			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
 			var findings []validationFinding
@@ -837,12 +724,92 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 				}
 			}
 			if len(findings) != 1 {
-				t.Fatalf("markdown_link_missing findings = %#v, want only the managed task finding", findings)
+				t.Fatalf("markdown_link_missing findings = %#v, want one", findings)
 			}
-			if !strings.Contains(findings[0].Message, "managed-missing.md") {
-				t.Errorf("unexpected managed link finding: %#v", findings[0])
+			wantPath := relPath(root, filepath.Join(dir, family.sourceName)) + ":4"
+			if findings[0].Path != wantPath {
+				t.Errorf("finding path = %q, want %q", findings[0].Path, wantPath)
+			}
+			if strings.Contains(findings[0].Message, family.targetName) {
+				t.Errorf("valid link target was reported missing: %#v", findings[0])
 			}
 		})
+	}
+}
+
+func TestValidateManagedRecordLinksIncludesGeneratedIndexes(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+	indexes := []string{
+		filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "index.md"),
+		filepath.Join(root, "docs", "adr", "index.md"),
+	}
+	for _, path := range indexes {
+		writeFile(t, path, "# Index\n\n[missing](missing.md)\n")
+	}
+
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+	got := map[string]bool{}
+	for _, finding := range report.Warnings {
+		if finding.Code == "markdown_link_missing" {
+			got[strings.TrimSuffix(finding.Path, ":3")] = true
+		}
+	}
+	for _, path := range indexes {
+		rel := relPath(root, path)
+		if !got[rel] {
+			t.Errorf("missing generated-index link finding for %s: %#v", rel, report.Warnings)
+		}
+	}
+	if len(got) != len(indexes) {
+		t.Errorf("generated-index finding paths = %#v, want exactly %d", got, len(indexes))
+	}
+}
+
+func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+	taskDir := filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
+	writeFile(t, filepath.Join(taskDir, "001.md"), "# Managed\n\n[missing](managed-missing.md)\n")
+
+	for _, path := range []string{
+		"README.md",
+		"AGENTS.md",
+		"CLAUDE.md",
+		"ARCHITECTURE.md",
+		"docs/guide.md",
+		".agents/NOTES.md",
+		".agents/skills/example/SKILL.md",
+	} {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(path)),
+			"# Project owned\n\n[missing]("+strings.ReplaceAll(path, "/", "-")+"-missing.md)\n")
+	}
+	for _, path := range []string{
+		filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "README.md"),
+		filepath.Join(root, "docs", "adr", "README.md"),
+	} {
+		writeFile(t, path, "# Preserved scaffold\n\n[missing](scaffold-missing.md)\n")
+	}
+	for _, path := range []string{
+		filepath.Join(paths.tasksBucketDir("active"), "project-notes", "guide.md"),
+	} {
+		writeFile(t, path, "# Nested project notes\n\n[missing](nested-missing.md)\n")
+	}
+
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+	var findings []validationFinding
+	for _, finding := range report.Warnings {
+		if finding.Code == "markdown_link_missing" {
+			findings = append(findings, finding)
+		}
+	}
+	if len(findings) != 1 {
+		t.Fatalf("markdown_link_missing findings = %#v, want only the managed task finding", findings)
+	}
+	if !strings.Contains(findings[0].Message, "managed-missing.md") {
+		t.Errorf("unexpected managed link finding: %#v", findings[0])
 	}
 }
 
@@ -851,51 +818,25 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 // more, so a broken link inside one of them is never reported and deleting the
 // directory changes no ahm behavior.
 func TestValidateLinksSkipsRetiredRecordFamilies(t *testing.T) {
-	layouts := []struct {
-		name  string
-		setup func(*testing.T, string)
-		files []string
-	}{
-		{
-			name:  "current",
-			setup: setupAhmRepo,
-			files: []string{
-				".ahm/research/inbox/note.md",
-				".ahm/research/topics/note.md",
-				".ahm/research/index.md",
-				".ahm/exec-plans/active/note.md",
-				".ahm/exec-plans/active/index.md",
-			},
-		},
-		{
-			name:  "legacy",
-			setup: initAndCreateLegacyMetadata,
-			files: []string{
-				".agents/.research/inbox/note.md",
-				".agents/.research/index.md",
-				".agents/exec-plans/active/note.md",
-				".agents/exec-plans/active/index.md",
-			},
-		},
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+	for _, file := range []string{
+		".ahm/research/inbox/note.md",
+		".ahm/research/topics/note.md",
+		".ahm/research/index.md",
+		".ahm/exec-plans/active/note.md",
+		".ahm/exec-plans/active/index.md",
+	} {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(file)),
+			"# Retired record\n\n[missing](missing.md)\n")
 	}
 
-	for _, layout := range layouts {
-		t.Run(layout.name, func(t *testing.T) {
-			root := t.TempDir()
-			layout.setup(t, root)
-			paths := workflowPathsFor(root)
-			for _, file := range layout.files {
-				writeFile(t, filepath.Join(root, filepath.FromSlash(file)),
-					"# Retired record\n\n[missing](missing.md)\n")
-			}
-
-			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
-			for _, finding := range report.Warnings {
-				if finding.Code == "markdown_link_missing" {
-					t.Errorf("retired record family was link-checked: %#v", finding)
-				}
-			}
-		})
+	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+	for _, finding := range report.Warnings {
+		if finding.Code == "markdown_link_missing" {
+			t.Errorf("retired record family was link-checked: %#v", finding)
+		}
 	}
 }
 
@@ -905,76 +846,56 @@ func TestValidateLinksSkipsRetiredRecordFamilies(t *testing.T) {
 // read-write commands read no file under either retired tree, report no finding
 // for one, and report exactly the same findings once the trees are gone.
 func TestRetiredRecordFamiliesChangeNothing(t *testing.T) {
-	layouts := []struct {
-		name  string
-		setup func(*testing.T, string)
-		trees []string
-	}{
-		{
-			name:  "current",
-			setup: setupAhmRepo,
-			trees: []string{".ahm/research", ".ahm/exec-plans"},
-		},
-		{
-			name:  "legacy",
-			setup: initAndCreateLegacyMetadata,
-			trees: []string{".agents/.research", ".agents/exec-plans"},
-		},
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	paths := workflowPathsFor(root)
+	trees := []string{".ahm/research", ".ahm/exec-plans"}
+	// A surviving task that still carries the retired field.
+	writeFile(t, paths.taskFile("active", "001"), "---\n"+
+		"id: 001\n"+
+		"title: Retired Field\n"+
+		"status: Pending\n"+
+		"priority: P2\n"+
+		"effort: S\n"+
+		"labels: type:task\n"+
+		"exec_plan: 999-old-plan\n"+
+		"depends_on: -\n"+
+		"---\n"+
+		"# Retired Field\n\n## Acceptance Notes\n\n- [x] Done.\n")
+	writeADRFile(t, root, "001-good-decision.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Good Decision\n\nBody.\n")
+	for _, tree := range trees {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "inbox", "note.md"),
+			"# Retired record\n\n[missing](missing.md)\n")
+		writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "index.md"),
+			"# Retired index\n\n[missing](missing.md)\n")
 	}
 
-	for _, layout := range layouts {
-		t.Run(layout.name, func(t *testing.T) {
-			root := t.TempDir()
-			layout.setup(t, root)
-			paths := workflowPathsFor(root)
-			// A surviving task that still carries the retired field.
-			writeFile(t, paths.taskFile("active", "001"), "---\n"+
-				"id: 001\n"+
-				"title: Retired Field\n"+
-				"status: Pending\n"+
-				"priority: P2\n"+
-				"effort: S\n"+
-				"labels: type:task\n"+
-				"exec_plan: 999-old-plan\n"+
-				"depends_on: -\n"+
-				"---\n"+
-				"# Retired Field\n\n## Acceptance Notes\n\n- [x] Done.\n")
-			writeADRFile(t, root, "001-good-decision.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Good Decision\n\nBody.\n")
-			for _, tree := range layout.trees {
-				writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "inbox", "note.md"),
-					"# Retired record\n\n[missing](missing.md)\n")
-				writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "index.md"),
-					"# Retired index\n\n[missing](missing.md)\n")
-			}
+	reads := map[string]int{}
+	original := readWorkflowFileHook
+	readWorkflowFileHook = func(path string) { reads[relPath(root, path)]++ }
+	t.Cleanup(func() { readWorkflowFileHook = original })
 
-			reads := map[string]int{}
-			original := readWorkflowFileHook
-			readWorkflowFileHook = func(path string) { reads[relPath(root, path)]++ }
-			t.Cleanup(func() { readWorkflowFileHook = original })
+	// Exercise the read-write commands twice: once with the retired trees in
+	// place and once after deleting them. index runs first so the surviving
+	// generated state is settled and the later commands exit 0.
+	commands := []string{"index", "status", "doctor", "prime"}
+	beforeReport := runRetiredTreeCommands(t, root, commands)
+	for _, tree := range trees {
+		if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(tree))); err != nil { // #nosec G703 -- path built from t.TempDir
+			t.Fatal(err)
+		}
+	}
+	afterReport := runRetiredTreeCommands(t, root, commands)
 
-			// Exercise the read-write commands twice: once with the retired trees in
-			// place and once after deleting them. index runs first so the surviving
-			// generated state is settled and the later commands exit 0.
-			commands := []string{"index", "status", "doctor", "prime"}
-			beforeReport := runRetiredTreeCommands(t, root, commands)
-			for _, tree := range layout.trees {
-				if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(tree))); err != nil { // #nosec G703 -- path built from t.TempDir
-					t.Fatal(err)
-				}
-			}
-			afterReport := runRetiredTreeCommands(t, root, commands)
-
-			for path := range reads {
-				if strings.Contains(path, "research") || strings.Contains(path, "exec-plans") {
-					t.Errorf("read a retired record: %s", path)
-				}
-			}
-			if !reflect.DeepEqual(beforeReport.Errors, afterReport.Errors) ||
-				!reflect.DeepEqual(beforeReport.Warnings, afterReport.Warnings) ||
-				!reflect.DeepEqual(beforeReport.Info, afterReport.Info) {
-				t.Errorf("removing the retired trees changed the findings\nbefore: %+v\nafter: %+v", beforeReport, afterReport)
-			}
-		})
+	for path := range reads {
+		if strings.Contains(path, "research") || strings.Contains(path, "exec-plans") {
+			t.Errorf("read a retired record: %s", path)
+		}
+	}
+	if !reflect.DeepEqual(beforeReport.Errors, afterReport.Errors) ||
+		!reflect.DeepEqual(beforeReport.Warnings, afterReport.Warnings) ||
+		!reflect.DeepEqual(beforeReport.Info, afterReport.Info) {
+		t.Errorf("removing the retired trees changed the findings\nbefore: %+v\nafter: %+v", beforeReport, afterReport)
 	}
 }
 
@@ -1098,7 +1019,7 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	paths := workflowPathsFor(root)
@@ -1137,7 +1058,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	paths := workflowPathsFor(root)
@@ -1169,7 +1090,7 @@ func TestCLIStatusInvalidCheckScope(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1187,7 +1108,7 @@ func TestCLIDoctorWithCheckScope(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1201,7 +1122,7 @@ func TestCLIDoctorWithCheckScope(t *testing.T) {
 
 func TestValidateTaskFrontMatterReportsParseErrors(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1279,11 +1200,7 @@ func TestValidateReportsCorruptMetadata(t *testing.T) {
 
 func TestValidateReportsCorruptAhmConfig(t *testing.T) {
 	root := t.TempDir()
-	// Keep a valid legacy metadata file present; .ahm/config.json should be
-	// preferred and reported as the corrupt source.
-	if err := writeMetadata(root, metadata{Version: "0.1.0", Files: map[string]string{}}); err != nil {
-		t.Fatal(err)
-	}
+	writeMetadataFile(t, root, metadata{Version: "0.1.0", Files: map[string]string{}})
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{invalid json}")
 
 	report, _ := validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
@@ -1298,8 +1215,8 @@ func TestValidateReportsCorruptAhmConfig(t *testing.T) {
 		t.Errorf("expected metadata_corrupt error for .ahm/config.json, got: %v", report.Errors)
 	}
 	for _, err := range report.Errors {
-		if err.Code == "metadata_corrupt" && err.Path == ".agents/ahm.json" {
-			t.Errorf("unexpected legacy metadata path for corrupt .ahm/config.json: %v", err)
+		if err.Code == "metadata_corrupt" && err.Path != configMetadataRelPath {
+			t.Errorf("metadata_corrupt finding path = %q, want %q: %v", err.Path, configMetadataRelPath, err)
 		}
 	}
 }
@@ -1371,7 +1288,7 @@ func TestDocsCommandRemoved(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1390,7 +1307,7 @@ func TestProjectDocsCheckScopeRemoved(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 

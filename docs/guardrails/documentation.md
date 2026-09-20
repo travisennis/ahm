@@ -37,7 +37,7 @@ duplicates with a link.
 Require a documentation check when a change touches:
 
 - CLI commands, flags, aliases, exit codes, or output modes.
-- Workflow formats, `.agents/ahm.json` metadata, or generated index shapes.
+- Workflow formats, `.ahm/config.json` metadata, or generated index shapes.
 - Architecture boundaries, module map, or cross-cutting invariants.
 - Setup, build, test, lint, release, or CI commands.
 - Public API or user-visible behavior.

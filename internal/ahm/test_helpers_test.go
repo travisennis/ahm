@@ -1,10 +1,12 @@
 package ahm
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func runCLI(t *testing.T, args ...string) (string, string, int) {
@@ -90,8 +92,8 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
-// setupAhmRepo creates minimal .ahm/ workflow state (the modern layout)
-// in root. Creates .ahm/config.json and the directory structure ahm installs.
+// setupAhmRepo creates minimal .ahm/ workflow state in root: .ahm/config.json
+// and the directory structure ahm installs.
 func setupAhmRepo(t *testing.T, root string) {
 	t.Helper()
 	for _, dir := range []string{
@@ -109,33 +111,77 @@ func setupAhmRepo(t *testing.T, root string) {
 	}
 }
 
-// initAndCreateLegacyMetadata creates minimal legacy .agents/ workflow state
-// so tests expecting the legacy .agents/ layout can function.
-func initAndCreateLegacyMetadata(t *testing.T, root string) {
+// writeMetadataFile writes meta to .ahm/config.json in the same form install
+// writes it.
+func writeMetadataFile(t *testing.T, root string, meta metadata) {
 	t.Helper()
-	metaDir := filepath.Join(root, ".agents")
-	for _, dir := range []string{
-		".agents/.tasks",
-		".agents/.tasks/active",
-		".agents/.tasks/completed",
-		".agents/.tasks/cancelled",
-		".agents/.research",
-		".agents/.research/inbox",
-		".agents/.research/investigations",
-		".agents/.research/sources",
-		".agents/.research/topics",
-		".agents/.research/archived",
-		".agents/exec-plans",
-		".agents/exec-plans/active",
-		".agents/exec-plans/completed",
-		"docs/adr",
-	} {
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
-			t.Fatal(err)
+	if meta.Files == nil {
+		meta.Files = map[string]string{}
+	}
+	data, err := marshalMetadata(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), string(data))
+}
+
+// treeEntry records what an idempotence check needs to detect a rewrite.
+type treeEntry struct {
+	modTime time.Time
+	content string
+}
+
+// snapshotTree records every file under root with its content and modification
+// time, so a test can prove a command rewrote nothing.
+func snapshotTree(t *testing.T, root string) map[string]treeEntry {
+	t.Helper()
+	entries := map[string]treeEntry{}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		entries[relPath(root, path)] = treeEntry{modTime: info.ModTime(), content: string(content)}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entries
+}
+
+// assertTreeUnchanged fails when root gained, lost, or rewrote any file
+// relative to before.
+func assertTreeUnchanged(t *testing.T, root string, before map[string]treeEntry) {
+	t.Helper()
+	after := snapshotTree(t, root)
+	for rel, want := range before {
+		got, ok := after[rel]
+		if !ok {
+			t.Errorf("%s was removed", rel)
+			continue
+		}
+		if got.content != want.content {
+			t.Errorf("%s content changed:\nbefore: %q\nafter:  %q", rel, want.content, got.content)
+		}
+		if !got.modTime.Equal(want.modTime) {
+			t.Errorf("%s was rewritten without being changed (modification time moved)", rel)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte(`{"version":"0.0.0"}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
+	for rel := range after {
+		if _, ok := before[rel]; !ok {
+			t.Errorf("%s was created", rel)
+		}
 	}
 }
 

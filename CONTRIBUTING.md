@@ -171,7 +171,7 @@ Recommended scopes:
 | Scope | Description |
 | --- | --- |
 | `cli` | Command-line interface and argument parsing |
-| `workflow` | Managed workflow files and `.agents` behavior |
+| `workflow` | Managed workflow files and `.ahm/` state |
 | `tasks` | Task commands, parsing, indexes, and state moves |
 | `adr` | ADR commands, records, and the generated ADR index |
 | `docs` | Human-facing docs under `docs/` |

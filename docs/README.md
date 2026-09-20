@@ -19,7 +19,8 @@ index.
   [ADR](workflow/adrs.md), and [ExecPlan](workflow/exec-plans.md) procedures.
 - [Design plans](exec-plans/README.md): in-progress and completed plans for
   large or cross-cutting work.
-- [Workflow upgrade guide](guides/workflow-upgrades.md): upgrade behavior notes.
+- [Workflow upgrade guide](guides/workflow-upgrades.md): the v2 migration note
+  and the dated release history of workflow state.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
 - [Guardrails](guardrails/): short agent-facing rules by risk surface.

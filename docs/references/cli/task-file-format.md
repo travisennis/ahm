@@ -71,7 +71,7 @@ Finding codes:
 
 | Code | Meaning |
 | ---- | ------- |
-| `metadata_missing` | Workflow metadata is missing (`.ahm/config.json` after migration, otherwise `.agents/ahm.json`). |
+| `metadata_missing` | Workflow metadata `.ahm/config.json` is missing. |
 | `metadata_corrupt` | Workflow metadata exists but cannot be read or parsed. |
 | `managed_file_missing` | A managed workflow file is missing. |
 | `managed_file_unreadable` | A managed workflow file could not be read. |
@@ -96,7 +96,7 @@ Finding codes:
 | `adr_duplicate_id` | Multiple ADR files use the same numeric ADR ID. |
 | `adr_invalid_status` | A MADR-profile ADR has a status outside `proposed`, `accepted`, `rejected`, `deprecated`, or `superseded by ADR-NNN`. |
 | `adr_supersede_missing` | A MADR-profile ADR status references a missing superseding ADR. |
-| `adr_legacy_format` | An ADR uses the legacy bold-metadata format; run `ahm adr migrate`. This is a warning-tier finding. |
+| `adr_legacy_format` | An ADR uses the legacy bold-metadata format; convert it to MADR front matter manually. This is a warning-tier finding. |
 | `generated_index_missing` | A generated workflow index is missing and should be regenerated with `ahm index`. |
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |

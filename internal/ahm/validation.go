@@ -216,9 +216,9 @@ func validateMetadata(root string, report *validationReport) {
 	_, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
-			report.addError("metadata_missing", metadataErrorPath(metaErr), "workflow metadata is missing")
+			report.addError("metadata_missing", configMetadataRelPath, "workflow metadata is missing")
 		} else {
-			report.addError("metadata_corrupt", metadataErrorPath(metaErr), fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
+			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
 	}
 }
@@ -435,7 +435,7 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 func validateGeneratedIndexMetadata(root string, report *validationReport) bool {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
+			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return false
 	}
@@ -490,7 +490,7 @@ func validateADRs(root string, report *validationReport) {
 			}
 			continue
 		case adrKindLegacy:
-			report.addWarning("adr_legacy_format", rel, "legacy ADR format; run ahm adr migrate")
+			report.addWarning("adr_legacy_format", rel, "legacy ADR format; convert it to MADR front matter manually")
 			continue
 		}
 
@@ -546,7 +546,7 @@ func walkMarkdownLinks(data []byte, visit func(lineNo int, target string)) {
 func validateMarkdownLinks(root string, paths workflowPaths, report *validationReport) {
 	if _, err := readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			report.addError("metadata_corrupt", metadataErrorPath(err), fmt.Sprintf("workflow metadata is corrupt: %v", err))
+			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
 		return
 	}

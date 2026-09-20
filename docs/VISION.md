@@ -65,13 +65,11 @@ policy of its general documentation.
 Stated once, canonically. `ahm` may:
 
 - read git state freely (status, diffs, refs);
-- write workflow files under its own `.ahm/` directory (and, during
-  explicit opt-in migration only, move files out of `.agents/`).
+- write workflow files under its own `.ahm/` directory.
 
 `ahm` never commits, stages, writes the index, moves `HEAD`, mutates
-branches, creates pull requests, or patches project source. Migration commands
-preview effects and print any required user-run git commands rather than
-executing them.
+branches, creates pull requests, or patches project source. It prints any
+git command a person must run rather than executing it.
 
 Commands intended for hooks, including `ahm prime`, `ahm status`, and
 `ahm doctor`, must be fast, offline-tolerant, and idempotent.

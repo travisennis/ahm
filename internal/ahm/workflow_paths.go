@@ -2,46 +2,29 @@ package ahm
 
 import "path/filepath"
 
-const (
-	legacyRecordsDirName = ".agents"
-	toolRecordsDirName   = ".ahm"
-)
+// toolRecordsDirName is the tool-owned directory that holds ahm workflow
+// state: committed records, configuration, the managed .gitignore, generated
+// indexes, and the workflow lock.
+const toolRecordsDirName = ".ahm"
 
-// workflowPaths resolves where ahm-managed workflow records live for a
-// repository. Legacy committed-record repositories keep records under
-// project-owned .agents/; repositories that opted into the ADR 013 storage
-// migration keep records under tool-owned .ahm/.
+// workflowPaths derives the ahm-managed record paths for one repository root.
+// There is exactly one layout: records live under the tool-owned .ahm/
+// directory. The legacy .agents/ layout is not readable by this version, and
+// root detection rejects it before any path is derived.
 type workflowPaths struct {
-	root       string
-	recordsDir string // legacyRecordsDirName or toolRecordsDirName
+	root string
 }
 
-// workflowPathsFor derives the record paths for root from workflow metadata.
-// The records directory is determined by which config file anchors the
-// repository: .ahm/config.json selects the migrated layout (.ahm/ paths);
-// .agents/ahm.json (or absent metadata) selects the legacy layout (.agents/ paths).
-// A present-but-unreadable .ahm/config.json still selects the migrated layout
-// so corrupt metadata degrades to warnings instead of hiding records.
 func workflowPathsFor(root string) workflowPaths {
-	recordsDir := legacyRecordsDirName
-	if _, source, _ := readMetadataWithSource(root); source == configMetadataRelPath {
-		recordsDir = toolRecordsDirName
-	}
-	return workflowPaths{root: root, recordsDir: recordsDir}
+	return workflowPaths{root: root}
 }
 
 func (p workflowPaths) tasksRel() string {
-	if p.recordsDir == toolRecordsDirName {
-		return p.recordsDir + "/tasks"
-	}
-	return p.recordsDir + "/.tasks"
+	return toolRecordsDirName + "/tasks"
 }
 
 func (p workflowPaths) tasksBucketDir(bucket string) string {
-	if p.recordsDir == toolRecordsDirName {
-		return filepath.Join(p.root, p.recordsDir, "tasks", bucket)
-	}
-	return filepath.Join(p.root, p.recordsDir, ".tasks", bucket)
+	return filepath.Join(p.root, toolRecordsDirName, "tasks", bucket)
 }
 
 func (p workflowPaths) taskFile(bucket string, id string) string {

@@ -51,8 +51,8 @@ For command wiring, flags, help, exit codes, output, or dry-run behavior, load:
 
 ### Workflow State, File Formats, And Upgrades
 
-For `.ahm/config.json`, workflow formats, indexes, install, upgrade,
-status, doctor, or record files, load:
+For `.ahm/config.json`, workflow formats, indexes, install, cross-version
+migration, status, doctor, or record files, load:
 
 - [Workflow state and file formats](docs/guardrails/workflow-state-and-file-formats.md),
   for the rules governing on-disk workflow records.
@@ -147,8 +147,8 @@ Never hand-edit indexes; use source records plus the appropriate `ahm task`,
   you did not intentionally change.
 - Inspect `git status --short` before broad edits.
 - Use Conventional Commits when writing commit messages.
-- `AGENTS.md` is project-owned; `ahm init`, `ahm upgrade`, and `--force` must
-  not overwrite it.
+- `AGENTS.md` is project-owned; `ahm init` and `--force` must not overwrite
+  it.
 
 ## Handoff
 

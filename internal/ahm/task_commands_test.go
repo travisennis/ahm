@@ -17,7 +17,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,7 +76,7 @@ func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -145,13 +145,11 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
-	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
-		return workflowPathsFor(root)
-	})
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +239,7 @@ func TestTaskCreateBodyFileFromStdin(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -642,15 +640,15 @@ func TestTaskCreateSubtaskCollisionAvoidance(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 
 	// Manually create a child with letter 'c' to skip 'a', 'b'.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001c.md"), "001c", "Existing Child C", "Pending", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001c.md"), "001c", "Existing Child C", "Pending", "parent: 001\n")
 
 	// Also create a completed child with letter 'e' to prove scanning happens across buckets.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001e.md"), "001e", "Completed Child E", "Completed", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001e.md"), "001e", "Completed Child E", "Completed", "parent: 001\n")
 
 	// Collect tasks and call nextChildTaskIDForPaths directly.
 	tasks, err := collectTasksForPaths(root, workflowPathsFor(root))
@@ -689,7 +687,7 @@ func TestTaskCreateSubtaskDryRun(t *testing.T) {
 	assertContainsAll(t, stdout, "001a")
 
 	// File should not exist.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "active", "001a.md")); err == nil {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001a.md")); err == nil {
 		t.Errorf("dry-run should not create child file")
 	}
 }
@@ -1075,7 +1073,7 @@ func TestTaskCreateDependsOnDryRun(t *testing.T) {
 
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Preserve Metadata", "Pending", "depends_on: []\n"+
 		"created: 2026-05-01\n"+
 		"updated: 2026-05-02\n"+
@@ -1088,7 +1086,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 		t.Error(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "completed", "001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1113,7 +1111,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 
 func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Unknown Fields", "Pending",
 		"assignee: alice\n"+
 			"due: 2026-06-01\n"+
@@ -1126,7 +1124,7 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 		t.Error(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "completed", "001.md"))
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "completed", "001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1162,7 +1160,7 @@ func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
-			path := filepath.Join(root, ".agents", ".tasks", tt.initialBucket, "001.md")
+			path := filepath.Join(root, ".ahm", "tasks", tt.initialBucket, "001.md")
 			writeFormattedTitleTask(t, path, "001", "Fix ahm task accept", tt.initial)
 
 			var out strings.Builder
@@ -1176,7 +1174,7 @@ func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			updatedPath := filepath.Join(root, ".agents", ".tasks", tt.targetBucket, "001.md")
+			updatedPath := filepath.Join(root, ".ahm", "tasks", tt.targetBucket, "001.md")
 			assertTaskHasSinglePlainH1(t, updatedPath, "Fix ahm task accept")
 		})
 	}
@@ -1229,7 +1227,7 @@ func assertTaskHasSinglePlainH1(t *testing.T, path string, title string) {
 
 func TestTaskStatusNoOp(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Already In Progress", "In Progress", "depends_on: -\n")
 
 	before, err := os.ReadFile(path)
@@ -1260,7 +1258,7 @@ func TestTaskStatusNoOp(t *testing.T) {
 func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	root := t.TempDir()
 	// Task has Completed status but sits in active bucket.
-	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
 
 	var out strings.Builder
@@ -1270,7 +1268,7 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	}
 
 	// Task should be moved to completed bucket.
-	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
 	if _, err := os.Stat(completedPath); err != nil {
 		t.Errorf("completed task not found: %v", err)
 	}
@@ -1287,7 +1285,7 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	root := t.TempDir()
 	// Task has Cancelled status but sits in active bucket.
-	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Cancelled", "Cancelled", "depends_on: -\n")
 
 	var out strings.Builder
@@ -1297,7 +1295,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 	}
 
 	// Task should be moved to cancelled bucket.
-	cancelledPath := filepath.Join(root, ".agents", ".tasks", "cancelled", "001.md")
+	cancelledPath := filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md")
 	if _, err := os.Stat(cancelledPath); err != nil {
 		t.Errorf("cancelled task not found: %v", err)
 	}
@@ -1313,7 +1311,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 	root := t.TempDir()
 	// Task has Completed status but sits in active bucket.
-	oldPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
+	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
 
 	var out strings.Builder
@@ -1326,7 +1324,7 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 	if _, err := os.Stat(oldPath); err != nil {
 		t.Errorf("file should still exist after dry run: %v", err)
 	}
-	completedPath := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	completedPath := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
 	if _, err := os.Stat(completedPath); !os.IsNotExist(err) {
 		t.Errorf("completed file should not exist after dry run, err = %v", err)
 	}
@@ -1335,7 +1333,7 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
 	root := t.TempDir()
 	// Task is Completed and already in completed bucket — true no-op.
-	path := filepath.Join(root, ".agents", ".tasks", "completed", "001.md")
+	path := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
 	writeTaskFile(t, path, "001", "Truly Completed", "Completed", "depends_on: -\n")
 
 	before, err := os.ReadFile(path)
@@ -1379,9 +1377,9 @@ func TestFilterReadyAndBlockedTasks(t *testing.T) {
 
 func TestTaskListFiltersStatus(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Pending Task", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "002.md"), "002", "Completed Task", "Completed", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "003.md"), "003", "Cancelled Task", "Cancelled", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Pending Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "002.md"), "002", "Completed Task", "Completed", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "003.md"), "003", "Cancelled Task", "Cancelled", "")
 
 	t.Run("single status", func(t *testing.T) {
 		var out strings.Builder
@@ -1455,9 +1453,9 @@ func TestTaskListFiltersStatus(t *testing.T) {
 
 func TestTaskListFiltersLabels(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "CLI Feature", "Pending", "labels: type:feature, area:cli\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Docs Feature", "Pending", "labels: type:feature, area:docs\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "CLI Bug", "Pending", "labels: type:bug, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "CLI Feature", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Docs Feature", "Pending", "labels: type:feature, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "CLI Bug", "Pending", "labels: type:bug, area:cli\n")
 
 	t.Run("matches all labels", func(t *testing.T) {
 		var out strings.Builder
@@ -1496,9 +1494,9 @@ func TestTaskListFiltersLabels(t *testing.T) {
 
 func TestTaskSearch(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Add timeout handling", "Pending", "labels: type:feature, area:cli\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Document Timeout defaults", "Open", "labels: type:docs, area:docs\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Unrelated work", "Pending", "labels: type:task, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Add timeout handling", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Document Timeout defaults", "Open", "labels: type:docs, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Unrelated work", "Pending", "labels: type:task, area:cli\n")
 
 	t.Run("matches case-insensitive substring on title", func(t *testing.T) {
 		var out strings.Builder
@@ -1570,7 +1568,7 @@ func TestTaskSearch(t *testing.T) {
 
 func TestTaskSearchCLINoQuery(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Some task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Some task", "Pending", "")
 	_, stderr, code := runCLI(t, "--root", root, "task", "search")
 	if code != 2 {
 		t.Errorf("no-query exit code = %d, stderr = %s", code, stderr)
@@ -1582,9 +1580,9 @@ func TestTaskSearchCLINoQuery(t *testing.T) {
 
 func TestTaskListFiltersPriority(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "P0 Task", "Pending", "P0", "")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P1 Task", "Pending", "P1", "")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "P2 Task", "Pending", "P2", "")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P0 Task", "Pending", "P0", "")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P1 Task", "Pending", "P1", "")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "P2 Task", "Pending", "P2", "")
 
 	t.Run("single priority filter", func(t *testing.T) {
 		var out strings.Builder
@@ -1646,9 +1644,9 @@ func TestTaskListFiltersPriority(t *testing.T) {
 func TestTaskListFiltersEffort(t *testing.T) {
 	root := t.TempDir()
 	// Write task files with custom effort values via extraFrontMatter override
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "XS Task", "Pending", "P2", "effort: XS\n")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "S Task", "Pending", "P2", "effort: S\n")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "M Task", "Pending", "P2", "effort: M\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "XS Task", "Pending", "P2", "effort: XS\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "S Task", "Pending", "P2", "effort: S\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "M Task", "Pending", "P2", "effort: M\n")
 
 	t.Run("single effort filter", func(t *testing.T) {
 		var out strings.Builder
@@ -1709,8 +1707,8 @@ func TestTaskListFiltersEffort(t *testing.T) {
 
 func TestTaskListFiltersPriorityEffortJSON(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "P0 XS", "Pending", "P0", "effort: XS\n")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P1 M", "Pending", "P1", "effort: M\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P0 XS", "Pending", "P0", "effort: XS\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P1 M", "Pending", "P1", "effort: M\n")
 
 	stdout, stderr, code := runCLI(t, "--json", "--root", root, "task", "list", "--priority", "P1", "--effort", "M")
 	if code != 0 {
@@ -1726,10 +1724,10 @@ func TestTaskListFiltersPriorityEffortJSON(t *testing.T) {
 
 func TestTaskReadyFiltersLabels(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:task, area:cli\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "CLI Ready", "Pending", "labels: type:feature, area:cli\ndepends_on: 001\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Docs Ready", "Pending", "labels: type:feature, area:docs\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "CLI Waiting", "Pending", "labels: type:feature, area:cli\ndepends_on: 999\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:task, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "CLI Ready", "Pending", "labels: type:feature, area:cli\ndepends_on: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Docs Ready", "Pending", "labels: type:feature, area:docs\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "CLI Waiting", "Pending", "labels: type:feature, area:cli\ndepends_on: 999\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "ready", "--label", "type:feature,area:cli")
 	if code != 0 {
@@ -1742,26 +1740,26 @@ func TestTaskReadyFiltersLabels(t *testing.T) {
 func TestTaskReadyIncludesTrackingWithAllChildrenResolved(t *testing.T) {
 	root := t.TempDir()
 	// 001 is Tracking with all children Completed or Cancelled — ready.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Tracker Done", "Tracking", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "001b.md"), "001b", "Child B", "Cancelled", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Tracker Done", "Tracking", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "001b.md"), "001b", "Child B", "Cancelled", "parent: 001\n")
 	// 002 is Tracking with a child still open — not ready.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Tracker Open", "Tracking", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002a.md"), "002a", "Child Open", "Pending", "parent: 002\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Tracker Open", "Tracking", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002a.md"), "002a", "Child Open", "Pending", "parent: 002\n")
 	// 003 is Tracking with no children — not ready.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Empty Tracker", "Tracking", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Empty Tracker", "Tracking", "")
 	// 005 is Tracking with all children Completed but its own dependency is
 	// still open — not ready.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "005.md"), "005", "Tracker Waiting", "Tracking", "depends_on: 006\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "005a.md"), "005a", "Child Done", "Completed", "parent: 005\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "006.md"), "006", "Open Dep", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "005.md"), "005", "Tracker Waiting", "Tracking", "depends_on: 006\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "005a.md"), "005a", "Child Done", "Completed", "parent: 005\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "006.md"), "006", "Open Dep", "Pending", "")
 	// 007 is Tracking with all children Completed but depends on a Cancelled
 	// task — its own dependency is unsatisfiable, so not ready.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "007.md"), "007", "Tracker Cancelled Dep", "Tracking", "depends_on: 008\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "007a.md"), "007a", "Child Done", "Completed", "parent: 007\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "cancelled", "008.md"), "008", "Cancelled Dep", "Cancelled", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "007.md"), "007", "Tracker Cancelled Dep", "Tracking", "depends_on: 008\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "007a.md"), "007a", "Child Done", "Completed", "parent: 007\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "008.md"), "008", "Cancelled Dep", "Cancelled", "")
 	// 004 is Pending with no deps — ready as before.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Plain Ready", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Plain Ready", "Pending", "")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "ready")
 	if code != 0 {
@@ -1812,9 +1810,9 @@ func TestTaskCompleteLastChildWarnsTrackerChildrenComplete(t *testing.T) {
 func TestTaskNextSelectsHighestPriorityReadyTracking(t *testing.T) {
 	root := t.TempDir()
 	// P1 tracker with all children Completed beats the P2 pending task.
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "P1 Tracker", "Tracking", "P1", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P2 Pending", "Pending", "P2", "")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P1 Tracker", "Tracking", "P1", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P2 Pending", "Pending", "P2", "")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -1828,9 +1826,9 @@ func TestTaskNextSelectsHighestPriorityReadyTracking(t *testing.T) {
 
 func TestTaskLabelsListsCounts(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:feature, area:cli\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Ready", "Pending", "labels: type:feature, area:cli\n")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Needs Triage", "Open", "labels: type:bug, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Ready", "Pending", "labels: type:feature, area:cli\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Needs Triage", "Open", "labels: type:bug, area:cli\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "labels")
 	if code != 0 {
@@ -1848,10 +1846,10 @@ func TestTaskLabelsListsCounts(t *testing.T) {
 
 func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Done", "Completed", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "P2 Ready", "Pending", "depends_on: 001\n")
-	writeTaskFileWithPriority(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "P1 Ready", "Pending", "P1", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Blocked", "Pending", "depends_on: 999\n")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P2 Ready", "Pending", "depends_on: 001\n")
+	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "P1 Ready", "Pending", "P1", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Blocked", "Pending", "depends_on: 999\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -1866,9 +1864,9 @@ func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
 func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	root := t.TempDir()
 	// Valid task
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Valid Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Valid Task", "Pending", "")
 	// Malformed task: invalid enum value "Doing"
-	malformedPath := filepath.Join(root, ".agents", ".tasks", "active", "002.md")
+	malformedPath := filepath.Join(root, ".ahm", "tasks", "active", "002.md")
 	malformedContent := "---\n" +
 		"id: 002\n" +
 		"title: Bad Task\n" +
@@ -1964,7 +1962,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 		if err := a.writeIndexes(); err != nil {
 			t.Error(err)
 		}
-		indexPath := filepath.Join(root, ".agents", ".tasks", "index.md")
+		indexPath := filepath.Join(root, ".ahm", "tasks", "index.md")
 		data, err := os.ReadFile(indexPath)
 		if err != nil {
 			t.Fatal(err)
@@ -1976,7 +1974,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	})
 
 	t.Run("task dep tree works with malformed task", func(t *testing.T) {
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "005.md"), "005", "Dep Parent", "Pending", "depends_on: 001\n")
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "005.md"), "005", "Dep Parent", "Pending", "depends_on: 001\n")
 
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
@@ -1999,8 +1997,8 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 
 	t.Run("task dep cycles works with malformed task", func(t *testing.T) {
 		// Add cycle between valid tasks
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Cycle A", "Pending", "depends_on: 004\n")
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "004.md"), "004", "Cycle B", "Pending", "depends_on: 003\n")
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Cycle A", "Pending", "depends_on: 004\n")
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "004.md"), "004", "Cycle B", "Pending", "depends_on: 003\n")
 
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
@@ -2168,8 +2166,8 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 
 func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2181,15 +2179,15 @@ func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 		t.Errorf("error message = %q, want incomplete dependencies: 001", err.Error())
 	}
 	// Task file should not have been moved.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "002.md")); !os.IsNotExist(err) {
 		t.Error("completed file should not exist after failed completion")
 	}
 }
 
 func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "001", "Completed Dep", "Completed", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Completed Dep", "Completed", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2197,7 +2195,7 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "002.md")); err != nil {
 		t.Errorf("completed file should exist: %v", err)
 	}
 }
@@ -2207,7 +2205,7 @@ func TestTaskStatusReusesParsedStateAfterLock(t *testing.T) {
 	const taskCount = 300
 	for i := 1; i <= taskCount; i++ {
 		id := fmt.Sprintf("%03d", i)
-		writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", id+".md"), id, "Task "+id, "Pending", "")
+		writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", id+".md"), id, "Task "+id, "Pending", "")
 	}
 
 	originalParseHook := taskParseHook
@@ -2312,7 +2310,7 @@ func TestTaskMutationRefusesDuplicateIDs(t *testing.T) {
 
 func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2320,15 +2318,15 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")); err != nil {
 		t.Errorf("completed file should exist: %v", err)
 	}
 }
 
 func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2337,15 +2335,15 @@ func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 	}
 
 	assertContainsAll(t, out.String(), "001 -> Completed", "002 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "completed", "001.md"), "status: Completed")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "status: Pending", "depends_on: 001")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "status: Pending", "depends_on: 001")
 }
 
 func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "First Dependency", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Second Dependency", "Pending", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "First Dependency", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Second Dependency", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2355,14 +2353,14 @@ func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) 
 
 	assertContainsAll(t, out.String(), "001 -> Completed")
 	assertNotContains(t, out.String(), "003 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "status: Blocked", "depends_on: 001, 002")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "status: Blocked", "depends_on: 001, 002")
 }
 
 func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Finished Dependency", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "completed", "002.md"), "002", "Other Dependency", "Completed", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Unrelated Blocked Task", "Blocked", "002")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Finished Dependency", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "002.md"), "002", "Other Dependency", "Completed", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Unrelated Blocked Task", "Blocked", "002")
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
@@ -2372,13 +2370,13 @@ func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 
 	assertContainsAll(t, out.String(), "001 -> Completed")
 	assertNotContains(t, out.String(), "003 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "status: Blocked", "depends_on: 002")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "status: Blocked", "depends_on: 002")
 }
 
 func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T) {
 	root := t.TempDir()
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
 	if code != 0 {
@@ -2386,16 +2384,16 @@ func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T
 	}
 
 	assertContainsAll(t, stdout,
-		"move: ", ".agents/.tasks/completed/001.md",
+		"move: ", ".ahm/tasks/completed/001.md",
 		"status: Completed",
 		"unblocked:",
 		"id: 002",
-		".agents/.tasks/active/002.md",
+		".ahm/tasks/active/002.md",
 		"status: Pending",
 	)
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "status: Blocked")
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "status: Blocked")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")); !os.IsNotExist(err) {
 		t.Error("completed file should not exist after dry-run completion")
 	}
 }
@@ -2543,9 +2541,7 @@ func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	meta.StrictAcceptance = true
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
+	writeMetadataFile(t, root, meta)
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
 		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2559,7 +2555,7 @@ func TestTaskCompleteStrictAcceptanceBlocksIncompleteNotes(t *testing.T) {
 		"warning: task 001 acceptance notes still contain the TODO placeholder",
 		"cannot complete task 001: acceptance notes are incomplete; use --force to override",
 	)
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")); !os.IsNotExist(err) {
 		t.Error("completed file should not exist after strict acceptance failure")
 	}
 }
@@ -2575,9 +2571,7 @@ func TestTaskCompleteForceOverridesStrictAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	meta.StrictAcceptance = true
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
+	writeMetadataFile(t, root, meta)
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Acceptance")
 	if code != 0 {
 		t.Errorf("create exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2645,7 +2639,7 @@ func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
 		t.Errorf("stderr = %q, want incomplete dependencies: 001", stderr)
 	}
 	// Verify 002 was not moved to completed.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "002.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "completed", "002.md")); !os.IsNotExist(err) {
 		t.Error("completed file should not exist after failed completion")
 	}
 
@@ -2711,20 +2705,20 @@ func TestTaskAcceptFromBlocked(t *testing.T) {
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	// Create a Blocked task directly.
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
 
 	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
 		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "status: Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 }
 
 func TestTaskAcceptNoOp(t *testing.T) {
 	root := t.TempDir()
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
 
 	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
 		t.Error(err)
@@ -2742,13 +2736,13 @@ func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
 	root := t.TempDir()
 	// Create tasks manually (no install needed — just raw task files).
 	// 001 and 002 are dependencies of 003 (Blocked).
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "001", "Dependency A", "Pending", "")
-	writeTaskFile(t, filepath.Join(root, ".agents", ".tasks", "active", "002.md"), "002", "Dependency B", "Pending", "")
-	writeTaskFileWithDeps(t, filepath.Join(root, ".agents", ".tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency A", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependency B", "Pending", "")
+	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
 
 	// Verify initial state.
 	for _, id := range []string{"001", "002", "003"} {
-		p := filepath.Join(root, ".agents", ".tasks", "active", id+".md")
+		p := filepath.Join(root, ".ahm", "tasks", "active", id+".md")
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("missing task %s: %v", id, err)
 		}
@@ -2777,7 +2771,7 @@ func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
 	}
 
 	// Task 003 must now be Pending (both dependencies completed).
-	data, err := os.ReadFile(filepath.Join(root, ".agents", ".tasks", "active", "003.md"))
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "003.md"))
 	if err != nil {
 		t.Errorf("active/003.md: %v", err)
 	} else if !strings.Contains(string(data), "status: Pending") {
@@ -2785,11 +2779,11 @@ func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
 	}
 	// Both dependencies should be in completed/.
 	for _, id := range []string{"001", "002"} {
-		p := filepath.Join(root, ".agents", ".tasks", "completed", id+".md")
+		p := filepath.Join(root, ".ahm", "tasks", "completed", id+".md")
 		assertFileContainsAll(t, p, "status: Completed")
 	}
 	// Index must show 003 as Pending (it renders as a table cell, not front matter).
-	indexContent := mustRead(t, filepath.Join(root, ".agents", ".tasks", "active", "index.md"))
+	indexContent := mustRead(t, filepath.Join(root, ".ahm", "tasks", "active", "index.md"))
 	if !strings.Contains(indexContent, "Dependent Task") {
 		t.Errorf("index missing Dependent Task:\n%s", indexContent)
 	}
@@ -2807,14 +2801,12 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
 
-	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
-		return workflowPathsFor(root)
-	})
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2854,14 +2846,12 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	root := t.TempDir()
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
+	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Original Title", "Pending", "")
 
-	release, err := acquireWorkflowRecordLockWithResolver(root, func() workflowPaths {
-		return workflowPathsFor(root)
-	})
+	release, err := acquireWorkflowRecordLock(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2921,7 +2911,7 @@ func TestTaskCommentAndCompleteSerialized(t *testing.T) {
 		root := t.TempDir()
 		var installOut strings.Builder
 		installer := app{opts: options{root: root}, out: &installOut}
-		if err := installer.install(false); err != nil {
+		if err := installer.install(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -3029,9 +3019,7 @@ func TestTaskCompleteRespectsStrictAcceptanceWithValidMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	meta.StrictAcceptance = true
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
+	writeMetadataFile(t, root, meta)
 	// Create a task.
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Needs Strict")
 	if code != 0 {
