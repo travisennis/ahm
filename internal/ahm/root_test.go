@@ -150,7 +150,7 @@ func TestDetectManagedRootFailsOnLegacyLayout(t *testing.T) {
 		if err == nil {
 			t.Fatal("detectManagedRoot accepted a legacy .agents/ahm.json repository")
 		}
-		assertContainsAll(t, err.Error(), ".agents/ahm.json", finalV1Release)
+		assertContainsAll(t, err.Error(), filepath.FromSlash(legacyMetadataRelPath), finalV1Release)
 	})
 }
 

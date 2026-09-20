@@ -410,7 +410,7 @@ func TestInitRefusesLegacyLayout(t *testing.T) {
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1; stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, ".agents/ahm.json", finalV1Release)
+	assertContainsAll(t, stderr, filepath.FromSlash(legacyMetadataRelPath), finalV1Release)
 	if _, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("init created .ahm/config.json in a legacy repository, err = %v", err)
 	}
@@ -424,7 +424,7 @@ func TestInitRefusesLegacyLayoutForExplicitRoot(t *testing.T) {
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1; stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, ".agents/ahm.json", finalV1Release)
+	assertContainsAll(t, stderr, filepath.FromSlash(legacyMetadataRelPath), finalV1Release)
 	if _, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("init created .ahm/config.json in a legacy repository, err = %v", err)
 	}
