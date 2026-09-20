@@ -149,7 +149,8 @@ deleted, and the binary runs no program but Git.
       `ahm init`, the legacy `.agents/ahm.json` layout refused, and the four
       record migrations and their commands deleted. The prose rule is applied
       to the live docs that named them, and `docs/guides/workflow-upgrades.md`
-      now opens with the v2 migration note.
+      now opens with the v2 migration note. Landed as `94790cf`, with the
+      Windows test fix in `35ed4ec`; CI is green on both runners at `35ed4ec`.
 - [ ] Milestone 6 (264e) complete: documentation and instructions rewritten.
 - [ ] Milestone 7 (264f) complete: v2.0.0 released.
 
@@ -526,6 +527,17 @@ deleted, and the binary runs no program but Git.
   Evidence: `rg -c "workflowPaths" internal/ahm/*.go` totals 68 mentions
   across the package and its tests, and `reconcileIndexes` calls `indexWrites`
   then `writeIndexes`.
+
+- Observation: the milestone's first push failed CI on windows-latest while
+  `just ci` was green locally. Three of the new assertions compared an error
+  message against the literal `.agents/ahm.json`, but the message renders the
+  path with `filepath.Join`, so Windows prints backslashes. Tests that assert
+  a path built by `filepath.Join` must build the expectation with
+  `filepath.FromSlash`, or assert a separator-free substring; the report's own
+  entries are safe because `relPath` returns `filepath.ToSlash`.
+  Evidence: run 35538827634 failed on windows-latest with "output missing
+  \".agents/ahm.json\""; run 35539315535 is green on both runners after
+  `35ed4ec`.
 
 ## Decision Log
 
