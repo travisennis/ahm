@@ -120,16 +120,18 @@ stage a `.go` change and run `prek run`.
       lost its final newline when its More Information section was last, which
       failed `just docs-md-lint` with MD047. Fixed by normalizing rewritten ADR
       content in `rewriteADR`; task 266 completed.
-- [ ] (2026-09-20) Workflow reversal applied locally: `AGENTS.md` and
+- [x] (2026-09-20) Workflow reversal applied and published: `AGENTS.md` and
       `CONTRIBUTING.md` describe direct commits to `master`, the
       `require-feature-branch` hook and `semantic-pr.yml` are deleted, and
       `docs/release.md` and `scripts/prepare-release.sh` drop the
       release-branch flow. ExecPlan 263 and task 263g are cancelled.
-- [ ] (2026-09-20) GitHub still requires a pull request on `master`; the owner
-      must remove that rule (see the Revision Notes) before
-      `git push origin master` publishes these commits.
-- [ ] Milestone 1 (264g) complete: moot backlog tasks cancelled, tracker 263
-      closed.
+- [x] (2026-09-20) The GitHub pull-request rule on `master` is gone: `gh api
+      repos/:owner/:repo/branches/master/protection` reports
+      `required_pull_request_reviews: null` and `required_status_checks:
+      null`, and the reversal commit `bcb8ae0` is on `origin/master`.
+- [x] (2026-09-20) Milestone 1 (264g) complete: 28 moot tasks cancelled, 7
+      survivors re-scoped to the reduced tool, and tracker 263 closed with its
+      ExecPlan already in `completed/`.
 - [ ] Milestone 2 (264a) complete: delegation surface deleted.
 - [ ] Milestone 3 (264b) complete: research and ExecPlans retired.
 - [ ] Milestone 4 (264c) complete: procedure channel removed.
@@ -185,7 +187,78 @@ stage a `.go` change and run `prek run`.
   `/tmp/ahm-master-protection-backup.json`, and the settings that matter are
   reproduced in the Revision Notes below.
 
+- Observation: the milestone-1 backlog lists under-count the work ADR 022 makes
+  moot. Neither the task record nor this plan named 229, 250, 251, 255, or 256,
+  yet each requires a deleted surface: `applyGroomVerdicts`, `createAuditTasks`,
+  the shared groom and audit result parsers, ADR 019's research and plan
+  lifecycle commands, and an export format whose payload was research notes and
+  ExecPlans. The plan's list also omitted 231 (groom and audit stream output)
+  and 189c-189f, which the task record omitted.
+  Evidence: `rg -n "groom|audit|task work" .ahm/tasks/active/` before the pass
+  returns hits in every one of those records.
+
+- Observation: cancelling a task leaves its id in every dependent's
+  `depends_on`, and validation then reports `task_dependency_cancelled` for each
+  non-terminal dependent, so `ahm doctor` stays noisy until the whole chain is
+  disposed of. Task 236 was the only dependent worth keeping, so its dependency
+  moved from the cancelled 235 to 264e.
+  Evidence: each `ahm task cancel` printed the surviving dependents; `ahm task
+  dep remove 236 235` followed by `ahm task dep add 236 264e` clears it.
+
+- Observation: seven task records written before ADR 022 name surfaces that
+  survive but describe them through removed neighbours, so they are wrong rather
+  than moot: 155 (config keys), 168 (which indexes an edit regenerates), 236
+  (context scopes and the `records` group), 249 (prompt-building reads, and
+  `readMetadata` is in `install.go`, not the `metadata.go` the record named),
+  254 (two of eight validators), 257 (external-store motivation), and 258
+  (research-note references and `context` guidance). The three newest also cite
+  `just check`, a recipe that does not exist; the gate is `just ci`.
+  Evidence: `rg -n "research|exec ?plan|am context|task work|groom"
+  .ahm/tasks/active/` after the cancellations.
+
 ## Decision Log
+
+- Decision: milestone 1 cancels every task whose subject is a removed surface,
+  including five the milestone lists did not name (229, 250, 251, 255, 256),
+  and re-scopes the tasks whose subject survives.
+  Rationale: the milestone's own acceptance criterion — no non-terminal task
+  may require a removed command, the research or ExecPlan families, or
+  delegated task work — is the contract, and the enumerated ids were a starting
+  point. Twenty-eight tasks were cancelled and seven were re-scoped: 155, 168,
+  236, 249, 254, 257, and 258 keep their subject and lose only the requirements
+  that named removed surfaces.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264g).
+
+- Decision: cancel task 256 (store export and import) rather than re-scope it to
+  tasks and ADRs.
+  Rationale: as scoped, its payload was research notes and ExecPlans, and it
+  existed to serve the external-store design that this plan rejects; both
+  layouts it supported are gone too. The thinner case that survives —
+  snapshotting or moving the task and ADR backlog without Git — is a new
+  product question, not a cleanup, and the reduced boundary does not answer
+  it. The record is cancelled with a reason that says so and can be reopened
+  with a task-and-ADR-only scope.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264g).
+
+- Decision: tasks 235, 237, and 238 are cancelled as superseded by task 264e,
+  and task 236's dependency moves from 235 to 264e.
+  Rationale: 264e rewrites the same prose surfaces and the same
+  `ARCHITECTURE.md` module map after the code deletion, so the pre-ADR-022
+  reconciliations have no satisfiable baseline, while 236's mechanical parity
+  test still does.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264g).
+
+- Decision: the prose criteria of the documentation milestones are stated once,
+  in the `### The prose rule for removals` subsection of Validation and
+  Acceptance, and tasks 264c, 264e, and 264f reference it rather than each
+  restating an absolute prohibition.
+  Rationale: three independent prohibitions on naming a removed command
+  contradicted the prose ADR 022 requires in the same release — the migration
+  note that names the final v1 `ahm upgrade`, the release notes that must name
+  every removal, and the ADRs themselves — and a review of milestone 1 found a
+  fresh instance each round. One rule with one exception list is checkable; the
+  restatements were not.
+  Date/Author: 2026-09-20, Travis Ennis.
 
 - Decision: implement ADR 022 exactly as accepted, without retaining aliases
   for removed commands.
@@ -308,13 +381,18 @@ Work: read each non-terminal task under `.ahm/tasks/active/`. Cancel, with
 `ahm task cancel <id> --reason <text>`, every task whose acceptance criteria
 require a removed command: 163, 171, 185, 187, 188, 189, 189b, 189c, 189d,
 189e, 189f, 189g, 205, 218, 222, 223, 231, 245, 246, 247. Each cancellation
-reason cites ADR 022. Then resolve 263: it is a Tracking task whose only
-child, 263g, remains Pending, and its ExecPlan sits in `active/` with a filled
-Outcomes section, which is the single warning `ahm doctor` currently reports.
-Either perform 263g (the worktree proof, which needs a human terminal) or
-cancel 263g and complete 263, then move
-`.ahm/exec-plans/active/263-adopt-feature-branch-development.md` to
-`.ahm/exec-plans/completed/` and run `ahm index`.
+reason cites ADR 022. Task 263 is the second half of the milestone and is
+already resolved: the workflow reversal above cancelled it and 263g and moved
+`263-adopt-feature-branch-development.md` to `.ahm/exec-plans/completed/`, so
+that step is a check rather than an action.
+
+Disposition (2026-09-20): 28 tasks cancelled, each with a reason that cites
+ADR 022 — 163, 171, 185, 187, 188, 189, 189b, 189c, 189d, 189e, 189f, 189g,
+205, 218, 222, 223, 229, 231, 235, 237, 238, 245, 246, 247, 250, 251, 255,
+256. Seven survivors re-scoped to the reduced tool — 155, 168, 236, 249, 254,
+257, 258 — with task 236's dependency moved from 235 to 264e. Tracker 263 was
+already cancelled with 263g and its ExecPlan already in `completed/` before
+this pass, so nothing was left to close.
 
 Result: `ahm task ready` and `ahm task blocked` list only work that the
 reduced tool can satisfy, and `ahm doctor` reports no warnings.
@@ -355,7 +433,8 @@ and no test reaches the network.
 Proof: `ahm task work 1`, `ahm audit`, and `ahm task groom` each fail with
 `unknown command`; `ahm task --help` lists neither `groom` nor `work`;
 `just ci` passes; `rg -n "smoke-agents|promptFile|taskWork" --glob '!.ahm/**' .`
-returns nothing outside historical records and the ADR.
+is a review aid, not the criterion: a worker reads every hit and applies the
+prose rule for removals to it.
 
 ### Milestone 3 — Retire research and ExecPlans as record families (task 264b)
 
@@ -411,16 +490,18 @@ verification commands, commit workflow — belongs in `CONTRIBUTING.md`; prose
 that routes a reader to a record family belongs in `AGENTS.md`. Both are hand
 edits.
 
-Result: no command emits workflow instructions, and no document tells a reader
-to run a command that no longer exists.
+Result: no command emits workflow instructions, and no live document instructs
+a reader to run a removed command, under the prose rule for removals in
+Validation and Acceptance.
 
 Proof: `ahm context task`, `ahm context plan`, `ahm context adr`, and
 `ahm onboard` fail with `unknown command`; `ahm prime` output contains no
 command name; `docs/workflow/tasks.md`, `docs/workflow/exec-plans.md`, and
-`docs/workflow/adrs.md` exist, contain no `{{` template variables, and mention
-no removed command;
-`rg -n "ahm (audit|context|onboard|upgrade)|task groom|task work" --glob '!.ahm/**' --glob '!docs/adr/**' .`
-returns nothing outside historical records; `just docs-md-lint` passes.
+`docs/workflow/adrs.md` exist, contain no `{{` template variables, and instruct
+no reader to run a removed command;
+`rg -n "ahm (audit|context|onboard|upgrade)|task groom|task work" --glob '!.ahm/**' .`
+is a review aid, not the criterion: a worker reads every hit and applies the
+prose rule for removals to it; `just docs-md-lint` passes.
 
 ### Milestone 5 — Collapse install and upgrade into one idempotent `ahm init` (task 264d)
 
@@ -471,23 +552,29 @@ compatibility surfaces, and module map so a reader can navigate the reduced
 package.
 
 Result: a newcomer can read `README.md`, `ARCHITECTURE.md`, and `AGENTS.md`
-and start work without encountering a removed command or family.
+and start work without being told to run a command that no longer exists, and
+without meeting a removed record family presented as current.
 
 Proof: `just docs-md-lint` and `just ci` pass;
-`rg -n "research|exec ?plan|worktree|subagent delegation" docs/ README.md AGENTS.md`
-returns only intentional references in historical ADRs and records.
+`rg -n "ahm (audit|context|onboard|upgrade)|task groom|task work|records migrate" docs/ README.md AGENTS.md CONTRIBUTING.md`
+is a review aid, not the criterion: a worker reads every hit and applies the
+prose rule for removals to it, so no live document offers a removed command to
+run and none presents research notes or ExecPlans as an `ahm`-managed record
+family.
 
 ### Milestone 7 — Release v2.0.0 (task 264f)
 
 Scope: ship the breaking change with honest notes.
 
-Work: follow `docs/release.md`: create `release/v2.0.0` from `master`, run the
-release preparation script, regenerate the changelog, and write release notes
-that name the removed commands (`audit`, `context`, `onboard`, `task groom`,
-`task work`, `upgrade`), the removed record families, the removed
-configuration key, and the required `ahm init` step. A repository on the
-legacy `.agents/ahm.json` layout must upgrade with the final v1 release
-before adopting v2.
+Work: follow `docs/release.md`: run the release preparation script on
+`master`, regenerate the changelog, and write release notes that name the
+removed commands (`audit`, `context`, `onboard`, `task groom`, `task work`,
+`upgrade`), the removed record families, the removed configuration key, and the
+required `ahm init` step. This repository releases directly from `master` — the
+`release/*` branch flow was removed with the workflow reversal — so the tag is
+created on the release commit there. A repository on the legacy
+`.agents/ahm.json` layout must upgrade with the final v1 release before
+adopting v2.
 
 Result: v2.0.0 is tagged and published with a migration note.
 
@@ -540,7 +627,8 @@ Milestone 4 (264c):
     ahm context task > docs/workflow/tasks.md
     ahm context plan > docs/workflow/exec-plans.md
     ahm context adr  > docs/workflow/adrs.md
-    # then edit all three: concrete paths, no template variables, no removed commands
+    # then edit all three: concrete paths, no template variables, and no live
+    # instruction to run a removed command (the prose rule for removals)
     git rm internal/ahm/context.go internal/ahm/context_test.go \
         internal/ahm/onboard.go internal/ahm/onboard_test.go
     go build ./... && just docs-md-lint && just ci
@@ -610,6 +698,30 @@ Expect: the task moves through the buckets with its acceptance notes
 validated, the ADR appears in `docs/adr/index.md`, and `ahm prime` prints
 counts and validation findings without any routing prose.
 
+### The prose rule for removals
+
+One rule governs the documentation criteria of milestones 4, 6, and 7, and
+tasks 264c, 264e, and 264f reference it instead of each restating it: no live
+document instructs a reader to run a removed command or manage a removed record
+family, except for three kinds of text that this release must keep.
+
+1. The migration documentation ADR 022 requires, which names the final v1
+   release's `ahm upgrade` so a legacy-layout repository knows what to run
+   before adopting v2.
+2. The changelog and release notes, which must name every removed command,
+   configuration key, and record family.
+3. The historical and decision record: the ADRs, including this supersession,
+   and the retired `.ahm/research/` and `.ahm/exec-plans/` files that stay on
+   disk.
+
+The rule is stated once, in this section, because three separate absolute
+prohibitions produced three criteria that no release complying with ADR 022
+could satisfy. A milestone worker checks the rule, not a private restatement of
+it: naming a removed command in passing is allowed anywhere, and offering one
+to run is not. Every name-based search in a milestone proof is a review aid
+whose hits the worker reads and applies this rule to; no search is itself a
+criterion.
+
 ## Idempotence and Recovery
 
 Every step in this plan is a file deletion or a prose edit, and every step is
@@ -638,6 +750,13 @@ Baseline measured on 2026-09-20 at commit `371fc62`, before any milestone:
     112K of agent transcript fixtures under internal/ahm/testdata/agents/
     135 references to the six removed commands across 28 documentation files
     ahm doctor: 1 warning (active ExecPlan with a filled Outcomes section)
+
+After milestone 1, measured on 2026-09-20:
+
+    18 non-terminal task records, down from 46
+    28 cancellations, each citing ADR 022
+    7 re-scoped survivors, each carrying a dated re-scope comment
+    ahm doctor: "ok": true, no findings
 
 The command surface before the work, from `ahm --help` and
 `ahm task --help`: `adr`, `audit`, `context`, `doctor`, `index`, `init`,
@@ -690,6 +809,23 @@ hold design plans; and `docs/adr/` with its generated `index.md` remains the
 ADR family `ahm` still manages.
 
 ## Revision Notes
+
+- (2026-09-20) Owner decision on the milestone prose criteria: state the rule
+  once and point the milestones at it. The `### The prose rule for removals`
+  subsection in Validation and Acceptance is now the single statement, and
+  tasks 264c, 264e, and 264f reference it instead of repeating it three ways.
+  The review of milestone 1 raised the conflict — a prohibition on naming
+  removed commands versus the migration note and release notes ADR 022
+  requires — and 264e had already been patched twice before the class was
+  escalated. Milestone 4 (264c) may start now.
+
+- (2026-09-20) Milestone 1 corrections from an independent review of the pass.
+  Three stale requirements that the milestone made visible are fixed here: the
+  release milestone no longer creates a `release/v2.0.0` branch, task 264e's
+  "no document references a removed command" criterion now excepts the
+  historical record and the release notes that must name the removals, and
+  milestone 1's Work paragraph no longer describes resolving 263 as pending
+  work. Task 264g's notes carry the same list.
 
 - (2026-09-20) Owner decision recorded: design plans live in
   `docs/exec-plans/`, and the procedures that `ahm context` prints are salvaged
