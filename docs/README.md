@@ -15,8 +15,6 @@ index.
   ownership, file formats, and atomic write behavior.
 - [Glossary](references/glossary.md): concept definitions mapped to implementing
   types and authoritative docs.
-- [Testing guide](guides/testing.md): agent integration smoke checks and golden
-  transcript workflow.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): upgrade behavior notes.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.

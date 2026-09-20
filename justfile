@@ -62,17 +62,6 @@ install-tools:
     go install golang.org/x/vuln/cmd/govulncheck@{{ govulncheck_version }}
     go install github.com/goreleaser/goreleaser/v2@{{ goreleaser_version }}
 
-# Refresh golden agent transcripts from the real agent CLIs. Makes real LLM
-# calls (costs money); run manually after agent upgrades, never in CI.
-capture-agent-fixtures:
-    ./scripts/capture-agent-fixtures.sh
-
-# Live agent smoke test: runs each installed agent CLI end-to-end through
-# `ahm task work` (a few real LLM calls per agent; costs money). Run after
-# changing agent arg builders, parsers, or orchestration; not part of `ci`.
-smoke-agents:
-	AHM_AGENT_SMOKE=1 go test ./internal/ahm -run 'Test(Agent|TaskGroomAgent)Smoke' -v -count=1 -timeout 30m
-
 quick:
     go test ./...
     go vet ./...

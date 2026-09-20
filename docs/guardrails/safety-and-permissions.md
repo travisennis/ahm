@@ -40,8 +40,7 @@ atomic writes, and dry-run behavior.
   `GIT_OBJECT_DIRECTORY`, or `GIT_COMMON_DIR` in a Git subprocess.
 - Making validation mutate files.
 - Letting `--force` overwrite project-owned `AGENTS.md`.
-- Adding command execution that bypasses the explicit `task work` delegation
-  boundary.
+- Adding command execution beyond the Git subprocesses `runGit` runs.
 
 ## Related Docs
 

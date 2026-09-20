@@ -73,15 +73,6 @@ just fix            # mutating tidy plus fmt
 just docs-md-lint   # lint markdown structure (npx markdownlint-cli2); not yet in ci
 ```
 
-Agent integration commands make real LLM calls and are not part of CI:
-
-```bash
-just smoke-agents
-just capture-agent-fixtures
-```
-
-See `docs/guides/testing.md` before running either command.
-
 ## Project-Specific Guidance
 
 **Repo root is not the Go package.** Do not use `go build .` or `go run .`.
@@ -121,9 +112,6 @@ minimum, run:
 ```bash
 go test ./internal/templates ./internal/ahm
 ```
-
-Changes to external agent argument builders, parsers, or orchestration require
-the live smoke checklist in `docs/guides/testing.md`.
 
 ## Code Style
 

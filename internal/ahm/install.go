@@ -13,17 +13,6 @@ import (
 	"strings"
 )
 
-type taskWorkRoleConfig struct {
-	Agent string `json:"agent,omitempty"`
-	Model string `json:"model,omitempty"`
-}
-
-type taskWorkConfig struct {
-	PromptFile     string              `json:"promptFile,omitempty"`
-	Implementation *taskWorkRoleConfig `json:"implementation,omitempty"`
-	Review         *taskWorkRoleConfig `json:"review,omitempty"`
-}
-
 type researchConfig struct {
 	InboxStaleDays *int `json:"inboxStaleDays,omitempty"`
 }
@@ -38,8 +27,6 @@ type metadata struct {
 	// metadata. Fresh metadata omits it, and ahm no longer reads or updates it.
 	Version          string                     `json:"version,omitempty"`
 	StrictAcceptance bool                       `json:"strict_acceptance"`
-	DefaultWorkAgent string                     `json:"default_work_agent,omitempty"`
-	TaskWork         *taskWorkConfig            `json:"taskWork,omitempty"`
 	Research         *researchConfig            `json:"research,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
@@ -58,10 +45,10 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 	for _, key := range []string{
 		"version",
 		"strict_acceptance",
+		// Consume obsolete agent-selection keys without preserving them in Extra
+		// so the next metadata write removes them.
 		"default_work_agent",
 		"taskWork",
-		// Consume the obsolete key without preserving it in Extra so the next
-		// metadata write, including upgrade, removes it.
 		"projectDocs",
 		"research",
 		"files",
@@ -89,16 +76,6 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if err := writeJSONField(&buf, &first, "strict_acceptance", m.StrictAcceptance); err != nil {
 		return nil, err
-	}
-	if m.DefaultWorkAgent != "" {
-		if err := writeJSONField(&buf, &first, "default_work_agent", m.DefaultWorkAgent); err != nil {
-			return nil, err
-		}
-	}
-	if m.TaskWork != nil {
-		if err := writeJSONField(&buf, &first, "taskWork", m.TaskWork); err != nil {
-			return nil, err
-		}
 	}
 	if m.Research != nil {
 		if err := writeJSONField(&buf, &first, "research", m.Research); err != nil {

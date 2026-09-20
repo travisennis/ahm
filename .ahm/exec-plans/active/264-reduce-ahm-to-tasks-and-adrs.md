@@ -132,7 +132,8 @@ stage a `.go` change and run `prek run`.
 - [x] (2026-09-20) Milestone 1 (264g) complete: 28 moot tasks cancelled, 7
       survivors re-scoped to the reduced tool, and tracker 263 closed with its
       ExecPlan already in `completed/`.
-- [ ] Milestone 2 (264a) complete: delegation surface deleted.
+- [x] (2026-09-20) Milestone 2 (264a) complete: the delegation surface is
+deleted, and the binary runs no program but Git.
 - [ ] Milestone 3 (264b) complete: research and ExecPlans retired.
 - [ ] Milestone 4 (264c) complete: procedure channel removed.
 - [ ] Milestone 5 (264d) complete: install collapsed to one idempotent
@@ -216,7 +217,95 @@ stage a `.go` change and run `prek run`.
   Evidence: `rg -n "research|exec ?plan|am context|task work|groom"
   .ahm/tasks/active/` after the cancellations.
 
+- Observation: `internal/ahm/testdata/agents/` held only the parser goldens;
+  the delegation tests themselves were not confined to the files the plan
+  named. `internal/ahm/task_commands_test.go` was 5,726 lines and 2,317 of them
+  (every `TestTaskWork*`, every `parse*SessionID` and `parse*ReviewFeedback`
+  test, the `taskWorkCapture` stub, `stubTaskWorkLookPath`,
+  `stubTaskWorkRunner`, and the `completeTaskOnDisk` helper) covered the deleted
+  surface. The milestone's test list named six files and missed the largest,
+  exactly as milestone 1's task list missed five records.
+  Evidence: the pre-milestone file has 55 `TestTaskWork*` functions and the
+  trimmed file keeps 103 functions.
+
+- Observation: the plan's milestone-2 deletion list omitted
+  `scripts/task-workflow.sh`, a tracked project-local script that runs four
+  `cake` invocations, captures a session ID from JSON output with `jq`, and
+  resumes the session for review and commit. It is delegation plumbing by any
+  reading of the milestone's own acceptance criterion, which names "script"
+  explicitly, so it was deleted with the rest.
+  Evidence: `rg -n "session_id|--resume" scripts/task-workflow.sh`; ADR 006 and
+  ADR 008 both cite the script as the reference workflow they replaced.
+
+- Observation: `.ahm/config.json` carried a `taskWork` block and a
+  `default_work_agent` key, and after their typed fields are gone the keys
+  would otherwise survive forever in the preserved unknown-field map.
+  Consuming both in `metadata.UnmarshalJSON` makes the next metadata write drop
+  them, which is what this milestone needs; the review of this milestone raised
+  the second key, since its only reader was `task_agents.go`.
+  Evidence: `TestMetadataDropsObsoleteAgentKeys` and
+  `TestMetadataRewritePreservesUnknownFieldsAndDropsAgentKeys` in
+  `internal/ahm/install_test.go`.
+
+- Observation: deleting the guardrail and the testing guide orphaned live
+  links. `docs/references/glossary.md` had an entire "Agent Delegation" section
+  and `ARCHITECTURE.md` a reference bullet pointing at the removed surfaces, so
+  both lost those lines in this commit rather than waiting for milestone 6.
+  `docs/testing.md` existed only to point at `docs/guides/testing.md` and went
+  with it; `docs/guardrails/safety-and-permissions.md` named `task work` as its
+  delegation boundary, and now names the one command runner that is left.
+  Evidence: `rg -n "external-agent-orchestration|guides/testing" docs
+  README.md AGENTS.md CONTRIBUTING.md ARCHITECTURE.md` returns only ADR 016,
+  which is historical record.
+
+- Observation: `internal/ahm/markdown_sections.go` looks groom-owned but is
+  not. `task_status.go` uses `locateHeadingSections` for the Cancellation
+  Reason section and `adrs.go` uses it for MADR sections, so the file and its
+  `TestLocateHeadingSections` survive; only the groom-specific test in
+  `markdown_sections_test.go` was removed.
+  Evidence: `rg -n "locateHeadingSections" internal/ahm` shows the
+  `task_status.go` and `adrs.go` callers.
+
 ## Decision Log
+
+- Decision: milestone 2 deletes `scripts/task-workflow.sh` even though the
+  plan's deletion list does not name it, because the milestone's acceptance
+  criterion — no code, recipe, script, or guardrail references session capture
+  or resume — is the contract and the script is exactly that plumbing.
+  Rationale: milestone 1 established the precedent by resolving the same
+  tension in favour of the criterion over the enumerated list; the script is a
+  shell reimplementation of the command this milestone removes. It stays
+  recoverable from Git history, and a project that wants a local script of its
+  own can keep one outside `ahm`'s boundary.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264a).
+
+- Decision: references whose target this milestone deletes or that name its
+  removed plumbing are fixed here; the rest of the prose that names removed
+  commands is left for milestones 4 and 6, as the plan intends, and the
+  specific spots are recorded here so the next worker does not have to
+  rediscover them: `README.md`, `docs/VISION.md`, `docs/cli.md`,
+  `docs/references/cli/commands.md`, `docs/references/cli/task-commands.md`,
+  `docs/references/cli/global-contract.md`, the `taskWork` config section of
+  `docs/references/workflow-spec.md`, `docs/guides/workflow-upgrades.md`
+  (line 214), the remaining delegation rows in `docs/references/glossary.md`,
+  `ARCHITECTURE.md`'s task module map, `.agents/prompt.md`,
+  `.agents/skills/*/SKILL.md`, and `internal/templates/workflow/TASKS.md`
+  (line 81) and `ADR.md` (line 22).
+  Rationale: this milestone changes code, and the plan sequences the prose
+  rewrite after the deletions so that it is written once against the final
+  tree.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264a).
+
+- Decision: `default_work_agent` is retired in this milestone alongside
+  `taskWork`, both consumed on read so the next metadata write drops them.
+  Rationale: its only reader was `task_agents.go`, deleted here, so leaving the
+  typed field would keep a configuration knob that controls nothing; the first
+  review round of this milestone raised exactly that, and ADR 022's list of
+  retained keys (version, acceptance, managed-file hashes) excludes it. Removal
+  is what milestone 5 would otherwise have had to do, and milestone 5's
+  remaining work — idempotent `ahm init`, legacy-layout removal, and dropping
+  unknown obsolete keys — is unaffected.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264a).
 
 - Decision: milestone 1 cancels every task whose subject is a removed surface,
   including five the milestone lists did not name (229, 250, 251, 255, 256),
@@ -426,6 +515,19 @@ output, keep the parts that do and delete only the agent cases. Do the same
 check for `internal/ahm/markdown_sections.go` and `task_acceptance.go`: use
 `rg -n "<name>" internal/ahm` and keep anything the surviving task lifecycle
 uses.
+
+Disposition (2026-09-20): every named file is gone, and two deletions the
+plan's list missed are recorded in the Surprises and Decision Log sections:
+`internal/ahm/task_commands_test.go` lost 2,317 of its 5,726 lines (the
+delegation tests and their stubs), and `scripts/task-workflow.sh` was deleted
+because it implements cake session capture and resume. `task_acceptance.go`
+and `markdown_sections.go` both survive: the task lifecycle still uses
+`parseAcceptanceNotes`, `locateHeadingSections`, and their helpers, so only the
+groom-specific test in `markdown_sections_test.go` was removed. The typed
+`taskWork` and `default_work_agent` config fields are gone and both keys are
+consumed on read so the next metadata write drops them; `.ahm/config.json` in
+this repository was hand-edited and then verified with `ahm index` and
+`ahm doctor`.
 
 Result: the binary no longer knows how to run another program on your behalf,
 and no test reaches the network.
@@ -758,6 +860,16 @@ After milestone 1, measured on 2026-09-20:
     7 re-scoped survivors, each carrying a dated re-scope comment
     ahm doctor: "ok": true, no findings
 
+After milestone 2, measured on 2026-09-20:
+
+    9914 total non-test Go lines in cmd/ and internal/, down from 12302
+    14579 total test Go lines across the repository, down from 18552
+    internal/ahm/testdata/ (the 112K of agent fixtures) is gone
+    ahm doctor and ahm status: "ok": true, no findings
+    milestone 5's deletions total about 1786 non-test lines (context.go,
+    onboard.go, records_*.go, and the migration files), which puts the
+    post-milestone-5 total near the 7000-8000 the plan projects
+
 The command surface before the work, from `ahm --help` and
 `ahm task --help`: `adr`, `audit`, `context`, `doctor`, `index`, `init`,
 `onboard`, `prime`, `records`, `status`, `task`, `upgrade`, `version`; and
@@ -809,6 +921,26 @@ hold design plans; and `docs/adr/` with its generated `index.md` remains the
 ADR family `ahm` still manages.
 
 ## Revision Notes
+
+- (2026-09-20) Milestone 2 (264a) review round. The review ran through
+  `codex exec review --uncommitted`, whose nested sandbox could not execute
+  commands in this environment (`sandbox-exec: sandbox_apply: Operation not
+  permitted`), so the diff, the deleted-file list, and the removed test names
+  were supplied inline and the reviewer answered from that text. It raised one
+  finding: `default_work_agent` remained typed and readerless configuration.
+  That is fixed in the same commit, and the decision entry above records why.
+  The unrun probe for future milestones is the repository's own preflight skill
+  in a session that can execute commands.
+
+- (2026-09-20) Milestone 2 (264a) executed. The pass matched the milestone's
+  acceptance criteria rather than only its deletion list, which is why
+  `scripts/task-workflow.sh` went with the delegation surface, why
+  `internal/ahm/task_commands_test.go` was trimmed by 2,317 lines, and why the
+  glossary's "Agent Delegation" section, the ARCHITECTURE reference bullet,
+  `docs/guides/testing.md`, `docs/testing.md`, and the AGENTS.md route into the
+  deleted guardrail were edited in the same commit. Prose that names removed
+  commands elsewhere is left for milestones 4 and 6, and the Decision Log lists
+  every known spot so the next worker does not rediscover them.
 
 - (2026-09-20) Owner decision on the milestone prose criteria: state the rule
   once and point the milestones at it. The `### The prose rule for removals`

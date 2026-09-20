@@ -3,7 +3,6 @@ package ahm
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -17,8 +16,7 @@ func (a *app) taskCommand() *cobra.Command {
 Examples:
   ahm task list
   ahm task create "My task" --priority P1
-  ahm task show 001
-  ahm task work 001 --agent codex`,
+  ahm task show 001`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -194,90 +192,6 @@ Examples:
 	search.Flags().StringSliceVar(&searchStatuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
 	search.Flags().StringSliceVar(&searchLabels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
 	task.AddCommand(search)
-
-	groomArgs := taskGroomArgs{}
-	groom := &cobra.Command{
-		Use:   "groom [<id>]",
-		Short: "Delegate backlog grooming and apply task verdicts",
-		Long: `Delegate backlog grooming to the configured coding agent.
-
-With no id, all Open tasks are groomed and Blocked tasks are reviewed for
-staleness. With an id, exactly that task is groomed. The agent returns a
-schema-constrained verdict; ahm validates the complete result before applying
-acceptance, comments, dependency corrections, or label normalization.
-
-Examples:
-  ahm task groom
-  ahm task groom 157 --agent codex
-  ahm --dry-run task groom`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 1 {
-				return usageError("task groom accepts at most one id\n  ahm task groom [<id>]")
-			}
-			if len(args) == 1 {
-				groomArgs.id = args[0]
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			if groomArgs.timeout <= 0 {
-				return usageError("task groom --timeout must be greater than 0 (e.g. 30m, 2h, 90s)\n  ahm task groom --timeout 2h")
-			}
-			return a.taskGroom(groomArgs)
-		},
-	}
-	groom.Flags().StringVar(&groomArgs.agent, "agent", "", "Coding-agent CLI (cake, claude, codex, cursor)")
-	groom.Flags().StringVar(&groomArgs.model, "model", "", "Model override for the delegated agent")
-	groom.Flags().DurationVar(&groomArgs.timeout, "timeout", taskWorkDefaultTimeout, "Maximum delegation duration")
-	task.AddCommand(groom)
-
-	workArgs := taskWorkArgs{}
-	work := &cobra.Command{
-		Use:   "work <id>",
-		Short: "Hand a task to a coding-agent CLI",
-		Long: `Hand a task to a coding-agent CLI for implementation.
-
-The implementation and review phases each resolve their agent and model from
-the following precedence:
-  1. --agent / --model CLI flags (apply to all phases)
-  2. Role-specific config under "taskWork" in ahm config
-  3. Legacy default_work_agent
-  4. Built-in default: "cake"
-
-When no review-specific agent is configured, review uses the same agent as
-implementation. Feedback-resume and commit handoff always use the
-implementation agent because they resume the implementation session.
-
-Examples:
-  ahm task work 001
-  ahm task work 001 --agent codex
-  ahm task work 001 --agent cursor --no-review
-  ahm task work 001 --timeout 2h
-  ahm task work 001 --model o4-mini
-  ahm task work 001 --agent codex --model o3-mini
-  ahm --dry-run task work 001 --agent cake`,
-		Args: exactArgs(1, "task work requires an id\n  ahm task work <id>"),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			workArgs.id = args[0]
-			if workArgs.timeout <= 0 {
-				return usageError("task work --timeout must be greater than 0 (e.g. 30m, 2h, 90s)\n  ahm task work <id> --timeout 2h")
-			}
-			return a.taskWork(workArgs)
-		},
-	}
-	work.Flags().StringVar(&workArgs.agent, "agent", "", "Agent to run: cake, claude, codex, or cursor")
-	work.Flags().StringVar(&workArgs.model, "model", "", "Model override for the selected agent")
-	work.Flags().BoolVar(&workArgs.noReview, "no-review", false, "Skip review orchestration (review runs by default)")
-	work.Flags().BoolVar(&workArgs.noCommit, "no-commit", false, "Skip commit handoff (commit runs by default)")
-	work.Flags().BoolVar(&workArgs.noProjectPrompt, "no-project-prompt", false, "Skip project instructions file inclusion")
-	work.Flags().DurationVar(&workArgs.timeout, "timeout", 30*time.Minute, "Maximum time for each phase before timeout (e.g. 2h, 45m); must be > 0")
-	task.AddCommand(work)
 
 	for _, spec := range []struct {
 		use        string

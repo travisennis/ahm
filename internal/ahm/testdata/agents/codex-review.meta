@@ -1,3 +1,0 @@
-agent: codex 0.1.0 (hand-crafted fixture)
-captured: 2026-06-13
-command: codex exec --json "Run the preflight skill on the current uncommitted changes."

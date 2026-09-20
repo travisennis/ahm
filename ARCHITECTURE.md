@@ -103,6 +103,5 @@ location map; this section describes what each group does.
 - Workflow state, file ownership, formats, and atomic writes:
   `docs/references/workflow-spec.md`.
 - Upgrade and version behavior: `docs/guides/workflow-upgrades.md`.
-- Agent integration smoke checks: `docs/guides/testing.md`.
 - ADR workflow: `ahm context adr`; decision history: `docs/adr/`.
 - Contributor commands and handoff expectations: `CONTRIBUTING.md`.

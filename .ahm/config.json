@@ -1,15 +1,5 @@
 {
   "version": "0.6.4",
   "strict_acceptance": true,
-  "taskWork": {
-    "implementation": {
-      "agent": "cake",
-      "model": "deepseek-flash"
-    },
-    "review": {
-      "agent": "cake",
-      "model": "glm"
-    }
-  },
   "files": {}
 }

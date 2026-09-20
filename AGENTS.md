@@ -59,16 +59,6 @@ status, doctor, or templates, load:
   migration path a format change owes existing repositories.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md), for where state is owned.
 
-### External Agent Orchestration
-
-For `ahm task work`, agent definitions, parsers, sessions, handoff, or golden
-transcripts, load:
-
-- [External agent orchestration](docs/guardrails/external-agent-orchestration.md),
-  for the argument-building, parsing, and handoff contract.
-- [`docs/guides/testing.md`](docs/guides/testing.md), for golden-transcript
-  conventions.
-
 ### Safety, Permissions, And Atomic Writes
 
 For filesystem writes, paths, root detection, command execution, or safety,

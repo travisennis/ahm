@@ -58,16 +58,6 @@ func TestLocateHeadingSections(t *testing.T) {
 }
 
 func TestHeadingSectionRepeatedMatchPolicies(t *testing.T) {
-	t.Run("groom rejects repeated aliases", func(t *testing.T) {
-		body := "## Problem\n\nFirst.\n\n## Summary\n\nSecond.\n"
-		if _, err := replaceGroomSection(body, "problem", "Replacement."); err == nil || !strings.Contains(err.Error(), "ambiguous problem sections") {
-			t.Fatalf("replaceGroomSection() error = %v, want ambiguity error", err)
-		}
-		if _, _, err := groomSectionContent(body, "problem"); err == nil || !strings.Contains(err.Error(), "ambiguous problem sections") {
-			t.Fatalf("groomSectionContent() error = %v, want ambiguity error", err)
-		}
-	})
-
 	t.Run("cancellation updates first match", func(t *testing.T) {
 		body := "## Cancellation Reason\n\nFirst.\n\n## Cancellation Reason\n\nSecond."
 		want := "## Cancellation Reason\n\nReplacement.\n\n## Cancellation Reason\n\nSecond."

@@ -1,3 +1,0 @@
-agent: cake 0.1.0
-captured: 2026-07-07
-command: cake --max-tokens 512 --skills preflight --output-format stream-json Run the preflight skill on the current uncommitted changes.

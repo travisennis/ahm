@@ -133,7 +133,7 @@ func (a *app) command() *cobra.Command {
 		Use:   "ahm",
 		Short: "Manage repo-local .agents workflows",
 		Long: `Manage repo-local .agents workflow files for tasks, research notes,
-ADRs, generated indexes, and coding-agent delegation.
+ADRs, and generated indexes.
 
 When run with no command, ahm runs 'status', which exits with code 1
 when validation errors are found. For a session briefing with live backlog
@@ -285,7 +285,6 @@ Examples:
 		return a.writeIndexes()
 	}))
 	root.AddCommand(a.onboardCommand())
-	root.AddCommand(a.auditCommand())
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.recordsCommand())
 	root.AddCommand(a.taskCommand())

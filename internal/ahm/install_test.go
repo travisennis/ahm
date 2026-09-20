@@ -68,9 +68,8 @@ func TestReadWorkflowFile_BOM(t *testing.T) {
 func TestReadMetadataUsesLegacyPathWhenConfigMissing(t *testing.T) {
 	root := t.TempDir()
 	if err := writeMetadata(root, metadata{
-		Version:          "0.1.0",
-		DefaultWorkAgent: "codex",
-		Files:            map[string]string{},
+		Version: "0.1.0",
+		Files:   map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -82,24 +81,22 @@ func TestReadMetadataUsesLegacyPathWhenConfigMissing(t *testing.T) {
 	if source != legacyMetadataRelPath {
 		t.Fatalf("source = %q, want %q", source, legacyMetadataRelPath)
 	}
-	if meta.DefaultWorkAgent != "codex" {
-		t.Errorf("default agent = %q, want codex", meta.DefaultWorkAgent)
+	if meta.Version != "0.1.0" {
+		t.Errorf("version = %q, want 0.1.0", meta.Version)
 	}
 }
 
 func TestReadMetadataPrefersAhmConfig(t *testing.T) {
 	root := t.TempDir()
 	if err := writeMetadata(root, metadata{
-		Version:          "0.1.0",
-		DefaultWorkAgent: "cake",
-		Files:            map[string]string{},
+		Version: "0.1.0",
+		Files:   map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeConfigMetadata(root, metadata{
-		Version:          "0.2.0",
-		DefaultWorkAgent: "cursor",
-		Files:            map[string]string{},
+		Version: "0.2.0",
+		Files:   map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -111,24 +108,22 @@ func TestReadMetadataPrefersAhmConfig(t *testing.T) {
 	if source != configMetadataRelPath {
 		t.Fatalf("source = %q, want %q", source, configMetadataRelPath)
 	}
-	if meta.Version != "0.2.0" || meta.DefaultWorkAgent != "cursor" {
-		t.Errorf("read wrong metadata: version=%q default=%q", meta.Version, meta.DefaultWorkAgent)
+	if meta.Version != "0.2.0" {
+		t.Errorf("read wrong metadata: version=%q, want 0.2.0", meta.Version)
 	}
 }
 
 func TestWriteMetadataUsesAhmConfigWhenPresent(t *testing.T) {
 	root := t.TempDir()
 	if err := writeMetadata(root, metadata{
-		Version:          "0.1.0",
-		DefaultWorkAgent: "cake",
-		Files:            map[string]string{},
+		Version: "0.1.0",
+		Files:   map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeConfigMetadata(root, metadata{
-		Version:          "0.2.0",
-		DefaultWorkAgent: "codex",
-		Files:            map[string]string{},
+		Version: "0.2.0",
+		Files:   map[string]string{},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -137,13 +132,13 @@ func TestWriteMetadataUsesAhmConfigWhenPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	meta.DefaultWorkAgent = "cursor"
+	meta.StrictAcceptance = true
 	if err := writeMetadata(root, meta); err != nil {
 		t.Fatal(err)
 	}
 
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"default_work_agent": "cursor"`)
-	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"default_work_agent": "cake"`)
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"strict_acceptance": true`)
+	assertFileContainsAll(t, filepath.Join(root, ".agents", "ahm.json"), `"strict_acceptance": false`)
 }
 
 func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
@@ -166,7 +161,7 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	meta.DefaultWorkAgent = "codex"
+	meta.Version = "0.3.0"
 	if err := writeMetadata(root, meta); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +171,7 @@ func TestMetadataRoundTripPreservesUnknownFields(t *testing.T) {
 		`"future_object": {`,
 		`"enabled": true`,
 		`"future_string": "kept"`,
-		`"default_work_agent": "codex"`,
+		`"version": "0.3.0"`,
 		// Ref fields are now preserved as unknown extra fields.
 		`"records_ref": "refs/ahm/custom"`,
 		`"store_mode": "ref"`,
@@ -302,7 +297,7 @@ func TestResearchConfigRejectsNegativeThreshold(t *testing.T) {
 	}
 }
 
-func TestTaskWorkRoleConfigRoundTrip(t *testing.T) {
+func TestMetadataDropsObsoleteAgentKeys(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
   "version": "0.2.0",
@@ -325,54 +320,22 @@ func TestTaskWorkRoleConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.DefaultWorkAgent != "codex" {
-		t.Errorf("DefaultWorkAgent = %q, want codex", meta.DefaultWorkAgent)
-	}
-	if meta.TaskWork == nil {
-		t.Fatal("TaskWork is nil")
-	}
-	if meta.TaskWork.PromptFile != ".agents/prompt.md" {
-		t.Errorf("PromptFile = %q, want .agents/prompt.md", meta.TaskWork.PromptFile)
-	}
-	if meta.TaskWork.Implementation == nil {
-		t.Fatal("TaskWork.Implementation is nil")
-	}
-	if meta.TaskWork.Implementation.Agent != "codex" {
-		t.Errorf("Implementation.Agent = %q, want codex", meta.TaskWork.Implementation.Agent)
-	}
-	if meta.TaskWork.Implementation.Model != "gpt-5-codex" {
-		t.Errorf("Implementation.Model = %q, want gpt-5-codex", meta.TaskWork.Implementation.Model)
-	}
-	if meta.TaskWork.Review == nil {
-		t.Fatal("TaskWork.Review is nil")
-	}
-	if meta.TaskWork.Review.Agent != "claude" {
-		t.Errorf("Review.Agent = %q, want claude", meta.TaskWork.Review.Agent)
-	}
-	if meta.TaskWork.Review.Model != "sonnet" {
-		t.Errorf("Review.Model = %q, want sonnet", meta.TaskWork.Review.Model)
+	if meta.Version != "0.2.0" {
+		t.Errorf("version = %q, want 0.2.0", meta.Version)
 	}
 
-	// Round-trip: write back and verify.
-	meta.DefaultWorkAgent = "cursor"
+	// Round-trip: the obsolete agent-selection keys are consumed on read and
+	// gone from the rewritten metadata.
 	if err := writeMetadata(root, meta); err != nil {
 		t.Fatal(err)
 	}
 
 	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got,
-		`"default_work_agent": "cursor"`,
-		`"implementation":`,
-		`"agent": "codex"`,
-		`"model": "gpt-5-codex"`,
-		`"review":`,
-		`"agent": "claude"`,
-		`"model": "sonnet"`,
-		`"promptFile": ".agents/prompt.md"`,
-	)
+	assertContainsAll(t, got, `"version": "0.2.0"`)
+	assertNotContains(t, got, `taskWork`, `default_work_agent`, `promptFile`, `"agent": "codex"`, `"agent": "claude"`)
 }
 
-func TestTaskWorkRoleConfigRoundTripPreservesUnknownFields(t *testing.T) {
+func TestMetadataRewritePreservesUnknownFieldsAndDropsAgentKeys(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".ahm", "config.json"), `{
   "version": "0.2.0",
@@ -395,22 +358,14 @@ func TestTaskWorkRoleConfigRoundTripPreservesUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.TaskWork == nil || meta.TaskWork.Implementation == nil {
-		t.Fatal("TaskWork.Implementation is nil after read")
-	}
 
 	// Write back and verify unknown top-level field is preserved.
 	if err := writeMetadata(root, meta); err != nil {
 		t.Fatal(err)
 	}
 	got := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, got,
-		`"future_field": "preserved"`,
-		`"implementation":`,
-		`"agent": "codex"`,
-		`"model": "gpt-5-codex"`,
-	)
-	assertContainsAll(t, got, `"review":`)
+	assertContainsAll(t, got, `"future_field": "preserved"`)
+	assertNotContains(t, got, `taskWork`, `default_work_agent`, `"implementation":`, `"review":`)
 }
 
 func TestInstallDryRunPreviewsAllWrites(t *testing.T) {
