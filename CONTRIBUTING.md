@@ -106,13 +106,6 @@ dependency changes.
 If `just ci` cannot be run, state the exact reason and list the narrower
 checks that were run instead.
 
-Template changes require the behavior that consumes them to be tested. At
-minimum, run:
-
-```bash
-go test ./internal/templates ./internal/ahm
-```
-
 ## Code Style
 
 - Keep changes narrow and match the existing style.
@@ -121,7 +114,7 @@ go test ./internal/templates ./internal/ahm
 - Validate file formats at the boundary and return explicit errors.
 - Preserve dry-run behavior for write commands.
 - Keep generated indexes deterministic by sorting output consistently.
-- Avoid global state except embedded templates and constants.
+- Avoid global state except constants.
 - Do not add implicit git operations.
 
 ## Documentation
@@ -136,12 +129,13 @@ behavior, setup, security, or compatibility.
   `docs/references/workflow-spec.md` or `docs/guides/workflow-upgrades.md`.
 - Implementation moves require `ARCHITECTURE.md` updates when the module map or
   boundary descriptions change.
-- ADR lifecycle and format changes must stay aligned with the embedded
-  `ahm context adr` reference in `internal/templates/workflow/ADR.md`.
+- ADR lifecycle and format changes must stay aligned with
+  [the ADR workflow](docs/workflow/adrs.md) and [the task
+  workflow](docs/workflow/tasks.md), which are project-owned prose.
 
 Before auditing or changing docs, read
 [the documentation guardrail](docs/guardrails/documentation.md). `ahm` does not
-own general project documentation and has no documentation context scope.
+own general project documentation.
 
 ## Commit Workflow
 
@@ -179,9 +173,7 @@ Recommended scopes:
 | `cli` | Command-line interface and argument parsing |
 | `workflow` | Managed workflow files and `.agents` behavior |
 | `tasks` | Task commands, parsing, indexes, and state moves |
-| `research` | Research indexes and workflow docs |
-| `plans` | ExecPlan indexes and workflow docs |
-| `templates` | Embedded templates and template metadata |
+| `adr` | ADR commands, records, and the generated ADR index |
 | `docs` | Human-facing docs under `docs/` |
 | `release` | Build, release, and versioning changes |
 

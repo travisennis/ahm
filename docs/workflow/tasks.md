@@ -5,10 +5,8 @@ commands are the primary interface: they own task identity, front matter,
 storage, lifecycle transitions, and index regeneration. This reference focuses
 on the decisions and order of work that the CLI cannot determine.
 
-For the first task in a session, run `ahm context task`, then inspect the
-specific task with `ahm task show <id>`. For later tasks, rerun the relevant
-`ahm task ...` command and reread the task. Rerun `ahm context task` only when
-you need to refresh this guidance or the task workflow itself has changed.
+This document is project-owned prose. `ahm` does not print it, validate it, or
+keep it current; edit it here when the project's task practice changes.
 
 ## Choose And Inspect Work
 
@@ -67,48 +65,34 @@ to the `Pending` queue. A fully scoped task may be created directly as
 
 Accept a task only when its problem and scope are clear, its priority, effort,
 labels, and dependencies are reasonable, its acceptance criteria are useful,
-and any required ExecPlan or ADR exists. Leave it `Open` while product choices,
-dependencies, research, planning, or other material questions remain unresolved.
+and any required design plan or ADR exists. Leave it `Open` while product
+choices, dependencies, evidence, planning, or other material questions remain
+unresolved.
 
 Use metadata to support those decisions:
 
 - Priority runs from `P0` for urgent blockers to `P4` for deferred work.
 - Effort `XS` and `S` are localized, `M` is moderate, and `L` or `XL` requires
-  an ExecPlan before implementation.
+  a design plan before implementation.
 - Every task should have stable `type:*` and `area:*` labels. Add `risk:*`
   labels only when they affect routing or verification.
 
-Use `ahm task groom [<id>]` when the backlog needs delegated triage rather than
-manually working through Open and Blocked records.
-
 ## Work A Task
 
-Follow this procedure for every implementation task, whether or not it has an
-ExecPlan:
+Follow this procedure for every implementation task, whether or not it has a
+design plan:
 
 1. Run `ahm task show <id>`. Confirm that the task still matches the repository,
-   is ready to work, and has no incomplete dependencies. During this inspection,
-   run `ahm context research` if resolving material uncertainty requires
-   evidence that should survive the session or inform multiple artifacts. Keep
-   brief task-local code reading in the task rather than creating research note
-   churn. Leave the task `Open` while material research questions prevent clear
-   scope or acceptance.
+   is ready to work, and has no incomplete dependencies. Leave the task `Open`
+   while unresolved questions prevent clear scope or acceptance criteria.
 2. Run `ahm task start <id>`. If the user explicitly asks to resume an existing
    `In Progress` task, continue it without restarting the lifecycle.
-3. Before implementation, route any required decision or planning work:
-   - Run `ahm context research` when factual or technical uncertainty requires
-     durable evidence that may feed an ADR, task, or ExecPlan. Research is
-     evidence, not a decision or implementation contract.
-   - Use `ahm context adr` when the task introduces or changes a durable
-     architectural decision, including persisted state, configuration,
-     security boundaries, migrations, breaking behavior, or major dependencies.
-   - Use `ahm context plan` for `L` and `XL` tasks, and for smaller work that is
-     cross-cutting or substantially uncertain. Create or update the ExecPlan
-     and link it from the task before changing code.
-
-   When all three apply, work in conceptual order: research evidence,
-   architectural decision, then execution planning. Do not require research
-   records or documentation changes for every task.
+3. Before implementation, settle any required decision or planning work. See
+   [ADR workflow](adrs.md) when the task introduces or changes a durable
+   architectural decision, including persisted state, configuration, security
+   boundaries, migrations, breaking behavior, or major dependencies. See
+   [ExecPlan workflow](exec-plans.md) for `L` and `XL` tasks, and for smaller
+   work that is cross-cutting or substantially uncertain.
 4. Implement only the task's problem and acceptance scope. Preserve unrelated
    worktree changes, and do not commit unless the user explicitly asks.
 5. Run the repository's routed verification commands. Record material results
@@ -120,17 +104,10 @@ ExecPlan:
    knowledge may have changed. Record the documents checked and updated, or
    the reason no update was needed, in the Acceptance Notes.
    Do not require documentation changes for every task.
-7. If the task has an ExecPlan, update its Outcomes & Retrospective, move it to
-   the completed plan bucket, update the task's `exec_plan` path, and regenerate
-   indexes for those manual plan changes.
-8. Run `ahm task complete <id>` and provide the repository's required handoff.
+7. Run `ahm task complete <id>` and provide the repository's required handoff.
    The `ahm task complete` command must run before any git commit that includes
    the task's implementation — committing an uncompleted task breaks the
    lifecycle contract.
-
-For a task without an ExecPlan, skip step 7. The inspection, start,
-implementation, verification, documentation assessment, and handoff steps
-remain the same.
 
 ## Change Or Close A Task
 
@@ -152,7 +129,7 @@ indexes remain consistent.
 
 Before completion, replace placeholder or unchecked Acceptance Notes with the
 actual outcome and verification. `ahm task complete` warns about incomplete
-acceptance notes. Set `"strict_acceptance": true` in `{{.ConfigPath}}` to block
+acceptance notes. Set `"strict_acceptance": true` in `.ahm/config.json` to block
 completion unless the issue is fixed or `--force` is explicitly used. The
 command moves the task, updates eligible dependents, and regenerates indexes.
 
@@ -161,16 +138,16 @@ and regenerates indexes.
 
 ## Storage And Manual Fallback
 
-Task source records live under `{{.TasksDir}}`: active records under
-`{{.TasksActiveDir}}`, completed records under `{{.TasksCompletedDir}}`, and
-cancelled records under `{{.TasksCancelledDir}}`. Task ids and filenames remain
+Task source records live under `.ahm/tasks/`: active records under
+`.ahm/tasks/active/`, completed records under `.ahm/tasks/completed/`, and
+cancelled records under `.ahm/tasks/cancelled/`. Task ids and filenames remain
 stable across lifecycle moves.
 
-`{{.TasksIndex}}` and its linked indexes are generated, read-only views. Never
-edit them directly. Normal `ahm task ...` mutations regenerate indexes
-automatically. Run `ahm index` only after manually changing task or ExecPlan
-metadata, location, or linkage; body-only edits do not require it. Preview an
-index regeneration with `ahm --dry-run index`.
+`.ahm/tasks/index.md` and its linked indexes are generated, read-only views.
+Never edit them directly. Normal `ahm task ...` mutations regenerate indexes
+automatically. Run `ahm index` only after manually changing task metadata,
+location, or linkage; body-only edits do not require it. Preview an index
+regeneration with `ahm --dry-run index`.
 
 If `ahm` is unavailable, inspect the task source files and generated index as a
 fallback. Avoid manual creation or lifecycle moves when possible. If a manual

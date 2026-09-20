@@ -1,10 +1,13 @@
 package ahm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/travisennis/ahm/internal/version"
 )
@@ -12,12 +15,34 @@ import (
 // primeReport is the structured data for the ahm prime session briefing.
 // It implements textRenderer for text output.
 type primeReport struct {
-	Root     string                 `json:"root"`
-	Workflow contextWorkflow        `json:"workflow"`
-	Git      contextGit             `json:"git"`
-	Tasks    primeTasks             `json:"tasks"`
-	Commands []string               `json:"commands"`
-	Paths    instructionRenderPaths `json:"-"`
+	Root     string        `json:"root"`
+	Workflow primeWorkflow `json:"workflow"`
+	Git      primeGit      `json:"git"`
+	Tasks    primeTasks    `json:"tasks"`
+}
+
+type primeWorkflow struct {
+	Installed        bool           `json:"installed"`
+	InstalledVersion string         `json:"installed_version,omitempty"`
+	ValidationOK     bool           `json:"validation_ok"`
+	Errors           int            `json:"errors"`
+	Warnings         int            `json:"warnings"`
+	Findings         []primeFinding `json:"findings,omitempty"`
+}
+
+type primeFinding struct {
+	Severity string `json:"severity"`
+	Code     string `json:"code"`
+	Path     string `json:"path,omitempty"`
+	Message  string `json:"message"`
+}
+
+type primeGit struct {
+	Available bool   `json:"available"`
+	Branch    string `json:"branch,omitempty"`
+	Dirty     bool   `json:"dirty"`
+	Changes   int    `json:"changes"`
+	Error     string `json:"error,omitempty"`
 }
 
 type primeTasks struct {
@@ -26,6 +51,15 @@ type primeTasks struct {
 	ReadyTotal int           `json:"ready_total"`
 	Blocked    int           `json:"blocked"`
 	Open       int           `json:"open"`
+}
+
+type taskSummary struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Priority string `json:"priority"`
+	Effort   string `json:"effort"`
+	Path     string `json:"path"`
 }
 
 func (a *app) prime() error {
@@ -107,18 +141,16 @@ func (a *app) buildPrimeReport() primeReport {
 
 	return primeReport{
 		Root: a.opts.root,
-		Workflow: contextWorkflow{
+		Workflow: primeWorkflow{
 			Installed:        metaErr == nil,
 			InstalledVersion: installedVersion,
 			ValidationOK:     validation.OK && len(validation.Warnings) == 0,
 			Errors:           len(validation.Errors),
 			Warnings:         len(validation.Warnings),
-			Findings:         contextFindings(validation, 5),
+			Findings:         primeFindings(validation, 5),
 		},
-		Git:      gitInfo,
-		Tasks:    taskInfo,
-		Commands: contextCommands(""),
-		Paths:    pathsForWorkflowPaths(a.workflowPaths()),
+		Git:   gitInfo,
+		Tasks: taskInfo,
 	}
 }
 
@@ -144,12 +176,91 @@ func (a *app) primeTaskSummary(tasks []Task) primeTasks {
 	}
 }
 
+// primeFindings collects up to limit validation findings for the briefing,
+// errors first.
+func primeFindings(report validationReport, limit int) []primeFinding {
+	var findings []primeFinding
+	add := func(severity string, values []validationFinding) {
+		for _, finding := range values {
+			if len(findings) >= limit {
+				return
+			}
+			findings = append(findings, primeFinding{
+				Severity: severity,
+				Code:     finding.Code,
+				Path:     finding.Path,
+				Message:  finding.Message,
+			})
+		}
+	}
+	add("error", report.Errors)
+	add("warning", report.Warnings)
+	return findings
+}
+
+func taskSummaries(tasks []Task, limit int, root string) []taskSummary {
+	if len(tasks) > limit {
+		tasks = tasks[:limit]
+	}
+	summaries := make([]taskSummary, 0, len(tasks))
+	for _, task := range tasks {
+		summaries = append(summaries, taskSummaryFor(task, root))
+	}
+	return summaries
+}
+
+func taskSummaryFor(task Task, root string) taskSummary {
+	return taskSummary{
+		ID:       task.ID,
+		Title:    task.Title,
+		Status:   task.Status,
+		Priority: task.Priority,
+		Effort:   task.Effort,
+		Path:     relPath(root, task.Path),
+	}
+}
+
+// readGitContext reports the repository's branch and dirty state, if Git is
+// available. It runs only the read-only `git status` command, scoped to root.
+func readGitContext(root string) primeGit {
+	if _, err := exec.LookPath("git"); err != nil {
+		return primeGit{Available: false, Error: "git executable not found"}
+	}
+	cmd := exec.Command("git", "-C", root, "status", "--short", "--branch") // #nosec G204 // read-only git status scoped to the detected repository root
+	cmd.Env = cleanGitEnvironment()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return primeGit{Available: true, Error: msg}
+	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	info := primeGit{Available: true}
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+		if i == 0 && strings.HasPrefix(line, "## ") {
+			info.Branch = strings.TrimPrefix(line, "## ")
+			continue
+		}
+		info.Changes++
+	}
+	info.Dirty = info.Changes > 0
+	return info
+}
+
 // RenderText implements the textRenderer interface for primeReport.
 func (r primeReport) RenderText(w io.Writer) error {
 	// Section 1: Dirty-worktree warning
 	if r.Git.Dirty {
 		fmt.Fprintf(w, "# Dirty Worktree\n")
-		fmt.Fprintf(w, "The working directory has uncommitted changes (%d files modified/untracked). Resolve them before starting new work.\n", r.Git.Changes)
+		fmt.Fprintf(w, "The working directory has uncommitted changes (%d files modified/untracked).\n", r.Git.Changes)
 	}
 
 	// Section 2: Root, workflow, validation
@@ -163,9 +274,9 @@ func (r primeReport) RenderText(w io.Writer) error {
 	case r.Workflow.Errors == 0 && r.Workflow.Warnings == 0:
 		fmt.Fprintln(w, "validation: ok")
 	case r.Workflow.Errors > 0:
-		fmt.Fprintf(w, "validation: %d errors, %d warnings; run `ahm doctor`\n", r.Workflow.Errors, r.Workflow.Warnings)
+		fmt.Fprintf(w, "validation: %d errors, %d warnings\n", r.Workflow.Errors, r.Workflow.Warnings)
 	default:
-		fmt.Fprintf(w, "validation: %d warnings; run `ahm doctor`\n", r.Workflow.Warnings)
+		fmt.Fprintf(w, "validation: %d warnings\n", r.Workflow.Warnings)
 	}
 	for _, finding := range r.Workflow.Findings {
 		if finding.Path != "" {
@@ -184,51 +295,22 @@ func (r primeReport) RenderText(w io.Writer) error {
 		}
 	}
 
-	// Section 5: Ready (capped at 5 with overflow pointer)
+	// Section 4: Ready (capped at 5 with an overflow count)
 	if len(r.Tasks.Ready) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "## Ready")
 		for _, task := range r.Tasks.Ready {
 			fmt.Fprintf(w, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
 		}
-		overflow := r.Tasks.ReadyTotal - len(r.Tasks.Ready)
-		if overflow > 0 {
-			fmt.Fprintf(w, "run `ahm task ready` for %d more\n", overflow)
+		if overflow := r.Tasks.ReadyTotal - len(r.Tasks.Ready); overflow > 0 {
+			fmt.Fprintf(w, "%d more ready\n", overflow)
 		}
 	}
 
-	// Section 6: Blocked and Open counts
+	// Section 5: Blocked and Open counts
 	fmt.Fprintln(w)
-	if r.Tasks.Blocked > 0 {
-		fmt.Fprintf(w, "Blocked: %d (run `ahm task blocked`)\n", r.Tasks.Blocked)
-	} else {
-		fmt.Fprintln(w, "Blocked: 0")
-	}
-	if r.Tasks.Open > 0 {
-		fmt.Fprintf(w, "Open: %d (run `ahm task list --status Open`)\n", r.Tasks.Open)
-	} else {
-		fmt.Fprintln(w, "Open: 0")
-	}
-
-	// Section 7: Managed Work Intake
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "## Managed Work Intake")
-	fmt.Fprintln(w, "- Work a task → `ahm context task`, then `ahm task show <id>` and follow the full lifecycle (start, implement, verify, complete)")
-	fmt.Fprintln(w, "- ExecPlan work → `ahm context plan`")
-	fmt.Fprintln(w, "- ADR work → `ahm context adr`")
-	fmt.Fprintln(w, "- Research notes → `ahm context research`")
-	fmt.Fprintf(w, "- Workflow records: tasks `%s`, research `%s`, ExecPlans `%s`\n", r.Paths.TasksDir, r.Paths.ResearchDir, r.Paths.ExecPlansDir)
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.")
-
-	// Section 8: Useful commands
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "## Useful Commands")
-	for _, cmd := range r.Commands {
-		fmt.Fprintf(w, "- `%s`\n", cmd)
-	}
+	fmt.Fprintf(w, "Blocked: %d\n", r.Tasks.Blocked)
+	fmt.Fprintf(w, "Open: %d\n", r.Tasks.Open)
 
 	return nil
 }

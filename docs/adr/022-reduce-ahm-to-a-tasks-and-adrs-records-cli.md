@@ -195,7 +195,7 @@ The release implementing this decision must:
 - Where the salvaged procedure lives after the change:
   `docs/workflow/tasks.md`, `docs/workflow/exec-plans.md`, and
   `docs/workflow/adrs.md`, with design plans under `docs/exec-plans/`.
-  Delivery sequence: ExecPlan `.ahm/exec-plans/active/264-reduce-ahm-to-tasks-and-adrs.md`,
+  Delivery sequence: ExecPlan `docs/exec-plans/active/264-reduce-ahm-to-tasks-and-adrs.md`,
   tracker task 264, and children 264a-264g.
 - Unaffected decisions that continue to guide the reduced tool: ADR-001
   (atomic writes), ADR-003 (task create body input), ADR-005 (acceptance

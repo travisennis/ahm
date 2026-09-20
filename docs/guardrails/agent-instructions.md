@@ -12,8 +12,9 @@ covered by [documentation](documentation.md),
 [workflow state and file formats](workflow-state-and-file-formats.md), and
 [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
-`ahm` ships templates and guidance that become other repositories' agent
-instructions, so a change here can propagate. `AGENTS.md` is project-owned and
+`ahm` no longer ships templates or guidance for other repositories; the
+procedure prose in this repository is the project's own and changing it only
+affects this project. `AGENTS.md` is project-owned and
 `ahm init`, `ahm upgrade`, and `--force` must not overwrite it.
 
 ## What AGENTS.md is for

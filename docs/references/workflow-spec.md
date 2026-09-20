@@ -2,21 +2,20 @@
 
 ## Goals
 
-`ahm` manages repo-local agent workflow state. A user can initialize a
-repository, create and advance tasks, regenerate indexes, inspect session
-context, and upgrade workflow state when `ahm` ships newer templates.
+`ahm` manages repo-local workflow records: tasks under `.ahm/tasks/` and ADRs
+under `docs/adr/`. A user can initialize a repository, create and advance
+tasks, manage ADR lifecycle, regenerate indexes, and reconcile ahm-owned
+workflow state.
 
 ## Non-goals For v1
 
-- No model or coding-agent calls except explicit `ahm task work <id>`
-  delegation to a user-selected external coding-agent CLI.
+- No model or coding-agent calls, and no delegation to another program. Git is
+  the only subprocess `ahm` runs.
 - No source-code patching.
 - No implicit git commits, pushes, PRs, or branch operations. Explicit
   records commands may read and write under `.ahm/`, but they must not move
   `HEAD`, create branch commits, stage files, write the project index, or
-  modify project-owned `.agents/` content. `ahm task work
-  <id>` may ask the delegated external agent to commit completed work (commit
-  runs by default), but `ahm` does not itself create project commits.
+  modify project-owned `.agents/` content.
 - No database.
 
 ## CLI Contract
@@ -41,7 +40,6 @@ Global flags:
 
 Commands:
 
-- `context`: print a scoped managed-work reference.
 - `init`: install the managed `.ahm` workflow state. On fresh installs
   (no prior workflow metadata), creates the committed `.ahm/` layout
   directly. On repositories with existing `.agents/ahm.json` metadata, the
@@ -50,7 +48,6 @@ Commands:
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
-- `onboard`: print the paste-ready `AGENTS.md` bootstrap snippet.
 - `records`: migrate records to `.ahm/` and diagnose migration state.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
@@ -74,14 +71,10 @@ ahm-managed records under `.agents/`. The opt-in records migration
 tool-owned `.ahm/` while leaving project-owned agent content under `.agents/`.
 
 Workflow commands are record-layout aware. In legacy repositories (metadata
-source `.agents/ahm.json`), task, research, ExecPlan, index,
-validation, and install behavior is unchanged and uses `.agents/` paths. After
-migration, the same commands read and write task records under `.ahm/tasks/`,
-research under `.ahm/research/`, and ExecPlans under `.ahm/exec-plans/`, and
-generated indexes are regenerated at the same relative paths under `.ahm/`.
-Task front matter that still references an ExecPlan by its legacy
-`.agents/exec-plans/...` path resolves to the migrated `.ahm/exec-plans/...`
-location.
+source `.agents/ahm.json`), task, index, validation, and install behavior is
+unchanged and uses `.agents/` paths. After migration, the same commands read
+and write task records under `.ahm/tasks/`, and generated indexes are
+regenerated at the same relative paths under `.ahm/`.
 
 After migration, supported record mutations (`ahm task` lifecycle
 and metadata commands, and `ahm index` after hand edits to records) write
@@ -119,21 +112,6 @@ Example:
 ```json
 {
   "strict_acceptance": true,
-  "default_work_agent": "codex",
-  "taskWork": {
-    "promptFile": ".agents/prompt.md",
-    "implementation": {
-      "agent": "codex",
-      "model": "gpt-5-codex"
-    },
-    "review": {
-      "agent": "claude",
-      "model": "sonnet"
-    }
-  },
-  "research": {
-    "inboxStaleDays": 21
-  },
   "files": {}
 }
 ```
@@ -143,57 +121,6 @@ The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
 contains the seeded `- [ ] TODO` placeholder, or contains unchecked checklist
 items. The global `--force` flag overrides this strict completion gate for a
 single command while still printing warnings.
-
-The optional `default_work_agent` string selects the agent used by
-`ahm task work <id>` when no `--agent` flag is provided. Supported values are
-`cake`, `claude`, `codex`, and `cursor`; the command defaults to `cake` when neither the
-flag nor metadata setting is present.
-
-The optional `taskWork` block configures how `ahm task work` delegates work to
-an external agent. It may contain the following fields:
-
-- **`promptFile`** (string): Path (relative to the repository root) of a
-  Markdown file whose content is appended to the built work prompt under a
-  `## Project Instructions` heading. Defaults to `.agents/prompt.md`. A missing
-  or unreadable file is silently ignored; `ahm` never creates, templates, or
-  upgrades this file.
-
-- **`implementation`** (object, optional): Role-specific defaults for the
-  implementation work phase. Fields:
-  - **`agent`** (string): Agent for this phase (`cake`, `claude`, `codex`,
-    or `cursor`).
-  - **`model`** (string): Model override for this phase (passed via the
-    agent's `--model` flag).
-
-- **`review`** (object, optional): Role-specific defaults for the independent
-  review phase. Same fields as `implementation`. When omitted, review uses the
-  same agent as `implementation` (after applying the full fallback chain).
-
-Agent/model selection precedence for each phase:
-
-1. `--agent` / `--model` CLI flags (apply to all phases).
-2. Role-specific config under `taskWork`.
-3. Legacy `default_work_agent`.
-4. Built-in default: `"cake"` for agent, no model override.
-
-Feedback-resume and commit handoff always use the implementation agent
-because they resume the implementation session.
-
-The optional `research` block configures advisory research lifecycle checks.
-Its optional `inboxStaleDays` integer controls when a Markdown note directly
-under the selected record layout's research `inbox/` is considered stale. The
-field defaults to 21 days when absent, a positive value replaces the default,
-and `0` disables stale-inbox warnings. Negative values are invalid metadata.
-The block is preserved in both
-`.ahm/config.json` and legacy `.agents/ahm.json`, including when `ahm upgrade`
-rewrites metadata.
-
-Research age prefers the most recent valid ISO `updated`, `date`, or `created`
-value, in that order, from flat YAML front matter or the conventional research
-header. When no valid date is available, age falls back to file modification
-time. Ahm calculates non-negative elapsed whole days in UTC and does not invoke
-Git to obtain a timestamp. A note becomes stale when its age is greater than or
-equal to the enabled threshold.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
 must be non-empty; `--force` does not bypass this requirement. Cancellation
@@ -211,24 +138,9 @@ dependencies, and blocked tasks that do not depend on the completed task, are
 left unchanged. `--dry-run` reports the completion move and dependent unblock
 changes without writing task files or indexes.
 
-`ahm task groom` may apply schema-constrained structured revisions returned by
-its delegated agent. The revision surface is limited to priority, effort,
-labels, dependencies, and the Problem, Relevant Files, Fix Direction, and
-Acceptance Notes section roles. Ahm preserves task identity, title, linkage and
-provenance metadata, unknown front-matter fields, comments, and all other body
-sections. It validates and renders the complete result batch before taking the
-workflow record lock or writing; invalid delegated output leaves every task and
-index unchanged. After delegation, ahm compares each original target's
-normalized complete record fingerprint with its freshly loaded record under the
-workflow lock. If any target changed, the command names every stale target and
-applies none of the grooming batch; changes to non-target tasks are instead
-handled by normal dependency and semantic revalidation. ADR 017 defines the
-authority, preservation, readiness, and observability contract.
-
 All workflow record mutations (`ahm task` lifecycle and metadata commands,
-`ahm adr` lifecycle commands, `ahm task groom`, `ahm records migrate`, and
-`ahm task|adr migrate`) serialize on a single repository-local workflow record
-lock. The lock lives under `.agents/.lock/workflow-records` or
+`ahm adr` lifecycle commands, `ahm records migrate`, and `ahm task|adr
+migrate`) serialize on a single repository-local workflow record lock. The lock lives under `.agents/.lock/workflow-records` or
 `.ahm/.lock/workflow-records` depending on the repository's record layout. It is
 held across the full read-compute-write sequence for each command, including ID
 allocation, file writes, and index regeneration. `--dry-run` and read-only
@@ -250,25 +162,18 @@ for using `ahm` commands.
 
 The ownership categories are:
 
-1. **Generated indexes** (`.agents/.tasks/index.md`,
-   `.agents/.research/index.md`, `.agents/exec-plans/active/index.md`,
-   `.agents/exec-plans/completed/index.md`, or the same relative paths under
-   `.ahm/` after migration, plus `docs/adr/index.md`) — owned by `ahm`. Do
-   not edit by hand. Update source records and run `ahm index`.
+1. **Generated indexes** (the task index and its bucket indexes under
+   `.agents/.tasks/` or `.ahm/tasks/`, plus `docs/adr/index.md`) — owned by
+   `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
-2. **Managed-work references** — owned by the `ahm` binary and exposed
-   through scoped `ahm context task|plan|adr|research`. Fresh `ahm init`
-   does not copy reference documents such as `.agents/TASKS.md`,
-   `.agents/DOCS.md`, or `docs/adr/README.md` into consumer repositories.
-   Scoped commands such as `ahm context task` expose the
-   full embedded reference document for that workflow, with record and index
-   paths rendered for the repository's legacy or post-migration layout. Existing
-   `.ahm/tasks/README.md`, `.ahm/research/README.md`, and
-   `docs/adr/README.md` scaffold copies from older releases are preserved and
-   relinquished from metadata ownership; `ahm upgrade` does not remove them.
-   Other previously managed instruction copies are removed when metadata
-   proves ownership; locally modified copies are preserved as conflicts unless
-   `--force` is used.
+2. **Workflow procedures** — project-owned. `ahm` emits no procedure text:
+   task, ADR, and planning practice lives in the project's own prose under
+   `docs/` and `AGENTS.md`. Fresh `ahm init` copies no reference document
+   such as `.agents/TASKS.md`, `.agents/DOCS.md`, or `docs/adr/README.md`
+   into consumer repositories. Existing `.ahm/tasks/README.md`,
+   `.ahm/research/README.md`, and `docs/adr/README.md` scaffold copies from
+   older releases are preserved and relinquished from metadata ownership;
+   `ahm upgrade` does not remove them.
 
 3. **Obsolete managed instruction files** — older releases copied workflow
    guides into repositories. `upgrade` removes pristine hash-owned copies and
@@ -279,9 +184,9 @@ The ownership categories are:
    migration, and never inspects, reports, overwrites, or removes them. Fresh
    installs create none.
 
-4. **Workflow source records** — task files, research notes, and ExecPlans live
-   under `.agents/` in legacy committed-record repositories and under
-   tool-owned `.ahm/` after migration. Update them through their
+4. **Workflow source records** — task files live under `.agents/` in legacy
+   committed-record repositories and under tool-owned `.ahm/tasks/` after
+   migration. Update them through their
    documented workflows (e.g., `ahm task create`, `ahm task complete <id>`, or
    `ahm index` after manual edits). In migrated repositories, these records
    are committed project files under `.ahm/`. ADRs under
@@ -289,36 +194,23 @@ The ownership categories are:
    lifecycle commands.
 
 5. **`AGENTS.md`** — project-owned. `ahm init`, `ahm upgrade`, and `--force`
-   never create, overwrite, or remove `AGENTS.md`. `ahm onboard` prints a
-   paste-ready bootstrap snippet but does not modify the file. The snippet
-   identifies `.ahm/` as the workflow-record directory and distinguishes ADRs
-   under `docs/adr/` as project-owned durable documentation. It does not
-   advertise project-owned `.agents/` as ahm record storage.
-
-`doctor` reports the informational finding `agents_prime_missing` when a root
-`AGENTS.md` exists but does not reference `ahm prime`, and suggests running
-`ahm onboard`. Absence of `AGENTS.md` is not a finding.
+   never create, overwrite, or remove `AGENTS.md`. Bootstrap text is README
+   prose the project writes for itself; `ahm` prints no snippet and inspects
+   no project instruction file.
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, duplicate task IDs across task files, task status and bucket
 mismatches, broken task dependencies, tracking tasks with at least one child
 whose child tasks are all Completed or Cancelled, completed task
-acceptance-note drift,
-task-to-ExecPlan consistency issues, ExecPlan lifecycle coherence issues, ADR
-record issues, and broken relative Markdown links within tasks, research,
-ExecPlans, ADRs, and their generated indexes. Link discovery uses the
+acceptance-note drift, ADR record issues, and broken relative Markdown links
+within tasks, ADRs, and their generated indexes. Link discovery uses the
 metadata-selected current or legacy record roots plus ADR source files and the
 generated ADR index under `docs/adr/`; it does not scan general project
 documentation or project-owned agent instructions.
 Duplicate task IDs are error-tier findings that name every conflicting path and
 require manual removal or renaming; task-record mutation commands refuse to
 operate on an affected ID until the conflict is resolved. Read-only list and
-validation commands remain available for diagnosis. Validation also reports
-warning-tier
-`research_inbox_stale` findings for stale research inbox notes, in both current
-`.ahm/` and legacy `.agents/` record layouts. The warning names the available
-human dispositions; validation never moves, converts, or deletes the note.
-Project-wide documentation
+validation commands remain available for diagnosis. Project-wide documentation
 is not scanned by default; `ahm` validates the workflow files and artifacts it
 manages or indexes.
 
@@ -331,10 +223,10 @@ validation groups over the managed workflow surface.
 Supported scopes:
 
 - `workflow` — managed file consistency, task front matter, dependency cycles,
-  task bucket placement, ExecPlan references and lifecycle, ADR records,
-  generated index freshness. This is the core workflow validation set.
-- `links` — relative Markdown link existence within task, research, ExecPlan,
-  and ADR records and their generated indexes. Link validation is independent
+  task bucket placement, ADR records, generated index freshness. This is the
+  core workflow validation set.
+- `links` — relative Markdown link existence within task and ADR records and
+  their generated indexes. Link validation is independent
   of workflow state and can be run separately to focus on record-integrity
   drift. It does not scan README, CONTRIBUTING, ARCHITECTURE, general `docs/`,
   `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records from the inactive
@@ -351,15 +243,6 @@ ahm --check links --json doctor
 
 The output format and exit codes are the same regardless of which scopes are
 active; only the reported findings change.
-
-ExecPlan lifecycle state is implicit in file placement and Markdown sections.
-In-progress plans live under the active ExecPlan bucket in the current record
-layout; completed plans live under the completed ExecPlan bucket. Every ExecPlan
-must maintain `Progress`, `Surprises & Discoveries`, `Decision Log`, and
-`Outcomes & Retrospective` sections. Active plans should not have completed
-outcomes, completed plans should have completed outcomes, and completed plans
-should not retain open `- [ ]` progress items. Unreferenced ExecPlans are
-reported as informational findings.
 
 ADR validation is part of the `workflow` scope. `ahm` reports malformed ADR
 records, invalid constrained-MADR statuses, filename/metadata ID mismatches,
@@ -388,13 +271,12 @@ produces, is:
 4. `priority`
 5. `effort`
 6. `labels`
-7. `exec_plan`
-8. `depends_on`
-9. `created` (optional, omitted when empty)
-10. `updated` (optional, omitted when empty)
-11. `parent` (optional, omitted when empty)
-12. `external_ref` (optional, omitted when empty)
-13. Extra/unknown fields (sorted by key)
+7. `depends_on`
+8. `created` (optional, omitted when empty)
+9. `updated` (optional, omitted when empty)
+10. `parent` (optional, omitted when empty)
+11. `external_ref` (optional, omitted when empty)
+12. Extra/unknown fields (sorted by key)
 
 Optional fields (`created`, `updated`, `parent`, `external_ref`) are emitted
 only when non-empty. Extra fields not recognized as standard task fields are
@@ -469,13 +351,12 @@ originally absent or because it was explicitly set to `-`), the output is the
 same in both cases.
 
 The `defaultDash` normalization is applied to `status`, `priority`, `effort`,
-`labels`, and `exec_plan` during parsing. However, `status`, `priority`, and
+and `labels` during parsing. However, `status`, `priority`, and
 `effort` also undergo enum validation that rejects `-`; in valid task files
 these fields always hold a recognized enum value. The fields where `-` is an
 accepted value are:
 
 - `labels` — default `-` indicates no labels have been assigned.
-- `exec_plan` — default `-` indicates the task is not linked to an ExecPlan.
 
 Note that `depends_on` uses `-` and `[]` interchangeably for an empty dependency
 list; both produce `-` on write (see `docs/cli.md`).
@@ -483,14 +364,13 @@ list; both produce `-` on write (see `docs/cli.md`).
 The practical consequence is that a round-trip (parse, modify, write) cannot
 distinguish between an absent field and an explicit `-`. This is an accepted
 convention: the dash sentinel means "not set" and preserves symmetry with the
-grammar used in task creation (where `ahm task create` seeds `exec_plan: -`,
-`depends_on: -`).
+grammar used in task creation (where `ahm task create` seeds `depends_on: -`).
 
 ## Atomic Write Guarantee
 
-All managed writes (metadata, generated indexes, task files, installed/upgraded
-templates) use a temporary-file-then-atomic-rename strategy that guarantees
-crash safety:
+All managed writes (metadata, generated indexes, task files, and installed or
+upgraded workflow files) use a temporary-file-then-atomic-rename strategy that
+guarantees crash safety:
 
 1. Content is written to a unique sibling temp file in the same directory.
 2. The temp file is synced to disk (`fsync`).
@@ -524,7 +404,7 @@ or has been replaced.
 
 ### Generated Index Write Semantics
 
-`ahm index` writes its 8 generated index files sequentially in sorted path
+`ahm index` writes its 5 generated index files sequentially in sorted path
 order. There is no cross-file atomicity: if a mid-batch write fails, earlier
 files in the batch have already been updated, the failed file remains stale,
 and later files are not written. This leaves a temporarily inconsistent index
@@ -532,13 +412,10 @@ state that self-heals on the next successful `ahm index` run. The individual
 write of each file is still atomic (see Atomic Write Guarantee above); only
 the batch as a whole has no rollback or transaction semantics.
 
-Managed-work references are exposed by scoped
-`ahm context task|plan|adr|research` instead of being copied into target
-repositories. Each scoped command exposes the full workflow-specific reference,
-not the session briefing under a different label. Scoped reference output
-renders record and index paths for the repository's selected layout. `ahm prime`
-is the live session briefing with repository state and layout-specific workflow
-record paths; `--json` and `--plain` expose the same structured briefing for
-integrations. Unscoped `ahm context` is no longer a briefing command. General
-project documentation is not a managed-work scope; each project owns its own
+Workflow instructions are project-owned prose under `docs/`; `ahm` prints
+none, so there is nothing to render, customize, or keep in sync with the
+binary. `ahm prime` is a pure state report: it regenerates indexes and prints
+repository state, validation findings, and record counts, and `--json` and
+`--plain` expose the same structured report for integrations. General project
+documentation is not an ahm-managed scope; each project owns its own
 documentation guidance.

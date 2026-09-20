@@ -54,21 +54,18 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"002 [Pending] P2 S Ready Work",
 		"Blocked: 0",
 		"Open: 0",
-		"## Managed Work Intake",
-		"- Work a task → `ahm context task`, then `ahm task show <id>` and follow the full lifecycle (start, implement, verify, complete)",
-		"- ExecPlan work → `ahm context plan`",
-		"- ADR work → `ahm context adr`",
-		"- Research notes → `ahm context research`",
-		"- Workflow records: tasks `.ahm/tasks/`, research `.ahm/research/`, ExecPlans `.ahm/exec-plans/`",
-		"ahm manages work records, not implementation; after intake, classify the implementation under the project's own workflow routing (AGENTS.md).",
-		"Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.",
-		"## Useful Commands",
-		"`ahm task show <id>`",
 	)
+	// Task 264c: prime is pure state. It reports counts and findings and
+	// names no command to run and no workflow step.
 	assertNotContains(t, stdout,
 		"# Dirty Worktree",
-		"run `ahm task ready` for",
-		"ahm context docs",
+		"## Managed Work Intake",
+		"## Useful Commands",
+		"ahm context",
+		"ahm doctor",
+		"ahm task ready",
+		"ahm task blocked",
+		"ahm task list",
 	)
 }
 
@@ -92,7 +89,6 @@ func TestPrimeJSONOutput(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		`"root": `+string(rootJSON),
-		`"commands":`,
 		`"in_progress":`,
 		`"ready":`,
 		`"ready_total":`,
@@ -101,6 +97,8 @@ func TestPrimeJSONOutput(t *testing.T) {
 	)
 	assertNotContains(t, stdout, `"instructions"`)
 	assertNotContains(t, stdout, `"records"`)
+	// The procedure channel is gone: no command list, no routing paths.
+	assertNotContains(t, stdout, `"commands"`, `"paths"`)
 }
 
 func TestPrimePlainOutput(t *testing.T) {
@@ -144,8 +142,9 @@ func TestPrimeReadyCapWithOverflow(t *testing.T) {
 		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"run `ahm task ready` for 2 more",
+		"2 more ready",
 	)
+	assertNotContains(t, stdout, "ahm task ready")
 	// Count ready task lines (lines like "001 [Pending] P2 S Ready Task 001")
 	readyLines := 0
 	for _, line := range strings.Split(stdout, "\n") {
@@ -208,8 +207,9 @@ func TestPrimeDirtyWorktreeWarning(t *testing.T) {
 	assertContainsAll(t, stdout,
 		"# Dirty Worktree",
 		"The working directory has uncommitted changes",
-		"Resolve them before starting new work.",
 	)
+	// Task 264c: the warning reports state only; it prescribes no step.
+	assertNotContains(t, stdout, "Resolve them before starting new work")
 }
 
 func TestPrimeNoDirtyWarningOnCleanTree(t *testing.T) {
@@ -287,8 +287,77 @@ func TestPrimeReportsValidationFindingsWithoutFailing(t *testing.T) {
 		"validation:",
 		"task_dependency_missing",
 		"task 001 depends on missing task 999",
-		"`ahm doctor`",
 	)
+	assertNotContains(t, stdout, "ahm doctor")
+}
+
+func TestPrimeWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".agents", ".tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
+	if code != 0 {
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"metadata_missing",
+		"task_malformed",
+	)
+	assertContainsAll(t, stderr, "warning: some task files could not be parsed and were skipped")
+	if count := strings.Count(stderr, "warning: some task files could not be parsed and were skipped"); count != 1 {
+		t.Fatalf("warning count = %d, stderr = %s", count, stderr)
+	}
+}
+
+func TestPrimeWarningsOnlyValidationDisplay(t *testing.T) {
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+	// A Completed task in the active bucket yields a warning with no errors.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bucket Mismatch", "Completed", "")
+
+	var indexOut strings.Builder
+	indexer := app{opts: options{root: root}, out: &indexOut}
+	if err := indexer.writeIndexes(); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "prime")
+	if code != 0 {
+		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"validation: 1 errors, 2 warnings",
+		"task_bucket_mismatch",
+	)
+	assertNotContains(t, stdout, "validation: ok", "ahm doctor")
+
+	jsonOut, stderr, code := runCLI(t, "--root", root, "--json", "prime")
+	if code != 0 {
+		t.Fatalf("prime --json exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, jsonOut, `"validation_ok": false`)
+}
+
+func TestReadGitContextReportsDirtyWorktree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	writeFile(t, filepath.Join(root, "tracked.txt"), "dirty\n")
+
+	info := readGitContext(root)
+	if !info.Available {
+		t.Fatal("expected git to be available")
+	}
+	if info.Error != "" {
+		t.Fatalf("unexpected git error: %s", info.Error)
+	}
+	if !info.Dirty || info.Changes == 0 {
+		t.Fatalf("expected dirty worktree, got %#v", info)
+	}
 }
 
 func TestPrimeShowsReadyOnlyWhenTasksExist(t *testing.T) {
@@ -342,9 +411,8 @@ func TestPrimeInCommittedModeShowsTaskBriefing(t *testing.T) {
 		"## Ready",
 		"001 [Pending]",
 		"002 [Pending]",
-		"Managed Work Intake",
 	)
-	assertNotContains(t, stdout, "# Dirty Worktree")
+	assertNotContains(t, stdout, "# Dirty Worktree", "## Managed Work Intake")
 }
 
 func TestPrimeInCommittedModeRegeneratesStaleIndexes(t *testing.T) {

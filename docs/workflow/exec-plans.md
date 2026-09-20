@@ -4,17 +4,28 @@ This document describes the requirements for an execution plan ("ExecPlan"), a d
 
 ## How to use ExecPlans
 
-When authoring an executable specification (ExecPlan), follow this `ahm context plan` guidance _to the letter_. If it is not in your context, refresh your memory by rerunning `ahm context plan`. Be thorough in reading (and re-reading) source material to produce an accurate specification. When creating a spec, start from the skeleton and flesh it out as you do your research.
+When authoring an executable specification (ExecPlan), follow this guide _to the
+letter_. If it is not in your context, open this document again. Be thorough in
+reading (and re-reading) source material to produce an accurate specification.
+When creating a spec, start from the skeleton and flesh it out as you do your
+research.
 
-In this repository, store in-progress ExecPlans under the active ExecPlan bucket
-at `{{.ExecPlansActiveDir}}`. When an ExecPlan is complete and its Outcomes &
-Retrospective section has been fully updated, move it to the completed ExecPlan
-bucket at `{{.ExecPlansCompletedDir}}` and run `ahm index` so the generated
-active and completed plan lists stay accurate.
+This document is project-owned prose. `ahm` does not know what an ExecPlan is:
+it neither stores, indexes, nor validates plans, and nothing here is generated
+from the binary. Edit this guide when the project's planning practice changes.
 
-When an ExecPlan completes a task, use this order so task metadata and generated indexes stay coherent: fill the task Acceptance Notes, update the ExecPlan Outcomes & Retrospective, move the ExecPlan to the completed ExecPlan bucket, update the task `exec_plan` field to the completed path, then run `ahm task complete <id>`. The task completion command moves the task file and regenerates indexes, so a separate `ahm index` is only needed if you edit task or ExecPlan metadata afterward.
+In this repository, store in-progress ExecPlans under the active plan bucket at
+`docs/exec-plans/active/`. When an ExecPlan is complete and its Outcomes &
+Retrospective section has been fully updated, move it to the completed plan
+bucket at `docs/exec-plans/completed/`.
 
-When implementing an executable specification (ExecPlan), do not prompt the user for "next steps"; simply proceed to the next milestone. Keep all sections up to date, add or split entries in the list at every stopping point to affirmatively state the progress made and next steps. Resolve ambiguities autonomously, and commit frequently.
+When an ExecPlan completes a task, fill the task Acceptance Notes, update the
+ExecPlan Outcomes & Retrospective, move the ExecPlan to the completed bucket,
+and then run `ahm task complete <id>`. Task completion moves the task file and
+regenerates the task indexes; plans are ordinary project files, so nothing else
+needs regenerating.
+
+When implementing an executable specification (ExecPlan), do not prompt the user for "next steps"; simply proceed to the next milestone. Keep all sections up to date, add or split entries in the list at every stopping point to affirmatively state the progress made and next steps. Resolve ambiguities autonomously, and commit only when the project's rules authorize it.
 
 When discussing an executable specification (ExecPlan), record decisions in a log in the spec for posterity; it should be unambiguously clear why any change to the specification was made. ExecPlans are living documents, and it should always be possible to restart from _only_ the ExecPlan and no other work.
 
@@ -84,7 +95,7 @@ Prefer additive code changes followed by subtractions that keep tests passing. P
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-If `ahm context plan` guidance is used for the work, note that this document must be maintained in accordance with that command output.
+If this guide is used for the work, note in the ExecPlan that it must be maintained in accordance with this document.
 
 ## Purpose / Big Picture
 

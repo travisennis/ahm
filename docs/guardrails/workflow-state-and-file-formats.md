@@ -2,9 +2,9 @@
 
 ## Scope
 
-Read this guardrail for `.ahm/config.json`, task files, research notes,
-ExecPlans, ADRs, generated indexes, install/upgrade/context/status/doctor
-behavior, embedded instructions, and file-format parsing or rendering.
+Read this guardrail for `.ahm/config.json`, task files, ADRs, generated
+indexes, install/upgrade/status/doctor behavior, and file-format parsing or
+rendering.
 
 ## Compatibility Surfaces
 
@@ -12,7 +12,7 @@ behavior, embedded instructions, and file-format parsing or rendering.
 - Task front matter order, grammar, dash sentinels, and unknown-field
   preservation.
 - ADR constrained-MADR front matter and lifecycle metadata.
-- Generated task, research, ExecPlan, and ADR index contents.
+- Generated task and ADR index contents.
 - Legacy instruction/procedure-file removal and upgrade conflict behavior.
 - CRLF normalization and LF output.
 
@@ -20,12 +20,11 @@ behavior, embedded instructions, and file-format parsing or rendering.
 
 - Update `docs/references/workflow-spec.md` when durable workflow semantics or
   file formats change.
-- Update `docs/guides/workflow-upgrades.md` when install, upgrade, context, or
-  legacy instruction behavior changes.
-- Keep `ahm prime` as the live session briefing and scoped `ahm context`
-  commands as full workflow-specific references, not relabeled briefings.
-- For template changes, run `go test ./internal/templates ./internal/ahm`
-  before the final verification pass.
+- Update `docs/guides/workflow-upgrades.md` when install, upgrade, or legacy
+  instruction behavior changes.
+- Keep `ahm prime` a pure state report: regenerated indexes, validation
+  findings, and record counts. Workflow instructions belong to the project's
+  own prose under `docs/workflow/`.
 - Regenerate indexes only through source changes plus `ahm` commands; never
   hand-edit generated indexes.
 
@@ -41,4 +40,4 @@ behavior, embedded instructions, and file-format parsing or rendering.
 
 - `docs/references/workflow-spec.md`
 - `docs/guides/workflow-upgrades.md`
-- `ahm context task|plan|adr|research`
+- `docs/workflow/tasks.md`

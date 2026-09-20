@@ -707,7 +707,3 @@ func (r *validationReport) addError(code string, path string, message string) {
 func (r *validationReport) addWarning(code string, path string, message string) {
 	r.Warnings = append(r.Warnings, validationFinding{Code: code, Path: path, Message: message})
 }
-
-func (r *validationReport) addInfo(code string, path string, message string) {
-	r.Info = append(r.Info, validationFinding{Code: code, Path: path, Message: message})
-}

@@ -2,22 +2,24 @@
 
 ## Project
 
-`ahm` is a Go CLI that manages repo-local agent workflow state. Tasks, research
-notes, ExecPlans, config, and indexes live under `.ahm/`; project guidance
-lives under `.agents/`. Records are branch-scoped and use normal Git behavior;
-`ahm` performs no ref or network operations.
+`ahm` is a Go CLI that manages repo-local workflow records: tasks under
+`.ahm/tasks/` and ADRs under `docs/adr/`. Config and generated indexes live
+under `.ahm/`; project guidance lives under `.agents/` and `docs/`. Records are
+branch-scoped and use normal Git behavior; `ahm` performs no ref or network
+operations.
 
 Compatibility surfaces include CLI behavior, workflow metadata and formats,
-indexes, templates, atomic writes, root detection, validation, orchestration,
-and releases; [`ARCHITECTURE.md`](ARCHITECTURE.md) enumerates them. `ahm` does
+indexes, atomic writes, root detection, validation, and releases;
+[`ARCHITECTURE.md`](ARCHITECTURE.md) enumerates them. `ahm` does
 not patch source, stage files, move `HEAD`, mutate branches, or create project
 commits.
 
 ## Operating loop
 
 1. Run `ahm prime` before any work; re-run it after context compaction.
-2. If the request names a task, ExecPlan, ADR, or research record, inspect it
-   through `ahm` before choosing implementation work.
+2. If the request names a task or ADR, inspect it through `ahm` before choosing
+   implementation work. A design plan under `docs/exec-plans/` and any other
+   project document are read directly.
 3. Select the route below, load only its documents, and state both before
    editing.
 4. Read the smallest relevant code and tests.
@@ -30,7 +32,8 @@ commits.
    design flaw, and escalate to a design decision.
 9. Hand off per [Handoff](#handoff).
 
-Large or cross-cutting work requires an ExecPlan as directed by `ahm context plan`.
+Large or cross-cutting work requires a design plan under `docs/exec-plans/`,
+written per [the ExecPlan workflow](docs/workflow/exec-plans.md).
 
 ## Workflow Routing
 
@@ -48,8 +51,8 @@ For command wiring, flags, help, exit codes, output, or dry-run behavior, load:
 
 ### Workflow State, File Formats, And Upgrades
 
-For `.ahm/config.json`, workflow formats, indexes, install, upgrade, context,
-status, doctor, or templates, load:
+For `.ahm/config.json`, workflow formats, indexes, install, upgrade,
+status, doctor, or record files, load:
 
 - [Workflow state and file formats](docs/guardrails/workflow-state-and-file-formats.md),
   for the rules governing on-disk workflow records.
@@ -97,10 +100,13 @@ load:
 ### Documentation
 
 For README, architecture, CLI docs, workflow specs, upgrade docs, ADR prose, or
-context guidance, load:
+project workflow guidance, load:
 
 - [Documentation](docs/guardrails/documentation.md), for which surfaces require
   which doc updates and where each one lives.
+- [Task workflow](docs/workflow/tasks.md), [ADR workflow](docs/workflow/adrs.md),
+  and [ExecPlan workflow](docs/workflow/exec-plans.md), for the project-owned
+  procedures `ahm` no longer prints.
 
 ### Agent Instructions And Skills
 
@@ -115,12 +121,15 @@ change how an agent behaves, load:
 Use [`CONTRIBUTING.md`](CONTRIBUTING.md) as the canonical command catalog and
 verification policy.
 
-### Managed Work Intake With `ahm`
+### Task And ADR Procedure
 
-Run `ahm prime` before intake and after compaction, then use its scoped command,
-such as `ahm context task` followed by `ahm task show <id>`. Reclassify
-implementation under the routes above. Never hand-edit indexes; use source
-records plus the appropriate `ahm task`, `ahm adr`, or `ahm index` command.
+Task, ADR, and planning practice is project-owned prose: see the [task
+workflow](docs/workflow/tasks.md), the [ADR workflow](docs/workflow/adrs.md),
+and the [ExecPlan workflow](docs/workflow/exec-plans.md). Run `ahm prime`
+before intake and after compaction; it reports record counts and validation
+findings and routes nothing. Reclassify implementation under the routes above.
+Never hand-edit indexes; use source records plus the appropriate `ahm task`,
+`ahm adr`, or `ahm index` command.
 
 ## Repository Rules
 

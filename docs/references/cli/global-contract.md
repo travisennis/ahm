@@ -33,11 +33,10 @@ found, the command fails with an error message that explains how to use
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
-`init`, `upgrade`, and `onboard` are lenient: they can run in any
-directory. `init` creates the `.agents` workflow scaffolding, `upgrade`
-refreshes it, and `onboard` only prints the AGENTS.md bootstrap snippet. `prime`,
-`context`, and all other state-aware commands require a managed repository
-(`.git`, `.ahm/config.json`, or `.agents/ahm.json`).
+`init` and `upgrade` are lenient: they can run in any
+directory. `init` creates the `.ahm` workflow scaffolding and `upgrade`
+refreshes it. `prime` and all other state-aware commands require a managed
+repository (`.git`, `.ahm/config.json`, or `.agents/ahm.json`).
 
 ## Global Flags
 
@@ -49,7 +48,7 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records migrate`, `task create`, `task work`, `task migrate`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `upgrade`, `index`, `adr create`, ADR lifecycle commands, `records migrate`, `task create`, `task migrate`, task status transitions, and task dependency add/remove. |
 | `--force` | Forces supported removals during `upgrade`, and overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
@@ -121,8 +120,6 @@ Install and upgrade operations always print grouped text sections such as
 Some task commands use command-specific text output regardless of the output
 mode:
 
-- `onboard` prints framed Markdown in text mode, the bare snippet with
-  `--plain`, and a structured snippet field with `--json`.
 - `adr create` prints the created ADR ID.
 - `task create` prints the created task ID.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.

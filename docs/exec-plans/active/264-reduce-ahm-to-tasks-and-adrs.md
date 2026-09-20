@@ -3,7 +3,8 @@
 This ExecPlan is a living document. The sections `Progress`, `Surprises &
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
 date as work proceeds. This document is maintained in accordance with the
-`ahm context plan` guidance; rerun that command before revising the plan.
+[ExecPlan workflow](../../workflow/exec-plans.md); reopen that guide before
+revising the plan.
 
 Tracker: task 264; children 264a through 264g sequence the milestones. One
 milestone maps to exactly one child task.
@@ -47,19 +48,22 @@ survives, and why. This plan is the delivery sequence for that decision.
 `ahm` is a Go module at the repository root (`go.mod`, module
 `github.com/travisennis/ahm`) that builds one binary from
 `cmd/ahm/main.go`. Essentially all behavior lives in one package,
-`internal/ahm/`, with a second small package `internal/templates/` that embeds
-the managed file templates under `internal/templates/workflow/`, and
-`internal/version/version.go` that holds the version string the release build
-injects. There are about 12,300 lines of non-test Go and about 18,600 lines of
-test Go.
+`internal/ahm/`, and `internal/version/version.go` holds the version string the
+release build injects. Milestone 2 deleted `internal/templates/`, the package
+that embedded the managed instruction templates. There were about 12,300 lines
+of non-test Go and about 18,600 lines of test Go when this plan was written.
 
 Workflow records are ordinary committed Markdown files in the consuming
-repository. Tasks live under `.ahm/tasks/{active,completed,cancelled}/`, ADRs
-under `docs/adr/`, research notes under `.ahm/research/`, and ExecPlans under
-`.ahm/exec-plans/{active,completed}/`. Each family has a generated `index.md`
-that is derived data: `ahm index` and `ahm prime` regenerate it, and it must
-never be edited by hand. Configuration lives in `.ahm/config.json`. Settings
-are committed so every clone and CI sees the same values. `.ahm/.gitignore`
+repository. Tasks live under `.ahm/tasks/{active,completed,cancelled}/` and ADRs
+under `docs/adr/`; both families have a generated `index.md` that is derived
+data: `ahm index` and `ahm prime` regenerate it, and it must never be edited by
+hand. Research notes under `.ahm/research/` and ExecPlans under
+`.ahm/exec-plans/{active,completed}/` were retired as ahm-managed families in
+milestone 3; they are ordinary project files now, and design plans for this
+repository live under `docs/exec-plans/{active,completed}/` (milestone 4 moved
+this plan into `docs/exec-plans/active/`). Configuration lives in
+`.ahm/config.json`. Settings are committed so every clone and CI sees the same
+values. `.ahm/.gitignore`
 ignores the generated indexes that are not part of the published
 documentation, such as the task bucket indexes.
 
@@ -137,13 +141,91 @@ deleted, and the binary runs no program but Git.
 - [x] Milestone 3 (264b) complete: research and ExecPlans retired. The two
       procedure templates are deferred to milestone 4, which is the only
       consumer left; see the Decision Log.
-- [ ] Milestone 4 (264c) complete: procedure channel removed.
+- [x] Milestone 4 (264c) complete: the procedure channel and the last
+      prescription are gone. The three surviving procedures are project-owned
+      documents under `docs/workflow/`, design plans live under
+      `docs/exec-plans/`, and no command emits workflow instructions.
 - [ ] Milestone 5 (264d) complete: install collapsed to one idempotent
       `ahm init`.
 - [ ] Milestone 6 (264e) complete: documentation and instructions rewritten.
 - [ ] Milestone 7 (264f) complete: v2.0.0 released.
 
 ## Surprises & Discoveries
+
+- Observation: prime's `## Useful Commands` block, the ready-overflow line that
+  pointed at `ahm task ready`, the blocked and open counts with their
+  parenthetical commands, and the doctor pointer in the validation line were
+  the last places the binary named a command to run. Criterion two forbids any
+  of them, so prime now prints a bare count for the overflow and a bare
+  `validation: N errors, M warnings` line, and the `commands` array left the
+  JSON report with the routing prose. The dirty-worktree warning also lost its
+  "resolve them before starting new work" advice, because that prescribes a
+  step. This is a deliberate breaking change to prime's output shape and
+  belongs in the v2 release notes.
+  Evidence: `ahm prime` before the change ended with a `## Useful Commands`
+  list containing `ahm status` and `ahm doctor`; after it, the report ends at
+  `Open: N`, and `TestPrimePrintsSessionBriefing` asserts that `ahm context`,
+  `ahm doctor`, `ahm task ready`, `ahm task blocked`, and `ahm task list` do
+  not appear.
+
+- Observation: deleting `internal/ahm/context.go` made
+  `workflowPaths.researchRel` and `workflowPaths.execPlansRel` dead code, which
+  milestone 3 had knowingly kept because the context renderer resolved those
+  strings. `golangci-lint`'s `unused` check named both as soon as the renderer
+  was gone, and both are deleted in this milestone.
+  Evidence: `just lint` reported `func workflowPaths.researchRel is unused` and
+  `func workflowPaths.execPlansRel is unused` before the deletion, and reports
+  `0 issues` after it.
+
+- Observation: milestone 4's acceptance criteria reach further into `docs/`
+  than the milestone's Work paragraph does, and milestone 3's handoff list had
+  assigned `docs/references/*` to milestone 6. The pass resolved the overlap by
+  applying the instruction clause of the prose rule to every live document in
+  `AGENTS.md`, `CONTRIBUTING.md`, and `docs/`, and leaving the positive
+  rewrite to milestone 6: `README.md`, `ARCHITECTURE.md`'s remaining prose,
+  `.agents/prompt.md` and `.agents/skills/*`, and the dated release-history
+  sections of `docs/guides/workflow-upgrades.md` still name removed commands
+  and removed families. `ARCHITECTURE.md` was corrected only where this
+  milestone deleted the files its module map and compatibility list named
+  (`context.go`, `research_inbox.go`, `onboard.go`, `internal/templates/`).
+  Evidence: `rg -n "ahm (audit|context|onboard)|task groom|task work"
+  AGENTS.md CONTRIBUTING.md docs/ --glob '!docs/adr/**' --glob
+  '!docs/guides/workflow-upgrades.md' --glob '!docs/exec-plans/**'` returns
+  nothing, while the same search without the exclusions still hits
+  `README.md`, `ARCHITECTURE.md`, `.agents/`, and the upgrade guide.
+
+- Observation: removing the doctor's onboarding finding left
+  `validationReport.addInfo` with no caller and the `info` severity with no
+  producer. The method is deleted; the `Info` field and its rendering stay,
+  because the field is part of the `status`/`doctor` JSON shape and milestone
+  3's deletion-invariance test deliberately compares all three finding
+  severities.
+  Evidence: `rg -n "addInfo" internal/` returned only the definition after the
+  onboard finding was deleted; `validation_test.go` compares `report.Info`
+  before and after the retired trees are removed.
+
+- Observation: the independent review of this milestone ran once, through
+  `codex exec --sandbox read-only`, which read the diff and the new files and
+  returned four findings (the dirty-worktree advice prescribing a step, an
+  ambiguous scaffold-preservation sentence in the workflow spec, the preflight
+  skill's `ahm context` references, and "commit frequently" in the salvaged plan
+  guide). All four are fixed in this commit. The follow-up round could not run:
+  the second invocation hit the reviewer's usage limit after reading the tree
+  (`You've hit your usage limit`), so no verdict exists for the post-fix state.
+  Evidence: the first run's transcript named the four findings; the second run
+  ended with `ERROR: You've hit your usage limit` and no report. Deferred
+  probe: a fresh review pass over this commit, or the repository's own preflight
+  skill in a session whose reviewer has budget.
+
+- Observation: the retired generated indexes under `.ahm/exec-plans/` and
+  `.ahm/research/` are now stale project files that still claim to be
+  "generated by `ahm index`" and, in the active bucket, list a plan at a path
+  it no longer occupies. ADR 022's release treatment says ahm leaves retired
+  index files in place, neither validating nor deleting them, so this milestone
+  left them and `docs/exec-plans/README.md` records that they are unmaintained.
+  Evidence: `.ahm/exec-plans/active/index.md` links
+  `264-reduce-ahm-to-tasks-and-adrs.md`, which now lives under
+  `docs/exec-plans/active/`.
 
 - Observation: `ahm` has exactly one consumer repository. A search of the
   home directory finds no `.agents/ahm.json` anywhere and no `.ahm/` directory
@@ -314,6 +396,68 @@ deleted, and the binary runs no program but Git.
   appends them.
 
 ## Decision Log
+
+- Decision: milestone 4 moves this plan into `docs/exec-plans/active/`,
+  creates `docs/exec-plans/completed/`, and registers both buckets in
+  `docs/README.md`, `docs/guardrails/documentation.md`, and `AGENTS.md`.
+  Rationale: the Decision Log already places project-owned design plans under
+  `docs/exec-plans/`; moving the file in the milestone that creates the
+  directories keeps the active bucket real instead of an empty directory with a
+  placeholder, and it makes the plan document point at the retired family's
+  replacement, which is the milestone's acceptance criterion. `ADR 022`'s
+  reference to the plan, task 264's `exec_plan` value, and the plan's own
+  orientation were updated with the move. The retired `.ahm/exec-plans/`
+  content, including its generated indexes, stays in place as ADR 022 requires.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264c).
+
+- Decision: milestone 4 applies the instruction clause of the prose rule to
+  every live document in `AGENTS.md`, `CONTRIBUTING.md`, and `docs/`, and
+  leaves the positive rewrite to milestone 6. Concretely, this milestone
+  removed or rewrote the procedure-channel and removed-family prose in
+  `docs/VISION.md`, `docs/README.md`, `docs/cli.md`, `docs/references/cli/*`,
+  `docs/references/workflow-spec.md`, `docs/references/glossary.md`,
+  `docs/references/cli/task-file-format.md`, and both touched guardrails; it
+  left `README.md`, `ARCHITECTURE.md`'s remaining prose, `.agents/prompt.md`,
+  `.agents/skills/*`, and the dated sections of
+  `docs/guides/workflow-upgrades.md` to milestone 6, whose criterion one covers
+  every live document and whose Work paragraph names those files.
+  Rationale: the acceptance notes are the contract, and a live document that
+  offers a command the binary no longer has is a defect this milestone creates;
+  the guide is a dated release-history document, which the prose rule's second
+  exception covers. Milestone 6 still owns the coherent rewrite, and it lands
+  after milestone 5 so it is written once against the final tree.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264c).
+
+- Decision: `ahm prime` prints no command name at all, not even the
+  run-`ahm doctor` pointer in its validation line or the ready-overflow
+  pointer. The overflow became a bare count (`3 more ready`), the blocked and
+  open counts lost their parentheticals, the `## Useful Commands` section is
+  gone, and the JSON report lost its `commands` array.
+  Rationale: the milestone's second acceptance criterion is that prime
+  contains no text that names a command to run or a step in a workflow, and
+  ADR 022 says prime becomes pure state: regenerated indexes, validation
+  findings, and record counts. The output-shape change is breaking and must
+  appear in the v2 release notes.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264c).
+
+- Decision: the salvaged procedures are rewrites, not copies. `docs/workflow/
+  tasks.md` loses research routing and the `exec_plan` lifecycle step;
+  `docs/workflow/exec-plans.md` points at `docs/exec-plans/{active,completed}/`
+  and drops the `ahm index` and `exec_plan` steps; `docs/workflow/adrs.md`
+  points at the task workflow instead of a removed command; and all three state
+  that they are project-owned prose the binary neither prints nor validates.
+  Rationale: the procedure content is worth keeping, but only the tool's
+  authority over it was the problem. A copy that still told a reader to run
+  `ahm context` or to set `exec_plan` would be wrong on the day it landed.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264c).
+
+- Decision: the `info` finding severity keeps its field and rendering but
+  loses its only producer, `validationReport.addInfo`.
+  Rationale: the field is part of the `status`/`doctor` JSON shape, which is a
+  declared compatibility surface, and milestone 3's deletion-invariance test
+  compares all three severities; only the method was dead once the onboarding
+  finding left.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264c).
 
 - Decision: milestone 2 deletes `scripts/task-workflow.sh` even though the
   plan's deletion list does not name it, because the milestone's acceptance
@@ -532,6 +676,22 @@ deleted, and the binary runs no program but Git.
 
 ## Outcomes & Retrospective
 
+- (2026-09-20) Milestone 4 (task 264c). Outcome: `ahm` no longer prints
+  instructions. `context`, `onboard`, their templates, and the two remaining
+  procedure templates are deleted; prime is a pure state report with no command
+  names; the doctor no longer looks for an onboarding snippet; and the three
+  surviving procedures are project-owned documents under `docs/workflow/` with
+  design plans under `docs/exec-plans/`. Against the original purpose — a tool
+  that manages records and no longer tells a project how to work — the milestone
+  completes the removal half of the plan; the documentation rewrite (milestone
+  6) and the release (milestone 7) remain. The gap it leaves is deliberate and
+  recorded: `README.md`, `ARCHITECTURE.md`'s remaining prose, `.agents/*`, and
+  the dated sections of `docs/guides/workflow-upgrades.md` still describe
+  removed surfaces, and the retired generated indexes are stale. Lesson: the
+  acceptance notes, not the Work paragraph, defined how far the prose sweep had
+  to reach, and the boundary between this milestone and milestone 6 had to be
+  decided explicitly rather than inferred from the handoff list.
+
 ## Plan of Work
 
 The work is a sequence of deletions followed by a documentation rewrite and a
@@ -742,6 +902,31 @@ no reader to run a removed command;
 `rg -n "ahm (audit|context|onboard|upgrade)|task groom|task work" --glob '!.ahm/**' .`
 is a review aid, not the criterion: a worker reads every hit and applies the
 prose rule for removals to it; `just docs-md-lint` passes.
+
+Disposition (2026-09-20): every named file is gone, plus the two dead path
+helpers the deletion exposed in `internal/ahm/workflow_paths.go` and the
+`validationReport.addInfo` method whose only caller was the onboarding finding.
+The salvage step ran against a binary built from the pre-milestone tree
+(`go build -o /tmp/ahm-m4 ./cmd/ahm`, then `/tmp/ahm-m4 --root . context
+{task,plan,adr}`), which is the same rendering the milestone's Concrete Steps
+produce, and the three documents were edited to concrete paths, project-owned
+framing, and no removed-command instructions. `docs/exec-plans/active/` and
+`docs/exec-plans/completed/` exist, this plan moved into the active bucket, and
+`docs/exec-plans/README.md` explains the buckets. Prime lost its routing block,
+its `## Useful Commands` section, and every parenthetical command pointer,
+including the one in its validation line; status and doctor lost the onboarding
+finding. The prose sweep covered `AGENTS.md`, `CONTRIBUTING.md`, and every live
+document under `docs/` except the ADRs, the dated sections of the upgrade guide,
+and this plan's own history; the files left to milestone 6 and the reasoning are
+in the Decision Log and Surprises sections. One independent review round ran
+against the final tree (`codex exec --sandbox read-only`, which reported four
+findings: the dirty-worktree advice prescribing a step, an ambiguous
+scaffold-preservation sentence in the workflow spec, the preflight skill's
+`ahm context` references, and "commit frequently" in the salvaged plan guide);
+all four are fixed, and the follow-up round could not run because the reviewer
+CLI hit its usage limit. That deferral is recorded in the Surprises section;
+the probe that would establish it is a fresh review pass over this commit.
+`just ci` and `just docs-md-lint` pass on the final tree.
 
 ### Milestone 5 — Collapse install and upgrade into one idempotent `ahm init` (task 264d)
 
@@ -1013,6 +1198,27 @@ After milestone 3, measured on 2026-09-20:
     (task front matter, research config block, index shape), docs/cli.md,
     docs/guides/workflow-upgrades.md (v2 migration note), and the glossary
 
+After milestone 4, measured on 2026-09-20:
+
+    8767 total non-test Go lines in cmd/ and internal/, down from 9244
+    13642 total test Go lines across the repository, down from 14099
+    deleted: context.go, context_test.go, onboard.go, onboard_test.go, the
+    whole internal/templates package (templates.go, templates_test.go, and the
+    four workflow templates), workflowPaths.researchRel, and
+    workflowPaths.execPlansRel
+    ahm prime: no `commands` array, no routing block, no command pointer; the
+    ready overflow reads `3 more ready`
+    ahm doctor and ahm status: "ok": true, no findings
+    new project-owned docs: docs/workflow/tasks.md, docs/workflow/exec-plans.md,
+    docs/workflow/adrs.md, docs/exec-plans/README.md, and
+    docs/exec-plans/active/264-reduce-ahm-to-tasks-and-adrs.md (moved)
+    milestone 6 owes: README.md (quickstart and safety prose),
+    ARCHITECTURE.md's remaining system-boundary and module prose,
+    .agents/prompt.md and .agents/skills/{grooming-backlog,finding-improvements},
+    docs/guides/workflow-upgrades.md (the v2 migration note, plus whatever the
+    dated sections should say), and the stale retired generated indexes under
+    .ahm/exec-plans/ and .ahm/research/
+
 After milestone 1, measured on 2026-09-20:
 
     18 non-terminal task records, down from 46
@@ -1081,6 +1287,17 @@ hold design plans; and `docs/adr/` with its generated `index.md` remains the
 ADR family `ahm` still manages.
 
 ## Revision Notes
+
+- (2026-09-20) Milestone 4 (264c) executed. The pass followed the milestone's
+  acceptance notes rather than its Work paragraph, which is why the prose sweep
+  reached into `docs/VISION.md`, `docs/cli.md`, `docs/references/*`, and the
+  guardrails, and why `ARCHITECTURE.md` was corrected where its module map named
+  files this milestone deleted. The plan moved into
+  `docs/exec-plans/active/` and `docs/exec-plans/` was registered in
+  `docs/README.md`, `docs/guardrails/documentation.md`, and `AGENTS.md`. The
+  residual items this milestone hands to milestone 6 are listed in the Decision
+  Log, the Surprises section, and the Artifacts section. `just ci` and
+  `just docs-md-lint` pass on the final tree.
 
 - (2026-09-20) Milestone 3 (264b) executed. The pass followed the milestone's
   acceptance criteria rather than its enumerated deletion list, which is why

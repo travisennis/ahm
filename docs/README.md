@@ -7,14 +7,18 @@ index.
 
 ## Start Here
 
-- [Vision](VISION.md): where ahm is going — the channel model, ownership
-  split, git-safety boundary, and design tests for new work.
+- [Vision](VISION.md): where ahm is going — the ownership split, git-safety
+  boundary, and design tests for new work.
 - [CLI reference](cli.md): entrypoint for command, flag, output, and validation
   contracts.
 - [Workflow specification](references/workflow-spec.md): workflow state, file
   ownership, file formats, and atomic write behavior.
 - [Glossary](references/glossary.md): concept definitions mapped to implementing
   types and authoritative docs.
+- [Workflow procedures](workflow/tasks.md): the project-owned [task](workflow/tasks.md),
+  [ADR](workflow/adrs.md), and [ExecPlan](workflow/exec-plans.md) procedures.
+- [Design plans](exec-plans/README.md): in-progress and completed plans for
+  large or cross-cutting work.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): upgrade behavior notes.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
@@ -24,7 +28,7 @@ index.
 ## Common Tasks
 
 For topic-based doc routing (which docs to load for CLI changes, workflow
-changes, agent orchestration, etc.), see the **Workflow Routing** section in
+changes, or agent instructions), see the **Workflow Routing** section in
 [`AGENTS.md`](../AGENTS.md).
 
 | Task | Read |
@@ -38,6 +42,8 @@ changes, agent orchestration, etc.), see the **Workflow Routing** section in
 - `guardrails/`: concise, operational rules for risky change surfaces.
 - `guides/`: repeatable workflows and procedures.
 - `references/`: stable contracts, schemas, formats, and lookup material.
+- `workflow/`: project-owned task, ADR, and ExecPlan procedures.
+- `exec-plans/`: design plans for large or cross-cutting work.
 - `adr/`: architecture decision records and the generated ADR index.
 
 Do not hand-edit generated indexes such as `docs/adr/index.md`; update source

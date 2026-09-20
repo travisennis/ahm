@@ -1,13 +1,10 @@
 package ahm
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/travisennis/ahm/internal/templates"
 )
 
 func runCLI(t *testing.T, args ...string) (string, string, int) {
@@ -140,15 +137,6 @@ func initAndCreateLegacyMetadata(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(metaDir, "ahm.json"), []byte(`{"version":"0.0.0"}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func templateBytes(t *testing.T, path string) []byte {
-	t.Helper()
-	data, err := fs.ReadFile(templates.FS, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return data
 }
 
 func writeTaskFile(t *testing.T, path string, id string, title string, status string, extraFrontMatter string) {

@@ -47,17 +47,3 @@ func (p workflowPaths) tasksBucketDir(bucket string) string {
 func (p workflowPaths) taskFile(bucket string, id string) string {
 	return filepath.Join(p.tasksBucketDir(bucket), id+".md")
 }
-
-func (p workflowPaths) researchRel() string {
-	if p.recordsDir == toolRecordsDirName {
-		return p.recordsDir + "/research"
-	}
-	return p.recordsDir + "/.research"
-}
-
-func (p workflowPaths) execPlansRel(bucket string) string {
-	if bucket == "" {
-		return p.recordsDir + "/exec-plans"
-	}
-	return p.recordsDir + "/exec-plans/" + bucket
-}

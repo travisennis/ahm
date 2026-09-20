@@ -16,18 +16,6 @@ All non-task commands share these guarantees unless stated otherwise:
 - **`--json` / `--plain`**: structured output mode. Unsupported commands print
   text regardless of the flag.
 
-### `audit [flags]`
-
-Delegates a read-only codebase-improvement survey to a supported coding-agent
-CLI. Creates one `Open` task per finding with the `source:audit` label.
-
-**Guarantees:**
-
-- Agent selection, `--agent`, `--model`, and `--timeout` match `task groom`.
-- `--dry-run` prints the prompt and schema without delegation or writes.
-- Invalid output creates no tasks and exits nonzero.
-- Text, `--plain`, and `--json` summaries share one structured result.
-
 ### `help`
 
 Prints built-in help. Aliases: `--help`, `-h`.
@@ -83,16 +71,6 @@ Sets the ADR status, updates `date:` to today, regenerates indexes.
   already-rejected ADR).
 - `--dry-run` prints the target and new status without writing.
 
-### `onboard [flags]`
-
-Prints a paste-ready AGENTS.md bootstrap snippet for new repositories.
-
-**Guarantees:**
-
-- Text mode: framed Markdown. `--plain`: bare snippet. `--json`: structured
-  `snippet` field.
-- Runs in any directory; does not detect or require a repository root.
-
 ### `prime`
 
 Regenerates all generated indexes, runs workflow validation, and prints a
@@ -101,19 +79,7 @@ live repository briefing. The entry point for agent sessions.
 **Guarantees:**
 
 - Fast, offline-tolerant, idempotent.
-- Prints warnings, backlog summary, and managed-work routing.
-
-### `context [scope]`
-
-Prints full managed-work instructions for one scope: `task`, `plan`, `adr`, or
-`research`. General project documentation is not an ahm scope; see
-[ADR 021](../../adr/021-limit-ahm-to-structured-workflow-records.md).
-
-**Guarantees:**
-
-- Scoped context prints binary-emitted procedures, not installed files.
-- Unsupported or missing scope exits with a usage error listing valid scopes;
-  the unscoped form routes to `ahm prime`.
+- Prints validation findings, task counts, and the backlog.
 
 ### `status`
 

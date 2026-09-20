@@ -47,13 +47,13 @@ Required context items, in priority order:
 
 - repo root `AGENTS.md`
 - nested `AGENTS.md` files for the changed areas
-- `ahm context task`, `ahm task show <id>` output when the work came from a
-  task; open the source task record under `.ahm/tasks/` (or the legacy
-  `.agents/.tasks/active/` path) only when `ahm` is unavailable or when
-  reviewing manual edits to the task file itself
-- the relevant active exec plan when one exists for the current work (see
-  `.ahm/exec-plans/active/` or the legacy `.agents/exec-plans/active/`)
-- `ahm context plan` and `docs/design-docs/index.md` for L/XL changes
+- the [task workflow](../../../docs/workflow/tasks.md) and `ahm task show <id>` output when
+  the work came from a task; open the source task record under `.ahm/tasks/`
+  (or the legacy `.agents/.tasks/active/` path) only when `ahm` is unavailable
+  or when reviewing manual edits to the task file itself
+- the relevant active plan under `docs/exec-plans/active/` when one exists for
+  the current work
+- the [ExecPlan workflow](../../../docs/workflow/exec-plans.md) for L/XL changes
 - any design doc or ADR directly relevant to the changed area
 - the changed files and enough nearby context to review them
 
@@ -184,7 +184,7 @@ Make the chosen context auditable. Length scales with change size.
 - Root AGENTS.md: read
 - Nested AGENTS.md: <paths or "none under changed paths">
 - Task context: <task id> / not applicable because <reason>
-- ExecPlan: <plan id> / not applicable because <reason>
+- ExecPlan: <plan id under `docs/exec-plans/`> / not applicable because <reason>
 - Design docs: <docs> / not applicable because <reason>
 - ADRs: <adrs> / not applicable because <reason>
 - Documentation impact: <docs checked/updated, or intentionally none because ...>

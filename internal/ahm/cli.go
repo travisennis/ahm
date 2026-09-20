@@ -200,15 +200,16 @@ Examples:
 	primeCmd := &cobra.Command{
 		Use:   "prime",
 		Short: "Session briefing with live backlog state",
-		Long: `Print a session briefing with repository state, task backlog,
-and managed-work routing.
+		Long: `Print a session briefing with repository state and the task backlog.
 
-The briefing includes:
+The briefing reports:
 - Dirty-worktree warning when the working tree is not clean.
 - Repository root, workflow version, and validation status.
 - In-progress and ready task lists (ready capped at 5).
 - Blocked and open task counts.
-- Managed-work intake routing table.
+
+It regenerates the generated indexes first and prescribes nothing: no command
+to run and no workflow step.
 
 Supports --json, --plain, and --text output.
 
@@ -225,7 +226,6 @@ Examples:
 		},
 	}
 	root.AddCommand(primeCmd)
-	root.AddCommand(a.contextCommand())
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show workflow health",
@@ -283,53 +283,10 @@ Examples:
 		}
 		return a.writeIndexes()
 	}))
-	root.AddCommand(a.onboardCommand())
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.recordsCommand())
 	root.AddCommand(a.taskCommand())
 	return root
-}
-
-func (a *app) contextCommand() *cobra.Command {
-	validScopes := map[string]bool{
-		"task":     true,
-		"adr":      true,
-		"research": true,
-		"plan":     true,
-	}
-	return &cobra.Command{
-		Use:   "context <task|adr|research|plan>",
-		Short: "Managed-work reference",
-		Long: `Print a managed-work reference for one scope.
-
-Unscoped 'ahm context' is no longer valid as a session briefing. The
-session briefing has moved to 'ahm prime'.
-
-Scopes:
-  task     Task workflow reference for creating, choosing, and working on tasks
-  adr      ADR workflow reference for numbering, naming, and template rules
-  research Research workflow reference for organizing and using research notes
-  plan     ExecPlan workflow reference for planning larger tasks
-
-Examples:
-  ahm context task
-  ahm --json context adr`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return usageError("session briefing moved to `ahm prime`\n  ahm prime\n\nValid scoped contexts:\n  ahm context task\n  ahm context adr\n  ahm context research\n  ahm context plan")
-			}
-			if !validScopes[args[0]] {
-				return usageError(fmt.Sprintf("unknown context scope %q (valid: task, adr, research, plan)\n  ahm context <scope>", args[0]))
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
-				return err
-			}
-			return a.context(args[0])
-		},
-	}
 }
 
 func (a *app) simpleCommand(use string, short string, long string, run func() error) *cobra.Command {

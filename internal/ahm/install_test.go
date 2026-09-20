@@ -565,7 +565,7 @@ func TestUpgradeRemovesOwnedInstructionTemplatesAndPreservesProjectAgents(t *tes
 		Files: map[string]string{
 			"AGENTS.md":                             hashBytes([]byte("old managed agents\n")),
 			".agents/TASKS.md":                      hashBytes([]byte("old managed tasks\n")),
-			".agents/PLANS.md":                      hashBytes(templateBytes(t, "workflow/PLANS.md")),
+			".agents/PLANS.md":                      hashBytes([]byte("old managed plans\n")),
 			".agents/RESEARCH.md":                   hashBytes([]byte("locally changed research\n")),
 			".agents/DOCS.md":                       hashBytes([]byte("old managed docs\n")),
 			".agents/.tasks/README.md":              hashBytes([]byte("old managed tasks readme\n")),
@@ -585,7 +585,7 @@ func TestUpgradeRemovesOwnedInstructionTemplatesAndPreservesProjectAgents(t *tes
 		case ".agents/TASKS.md":
 			content = "old managed tasks\n"
 		case ".agents/PLANS.md":
-			content = string(templateBytes(t, "workflow/PLANS.md"))
+			content = "old managed plans\n"
 		case ".agents/RESEARCH.md":
 			content = "local edit that should conflict\n"
 		case ".agents/DOCS.md":

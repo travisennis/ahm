@@ -145,3 +145,29 @@ func TestUsageErrorsExitCode2(t *testing.T) {
 		})
 	}
 }
+
+// TestProcedureChannelCommandsRemoved pins acceptance criterion one of task
+// 264c: the procedure channel is gone, and no alias keeps it alive.
+func TestProcedureChannelCommandsRemoved(t *testing.T) {
+	for _, args := range [][]string{
+		{"context"},
+		{"context", "task"},
+		{"context", "adr"},
+		{"context", "plan"},
+		{"context", "research"},
+		{"onboard"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			stdout, stderr, code := runCLI(t, args...)
+			if code != 2 {
+				t.Fatalf("exit code = %d, want 2; stdout = %s; stderr = %s", code, stdout, stderr)
+			}
+			if stdout != "" {
+				t.Fatalf("removed command printed to stdout:\n%s", stdout)
+			}
+			if !strings.Contains(stderr, "unknown command \""+args[0]+"\"") {
+				t.Fatalf("stderr missing unknown-command message:\n%s", stderr)
+			}
+		})
+	}
+}

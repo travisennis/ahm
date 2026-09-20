@@ -1,6 +1,10 @@
 # Architecture Decision Records
 
-This directory contains Architecture Decision Records for this project. ADRs capture durable technical decisions, their context, and the tradeoffs accepted at the time. They are not implementation plans; use ExecPlans for step-by-step delivery planning.
+This directory contains Architecture Decision Records for this project. ADRs capture durable technical decisions, their context, and the tradeoffs accepted at the time. They are not implementation plans; use a design plan under `docs/exec-plans/` for step-by-step delivery planning.
+
+This document is project-owned prose. `ahm` manages the ADR records and their
+generated index; it does not print, validate, or generate this guide. Edit it
+here when the project's ADR practice changes.
 
 ## When to Write an ADR
 
@@ -17,12 +21,12 @@ ADR-required triggers:
 
 ADRs are usually optional for localized bug fixes, tests, docs, small refactors, and implementation-only follow-through that does not create a new durable decision. When in doubt, prefer a short ADR over leaving an important decision implicit.
 
-## Relationship to Tasks and ExecPlans
+## Relationship to Tasks and Design Plans
 
-- `ahm context task` defines when task work requires an ADR.
+- [Task workflow](tasks.md) defines when a task requires an ADR.
 - Create or update the ADR before code changes begin.
 - Reference the ADR from the task body or implementation notes.
-- If the same task requires an ExecPlan, the ExecPlan should cite the ADR and describe how it will implement the accepted decision.
+- If the same task requires a design plan, the plan should cite the ADR and describe how it will implement the accepted decision.
 - If implementation discovers that the decision needs to change, update the ADR before continuing.
 
 ## Changing Existing Decisions

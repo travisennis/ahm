@@ -1,6 +1,6 @@
 # ahm Task Commands
 
-This reference covers task lifecycle, dependency, delegation, completion,
+This reference covers task lifecycle, dependency, completion,
 cancellation, and reopening commands. For task file grammar and validation
 finding codes, see [task file and validation formats](task-file-format.md).
 
@@ -56,7 +56,7 @@ produce output from remaining valid tasks, and print a warning to stderr.
 next available ID, scanning both parsed tasks and task files on disk to avoid
 collisions.
 
-Task resolution commands (`task show`, `task groom`, `task work`, `task start`,
+Task resolution commands (`task show`, `task start`,
 `task complete`, `task cancel`, `task accept`, `task reopen`, `task comment`,
 `task dep add`, `task dep remove`) skip malformed files during ID resolution.
 A malformed task cannot be resolved and produces a `task not found` error.
@@ -201,20 +201,6 @@ Sets task status to `Completed` from `In Progress` or `Pending`. Equivalent to
 Appends a timestamped comment under `## Comments` in the task body. Creates
 the section if missing.
 
-### `task groom [<id>] [flags]`
-
-Delegates structured backlog grooming of one task, or all groomable tasks when
-the ID is omitted, to a supported coding-agent CLI.
-
-**Guarantees:**
-
-- Agent selection, `--agent`, `--model`, `--timeout` match `task work`.
-- `--dry-run` prints the prompt without delegation.
-- Targets only `Open` and `Blocked` tasks.
-- After delegation, fails without applying any verdict when an original target
-  record changed; the error names every changed target. Concurrent changes to
-  non-target tasks proceed to normal dependency and semantic revalidation.
-
 ### `task dep add|remove <id> <dependency-id>`
 
 Adds or removes a task dependency.
@@ -280,20 +266,6 @@ compact JSON. The structural shape is the same in both modes.
   ahm --json task dep tree 002
   ahm --plain task dep tree 002
 ```
-
-### `task work <id> [flags]`
-
-Delegates a resolved task to an external coding-agent CLI.
-
-**Guarantees:**
-
-- Validates task state before delegation.
-- Review and commit run by default. `--no-review` / `--no-commit` to opt out.
-- Session ID captured from agent stderr for resume.
-- Supported agents: `cake`, `claude`, `codex`, `cursor`.
-- `--agent <name>` selects agent; `--model <name>` overrides the model.
-- `--timeout <duration>` sets the agent timeout.
-- `--dry-run` prints the invocation without executing.
 
 ### `task migrate [flags]`
 

@@ -3,8 +3,8 @@
 ## Scope
 
 Read this guardrail for README, architecture, contributing, CLI docs,
-workflow specs, upgrade docs, ADR docs, context guidance, local
-task/research/ExecPlan workflow docs, and generated documentation indexes.
+workflow specs, upgrade docs, ADR docs, project workflow docs under
+`docs/workflow/`, and generated documentation indexes.
 
 ## Compatibility Surfaces
 
@@ -13,9 +13,9 @@ task/research/ExecPlan workflow docs, and generated documentation indexes.
 - `CONTRIBUTING.md` command catalog, verification, and commit workflow.
 - `docs/cli.md` command contract.
 - `docs/references/workflow-spec.md` workflow semantics and file formats.
-- `ahm context` guidance.
-- Local `.agents/*` workflow guides and generated indexes.
-- ADR workflow docs and generated `docs/adr/index.md`.
+- `docs/workflow/` project-owned task, ADR, and ExecPlan procedures.
+- `docs/exec-plans/` project-owned design plans.
+- Generated `docs/adr/index.md`.
 
 ## Ownership
 
@@ -23,6 +23,8 @@ task/research/ExecPlan workflow docs, and generated documentation indexes.
 - Codemap, boundaries, invariants: `ARCHITECTURE.md`
 - Contributor setup, commands, verification: `CONTRIBUTING.md`
 - Docs navigation: `docs/README.md`
+- Task, ADR, and ExecPlan procedures: `docs/workflow/`
+- Design plans for large work: `docs/exec-plans/`
 - CLI contracts: `docs/cli.md`
 - Workflow semantics: `docs/references/workflow-spec.md`
 - Risk-surface rules: `docs/guardrails/`
@@ -43,7 +45,7 @@ Require a documentation check when a change touches:
 ## Required Checks
 
 - Treat this guardrail and the ownership table above as the authority; `ahm`
-  owns no general-documentation procedure and has no `docs` context scope.
+  owns no general-documentation procedure.
 - Prefer existing documentation locations and style.
 - Do not edit generated indexes by hand.
 - Run `just docs-md-lint` before committing markdown changes.

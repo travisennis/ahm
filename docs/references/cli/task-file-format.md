@@ -19,7 +19,6 @@ Required task fields:
 - `priority`
 - `effort`
 - `labels`
-- `exec_plan`
 - `depends_on`
 
 Optional front matter preserved by task rewrites:
@@ -92,14 +91,6 @@ Finding codes:
 | `task_acceptance_missing` | A completed task is missing an acceptance section. |
 | `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |
 | `task_acceptance_unchecked` | A completed task acceptance section contains unchecked `- [ ]` or `* [ ]` items. |
-| `task_exec_plan_missing` | A task references an ExecPlan that could not be found. |
-| `task_completed_exec_plan_active` | A completed task references an ExecPlan still in the active ExecPlan bucket. |
-| `task_completed_exec_plan_incomplete` | A completed task references a completed ExecPlan without a filled `Outcomes & Retrospective` section. |
-| `exec_plan_active_with_outcomes` | An active ExecPlan has a filled `Outcomes & Retrospective` section. |
-| `exec_plan_completed_without_outcomes` | A completed ExecPlan has an empty or missing `Outcomes & Retrospective` section. |
-| `exec_plan_completed_with_open_progress` | A completed ExecPlan still has open `- [ ]` or `* [ ]` items in its `Progress` section. |
-| `exec_plan_missing_section` | An ExecPlan is missing one of the mandatory lifecycle sections. `ahm` emits one finding per missing section. |
-| `exec_plan_orphan` | An ExecPlan is not referenced by any task `exec_plan` field. This is an info-tier finding. |
 | `adr_malformed` | An ADR file could not be parsed. |
 | `adr_id_mismatch` | An ADR metadata `id` value does not match the numeric filename prefix. |
 | `adr_duplicate_id` | Multiple ADR files use the same numeric ADR ID. |
@@ -110,6 +101,5 @@ Finding codes:
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
 | `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
-| `research_inbox_stale` | A research inbox note reached the configured stale threshold. This is a warning-tier finding that names the human disposition options. |
-| `markdown_link_missing` | A relative Markdown link inside a task, research record, ExecPlan, ADR, or their generated indexes points at a missing file. |
+| `markdown_link_missing` | A relative Markdown link inside a task, ADR, or their generated indexes points at a missing file. |
 | `markdown_link_check_failed` | A structured-record Markdown link check could not be completed. |
