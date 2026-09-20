@@ -1,9 +1,7 @@
 package ahm
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,8 +22,8 @@ func (a *app) writeIndexes() error {
 
 func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 	// One cache spans generation, the staleness checks, and the post-mutation
-	// validation below, so each ExecPlan, ADR, and generated index is read once
-	// per mutation instead of once per step.
+	// validation below, so each ADR and generated index is read once per
+	// mutation instead of once per step.
 	cache := newRecordCache()
 	writes, err := indexWritesForPaths(a.opts.root, tasks, a.workflowPaths(), cache)
 	if err != nil {
@@ -127,36 +125,21 @@ func (a *app) indexWriteTargetsFor(paths workflowPaths) ([]string, error) {
 // given task set and workflow paths. It is used by both the index-writing and
 // validation paths to avoid re-parsing the task tree.
 //
-// The records it reads (ExecPlans and ADRs) land in cache, so a validation pass
-// later in the same command reuses them instead of re-reading. Pass a nil cache
-// when there is nothing to hand off.
+// The ADR records it reads land in cache, so a validation pass later in the
+// same command reuses them instead of re-reading. Pass a nil cache when there
+// is nothing to hand off.
 func indexWritesForPaths(root string, tasks []Task, paths workflowPaths, cache *recordCache) (map[string]string, error) {
 	indexWritesForPathsHook()
-	research, err := collectMarkdownDocs(cache, root, paths.researchRel(), []string{"inbox", "investigations", "sources", "topics", "archived"})
-	if err != nil {
-		return nil, err
-	}
-	activePlans, err := collectMarkdownDocs(cache, root, paths.execPlansRel("active"), []string{""})
-	if err != nil {
-		return nil, err
-	}
-	completedPlans, err := collectMarkdownDocs(cache, root, paths.execPlansRel("completed"), []string{""})
-	if err != nil {
-		return nil, err
-	}
 	adrs, adrErr := cache.adrList(root)
 	if adrErr != nil && len(adrs) == 0 {
 		return nil, adrErr
 	}
 	writes := map[string]string{
-		filepath.Join(paths.tasksBucketDir(""), "index.md"):                      renderRootIndex(tasks),
-		filepath.Join(paths.tasksBucketDir("active"), "index.md"):                renderBucketIndex(tasks, "active"),
-		filepath.Join(paths.tasksBucketDir("completed"), "index.md"):             renderBucketIndex(tasks, "completed"),
-		filepath.Join(paths.tasksBucketDir("cancelled"), "index.md"):             renderBucketIndex(tasks, "cancelled"),
-		filepath.Join(root, filepath.FromSlash(paths.researchRel()), "index.md"): renderResearchIndex(research),
-		filepath.Join(paths.execPlansDir("active"), "index.md"):                  renderExecPlanIndex("Active ExecPlans", "No active ExecPlans yet.", activePlans),
-		filepath.Join(paths.execPlansDir("completed"), "index.md"):               renderExecPlanIndex("Completed ExecPlans", "No completed ExecPlans yet.", completedPlans),
-		filepath.Join(root, "docs", "adr", "index.md"):                           renderADRIndex(adrs),
+		filepath.Join(paths.tasksBucketDir(""), "index.md"):          renderRootIndex(tasks),
+		filepath.Join(paths.tasksBucketDir("active"), "index.md"):    renderBucketIndex(tasks, "active"),
+		filepath.Join(paths.tasksBucketDir("completed"), "index.md"): renderBucketIndex(tasks, "completed"),
+		filepath.Join(paths.tasksBucketDir("cancelled"), "index.md"): renderBucketIndex(tasks, "cancelled"),
+		filepath.Join(root, "docs", "adr", "index.md"):               renderADRIndex(adrs),
 	}
 	if adrErr != nil {
 		return writes, fmt.Errorf("some ADR files could not be parsed and were skipped: %w", adrErr)
@@ -173,21 +156,14 @@ var generatedIndexTargetsList = []string{
 	".agents/.tasks/active/index.md",
 	".agents/.tasks/completed/index.md",
 	".agents/.tasks/cancelled/index.md",
-	".agents/.research/index.md",
-	".agents/exec-plans/active/index.md",
-	".agents/exec-plans/completed/index.md",
 	".ahm/.tasks/index.md",
 	".ahm/.tasks/active/index.md",
 	".ahm/.tasks/completed/index.md",
 	".ahm/.tasks/cancelled/index.md",
-	".ahm/.research/index.md",
 	".ahm/tasks/index.md",
 	".ahm/tasks/active/index.md",
 	".ahm/tasks/completed/index.md",
 	".ahm/tasks/cancelled/index.md",
-	".ahm/research/index.md",
-	".ahm/exec-plans/active/index.md",
-	".ahm/exec-plans/completed/index.md",
 	"docs/adr/index.md",
 }
 
@@ -248,76 +224,6 @@ func renderRootIndex(tasks []Task) string {
 	return b.String()
 }
 
-type markdownDoc struct {
-	Link  string
-	Title string
-}
-
-func collectMarkdownDocs(cache *recordCache, root string, base string, buckets []string) (map[string][]markdownDoc, error) {
-	docs := map[string][]markdownDoc{}
-	for _, bucket := range buckets {
-		docs[bucket] = nil
-		dir := filepath.Join(root, base, bucket)
-		entries, err := os.ReadDir(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			path := filepath.Join(dir, entry.Name())
-			title, err := markdownTitle(cache, path)
-			if err != nil {
-				return nil, err
-			}
-			link := entry.Name()
-			if bucket != "" {
-				link = filepath.ToSlash(filepath.Join(bucket, entry.Name()))
-			}
-			docs[bucket] = append(docs[bucket], markdownDoc{Link: link, Title: title})
-		}
-		sort.Slice(docs[bucket], func(i, j int) bool {
-			return docs[bucket][i].Link < docs[bucket][j].Link
-		})
-	}
-	return docs, nil
-}
-
-func markdownTitle(cache *recordCache, path string) (string, error) {
-	data, err := cache.readFile(path)
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if title, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
-			title = strings.TrimSpace(title)
-			if title != "" {
-				return title, nil
-			}
-		}
-	}
-	name := filepath.Base(path)
-	return strings.TrimSuffix(name, filepath.Ext(name)), nil
-}
-
-func renderResearchIndex(docs map[string][]markdownDoc) string {
-	var b strings.Builder
-	fmt.Fprintln(&b, "# Research Index")
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "This file is generated by `ahm index`. Do not edit it by hand.")
-	fmt.Fprintln(&b)
-	writeDocSection(&b, "Inbox", "No inbox research documents yet.", docs["inbox"])
-	writeDocSection(&b, "Investigations", "No investigation documents yet.", docs["investigations"])
-	writeDocSection(&b, "Sources", "No source notes yet.", docs["sources"])
-	writeDocSection(&b, "Topics", "No topic documents yet.", docs["topics"])
-	writeDocSection(&b, "Archived", "No archived research documents yet.", docs["archived"])
-	return b.String()
-}
-
 func renderADRIndex(adrs []ADR) string {
 	var b strings.Builder
 	fmt.Fprintln(&b, "# ADR Index")
@@ -342,31 +248,6 @@ func renderADRIndex(adrs []ADR) string {
 	return b.String()
 }
 
-func renderExecPlanIndex(title string, empty string, docs map[string][]markdownDoc) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n", title)
-	fmt.Fprintln(&b, "This file is generated by `ahm index`. Do not edit it by hand.")
-	fmt.Fprintln(&b)
-	writeDocList(&b, empty, docs[""])
-	return b.String()
-}
-
-func writeDocSection(b *strings.Builder, title string, empty string, docs []markdownDoc) {
-	fmt.Fprintf(b, "## %s\n\n", title)
-	writeDocList(b, empty, docs)
-	fmt.Fprintln(b)
-}
-
-func writeDocList(b *strings.Builder, empty string, docs []markdownDoc) {
-	if len(docs) == 0 {
-		fmt.Fprintln(b, empty)
-		return
-	}
-	for _, doc := range docs {
-		fmt.Fprintf(b, "- [%s](%s)\n", escapeCell(doc.Title), doc.Link)
-	}
-}
-
 func renderBucketIndex(tasks []Task, bucket string) string {
 	var b strings.Builder
 	title := bucketTitle(bucket)
@@ -388,8 +269,8 @@ func renderBucketIndex(tasks []Task, bucket string) string {
 }
 
 func writeTaskTable(b *strings.Builder, tasks []Task, from string) {
-	fmt.Fprintln(b, "| Task | Title | Status | Priority | Effort | Labels | ExecPlan | Depends on |")
-	fmt.Fprintln(b, "| ---- | ----- | ------ | -------- | ------ | ------ | -------- | ---------- |")
+	fmt.Fprintln(b, "| Task | Title | Status | Priority | Effort | Labels | Depends on |")
+	fmt.Fprintln(b, "| ---- | ----- | ------ | -------- | ------ | ------ | ---------- |")
 	for _, task := range tasks {
 		link := task.ID + ".md"
 		if from == "." {
@@ -397,7 +278,7 @@ func writeTaskTable(b *strings.Builder, tasks []Task, from string) {
 		}
 		fmt.Fprintf(
 			b,
-			"| [%s](%s) | %s | %s | %s | %s | %s | %s | %s |\n",
+			"| [%s](%s) | %s | %s | %s | %s | %s | %s |\n",
 			escapeCell(task.ID),
 			link,
 			escapeCell(task.Title),
@@ -405,7 +286,6 @@ func writeTaskTable(b *strings.Builder, tasks []Task, from string) {
 			escapeCell(task.Priority),
 			escapeCell(task.Effort),
 			escapeCell(task.Labels),
-			escapeCell(task.ExecPlan),
 			escapeCell(formatList(task.DependsOn)),
 		)
 	}

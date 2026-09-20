@@ -58,7 +58,6 @@ type Task struct {
 	Priority    string            `json:"priority"`
 	Effort      string            `json:"effort"`
 	Labels      string            `json:"labels"`
-	ExecPlan    string            `json:"exec_plan"`
 	DependsOn   []string          `json:"depends_on"`
 	Created     string            `json:"created"`
 	Updated     string            `json:"updated"`
@@ -132,7 +131,6 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 		Priority:    defaultDash(meta["priority"]),
 		Effort:      defaultDash(meta["effort"]),
 		Labels:      defaultDash(meta["labels"]),
-		ExecPlan:    defaultDash(meta["exec_plan"]),
 		DependsOn:   parseList(meta["depends_on"]),
 		Created:     meta["created"],
 		Updated:     meta["updated"],
@@ -317,13 +315,21 @@ func needsFrontMatterQuoting(value string) bool {
 	return false
 }
 
+// retiredExecPlanField is the task front-matter field that linked a task to an
+// ExecPlan. ahm no longer manages ExecPlans, so the field is no longer part of
+// the task schema; a value written by an older ahm is carried in Task.Extra and
+// re-rendered in place.
+const retiredExecPlanField = "exec_plan"
+
 // metaExtra returns the subset of meta keys that are not known task fields.
+// The retired ExecPlan link lands here, so its value survives every rewrite as
+// a preserved unknown field.
 func metaExtra(meta map[string]string) map[string]string {
 	extra := map[string]string{}
 	for k, v := range meta {
 		switch k {
 		case "id", "title", "status", "priority", "effort", "labels",
-			"exec_plan", "depends_on", "created", "updated",
+			"depends_on", "created", "updated",
 			"parent", "external_ref":
 			// known field, skip
 		default:
@@ -482,7 +488,12 @@ func renderTask(task Task) string {
 	fmt.Fprintf(&b, "priority: %s\n", renderFrontMatterScalar(task.Priority))
 	fmt.Fprintf(&b, "effort: %s\n", renderFrontMatterScalar(task.Effort))
 	fmt.Fprintf(&b, "labels: %s\n", renderFrontMatterScalar(task.Labels))
-	fmt.Fprintf(&b, "exec_plan: %s\n", renderFrontMatterScalar(task.ExecPlan))
+	// The retired ExecPlan link keeps the front-matter slot it had while it was
+	// a schema field, so a task file written by an older ahm round-trips
+	// byte-identically instead of being reordered on its next write.
+	if execPlan, ok := task.Extra[retiredExecPlanField]; ok {
+		fmt.Fprintf(&b, "%s: %s\n", retiredExecPlanField, renderFrontMatterScalar(execPlan))
+	}
 	fmt.Fprintf(&b, "depends_on: %s\n", renderFrontMatterScalar(formatList(task.DependsOn)))
 	if task.Created != "" {
 		fmt.Fprintf(&b, "created: %s\n", renderFrontMatterScalar(task.Created))
@@ -497,6 +508,10 @@ func renderTask(task Task) string {
 		fmt.Fprintf(&b, "external_ref: %s\n", renderFrontMatterScalar(task.ExternalRef))
 	}
 	for _, k := range sortedKeys(task.Extra) {
+		if k == retiredExecPlanField {
+			// Rendered in its original slot above.
+			continue
+		}
 		fmt.Fprintf(&b, "%s: %s\n", k, renderFrontMatterScalar(task.Extra[k]))
 	}
 	fmt.Fprintln(&b, "---")

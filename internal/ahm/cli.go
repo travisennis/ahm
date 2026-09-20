@@ -132,8 +132,8 @@ func (a *app) command() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "ahm",
 		Short: "Manage repo-local .agents workflows",
-		Long: `Manage repo-local .agents workflow files for tasks, research notes,
-ADRs, and generated indexes.
+		Long: `Manage repo-local .agents workflow files for tasks, ADRs, and
+indexes.
 
 When run with no command, ahm runs 'status', which exits with code 1
 when validation errors are found. For a session briefing with live backlog
@@ -208,7 +208,6 @@ The briefing includes:
 - Repository root, workflow version, and validation status.
 - In-progress and ready task lists (ready capped at 5).
 - Blocked and open task counts.
-- Active ExecPlans and recent research notes.
 - Managed-work intake routing table.
 
 Supports --json, --plain, and --text output.
@@ -272,7 +271,7 @@ Examples:
 	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links")
 	root.AddCommand(doctorCmd)
 
-	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", `Regenerate generated task, research, ExecPlan, and ADR indexes.
+	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", `Regenerate generated task and ADR indexes.
 
 Examples:
   ahm index

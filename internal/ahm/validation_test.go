@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestValidateWorkflowStateMatchesStandaloneValidation(t *testing.T) {
@@ -193,31 +192,6 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 		`"ok": true`,
 		`"code": "task_dependency_cancelled"`,
 		`task 001 depends on cancelled task 002`,
-	)
-}
-
-func TestDoctorReportsStaleResearchInboxDisposition(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-	created := time.Now().UTC().AddDate(0, 0, -30).Format(time.DateOnly)
-	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: "+created+"\n")
-	indexer := app{opts: options{root: root}, out: &strings.Builder{}}
-	if err := indexer.writeIndexes(); err != nil {
-		t.Fatal(err)
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.doctor(); err != nil {
-		t.Fatal(err)
-	}
-	assertContainsAll(t, out.String(),
-		`"code": "research_inbox_stale"`,
-		`"path": ".ahm/research/inbox/old-note.md"`,
-		"threshold 21",
-		"promote it to research/topics",
-		"convert it to a task",
-		"delete it if it has no continuing value",
 	)
 }
 
@@ -425,7 +399,6 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: []\n")
-	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "new-note.md"), "# New Note\n\nThis should make the research index stale.\n")
 	if err := os.Remove(filepath.Join(root, ".ahm", "tasks", "cancelled", "index.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -441,194 +414,6 @@ func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
 		`completed task should be in .ahm/tasks/completed`,
 		`"code": "generated_index_missing"`,
 		`"path": ".ahm/tasks/cancelled/index.md"`,
-		`"code": "generated_index_stale"`,
-		`"path": ".ahm/research/index.md"`,
-	)
-}
-
-func TestStatusReportsCompletedTaskReferencingActiveExecPlan(t *testing.T) {
-	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "---\n"+
-		"id: 001\n"+
-		"title: Plan Still Active\n"+
-		"status: Completed\n"+
-		"priority: P2\n"+
-		"effort: S\n"+
-		"labels: type:task\n"+
-		"exec_plan: rollout\n"+
-		"depends_on: []\n"+
-		"---\n"+
-		"# Plan Still Active\n\n"+
-		"## Summary\n\nDone.\n")
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"), "# Rollout\n\n## Outcomes & Retrospective\n\n")
-
-	var out strings.Builder
-	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.status(); err != nil {
-		t.Error(err)
-	}
-	assertContainsAll(t, out.String(),
-		`"code": "task_completed_exec_plan_active"`,
-		`completed task 001 references active ExecPlan .ahm/exec-plans/active/rollout.md`,
-	)
-}
-
-func TestStatusReportsCompletedTaskReferencingIncompleteCompletedExecPlan(t *testing.T) {
-	root := t.TempDir()
-	var installOut strings.Builder
-	installer := app{opts: options{root: root}, out: &installOut}
-	if err := installer.install(false); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "---\n"+
-		"id: 001\n"+
-		"title: Plan Incomplete\n"+
-		"status: Completed\n"+
-		"priority: P2\n"+
-		"effort: S\n"+
-		"labels: type:task\n"+
-		"exec_plan: rollout\n"+
-		"depends_on: []\n"+
-		"---\n"+
-		"# Plan Incomplete\n\n"+
-		"## Summary\n\nDone.\n")
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "completed", "rollout.md"), "# Rollout\n\n"+
-		"## Progress\n\n- [x] Do it.\n\n"+
-		"## Surprises & Discoveries\n\nNone.\n\n"+
-		"## Decision Log\n\n- Chose this.\n\n"+
-		"## Outcomes & Retrospective\n\n")
-
-	var out strings.Builder
-	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.status(); err != nil {
-		t.Error(err)
-	}
-	assertContainsAll(t, out.String(),
-		`"code": "task_completed_exec_plan_incomplete"`,
-		`completed task 001 references ExecPlan without a completed Outcomes \u0026 Retrospective section`,
-	)
-}
-
-func TestValidateExecPlansReportsLifecycleFindings(t *testing.T) {
-	tests := []struct {
-		name       string
-		bucket     string
-		content    string
-		tasks      []Task
-		wantWarn   string
-		wantInfo   string
-		wantNoWarn string
-	}{
-		{
-			name:   "active with outcomes",
-			bucket: "active",
-			content: "# Plan\n\n" +
-				"## Progress\n\n- [ ] Do it.\n\n" +
-				"## Surprises & Discoveries\n\nNone yet.\n\n" +
-				"## Decision Log\n\n- Chose this.\n\n" +
-				"## Outcomes & Retrospective\n\nDone early.\n",
-			tasks:    []Task{{ExecPlan: ".agents/exec-plans/active/plan.md"}},
-			wantWarn: "exec_plan_active_with_outcomes",
-		},
-		{
-			name:   "completed without outcomes",
-			bucket: "completed",
-			content: "# Plan\n\n" +
-				"### Progress\n\n- [x] Do it.\n\n" +
-				"### Surprises & Discoveries\n\nNone.\n\n" +
-				"### Decision Log\n\n- Chose this.\n\n" +
-				"### Outcomes & Retrospective\n\n" +
-				"## Later Section\n\nThis does not count as outcomes.\n",
-			tasks:    []Task{{ExecPlan: ".agents/exec-plans/completed/plan.md"}},
-			wantWarn: "exec_plan_completed_without_outcomes",
-		},
-		{
-			name:   "completed with open progress",
-			bucket: "completed",
-			content: "# Plan\n\n" +
-				"## Progress\n\n- [ ] Do it.\n\n" +
-				"## Surprises & Discoveries\n\nNone.\n\n" +
-				"## Decision Log\n\n- Chose this.\n\n" +
-				"## Outcomes & Retrospective\n\nDone.\n",
-			tasks:    []Task{{ExecPlan: ".agents/exec-plans/completed/plan.md"}},
-			wantWarn: "exec_plan_completed_with_open_progress",
-		},
-		{
-			name:   "missing section",
-			bucket: "active",
-			content: "# Plan\n\n" +
-				"## Progress\n\n- [ ] Do it.\n\n" +
-				"## Decision Log\n\n- Chose this.\n\n" +
-				"## Outcomes & Retrospective\n\n",
-			tasks:    []Task{{ExecPlan: ".agents/exec-plans/active/plan.md"}},
-			wantWarn: "exec_plan_missing_section",
-		},
-		{
-			name:   "orphan info",
-			bucket: "active",
-			content: "# Plan\n\n" +
-				"## Progress\n\n- [ ] Do it.\n\n" +
-				"## Surprises & Discoveries\n\nNone.\n\n" +
-				"## Decision Log\n\n- Chose this.\n\n" +
-				"## Outcomes & Retrospective\n\n",
-			wantInfo:   "exec_plan_orphan",
-			wantNoWarn: "exec_plan_orphan",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			root := t.TempDir()
-			path := filepath.Join(root, ".agents", "exec-plans", tt.bucket, "plan.md")
-			writeFile(t, path, tt.content)
-
-			report := validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}}
-			validateExecPlans(root, workflowPathsFor(root), tt.tasks, &report)
-
-			if tt.wantWarn != "" && !hasFinding(report.Warnings, tt.wantWarn) {
-				t.Errorf("missing warning %q: %#v", tt.wantWarn, report.Warnings)
-			}
-			if tt.wantInfo != "" && !hasFinding(report.Info, tt.wantInfo) {
-				t.Errorf("missing info %q: %#v", tt.wantInfo, report.Info)
-			}
-			if tt.wantNoWarn != "" && hasFinding(report.Warnings, tt.wantNoWarn) {
-				t.Errorf("unexpected warning %q: %#v", tt.wantNoWarn, report.Warnings)
-			}
-		})
-	}
-}
-
-func TestDoctorJSONReportsExecPlanInfoWithoutFailing(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "orphan.md"), "# Orphan\n\n"+
-		"## Progress\n\n- [ ] Do it.\n\n"+
-		"## Surprises & Discoveries\n\nNone yet.\n\n"+
-		"## Decision Log\n\n- Chose this.\n\n"+
-		"## Outcomes & Retrospective\n\n")
-
-	// Generate indexes so doctor doesn't report missing-index errors.
-	var indexOut strings.Builder
-	indexer := app{opts: options{root: root}, out: &indexOut}
-	if err := indexer.writeIndexes(); err != nil {
-		t.Fatal(err)
-	}
-
-	var out strings.Builder
-	a := app{opts: options{root: root, json: true}, out: &out}
-	if err := a.doctor(); err != nil {
-		t.Error(err)
-	}
-	got := out.String()
-	assertContainsAll(t, got,
-		`"ok": true`,
-		`"info": [`,
-		`"code": "exec_plan_orphan"`,
 	)
 }
 
@@ -804,9 +589,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	paths := workflowPathsFor(root)
-	linkPath := filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md")
-	writeFile(t, linkPath, "# Links\n\n[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
+	linkPath := writeLinkCarrierTask(t, root, "001", "[missing](missing.md)\n\n```md\n[ignored](also-missing.md)\n```\n")
 
 	var out strings.Builder
 	a := app{opts: options{root: root, json: true}, out: &out}
@@ -816,10 +599,30 @@ func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
 	got := out.String()
 	assertContainsAll(t, got,
 		`"code": "markdown_link_missing"`,
-		`"path": "`+relPath(root, linkPath)+`:3"`,
+		`"path": "`+relPath(root, linkPath)+`:12"`,
 		`relative Markdown link target does not exist: missing.md`,
 	)
 	assertNotContains(t, got, "also-missing.md")
+}
+
+// writeLinkCarrierTask writes a valid task whose body carries Markdown so
+// link-scope tests exercise a surviving record family. The body starts on
+// line 12 of the rendered file.
+func writeLinkCarrierTask(t *testing.T, root string, id string, body string) string {
+	t.Helper()
+	path := workflowPathsFor(root).taskFile("active", id)
+	writeFile(t, path, "---\n"+
+		"id: "+id+"\n"+
+		"title: Links\n"+
+		"status: Pending\n"+
+		"priority: P2\n"+
+		"effort: S\n"+
+		"labels: type:task\n"+
+		"depends_on: -\n"+
+		"---\n"+
+		"# Links\n\n"+
+		body)
+	return path
 }
 
 func TestWalkMarkdownLinks(t *testing.T) {
@@ -855,13 +658,11 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	if err := installer.install(false); err != nil {
 		t.Fatal(err)
 	}
-	paths := workflowPathsFor(root)
 	// Quoted example links inside inline code spans and fenced code blocks must
 	// not be treated as navigation, but a real broken link on the same line
 	// (outside any backticks) must still be reported.
-	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"),
-		"# Links\n\n"+
-			"Span: `[ADRs](adr/index.md)` and span2: `[broken](also-missing.md)`.\n\n"+
+	writeLinkCarrierTask(t, root, "001",
+		"Span: `[ADRs](adr/index.md)` and span2: `[broken](also-missing.md)`.\n\n"+
 			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
 			"[real](real-missing.md)\n")
 
@@ -901,22 +702,6 @@ func TestValidateManagedRecordLinksByFamilyAndLayout(t *testing.T) {
 			},
 			sourceName: "001.md",
 			targetName: "002.md",
-		},
-		{
-			name: "research",
-			dir: func(root string, paths workflowPaths) string {
-				return filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics")
-			},
-			sourceName: "links.md",
-			targetName: "target.md",
-		},
-		{
-			name: "exec-plans",
-			dir: func(root string, paths workflowPaths) string {
-				return paths.execPlansDir("active")
-			},
-			sourceName: "links.md",
-			targetName: "target.md",
 		},
 		{
 			name: "adrs",
@@ -977,8 +762,6 @@ func TestValidateManagedRecordLinksIncludesGeneratedIndexes(t *testing.T) {
 			paths := workflowPathsFor(root)
 			indexes := []string{
 				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "index.md"),
-				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "index.md"),
-				filepath.Join(paths.execPlansDir("active"), "index.md"),
 				filepath.Join(root, "docs", "adr", "index.md"),
 			}
 			for _, path := range indexes {
@@ -1036,25 +819,14 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 			}
 			for _, path := range []string{
 				filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "README.md"),
-				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "README.md"),
-				filepath.Join(root, filepath.FromSlash(paths.execPlansRel("")), "README.md"),
 				filepath.Join(root, "docs", "adr", "README.md"),
 			} {
 				writeFile(t, path, "# Preserved scaffold\n\n[missing](scaffold-missing.md)\n")
 			}
 			for _, path := range []string{
 				filepath.Join(paths.tasksBucketDir("active"), "project-notes", "guide.md"),
-				filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "project-notes", "guide.md"),
-				filepath.Join(paths.execPlansDir("active"), "archive", "README.md"),
 			} {
 				writeFile(t, path, "# Nested project notes\n\n[missing](nested-missing.md)\n")
-			}
-			if paths.recordsDir == toolRecordsDirName {
-				writeFile(t, filepath.Join(root, ".agents", ".research", "topics", "stale.md"),
-					"# Legacy record\n\n[missing](legacy-layout-missing.md)\n")
-			} else {
-				writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "stale.md"),
-					"# Current record\n\n[missing](current-layout-missing.md)\n")
 			}
 
 			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
@@ -1072,6 +844,165 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateLinksSkipsRetiredRecordFamilies pins acceptance criterion one of
+// task 264b: nothing in the retired research and ExecPlan trees is read any
+// more, so a broken link inside one of them is never reported and deleting the
+// directory changes no ahm behavior.
+func TestValidateLinksSkipsRetiredRecordFamilies(t *testing.T) {
+	layouts := []struct {
+		name  string
+		setup func(*testing.T, string)
+		files []string
+	}{
+		{
+			name:  "current",
+			setup: setupAhmRepo,
+			files: []string{
+				".ahm/research/inbox/note.md",
+				".ahm/research/topics/note.md",
+				".ahm/research/index.md",
+				".ahm/exec-plans/active/note.md",
+				".ahm/exec-plans/active/index.md",
+			},
+		},
+		{
+			name:  "legacy",
+			setup: initAndCreateLegacyMetadata,
+			files: []string{
+				".agents/.research/inbox/note.md",
+				".agents/.research/index.md",
+				".agents/exec-plans/active/note.md",
+				".agents/exec-plans/active/index.md",
+			},
+		},
+	}
+
+	for _, layout := range layouts {
+		t.Run(layout.name, func(t *testing.T) {
+			root := t.TempDir()
+			layout.setup(t, root)
+			paths := workflowPathsFor(root)
+			for _, file := range layout.files {
+				writeFile(t, filepath.Join(root, filepath.FromSlash(file)),
+					"# Retired record\n\n[missing](missing.md)\n")
+			}
+
+			report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeLinks}, paths)
+			for _, finding := range report.Warnings {
+				if finding.Code == "markdown_link_missing" {
+					t.Errorf("retired record family was link-checked: %#v", finding)
+				}
+			}
+		})
+	}
+}
+
+// TestRetiredRecordFamiliesChangeNothing pins acceptance criteria one and three
+// of task 264b end to end. With retired records on disk, including broken links,
+// stale indexes, and a task that still carries a dangling exec_plan value, the
+// read-write commands read no file under either retired tree, report no finding
+// for one, and report exactly the same findings once the trees are gone.
+func TestRetiredRecordFamiliesChangeNothing(t *testing.T) {
+	layouts := []struct {
+		name  string
+		setup func(*testing.T, string)
+		trees []string
+	}{
+		{
+			name:  "current",
+			setup: setupAhmRepo,
+			trees: []string{".ahm/research", ".ahm/exec-plans"},
+		},
+		{
+			name:  "legacy",
+			setup: initAndCreateLegacyMetadata,
+			trees: []string{".agents/.research", ".agents/exec-plans"},
+		},
+	}
+
+	for _, layout := range layouts {
+		t.Run(layout.name, func(t *testing.T) {
+			root := t.TempDir()
+			layout.setup(t, root)
+			paths := workflowPathsFor(root)
+			// A surviving task that still carries the retired field.
+			writeFile(t, paths.taskFile("active", "001"), "---\n"+
+				"id: 001\n"+
+				"title: Retired Field\n"+
+				"status: Pending\n"+
+				"priority: P2\n"+
+				"effort: S\n"+
+				"labels: type:task\n"+
+				"exec_plan: 999-old-plan\n"+
+				"depends_on: -\n"+
+				"---\n"+
+				"# Retired Field\n\n## Acceptance Notes\n\n- [x] Done.\n")
+			writeADRFile(t, root, "001-good-decision.md", "---\nstatus: accepted\ndate: 2026-07-01\n---\n# Good Decision\n\nBody.\n")
+			for _, tree := range layout.trees {
+				writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "inbox", "note.md"),
+					"# Retired record\n\n[missing](missing.md)\n")
+				writeFile(t, filepath.Join(root, filepath.FromSlash(tree), "index.md"),
+					"# Retired index\n\n[missing](missing.md)\n")
+			}
+
+			reads := map[string]int{}
+			original := readWorkflowFileHook
+			readWorkflowFileHook = func(path string) { reads[relPath(root, path)]++ }
+			t.Cleanup(func() { readWorkflowFileHook = original })
+
+			// Exercise the read-write commands twice: once with the retired trees in
+			// place and once after deleting them. index runs first so the surviving
+			// generated state is settled and the later commands exit 0.
+			commands := []string{"index", "status", "doctor", "prime"}
+			beforeReport := runRetiredTreeCommands(t, root, commands)
+			for _, tree := range layout.trees {
+				if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(tree))); err != nil { // #nosec G703 -- path built from t.TempDir
+					t.Fatal(err)
+				}
+			}
+			afterReport := runRetiredTreeCommands(t, root, commands)
+
+			for path := range reads {
+				if strings.Contains(path, "research") || strings.Contains(path, "exec-plans") {
+					t.Errorf("read a retired record: %s", path)
+				}
+			}
+			if !reflect.DeepEqual(beforeReport.Errors, afterReport.Errors) ||
+				!reflect.DeepEqual(beforeReport.Warnings, afterReport.Warnings) ||
+				!reflect.DeepEqual(beforeReport.Info, afterReport.Info) {
+				t.Errorf("removing the retired trees changed the findings\nbefore: %+v\nafter: %+v", beforeReport, afterReport)
+			}
+		})
+	}
+}
+
+// runRetiredTreeCommands runs each command, requires success, and returns the
+// validation report of the read-write commands whose findings could mention a
+// retired record.
+func runRetiredTreeCommands(t *testing.T, root string, commands []string) validationReport {
+	t.Helper()
+	var report validationReport
+	for _, command := range commands {
+		stdout, stderr, code := runCLI(t, "--root", root, command)
+		if code != 0 {
+			t.Fatalf("%s exit code = %d, stdout = %s, stderr = %s", command, code, stdout, stderr)
+		}
+		assertNotContains(t, stdout+stderr, "exec_plan", "research_inbox_stale", "markdown_link_missing")
+	}
+	report, _ = validateWorkflowScopedForPaths(root, nil, workflowPathsFor(root))
+	for _, findings := range [][]validationFinding{report.Errors, report.Warnings, report.Info} {
+		for _, finding := range findings {
+			if strings.Contains(finding.Path, "research") || strings.Contains(finding.Path, "exec-plans") {
+				t.Errorf("retired record produced a finding: %#v", finding)
+			}
+			if strings.Contains(finding.Code, "research") || strings.Contains(finding.Code, "exec_plan") {
+				t.Errorf("retired finding code emitted: %#v", finding)
+			}
+		}
+	}
+	return report
 }
 
 func TestStatusAndDoctorManagedLinksScopesAndOutputModes(t *testing.T) {
@@ -1140,7 +1071,7 @@ func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 	root := t.TempDir()
 	setupAhmRepo(t, root)
 	// Add a broken link that would trigger markdown_link_missing.
-	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	writeLinkCarrierTask(t, root, "002", "[missing](missing.md)\n")
 	// Add a workflow issue.
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
@@ -1172,7 +1103,7 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 	}
 	paths := workflowPathsFor(root)
 	// Add a broken link.
-	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	writeLinkCarrierTask(t, root, "002", "[missing](missing.md)\n")
 	// Create a workflow issue.
 	writeTaskFile(t, paths.taskFile("active", "001"), "001", "Bad Task", "Doing", "depends_on: -\n")
 
@@ -1210,7 +1141,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 		t.Fatal(err)
 	}
 	paths := workflowPathsFor(root)
-	writeFile(t, filepath.Join(root, filepath.FromSlash(paths.researchRel()), "topics", "links.md"), "# Links\n\n[missing](missing.md)\n")
+	writeLinkCarrierTask(t, root, "002", "[missing](missing.md)\n")
 
 	// No scopes = default checks run.
 	report, _ := validateWorkflowScopedForPaths(root, nil, paths)
@@ -1395,99 +1326,15 @@ func TestValidateReportsMissingMetadata(t *testing.T) {
 	}
 }
 
-func TestPostMutation_TaskCompleteReferencesActiveExecPlan(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-
-	// Create a task with exec_plan referencing an active plan.
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"),
-		"---\n"+
-			"id: 001\n"+
-			"title: Needs ExecPlan Move\n"+
-			"status: Pending\n"+
-			"priority: P2\n"+
-			"effort: S\n"+
-			"labels: type:task\n"+
-			"exec_plan: rollout\n"+
-			"depends_on: -\n"+
-			"---\n"+
-			"# Needs ExecPlan Move\n\n"+
-			"## Summary\n\nDone.\n"+
-			"## Acceptance Notes\n\n- [x] All done.\n")
-
-	// Create an active ExecPlan that the task references.
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
-		"# Rollout\n\n## Outcomes & Retrospective\n\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "complete", "001")
-	if code != 0 {
-		t.Errorf("task complete exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	// Verify the warning appears on stderr.
-	assertContainsAll(t, stderr,
-		"completed task 001 references active ExecPlan",
-	)
-}
-
-func TestPostMutation_IndexDetectsExecPlanDrift(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-
-	// Create a completed task that still references an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
-		"---\n"+
-			"id: 001\n"+
-			"title: Done But Plan Active\n"+
-			"status: Completed\n"+
-			"priority: P2\n"+
-			"effort: S\n"+
-			"labels: type:task\n"+
-			"exec_plan: rollout\n"+
-			"depends_on: -\n"+
-			"---\n"+
-			"# Done But Plan Active\n\n"+
-			"## Summary\n\nDone.\n")
-
-	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
-		"# Rollout\n\n## Outcomes & Retrospective\n\n")
-
-	stdout, stderr, code := runCLI(t, "--root", root, "index")
-	if code != 0 {
-		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
-	}
-	// Verify the warning appears on stderr.
-	assertContainsAll(t, stderr,
-		"completed task 001 references active ExecPlan",
-	)
-}
-
 func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
 	root := t.TempDir()
 	setupAhmRepo(t, root)
 
-	// Create a completed task referencing an active ExecPlan (workflow finding).
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
-		"---\n"+
-			"id: 001\n"+
-			"title: Done But Plan Active\n"+
-			"status: Completed\n"+
-			"priority: P2\n"+
-			"effort: S\n"+
-			"labels: type:task\n"+
-			"exec_plan: rollout\n"+
-			"depends_on: -\n"+
-			"---\n"+
-			"# Done But Plan Active\n\n"+
-			"## Summary\n\nDone.\n")
-
-	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
-		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+	// Create a workflow finding: a completed task sitting in the active bucket.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: -\n")
 
 	// Create a broken markdown link that would trigger markdown_link_missing.
-	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "links.md"),
-		"# Links\n\n[missing](missing.md)\n")
+	writeLinkCarrierTask(t, root, "002", "[missing](missing.md)\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "index")
 	if code != 0 {
@@ -1495,7 +1342,7 @@ func TestPostMutation_ScopeIsWorkflowOnly(t *testing.T) {
 	}
 	// Verify the workflow finding appears.
 	assertContainsAll(t, stderr,
-		"completed task 001 references active ExecPlan",
+		"completed task should be in .ahm/tasks/completed",
 	)
 	// Verify the markdown_link_missing finding does NOT appear.
 	assertNotContains(t, stderr,
@@ -1507,31 +1354,15 @@ func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
 	root := t.TempDir()
 	setupAhmRepo(t, root)
 
-	// Create a completed task that still references an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"),
-		"---\n"+
-			"id: 001\n"+
-			"title: Done But Plan Active\n"+
-			"status: Completed\n"+
-			"priority: P2\n"+
-			"effort: S\n"+
-			"labels: type:task\n"+
-			"exec_plan: rollout\n"+
-			"depends_on: -\n"+
-			"---\n"+
-			"# Done But Plan Active\n\n"+
-			"## Summary\n\nDone.\n")
-
-	// Create an active ExecPlan.
-	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "rollout.md"),
-		"# Rollout\n\n## Outcomes & Retrospective\n\n")
+	// Create a workflow finding: a completed task sitting in the active bucket.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Completed In Active", "Completed", "depends_on: -\n")
 
 	stdout, stderr, code := runCLI(t, "--dry-run", "--root", root, "index")
 	if code != 0 {
 		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
 	// The validation should not run during dry-run, so no warnings.
-	if strings.Contains(stderr, "completed task 001") {
+	if strings.Contains(stderr, "completed task should be in") {
 		t.Errorf("dry-run index emitted unexpected warning on stderr:\n%s", stderr)
 	}
 }
@@ -1579,7 +1410,7 @@ func TestProjectDocsCheckScopeRemoved(t *testing.T) {
 	}
 }
 
-func TestExecPlanSectionHasOpenProgress(t *testing.T) {
+func TestIsUncheckedChecklistItem(t *testing.T) {
 	tests := []struct {
 		name  string
 		lines []string
@@ -1634,9 +1465,14 @@ func TestExecPlanSectionHasOpenProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			section := execPlanSection{Lines: tt.lines}
-			if got := execPlanSectionHasOpenProgress(section); got != tt.want {
-				t.Errorf("execPlanSectionHasOpenProgress() = %v, want %v", got, tt.want)
+			got := false
+			for _, line := range tt.lines {
+				if isUncheckedChecklistItem(line) {
+					got = true
+				}
+			}
+			if got != tt.want {
+				t.Errorf("isUncheckedChecklistItem() = %v, want %v", got, tt.want)
 			}
 		})
 	}

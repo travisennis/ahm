@@ -7,21 +7,8 @@ import (
 	"testing"
 )
 
-// execPlanWithAllSections is a plan body that satisfies validateExecPlanSections
-// for an active plan: every mandatory section is present and Outcomes is empty.
-const execPlanWithAllSections = `# Plan
-
-## Progress
-
-## Surprises & Discoveries
-
-## Decision Log
-
-## Outcomes & Retrospective
-`
-
-// setupRecordTree fills root with tasks, ExecPlans, ADRs, and research notes so
-// a mutation exercises every record kind the index generation reads.
+// setupRecordTree fills root with tasks and ADRs so a mutation exercises every
+// record kind the index generation reads.
 func setupRecordTree(t *testing.T, root string, count int) workflowPaths {
 	t.Helper()
 	setupAhmRepo(t, root)
@@ -29,10 +16,8 @@ func setupRecordTree(t *testing.T, root string, count int) workflowPaths {
 	for i := 1; i <= count; i++ {
 		id := fmt.Sprintf("%03d", i)
 		writeTaskFile(t, paths.taskFile("active", id), id, "Task "+id, "Pending", "depends_on: -\n")
-		writeFile(t, filepath.Join(paths.execPlansDir("active"), fmt.Sprintf("plan-%d.md", i)), execPlanWithAllSections)
 		writeFile(t, filepath.Join(root, "docs", "adr", fmt.Sprintf("%03d-decision.md", i)),
 			"---\nid: "+id+"\nstatus: accepted\ndate: 2026-07-01\n---\n# "+id+" Decision\n\nBody.\n")
-		writeFile(t, filepath.Join(root, ".ahm", "research", "topics", fmt.Sprintf("note-%d.md", i)), "# Note\n")
 	}
 	return paths
 }
@@ -51,8 +36,8 @@ func countWorkflowReads(t *testing.T, root string, fn func()) map[string]int {
 }
 
 // TestMutationReadsEachRecordOnce pins the reuse contract: index generation and
-// the post-mutation validation that follows it share one read of every ExecPlan,
-// ADR, and generated index instead of making a full second pass.
+// the post-mutation validation that follows it share one read of every ADR and
+// generated index instead of making a full second pass.
 func TestMutationReadsEachRecordOnce(t *testing.T) {
 	root := t.TempDir()
 	setupRecordTree(t, root, 3)
@@ -72,10 +57,9 @@ func TestMutationReadsEachRecordOnce(t *testing.T) {
 
 	var measured int
 	for path, count := range counts {
-		isExecPlan := strings.HasPrefix(path, ".ahm/exec-plans/") && !strings.HasSuffix(path, "/index.md")
 		isADR := strings.HasPrefix(path, "docs/adr/") && !strings.HasSuffix(path, "/index.md")
 		isGeneratedIndex := strings.HasSuffix(path, "/index.md")
-		if !isExecPlan && !isADR && !isGeneratedIndex {
+		if !isADR && !isGeneratedIndex {
 			continue
 		}
 		measured++
@@ -83,10 +67,10 @@ func TestMutationReadsEachRecordOnce(t *testing.T) {
 			t.Errorf("read count for %s = %d, want 1", path, count)
 		}
 	}
-	// Guard against the assertion passing because nothing matched: 3 ExecPlans,
-	// 3 ADRs, and the 8 generated indexes.
-	if measured != 14 {
-		t.Fatalf("measured %d records, want 14 (counts: %v)", measured, counts)
+	// Guard against the assertion passing because nothing matched: 3 ADRs and
+	// the 5 generated indexes.
+	if measured != 8 {
+		t.Fatalf("measured %d records, want 8 (counts: %v)", measured, counts)
 	}
 }
 
@@ -103,14 +87,14 @@ func TestStandaloneValidationReadsFreshAfterMutation(t *testing.T) {
 	}
 
 	// Edit records behind ahm's back, exactly as a hand edit or a merge would.
-	planPath := filepath.Join(paths.execPlansDir("active"), "plan-1.md")
-	writeFile(t, planPath, "# Plan\n\n## Progress\n")
+	writeFile(t, paths.taskFile("active", "001"),
+		"---\nid: 001\ntitle: Task 001\nstatus: Doing\npriority: P2\neffort: S\nlabels: type:task\ndepends_on: -\n---\n# Task 001\n")
 	indexPath := filepath.Join(paths.tasksBucketDir("active"), "index.md")
 	writeFile(t, indexPath, "# Stale hand edit\n")
 
 	report, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeWorkflow}, paths)
-	if !hasFinding(report.Warnings, "exec_plan_missing_section") {
-		t.Errorf("missing exec_plan_missing_section warning for out-of-band plan edit: %#v", report.Warnings)
+	if !hasFinding(report.Errors, "task_malformed") {
+		t.Errorf("missing task_malformed error for out-of-band task edit: %#v", report.Errors)
 	}
 	if !hasFinding(report.Warnings, "generated_index_stale") {
 		t.Errorf("missing generated_index_stale warning for out-of-band index edit: %#v", report.Warnings)

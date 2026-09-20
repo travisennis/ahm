@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 // primeTestRoots is a testing helper that sets up a committed-mode repo for prime tests.
@@ -159,90 +158,26 @@ func TestPrimeReadyCapWithOverflow(t *testing.T) {
 	}
 }
 
-func TestPrimeRecentResearchSortsGloballyBeforeCap(t *testing.T) {
+// TestPrimeOmitsRetiredRecordFamilies pins acceptance criterion four of task
+// 264b: prime's briefing no longer has an ExecPlan or research section, even
+// when those trees still hold records.
+func TestPrimeOmitsRetiredRecordFamilies(t *testing.T) {
 	root := t.TempDir()
 	setupAhmRepo(t, root)
-	researchRoot := filepath.Join(root, ".ahm", "research")
-	for _, note := range []struct {
-		bucket string
-		name   string
-	}{
-		{bucket: "inbox", name: "2026-01-01-oldest.md"},
-		{bucket: "inbox", name: "2026-06-01-middle.md"},
-		{bucket: "topics", name: "2026-07-05-newest.md"},
-		{bucket: "investigations", name: "2026-07-05-newest.md"},
-		{bucket: "topics", name: "2026-07-04-fourth.md"},
-		{bucket: "investigations", name: "2026-07-03-third.md"},
-		{bucket: "sources", name: "2026-07-02-second.md"},
-		{bucket: "sources", name: "2026-07-01-first.md"},
-	} {
-		writeFile(t, filepath.Join(researchRoot, note.bucket, note.name), "# "+note.name+"\n")
-	}
-
-	a := app{opts: options{root: root}}
-	notes := a.primeRecentResearch()
-	if len(notes) != 5 {
-		t.Fatalf("recent research count = %d, want 5", len(notes))
-	}
-	want := []string{
-		"investigations/2026-07-05-newest.md",
-		"topics/2026-07-05-newest.md",
-		"topics/2026-07-04-fourth.md",
-		"investigations/2026-07-03-third.md",
-		"sources/2026-07-02-second.md",
-	}
-	for i, suffix := range want {
-		if !strings.HasSuffix(notes[i].Link, suffix) {
-			t.Errorf("notes[%d].Link = %q, want suffix %q", i, notes[i].Link, suffix)
-		}
-	}
-}
-
-func TestPrimeShowsInboxAgeAndStalenessInTextAndJSON(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-	created := time.Now().UTC().AddDate(0, 0, -30).Format(time.DateOnly)
-	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: "+created+"\n")
+	writeFile(t, filepath.Join(root, ".ahm", "research", "topics", "note.md"), "# Topic Note\n")
+	writeFile(t, filepath.Join(root, ".ahm", "exec-plans", "active", "plan.md"), "# Plan\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {
 		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		"[inbox](.ahm/research/inbox/old-note.md) Old Note (30 days old, STALE)",
-	)
+	assertNotContains(t, stdout, "## Active ExecPlans", "## Recent Research")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--json", "prime")
 	if code != 0 {
 		t.Fatalf("prime --json exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout,
-		`"age_days": 30`,
-		`"stale": true`,
-	)
-}
-
-func TestPrimeShowsInboxAgeWithoutStaleFlagWhenDisabled(t *testing.T) {
-	root := t.TempDir()
-	setupAhmRepo(t, root)
-	zero := 0
-	meta, err := readMetadata(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta.Research = &researchConfig{InboxStaleDays: &zero}
-	if err := writeMetadata(root, meta); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(root, ".ahm", "research", "inbox", "old-note.md"), "# Old Note\n\nCreated: 2020-01-01\n")
-
-	notes := (&app{opts: options{root: root}}).primeRecentResearchAt(time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC))
-	if len(notes) != 1 || notes[0].AgeDays == nil {
-		t.Fatalf("notes = %#v", notes)
-	}
-	if notes[0].Stale {
-		t.Fatal("disabled inbox note marked stale")
-	}
+	assertNotContains(t, stdout, `"plans"`, `"research"`)
 }
 
 func TestPrimeDirtyWorktreeWarning(t *testing.T) {

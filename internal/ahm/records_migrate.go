@@ -42,9 +42,12 @@ var legacyDotRecordMigrationRoots = []string{
 
 // recordsGitignoreEntries keep generated workflow indexes and machine-local
 // state out of branch history while source records and .ahm/config.json stay
-// committed.
+// committed. Only the task indexes are generated under .ahm/; the ADR index is
+// committed documentation, and the retired research and ExecPlan trees are
+// ordinary project files whose content is no longer ignored.
 var recordsGitignoreEntries = []string{
-	"index.md",
+	"tasks/index.md",
+	"tasks/*/index.md",
 	".lock/",
 	"*.tmp",
 }

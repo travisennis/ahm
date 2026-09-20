@@ -15,8 +15,7 @@ package ahm
 // The cache is not safe for concurrent use; it is confined to one command's
 // sequential generate-then-validate flow.
 type recordCache struct {
-	files    map[string]cachedFile
-	sections map[string]map[string]execPlanSection
+	files map[string]cachedFile
 
 	// adrs memoizes the whole ADR collection rather than individual files,
 	// so a second collectADRs call costs neither reads nor parses. adrsRoot
@@ -65,28 +64,6 @@ func (c *recordCache) put(path string, data []byte) {
 		c.files = map[string]cachedFile{}
 	}
 	c.files[path] = cachedFile{data: data}
-	delete(c.sections, path)
-}
-
-// execPlanSections returns the parsed sections of the ExecPlan at path, parsing
-// each plan at most once per command.
-func (c *recordCache) execPlanSections(path string) (map[string]execPlanSection, error) {
-	if c == nil {
-		return parseExecPlanSections(path)
-	}
-	if sections, ok := c.sections[path]; ok {
-		return sections, nil
-	}
-	data, err := c.readFile(path)
-	if err != nil {
-		return nil, err
-	}
-	sections := parseExecPlanSectionsFromData(data)
-	if c.sections == nil {
-		c.sections = map[string]map[string]execPlanSection{}
-	}
-	c.sections[path] = sections
-	return sections, nil
 }
 
 // adrList returns the ADRs under root, collecting them at most once per

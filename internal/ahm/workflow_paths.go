@@ -61,7 +61,3 @@ func (p workflowPaths) execPlansRel(bucket string) string {
 	}
 	return p.recordsDir + "/exec-plans/" + bucket
 }
-
-func (p workflowPaths) execPlansDir(bucket string) string {
-	return filepath.Join(p.root, filepath.FromSlash(p.execPlansRel(bucket)))
-}

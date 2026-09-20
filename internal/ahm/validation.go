@@ -4,13 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 )
 
 type validationReport struct {
@@ -19,11 +17,11 @@ type validationReport struct {
 	Warnings []validationFinding `json:"warnings"`
 	Info     []validationFinding `json:"info"`
 
-	// cache holds records already read within this command so each ExecPlan,
-	// ADR, and generated index is read from disk at most once. It is scoped to
-	// the report so concurrent validation runs and tests do not share state.
-	// Mutation paths hand in the cache their index generation filled; every
-	// other path gets a fresh one and reads everything from disk.
+	// cache holds records already read within this command so each ADR and
+	// generated index is read from disk at most once. It is scoped to the report
+	// so concurrent validation runs and tests do not share state. Mutation paths
+	// hand in the cache their index generation filled; every other path gets a
+	// fresh one and reads everything from disk.
 	cache *recordCache
 }
 
@@ -129,9 +127,6 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 		validateBlockedDepsComplete(root, tasks, &report)
 		validateTrackingChildrenComplete(root, tasks, &report)
 		validateTaskBuckets(root, paths, tasks, &report)
-		validateTaskExecPlans(root, paths, tasks, &report)
-		validateExecPlans(root, paths, tasks, &report)
-		validateResearchInbox(root, paths, &report, time.Now())
 		validateADRs(root, &report)
 		validateGeneratedIndexes(root, paths, tasks, &report)
 	}
@@ -140,10 +135,6 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 	}
 	report.OK = len(report.Errors) == 0
 	return report, tasks
-}
-
-func newValidationReport() validationReport {
-	return newValidationReportWithCache(newRecordCache())
 }
 
 func newValidationReportWithCache(cache *recordCache) validationReport {
@@ -169,46 +160,12 @@ func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Tas
 	validateBlockedDepsComplete(root, tasks, &report)
 	validateTrackingChildrenComplete(root, tasks, &report)
 	validateTaskBuckets(root, paths, tasks, &report)
-	validateTaskExecPlans(root, paths, tasks, &report)
-	validateExecPlans(root, paths, tasks, &report)
-	validateResearchInbox(root, paths, &report, time.Now())
 	validateADRs(root, &report)
 	if validateGeneratedIndexMetadata(root, &report) {
 		validateGeneratedIndexWrites(root, writes, &report)
 	}
 	report.OK = len(report.Errors) == 0
 	return report
-}
-
-func validateResearchInbox(root string, paths workflowPaths, report *validationReport, now time.Time) {
-	meta, err := readMetadata(root)
-	if err != nil {
-		return
-	}
-	threshold, enabled := meta.researchInboxStaleThreshold()
-	if !enabled {
-		return
-	}
-	dir := filepath.Join(root, filepath.FromSlash(paths.researchRel()), "inbox")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-			continue
-		}
-		path := filepath.Join(dir, entry.Name())
-		ageDays, err := researchNoteAgeDays(path, now)
-		if err != nil || ageDays < threshold {
-			continue
-		}
-		report.addWarning(
-			"research_inbox_stale",
-			relPath(root, path),
-			fmt.Sprintf("research inbox note is %d days old (threshold %d); promote it to research/topics, convert it to a task, or delete it if it has no continuing value", ageDays, threshold),
-		)
-	}
 }
 
 func containsScope(scopes []string, target string) bool {
@@ -317,7 +274,7 @@ func validateTaskFrontMatter(data []byte, relPath string, report *validationRepo
 }
 
 func validateTaskFrontMatterMeta(meta map[string]string, relPath string, report *validationReport) {
-	required := []string{"id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on"}
+	required := []string{"id", "title", "status", "priority", "effort", "labels", "depends_on"}
 	for _, field := range required {
 		if strings.TrimSpace(meta[field]) == "" {
 			report.addError("task_missing_field", relPath, "task front matter is missing "+field)
@@ -454,244 +411,9 @@ func validateTaskDuplicateIDs(root string, tasks []Task, report *validationRepor
 	}
 }
 
-func validateTaskExecPlans(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	for _, task := range tasks {
-		if task.ExecPlan == "" || task.ExecPlan == "-" {
-			continue
-		}
-		plan, bucket, ok := resolveExecPlanReference(paths, task.ExecPlan)
-		if !ok {
-			report.addWarning("task_exec_plan_missing", relPath(root, task.Path), fmt.Sprintf("task %s references missing ExecPlan %s", task.ID, task.ExecPlan))
-			continue
-		}
-		if task.Status == "Completed" && bucket == "active" {
-			report.addWarning("task_completed_exec_plan_active", relPath(root, task.Path), fmt.Sprintf("completed task %s references active ExecPlan %s", task.ID, relPath(root, plan)))
-			continue
-		}
-		if task.Status == "Completed" && bucket == "completed" && !execPlanHasRetrospective(plan, report) {
-			report.addWarning("task_completed_exec_plan_incomplete", relPath(root, task.Path), fmt.Sprintf("completed task %s references ExecPlan without a completed Outcomes & Retrospective section", task.ID))
-		}
-	}
-}
-
-var mandatoryExecPlanSections = []string{
-	"Progress",
-	"Surprises & Discoveries",
-	"Decision Log",
-	"Outcomes & Retrospective",
-}
-
-func validateExecPlans(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	referenced := referencedExecPlans(paths, tasks)
-	for _, bucket := range []string{"active", "completed"} {
-		dir := paths.execPlansDir(bucket)
-		plans, err := execPlanPaths(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			continue
-		}
-		for _, path := range plans {
-			sections, err := report.cache.execPlanSections(path)
-			if err != nil {
-				continue
-			}
-			validateExecPlanSections(root, path, bucket, sections, report)
-			if !referenced[filepath.Clean(path)] {
-				report.addInfo("exec_plan_orphan", relPath(root, path), "ExecPlan is not referenced by any task exec_plan field")
-			}
-		}
-	}
-}
-
-func referencedExecPlans(paths workflowPaths, tasks []Task) map[string]bool {
-	referenced := map[string]bool{}
-	for _, task := range tasks {
-		if task.ExecPlan == "" || task.ExecPlan == "-" {
-			continue
-		}
-		plan, _, ok := resolveExecPlanReference(paths, task.ExecPlan)
-		if ok {
-			referenced[filepath.Clean(plan)] = true
-		}
-	}
-	return referenced
-}
-
-func execPlanPaths(dir string) ([]string, error) {
-	var paths []string
-	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
-	})
-	sort.Strings(paths)
-	return paths, err
-}
-
-type execPlanSection struct {
-	Lines []string
-}
-
-func parseExecPlanSections(path string) (map[string]execPlanSection, error) {
-	data, err := readWorkflowFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return parseExecPlanSectionsFromData(data), nil
-}
-
-func parseExecPlanSectionsFromData(data []byte) map[string]execPlanSection {
-	sections := map[string]execPlanSection{}
-	current := ""
-	for _, line := range strings.Split(string(data), "\n") {
-		if isExecPlanHeading(line) {
-			current = ""
-		}
-		heading, ok := execPlanSectionHeading(line)
-		if ok {
-			current = normalizedExecPlanSection(heading)
-			sections[current] = execPlanSection{}
-			continue
-		}
-		if current != "" {
-			section := sections[current]
-			section.Lines = append(section.Lines, line)
-			sections[current] = section
-		}
-	}
-	return sections
-}
-
-func execPlanSectionHeading(line string) (string, bool) {
-	trimmed := strings.TrimSpace(line)
-	marker, heading, ok := strings.Cut(trimmed, " ")
-	if !ok || marker != "##" && marker != "###" {
-		return "", false
-	}
-	heading = strings.TrimSpace(heading)
-	for _, section := range mandatoryExecPlanSections {
-		if strings.EqualFold(heading, section) {
-			return section, true
-		}
-	}
-	return "", false
-}
-
-func isExecPlanHeading(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	return strings.HasPrefix(trimmed, "#")
-}
-
-func normalizedExecPlanSection(heading string) string {
-	return strings.ToLower(heading)
-}
-
-func validateExecPlanSections(root string, path string, bucket string, sections map[string]execPlanSection, report *validationReport) {
-	rel := relPath(root, path)
-	for _, section := range mandatoryExecPlanSections {
-		if _, ok := sections[normalizedExecPlanSection(section)]; !ok {
-			report.addWarning("exec_plan_missing_section", rel, fmt.Sprintf("ExecPlan is missing mandatory section %q", section))
-		}
-	}
-
-	outcomes := sections[normalizedExecPlanSection("Outcomes & Retrospective")]
-	outcomesFilled := execPlanSectionHasBody(outcomes)
-	if bucket == "active" && outcomesFilled {
-		report.addWarning("exec_plan_active_with_outcomes", rel, "active ExecPlan has a filled Outcomes & Retrospective section")
-	}
-	if bucket == "completed" && !outcomesFilled {
-		report.addWarning("exec_plan_completed_without_outcomes", rel, "completed ExecPlan has an empty or missing Outcomes & Retrospective section")
-	}
-
-	progress := sections[normalizedExecPlanSection("Progress")]
-	if bucket == "completed" && execPlanSectionHasOpenProgress(progress) {
-		report.addWarning("exec_plan_completed_with_open_progress", rel, "completed ExecPlan still has open progress items")
-	}
-}
-
-func resolveExecPlanReference(paths workflowPaths, ref string) (string, string, bool) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || ref == "-" {
-		return "", "", false
-	}
-	root := paths.root
-	var candidates []string
-	if filepath.IsAbs(ref) {
-		candidates = append(candidates, ref)
-	} else {
-		candidates = append(candidates, filepath.Join(root, filepath.FromSlash(ref)))
-		// Records migrated from .agents/ to .ahm/ may still reference their
-		// ExecPlans by the legacy repo-relative path.
-		if paths.recordsDir == toolRecordsDirName {
-			if legacyRel, ok := strings.CutPrefix(ref, legacyRecordsDirName+"/exec-plans/"); ok {
-				candidates = append(candidates, filepath.Join(paths.execPlansDir(""), filepath.FromSlash(legacyRel)))
-			}
-		}
-		for _, bucket := range []string{"active", "completed"} {
-			candidates = append(candidates, filepath.Join(paths.execPlansDir(bucket), filepath.FromSlash(ref)))
-		}
-	}
-	if filepath.Ext(ref) == "" {
-		var withExt []string
-		for _, candidate := range candidates {
-			withExt = append(withExt, candidate+".md")
-		}
-		candidates = append(candidates, withExt...)
-	}
-	for _, candidate := range candidates {
-		stat, err := os.Stat(candidate)
-		if err != nil || stat.IsDir() {
-			continue
-		}
-		rel := relPath(root, candidate)
-		switch {
-		case strings.HasPrefix(rel, paths.execPlansRel("active")+"/"):
-			return candidate, "active", true
-		case strings.HasPrefix(rel, paths.execPlansRel("completed")+"/"):
-			return candidate, "completed", true
-		default:
-			return candidate, "", true
-		}
-	}
-	return "", "", false
-}
-
-func execPlanHasRetrospective(path string, report *validationReport) bool {
-	sections, err := report.cache.execPlanSections(path)
-	if err != nil {
-		return false
-	}
-	return execPlanSectionHasBody(sections[normalizedExecPlanSection("Outcomes & Retrospective")])
-}
-
-func execPlanSectionHasBody(section execPlanSection) bool {
-	for _, line := range section.Lines {
-		if strings.TrimSpace(line) != "" {
-			return true
-		}
-	}
-	return false
-}
-
 func isUncheckedChecklistItem(line string) bool {
 	trimmed := strings.TrimLeft(line, " \t")
 	return strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "* [ ]")
-}
-
-func execPlanSectionHasOpenProgress(section execPlanSection) bool {
-	for _, line := range section.Lines {
-		if isUncheckedChecklistItem(line) {
-			return true
-		}
-	}
-	return false
 }
 
 func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, report *validationReport) {
@@ -847,13 +569,6 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 		resolved.tasksBucketDir("active"),
 		resolved.tasksBucketDir("completed"),
 		resolved.tasksBucketDir("cancelled"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "inbox"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "investigations"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "sources"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "topics"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "archived"),
-		resolved.execPlansDir("active"),
-		resolved.execPlansDir("completed"),
 	}
 	for _, dir := range sourceDirs {
 		entries, err := os.ReadDir(dir)
@@ -877,9 +592,6 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 		filepath.Join(resolved.tasksBucketDir("active"), "index.md"),
 		filepath.Join(resolved.tasksBucketDir("completed"), "index.md"),
 		filepath.Join(resolved.tasksBucketDir("cancelled"), "index.md"),
-		filepath.Join(root, filepath.FromSlash(resolved.researchRel()), "index.md"),
-		filepath.Join(resolved.execPlansDir("active"), "index.md"),
-		filepath.Join(resolved.execPlansDir("completed"), "index.md"),
 		filepath.Join(root, "docs", "adr", "index.md"),
 	}
 	for _, path := range indexPaths {

@@ -113,7 +113,6 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		Priority: parsed.priority,
 		Effort:   parsed.effort,
 		Labels:   parsed.labels,
-		ExecPlan: "-",
 		Created:  now,
 		Body:     body,
 	}

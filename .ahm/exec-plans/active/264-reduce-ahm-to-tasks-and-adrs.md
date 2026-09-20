@@ -134,7 +134,9 @@ stage a `.go` change and run `prek run`.
       ExecPlan already in `completed/`.
 - [x] (2026-09-20) Milestone 2 (264a) complete: the delegation surface is
 deleted, and the binary runs no program but Git.
-- [ ] Milestone 3 (264b) complete: research and ExecPlans retired.
+- [x] Milestone 3 (264b) complete: research and ExecPlans retired. The two
+      procedure templates are deferred to milestone 4, which is the only
+      consumer left; see the Decision Log.
 - [ ] Milestone 4 (264c) complete: procedure channel removed.
 - [ ] Milestone 5 (264d) complete: install collapsed to one idempotent
       `ahm init`.
@@ -266,6 +268,51 @@ deleted, and the binary runs no program but Git.
   Evidence: `rg -n "locateHeadingSections" internal/ahm` shows the
   `task_status.go` and `adrs.go` callers.
 
+- Observation: milestone 3's deletion list and milestone 4's salvage step
+  cannot both run as written. Milestone 3 is told to delete
+  `internal/templates/workflow/PLANS.md`, and milestone 4 is told to run
+  `ahm context plan > docs/workflow/exec-plans.md` before deleting
+  `context.go`. That command renders `workflow/PLANS.md` through the embedded
+  template set, so deleting the template in milestone 3 leaves milestone 4
+  with nothing to render and no way to recover the prose except from Git
+  history. `RESEARCH.md` has the same shape but a smaller cost, since its
+  procedure is deliberately not salvaged.
+  Evidence: `internal/ahm/context.go` maps the `plan` scope to
+  `workflow/PLANS.md` and `renderInstructionTemplate` refuses a missing key, so
+  the scoped command fails outright once the file is gone; the ExecPlan's own
+  Concrete Steps put the `ahm context plan` redirect in the milestone after
+  this one.
+
+- Observation: `exec_plan` cannot simply become a sorted preserved field and
+  still satisfy the task's "round-trips byte-identically" criterion. A v1 task
+  file carries the field between `labels` and `depends_on`, while
+  `renderTask` writes preserved keys after every known field, so the first
+  rewrite of every v1 task file would reorder it. The review of this milestone
+  raised exactly that, and the fix is to keep the field's original slot while
+  carrying its value in `Task.Extra`.
+  Evidence: the first pass of `TestRenderTaskExecPlanFieldSurvivesWriteCycle`
+  could only compare the second render against the first, which proves
+  idempotence rather than the byte-identity the acceptance notes require.
+
+- Observation: milestone 3's index change also touches the task index format
+  and the managed `.ahm/.gitignore`, and both need a migration note.
+  `writeTaskTable` derived its `ExecPlan` column from the retired field, so the
+  column goes with the field, and `recordsGitignoreEntries` has to stop
+  ignoring every `index.md` under `.ahm/` or the retired families' indexes stay
+  hidden behind a pattern that no longer describes ahm-managed state.
+  Evidence: `.ahm/research/index.md`, `.ahm/exec-plans/active/index.md`, and
+  `.ahm/exec-plans/completed/index.md` appear as untracked files in
+  `git status` after the narrowing, and `ahm index` no longer rewrites them.
+
+- Observation: `planRecordsGitignore` only ever appends missing entries, so a
+  repository that already ran `ahm records migrate` keeps its broad `index.md`
+  line and still ignores the retired families' indexes. Nothing in milestone 3
+  can prune it without turning `records migrate` into a reconciler, which is
+  milestone 5's job for `ahm init`.
+  Evidence: `planRecordsGitignore` compares `recordsGitignoreEntries` against
+  the file only to collect `missing` entries, and `writeRecordsGitignore`
+  appends them.
+
 ## Decision Log
 
 - Decision: milestone 2 deletes `scripts/task-workflow.sh` even though the
@@ -392,6 +439,69 @@ deleted, and the binary runs no program but Git.
   deleted, and the plan document points at `docs/exec-plans/` rather than the
   retired `.ahm/exec-plans/`.
   Date/Author: 2026-09-20, Travis Ennis.
+
+- Decision: milestone 3 leaves `internal/templates/workflow/RESEARCH.md` and
+  `PLANS.md` in place and deletes only the three templates nothing renders, so
+  that milestone 4 can still salvage the ExecPlan procedure with
+  `ahm context plan > docs/workflow/exec-plans.md` as this plan's Concrete
+  Steps and Decision Log require. The task's own acceptance notes, not its
+  Summary, are the contract, and none of them mention a template; the plan's
+  step dependency is explicit.
+  Rationale: the two instruction templates are the procedure channel's payload,
+  and milestone 4 deletes that channel wholesale, so their removal belongs
+  there with `context.go`; milestone 3 still removes everything that made
+  research and ExecPlans record families. The index templates it does delete
+  are dead weight: `research-index.md`, `exec-plans-active-index.md`, and
+  `exec-plans-completed-index.md` were duplicated by the Go renderers that this
+  milestone removes.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
+
+- Decision: the retired `exec_plan` field keeps its original front-matter slot.
+  `metaExtra` still treats it as a preserved unknown field, but `renderTask`
+  re-emits it between `labels` and `depends_on` and skips it in the sorted
+  preserved block.
+  Rationale: the acceptance notes promise a byte-identical round trip, and
+  moving a v1 file's field would rewrite every task record in a consumer's
+  repository on its next lifecycle command. Avoiding that churn is worth five
+  lines and one named constant.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
+
+- Decision: the generated task index loses its `ExecPlan` column in this
+  milestone rather than keeping a column fed from the preserved field.
+  Rationale: the column's value came from the retired schema, and the plan
+  retires the family rather than the field alone; a column of unresolvable plan
+  references presents a removed family as current state. The index format is a
+  declared compatibility surface, so `docs/references/workflow-spec.md` and
+  `docs/guides/workflow-upgrades.md` must record the change in milestone 6.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
+
+- Decision: milestone 3 retires the `research` metadata block and the stale
+  `files` hashes for the six retired index paths, in the same milestone that
+  deletes their readers.
+  Rationale: milestone 2 set the precedent for `taskWork` and
+  `default_work_agent` — a typed field whose reader is gone is a configuration
+  knob that controls nothing — and milestone 5's remaining work (idempotent
+  `ahm init`, legacy-layout removal, unknown-key pruning) is unaffected.
+  `retiredGeneratedIndexes` rather than `preservedScaffoldFiles` keeps the
+  "no longer generated" case separate from the "scaffold README" case, because
+  the two are relinquished for different reasons.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
+
+- Decision: milestone 3 corrects the help text and `.ahm/.gitignore` that
+  claimed ahm manages research notes and their indexes, and leaves the rest of
+  the prose naming the retired families to milestones 4 and 6.
+  Rationale: this milestone's own claim about itself is wrong the moment it
+  lands, which is a defect, while a `context` scope that still describes the
+  families is milestone 4's stated subject. Milestone 6 inherits the list of
+  documentation spots recorded in the task notes.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
+
+- Decision: milestone 3 leaves the two milestone-4 items (`RESEARCH.md`,
+  `PLANS.md`) and the legacy `.ahm/.gitignore` pruning recorded rather than
+  implemented, and hands them to the milestones that own them.
+  Rationale: both are stated in the plan's own sequencing, and a third
+  independent rewrite of the procedure templates would duplicate milestone 4.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264b).
 
 - Decision: milestone order is 264g, 264a, 264b, 264c, 264d, 264e, 264f, with
   each milestone as its own commit on `master` (a `feat/<slug>` branch is
@@ -565,6 +675,27 @@ with `exec_plan: 999-old-plan`, runs a read and a write cycle, and asserts the
 line is still present; `ahm doctor` in this repository, which still contains
 research and ExecPlan records, reports no finding for them.
 
+Disposition (2026-09-20): every validator, index renderer, prime section, path
+resolver, directory creation, and config reader is gone, and the task's
+`exec_plan` field is out of the schema and out of the required front-matter
+list. Three items in the work list were resolved differently and the reasons
+are in the Decision Log: `RESEARCH.md` and `PLANS.md` stay for milestone 4's
+salvage step, `workflow_paths.go` keeps `researchRel` and `execPlansRel`
+because the `ahm context` renderer still resolves those strings
+(`execPlansDir`, the disk resolver, is gone), and prose that names the retired
+families is left to milestones 4 and 6 except where help text and the managed
+`.ahm/.gitignore` had become false claims. Two further changes were needed to
+make the milestone's Result true rather than nearly true: `ensureWorkflowDirs`
+no longer creates the retired directories, since recreating them on `ahm init`
+would be observable behavior, and the metadata `research` block plus the stale
+`files` hashes for the six retired index paths are relinquished so no
+readerless state survives. Two independent review rounds shaped the pass: the
+first found that a sorted preserved `exec_plan` field could not round-trip a v1
+task file byte-identically, and the second that the coverage tests did not
+prove deletion invariance, which `TestRetiredRecordFamiliesChangeNothing` now
+does by reading every touched path through the existing instrumentation,
+deleting both trees, and comparing all three finding severities.
+
 ### Milestone 4 — Remove the procedure channel (task 264c)
 
 Scope: `ahm` stops printing instructions.
@@ -583,7 +714,14 @@ when the work finishes. Add the three new documents to `docs/README.md`.
 
 Then delete `internal/ahm/context.go` and `context_test.go`, and
 `internal/ahm/onboard.go` and `onboard_test.go`, with their registrations in
-`internal/ahm/cli.go`. In `internal/ahm/prime.go`, delete the routing block,
+`internal/ahm/cli.go`. Milestone 3 left all four instruction templates behind
+because this milestone is their only remaining consumer, so delete
+`internal/templates/workflow/RESEARCH.md`,
+`internal/templates/workflow/PLANS.md`,
+`internal/templates/workflow/TASKS.md`, and
+`internal/templates/workflow/ADR.md` here as well, together with the template
+cases in `internal/templates/templates_test.go` that pin the research, task,
+and ExecPlan procedures. In `internal/ahm/prime.go`, delete the routing block,
 the `Managed Work Intake` section, and the grooming and audit hints, leaving:
 regenerated indexes, validation findings, and record counts. In
 `internal/ahm/status.go`, delete the onboarding snippet. Prose in the salvaged
@@ -732,7 +870,11 @@ Milestone 4 (264c):
     # then edit all three: concrete paths, no template variables, and no live
     # instruction to run a removed command (the prose rule for removals)
     git rm internal/ahm/context.go internal/ahm/context_test.go \
-        internal/ahm/onboard.go internal/ahm/onboard_test.go
+        internal/ahm/onboard.go internal/ahm/onboard_test.go \
+        internal/templates/workflow/RESEARCH.md \
+        internal/templates/workflow/PLANS.md \
+        internal/templates/workflow/TASKS.md \
+        internal/templates/workflow/ADR.md
     go build ./... && just docs-md-lint && just ci
 
 Milestone 5 (264d):
@@ -853,6 +995,24 @@ Baseline measured on 2026-09-20 at commit `371fc62`, before any milestone:
     135 references to the six removed commands across 28 documentation files
     ahm doctor: 1 warning (active ExecPlan with a filled Outcomes section)
 
+After milestone 3, measured on 2026-09-20:
+
+    9244 total non-test Go lines in cmd/ and internal/, down from 9914
+    14099 total test Go lines across the repository, down from 14579
+    ahm index no longer writes .ahm/research/index.md or .ahm/exec-plans/*/index.md
+    ahm doctor and ahm status: "ok": true, no findings, on a repository that
+    still holds research notes, ExecPlans, and a task with a dangling exec_plan
+    retired in this milestone: research_inbox.go, the research and ExecPlan
+    validators, collectMarkdownDocs and its two index renderers, the ExecPlan
+    section parser, prime's two briefing sections, the task exec_plan field,
+    three dead index templates, and the research metadata block
+    untracked after the .ahm/.gitignore narrowing: .ahm/research/index.md,
+    .ahm/exec-plans/active/index.md, .ahm/exec-plans/completed/index.md
+    milestone 6 owes: docs/references/cli/task-file-format.md (exec_plan field,
+    exec-plan and research finding codes), docs/references/workflow-spec.md
+    (task front matter, research config block, index shape), docs/cli.md,
+    docs/guides/workflow-upgrades.md (v2 migration note), and the glossary
+
 After milestone 1, measured on 2026-09-20:
 
     18 non-terminal task records, down from 46
@@ -921,6 +1081,16 @@ hold design plans; and `docs/adr/` with its generated `index.md` remains the
 ADR family `ahm` still manages.
 
 ## Revision Notes
+
+- (2026-09-20) Milestone 3 (264b) executed. The pass followed the milestone's
+  acceptance criteria rather than its enumerated deletion list, which is why
+  `RESEARCH.md` and `PLANS.md` survive into milestone 4 and why
+  `ensureWorkflowDirs`, the metadata `research` block, the task index's
+  `ExecPlan` column, and the managed `.ahm/.gitignore` pattern were changed in
+  the same commit. Two review rounds ran; the second round's findings are
+  folded into the tests, and `just ci` passes on the final tree. The residual
+  items this milestone hands to later steps are listed in the task notes and in
+  the Surprises and Artifacts sections above.
 
 - (2026-09-20) Milestone 2 (264a) review round. The review ran through
   `codex exec review --uncommitted`, whose nested sandbox could not execute

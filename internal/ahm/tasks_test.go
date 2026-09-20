@@ -637,7 +637,6 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 				"labels: type:test, area:tasks\n" +
 				"title: Non-canonical Order\n" +
 				"id: 099\n" +
-				"exec_plan: -\n" +
 				"depends_on: -\n" +
 				"---\n" +
 				"# Non-canonical Order\n\nBody.\n",
@@ -648,34 +647,34 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 				"priority: P1\n" +
 				"effort: L\n" +
 				"labels: type:test, area:tasks\n" +
-				"exec_plan: -\n" +
 				"depends_on: -\n" +
 				"---\n" +
 				"# Non-canonical Order\n\nBody.\n\n",
 		},
 		{
-			name: "empty exec_plan normalizes to dash",
+			name: "retired exec_plan field keeps its slot",
 			input: "---\n" +
 				"id: 102\n" +
-				"title: Empty ExecPlan\n" +
+				"title: Retired ExecPlan Field\n" +
 				"status: Pending\n" +
 				"priority: P2\n" +
 				"effort: S\n" +
 				"labels: type:test\n" +
+				"exec_plan: 999-old-plan\n" +
 				"depends_on: -\n" +
 				"---\n" +
-				"# Empty ExecPlan\n\nBody.\n",
+				"# Retired ExecPlan Field\n\nBody.\n",
 			want: "---\n" +
 				"id: 102\n" +
-				"title: Empty ExecPlan\n" +
+				"title: Retired ExecPlan Field\n" +
 				"status: Pending\n" +
 				"priority: P2\n" +
 				"effort: S\n" +
 				"labels: type:test\n" +
-				"exec_plan: -\n" +
+				"exec_plan: 999-old-plan\n" +
 				"depends_on: -\n" +
 				"---\n" +
-				"# Empty ExecPlan\n\nBody.\n\n",
+				"# Retired ExecPlan Field\n\nBody.\n\n",
 		},
 		{
 			name: "optional fields omitted when empty",
@@ -686,7 +685,6 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 				"priority: P2\n" +
 				"effort: S\n" +
 				"labels: type:test\n" +
-				"exec_plan: -\n" +
 				"depends_on: -\n" +
 				"---\n" +
 				"# No Optional Fields\n\nBody.\n",
@@ -697,7 +695,6 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 				"priority: P2\n" +
 				"effort: S\n" +
 				"labels: type:test\n" +
-				"exec_plan: -\n" +
 				"depends_on: -\n" +
 				"---\n" +
 				"# No Optional Fields\n\nBody.\n\n",
@@ -718,6 +715,48 @@ func TestRenderTaskCanonicalOrder(t *testing.T) {
 	}
 }
 
+// TestRenderTaskExecPlanFieldSurvivesWriteCycle pins acceptance criterion two
+// of task 264b. exec_plan is no longer a task schema field, so a value written
+// by an older ahm is preserved as an unknown field in its original front-matter
+// slot: the first render of a v1 task file is byte-identical to its input.
+func TestRenderTaskExecPlanFieldSurvivesWriteCycle(t *testing.T) {
+	input := "---\n" +
+		"id: 264\n" +
+		"title: Retired ExecPlan Field\n" +
+		"status: Pending\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: type:task\n" +
+		"exec_plan: .ahm/exec-plans/active/999-old-plan.md\n" +
+		"depends_on: -\n" +
+		"created: 2026-07-01T00:00:00-04:00\n" +
+		"---\n" +
+		"# Retired ExecPlan Field\n\nBody.\n\n"
+
+	task, err := parseTaskFromData([]byte(input), "unused.md", "active")
+	if err != nil {
+		t.Fatalf("parseTaskFromData: %v", err)
+	}
+	if task.Extra[retiredExecPlanField] != ".ahm/exec-plans/active/999-old-plan.md" {
+		t.Fatalf("exec_plan was not preserved: %#v", task.Extra)
+	}
+
+	first := renderTask(task)
+	if first != input {
+		t.Errorf("v1 task file did not round-trip byte-identically\ngot:\n%s\nwant:\n%s", first, input)
+	}
+
+	// Both the first and every later cycle are byte-identical to the canonical v1
+	// file, so retiring the field does not churn an existing record.
+	reparsed, err := parseTaskFromData([]byte(first), "unused.md", "active")
+	if err != nil {
+		t.Fatalf("reparse: %v", err)
+	}
+	if second := renderTask(reparsed); second != first {
+		t.Errorf("write cycle is not idempotent\ngot:\n%s\nwant:\n%s", second, first)
+	}
+}
+
 func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 	input := "---\n" +
 		"id: 101\n" +
@@ -726,11 +765,11 @@ func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 		"priority: P2\n" +
 		"effort: S\n" +
 		"labels: type:test\n" +
-		"exec_plan: -\n" +
 		"depends_on: -\n" +
 		"zeta_field: last\n" +
 		"alpha_field: first\n" +
 		"beta_field: middle\n" +
+		"exec_plan: 101-old-plan\n" +
 		"---\n" +
 		"# Extra Fields Roundtrip\n\nBody.\n"
 
@@ -741,7 +780,7 @@ func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 		"priority: P2\n" +
 		"effort: S\n" +
 		"labels: type:test\n" +
-		"exec_plan: -\n" +
+		"exec_plan: 101-old-plan\n" +
 		"depends_on: -\n" +
 		"alpha_field: first\n" +
 		"beta_field: middle\n" +
@@ -753,8 +792,8 @@ func TestRenderTaskExtraFieldsSorted(t *testing.T) {
 	if err != nil {
 		t.Errorf("parseTaskFromData: %v", err)
 	}
-	if len(task.Extra) != 3 {
-		t.Errorf("Expected 3 extra fields, got %d: %v", len(task.Extra), task.Extra)
+	if len(task.Extra) != 4 {
+		t.Errorf("Expected 4 extra fields, got %d: %v", len(task.Extra), task.Extra)
 	}
 
 	got := renderTask(task)
@@ -881,7 +920,6 @@ func TestRenderTaskRoundTrip(t *testing.T) {
 				"status":     "Pending",
 				"priority":   "P2",
 				"effort":     "S",
-				"exec_plan":  "-",
 				"depends_on": "-",
 			}
 			for k, v := range tt.fields {
@@ -894,7 +932,6 @@ func TestRenderTaskRoundTrip(t *testing.T) {
 				Priority:    meta["priority"],
 				Effort:      meta["effort"],
 				Labels:      meta["labels"],
-				ExecPlan:    meta["exec_plan"],
 				DependsOn:   nil,
 				Created:     "",
 				Updated:     "",
@@ -915,7 +952,7 @@ func TestRenderTaskRoundTrip(t *testing.T) {
 			}
 			for k, v := range tt.fields {
 				switch k {
-				case "id", "title", "status", "priority", "effort", "labels", "exec_plan", "depends_on":
+				case "id", "title", "status", "priority", "effort", "labels", "depends_on":
 					continue
 				}
 				if task.Extra[k] != v {

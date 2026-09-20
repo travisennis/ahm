@@ -94,20 +94,13 @@ func writeFile(t *testing.T, path string, content string) {
 }
 
 // setupAhmRepo creates minimal .ahm/ workflow state (the modern layout)
-// in root. Creates .ahm/config.json and the full directory structure.
+// in root. Creates .ahm/config.json and the directory structure ahm installs.
 func setupAhmRepo(t *testing.T, root string) {
 	t.Helper()
 	for _, dir := range []string{
 		".ahm/tasks/active",
 		".ahm/tasks/completed",
 		".ahm/tasks/cancelled",
-		".ahm/research/inbox",
-		".ahm/research/investigations",
-		".ahm/research/sources",
-		".ahm/research/topics",
-		".ahm/research/archived",
-		".ahm/exec-plans/active",
-		".ahm/exec-plans/completed",
 		"docs/adr",
 	} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
@@ -175,7 +168,6 @@ func writeTaskFileWithPriority(t *testing.T, path string, id string, title strin
 		"priority: " + priority + "\n" +
 		"effort: S\n" +
 		"labels: type:task\n" +
-		"exec_plan: -\n" +
 		extraFrontMatter +
 		"---\n" +
 		"# " + title + "\n\n" +

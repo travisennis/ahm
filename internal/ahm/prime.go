@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"time"
 
 	"github.com/travisennis/ahm/internal/version"
 )
@@ -20,24 +16,8 @@ type primeReport struct {
 	Workflow contextWorkflow        `json:"workflow"`
 	Git      contextGit             `json:"git"`
 	Tasks    primeTasks             `json:"tasks"`
-	Plans    []primePlanSummary     `json:"plans,omitempty"`
-	Research []primeResearchNote    `json:"research,omitempty"`
 	Commands []string               `json:"commands"`
 	Paths    instructionRenderPaths `json:"-"`
-}
-
-type primePlanSummary struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Link  string `json:"link"`
-}
-
-type primeResearchNote struct {
-	Bucket  string `json:"bucket"`
-	Link    string `json:"link"`
-	Title   string `json:"title"`
-	AgeDays *int   `json:"age_days,omitempty"`
-	Stale   bool   `json:"stale,omitempty"`
 }
 
 type primeTasks struct {
@@ -124,8 +104,6 @@ func (a *app) buildPrimeReport() primeReport {
 	}
 	taskInfo := a.primeTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
-	plans := a.primeActivePlans()
-	research := a.primeRecentResearch()
 
 	return primeReport{
 		Root: a.opts.root,
@@ -139,103 +117,9 @@ func (a *app) buildPrimeReport() primeReport {
 		},
 		Git:      gitInfo,
 		Tasks:    taskInfo,
-		Plans:    plans,
-		Research: research,
 		Commands: contextCommands(""),
 		Paths:    pathsForWorkflowPaths(a.workflowPaths()),
 	}
-}
-
-// primeActivePlans collects active ExecPlans in the current record layout.
-func (a *app) primeActivePlans() []primePlanSummary {
-	paths := a.workflowPaths()
-	dir := paths.execPlansDir("active")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var plans []primePlanSummary
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-			continue
-		}
-		fpath := filepath.Join(dir, entry.Name())
-		title, err := markdownTitle(nil, fpath)
-		if err != nil {
-			continue
-		}
-		id := strings.TrimSuffix(entry.Name(), ".md")
-		plans = append(plans, primePlanSummary{
-			ID:    id,
-			Title: title,
-			Link:  filepath.ToSlash(filepath.Join(paths.execPlansRel("active"), entry.Name())),
-		})
-	}
-	sort.Slice(plans, func(i, j int) bool {
-		return plans[i].ID < plans[j].ID
-	})
-	if len(plans) > 5 {
-		plans = plans[:5]
-	}
-	return plans
-}
-
-// primeRecentResearch collects recent research notes (up to 5, newest by
-// filename sort) in the current record layout.
-func (a *app) primeRecentResearch() []primeResearchNote {
-	return a.primeRecentResearchAt(time.Now())
-}
-
-func (a *app) primeRecentResearchAt(now time.Time) []primeResearchNote {
-	paths := a.workflowPaths()
-	meta, metaErr := readMetadata(a.opts.root)
-	threshold, staleEnabled := meta.researchInboxStaleThreshold()
-	if metaErr != nil {
-		staleEnabled = false
-	}
-	buckets := []string{"inbox", "topics", "investigations", "sources"}
-	var notes []primeResearchNote
-	for _, bucket := range buckets {
-		dir := filepath.Join(a.opts.root, filepath.FromSlash(paths.researchRel()), bucket)
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			fpath := filepath.Join(dir, entry.Name())
-			title, err := markdownTitle(nil, fpath)
-			if err != nil {
-				continue
-			}
-			note := primeResearchNote{
-				Bucket: bucket,
-				Link:   filepath.ToSlash(filepath.Join(paths.researchRel(), bucket, entry.Name())),
-				Title:  title,
-			}
-			if bucket == "inbox" {
-				if ageDays, err := researchNoteAgeDays(fpath, now); err == nil {
-					note.AgeDays = &ageDays
-					note.Stale = staleEnabled && ageDays >= threshold
-				}
-			}
-			notes = append(notes, note)
-		}
-	}
-	sort.Slice(notes, func(i, j int) bool {
-		iName := filepath.Base(notes[i].Link)
-		jName := filepath.Base(notes[j].Link)
-		if iName != jName {
-			return iName > jName
-		}
-		return notes[i].Link < notes[j].Link
-	})
-	if len(notes) > 5 {
-		notes = notes[:5]
-	}
-	return notes
 }
 
 func (a *app) primeTaskSummary(tasks []Task) primeTasks {
@@ -326,33 +210,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 		fmt.Fprintln(w, "Open: 0")
 	}
 
-	// Section 7: Active ExecPlans
-	if len(r.Plans) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "## Active ExecPlans")
-		for _, plan := range r.Plans {
-			fmt.Fprintf(w, "- %s %s\n", plan.ID, plan.Title)
-		}
-	}
-
-	// Section 8: Recent Research
-	if len(r.Research) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "## Recent Research")
-		for _, note := range r.Research {
-			fmt.Fprintf(w, "- [%s](%s) %s", note.Bucket, note.Link, note.Title)
-			if note.AgeDays != nil {
-				fmt.Fprintf(w, " (%d days old", *note.AgeDays)
-				if note.Stale {
-					fmt.Fprint(w, ", STALE")
-				}
-				fmt.Fprint(w, ")")
-			}
-			fmt.Fprintln(w)
-		}
-	}
-
-	// Section 9: Managed Work Intake
+	// Section 7: Managed Work Intake
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "## Managed Work Intake")
 	fmt.Fprintln(w, "- Work a task → `ahm context task`, then `ahm task show <id>` and follow the full lifecycle (start, implement, verify, complete)")
@@ -365,7 +223,7 @@ func (r primeReport) RenderText(w io.Writer) error {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Before executing a multi-step plan, materialize it as ahm tasks (or an ExecPlan) — plans in context die at compaction; records survive.")
 
-	// Section 10: Useful commands
+	// Section 8: Useful commands
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "## Useful Commands")
 	for _, cmd := range r.Commands {

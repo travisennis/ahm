@@ -222,7 +222,6 @@ func TestTaskCreateBodyFile(t *testing.T) {
 		"priority: P1",
 		"effort: M",
 		"labels: type:feature, area:cli",
-		"exec_plan: -",
 		"depends_on: -",
 		"created: ",
 		"# Body File Task",
@@ -2321,47 +2320,6 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
-	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
-		t.Errorf("completed file should exist: %v", err)
-	}
-}
-
-func TestTaskCompleteWarnsActiveExecPlan(t *testing.T) {
-	root := t.TempDir()
-
-	// Create an active ExecPlan with a filled Outcomes & Retrospective section.
-	planDir := filepath.Join(root, ".agents", "exec-plans", "active")
-	planPath := filepath.Join(planDir, "myplan.md")
-	planContent := "# My Plan\n\n" +
-		"## Progress\n\n- [x] Done\n\n" +
-		"## Surprises & Discoveries\n\nNone.\n\n" +
-		"## Decision Log\n\n- Decision: go ahead\n\n" +
-		"## Outcomes & Retrospective\n\nCompleted successfully.\n"
-	writeFile(t, planPath, planContent)
-
-	// Create a task with exec_plan pointing to the active ExecPlan.
-	taskPath := filepath.Join(root, ".agents", ".tasks", "active", "001.md")
-	writeTaskFile(t, taskPath, "001", "Task With Active Plan", "Pending",
-		"exec_plan: "+relPath(root, planPath)+"\n")
-
-	var out, errOut strings.Builder
-	a := app{opts: options{root: root}, out: &out, err: &errOut}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify the warning appears on stderr.
-	warning := errOut.String()
-	if !strings.Contains(warning, "active ExecPlan") {
-		t.Errorf("stderr missing active ExecPlan warning:\n%s", warning)
-	}
-	if !strings.Contains(warning, "move it to the completed ExecPlan bucket") {
-		t.Errorf("stderr missing guidance to move plan:\n%s", warning)
-	}
-	if !strings.Contains(warning, "filled Outcomes & Retrospective") {
-		t.Errorf("stderr missing filled Outcomes note:\n%s", warning)
-	}
-	// Task should still complete (warning only, not an error).
 	if _, err := os.Stat(filepath.Join(root, ".agents", ".tasks", "completed", "001.md")); err != nil {
 		t.Errorf("completed file should exist: %v", err)
 	}
