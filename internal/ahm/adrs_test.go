@@ -73,7 +73,7 @@ func TestRenderADRRoundTrip(t *testing.T) {
 		"---\n" +
 		"# Round Trip\n\n" +
 		"## Context\n\n" +
-		"Body.\n\n"
+		"Body.\n"
 
 	adr, err := parseADRFromData([]byte(input), path)
 	if err != nil {

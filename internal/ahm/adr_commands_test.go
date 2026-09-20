@@ -118,6 +118,31 @@ func TestADRCreateBodyFile(t *testing.T) {
 	}
 	assertContainsAll(t, content, "status: proposed", "## Context and Problem Statement", "Custom body.")
 	assertNotContains(t, content, "Chosen option: TODO")
+	assertSingleTrailingNewline(t, content)
+}
+
+// TestADRCreateEndsWithSingleNewline guards the file shape that Markdown lint
+// enforces: docs/adr files are linted, so a trailing blank line fails
+// `just docs-md-lint` with MD012 for every ADR ahm creates.
+func TestADRCreateEndsWithSingleNewline(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	bodyPath := filepath.Join(root, "body.md")
+	body := "## Context and Problem Statement\n\nBody with trailing blanks.\n\n  \n"
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "create", "Trailing Newline", "--body-file", bodyPath)
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Errorf("create stdout = %q, stderr = %q, code = %d", stdout, stderr, code)
+	}
+
+	assertSingleTrailingNewline(t, mustRead(t, filepath.Join(root, "docs", "adr", "001-trailing-newline.md")))
 }
 
 func TestADRCreateBodyFileFromStdin(t *testing.T) {

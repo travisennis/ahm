@@ -36,6 +36,21 @@ func runCLIFromDir(t *testing.T, dir string, args ...string) (string, string, in
 	return stdout.String(), stderr.String(), code
 }
 
+// assertSingleTrailingNewline fails when content does not end with exactly one
+// newline. Files under docs/adr are linted, and a trailing blank line there is
+// markdownlint MD012.
+func assertSingleTrailingNewline(t *testing.T, content string) {
+	t.Helper()
+	if strings.HasSuffix(content, "\n") && !strings.HasSuffix(content, "\n\n") {
+		return
+	}
+	tail := content
+	if len(tail) > 16 {
+		tail = tail[len(tail)-16:]
+	}
+	t.Fatalf("expected exactly one trailing newline, got trailing bytes %q", tail)
+}
+
 func assertContainsAll(t *testing.T, got string, wants ...string) {
 	t.Helper()
 	for _, want := range wants {

@@ -230,7 +230,6 @@ func renderADR(adr ADR) string {
 	body := strings.TrimSpace(adr.Body)
 	if body != "" {
 		fmt.Fprintln(&b, body)
-		fmt.Fprintln(&b)
 	}
 	return b.String()
 }
