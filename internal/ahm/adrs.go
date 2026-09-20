@@ -226,10 +226,10 @@ func renderADR(adr ADR) string {
 		fmt.Fprintf(&b, "%s: %s\n", k, renderFrontMatterScalar(adr.Extra[k]))
 	}
 	fmt.Fprintln(&b, "---")
-	fmt.Fprintf(&b, "# %s\n\n", strings.ReplaceAll(strings.ReplaceAll(adr.Title, "\r\n", " "), "\n", " "))
+	fmt.Fprintf(&b, "# %s\n", strings.ReplaceAll(strings.ReplaceAll(adr.Title, "\r\n", " "), "\n", " "))
 	body := strings.TrimSpace(adr.Body)
 	if body != "" {
-		fmt.Fprintln(&b, body)
+		fmt.Fprintf(&b, "\n%s\n", body)
 	}
 	return b.String()
 }
@@ -300,11 +300,18 @@ func rewriteADR(path string, fields map[string]string, updateBody func(string) s
 	if updateBody != nil {
 		body = updateBody(body)
 	}
-	updated := renderRawFrontMatter(updateRawFrontMatter(raw, newline, fields), body, newline)
+	updated := ensureSingleTrailingNewline(renderRawFrontMatter(updateRawFrontMatter(raw, newline, fields), body, newline), newline)
 	if updated == text {
 		return nil
 	}
 	return writeFileAtomic(path, []byte(updated), 0o644)
+}
+
+// ensureSingleTrailingNewline makes a rewritten ADR end with exactly one
+// newline. Body edits that rebuild the tail of a section drop the file's final
+// newline, which markdownlint reports as MD047 for linted ADR directories.
+func ensureSingleTrailingNewline(text string, newline string) string {
+	return strings.TrimRight(text, "\r\n") + newline
 }
 
 func splitRawFrontMatter(text string) (string, string, string, bool, error) {

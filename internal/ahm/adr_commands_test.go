@@ -395,6 +395,28 @@ func TestADRSupersedeUpdatesBothRecordsAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestADRSupersedeKeepsSingleTrailingNewline(t *testing.T) {
+	root := t.TempDir()
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// The replacement ADR's More Information section is last, which is the
+	// shape where rebuilding the section used to drop the file's final newline.
+	writeADRFile(t, root, "001-old-decision.md", "---\nstatus: accepted\ndate: 2026-06-01\n---\n# Old Decision\n\nBody.\n")
+	writeADRFile(t, root, "002-new-decision.md", "---\nstatus: accepted\ndate: 2026-06-02\n---\n# New Decision\n\n## More Information\n\n- Existing reference.\n")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "adr", "supersede", "001", "--by", "002")
+	if code != 0 {
+		t.Errorf("supersede exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+
+	newContent := mustRead(t, filepath.Join(root, "docs", "adr", "002-new-decision.md"))
+	assertContainsAll(t, newContent, "- Supersedes [ADR-001](001-old-decision.md).")
+	assertSingleTrailingNewline(t, newContent)
+	assertSingleTrailingNewline(t, mustRead(t, filepath.Join(root, "docs", "adr", "001-old-decision.md")))
+}
+
 func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
 	root := t.TempDir()
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
@@ -421,6 +443,9 @@ func TestADRSupersedePreservesCRLFBodyNewlines(t *testing.T) {
 	}
 	if strings.Contains(strings.ReplaceAll(bodyAfterRawFrontMatter(t, newContent), "\r\n", ""), "\n") {
 		t.Errorf("new ADR body contains bare LF:\n%q", newContent)
+	}
+	if !strings.HasSuffix(newContent, "\r\n") || strings.HasSuffix(newContent, "\r\n\r\n") {
+		t.Errorf("expected new ADR to end with exactly one CRLF, got %q", newContent[len(newContent)-16:])
 	}
 }
 
