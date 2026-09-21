@@ -111,9 +111,6 @@ Lists parsed tasks.
 - `--label <label>`: filters by label. Comma-separated or repeated. AND logic
   across labels.
 - `--priority`, `--effort`: filter by enum value.
-- `--search <text>`: case-insensitive substring match against title, body,
-  labels, and comments.
-- `--by-id <id>`: exact ID match.
 - `--sort <field>`, `--reverse`: see shared sorting above.
 - `--json`: emits parsed task structs with lowercase snake_case keys.
 - `--plain`: compact JSON.
@@ -127,7 +124,7 @@ work), sorted by priority.
 
 **Guarantees:**
 
-- Same `--sort`, `--reverse`, `--json`, `--plain`, `--search` flags as
+- Same `--label`, `--sort`, `--reverse`, `--json`, and `--plain` flags as
   `task list`.
 
 ### `task blocked`
@@ -142,14 +139,17 @@ Lists Blocked tasks sorted by priority.
 
 Prints the single highest-priority ready task (or nothing).
 
-### `task show <id>`
+### `task show <id> [<id>...]`
 
-Shows one task. Default: raw Markdown file. `--json` / `--plain`: parsed task
-record.
+Shows one or more tasks. With a single ID, default output is the raw Markdown
+file; with several IDs, each file follows the previous one, separated by `---`.
+`--json` emits one object for a single ID and an array for several.
 
-### `task search <text>`
+### `task search <query>`
 
-Searches tasks by text. Equivalent to `task list --search <text>`.
+Searches tasks by case-insensitive substring match on the title. Supports the
+`--status` and `--label` filters to scope results. Output matches
+`task list`.
 
 ### `task labels`
 
@@ -157,12 +157,14 @@ Lists all unique labels across all tasks with per-label counts.
 
 ### `task start <id>`
 
-Sets task status to `In Progress`.
+Sets task status to `In Progress` and moves the file to the `active/` bucket.
 
 **Guarantees:**
 
-- Refuses transition from `Completed` or `Cancelled` (use `task reopen`).
-- Prints `<id> already <status>` if already in progress.
+- Prints `<id> already In Progress` and writes nothing when status and bucket
+  already match.
+- No transition guard: starting a `Completed` or `Cancelled` task moves it
+  back to `active/`. Use `task reopen` to return it to `Pending` instead.
 
 ### `task complete <id>`
 
@@ -172,18 +174,24 @@ Sets task status to `Completed`.
 
 - Strict acceptance (when enabled): fails if acceptance section missing,
   contains `- [ ] TODO`, or has unchecked items. Override with `--force`.
-- Refuses transition from `Cancelled`.
+- Requires every `depends_on` entry to be `Completed`; an incomplete
+  dependency fails with `cannot complete task <id>: incomplete dependencies:
+  ...`.
+- Moves active `Blocked` tasks that depend on the completed ID to `Pending`
+  when that completion satisfies their whole `depends_on` list.
 - Prints `<id> -> Completed` or `<id> already Completed`.
 
-### `task cancel <id> [reason]`
+### `task cancel <id> --reason <text>`
 
 Sets task status to `Cancelled`.
 
 **Guarantees:**
 
-- Optional reason appended to task body.
-- Refuses transition from `Completed`.
-- Unblocks dependents when they have no remaining dependencies.
+- `--reason` is required and must be non-empty; `--force` does not bypass it.
+  The reason is stored in the body under `## Cancellation Reason`.
+- Moves the file to the `cancelled/` bucket. There is no transition guard, so
+  a `Completed` task can be cancelled this way.
+- Leaves dependents untouched; only `task complete` unblocks them.
 
 ### `task reopen <id>`
 
@@ -191,8 +199,8 @@ Returns a `Completed` or `Cancelled` task to `Pending`.
 
 ### `task accept <id>`
 
-Sets task status to `Completed` from `In Progress` or `Pending`. Equivalent to
-`task complete` for that transition subset.
+Accepts an `Open` task into the ready queue by setting its status to
+`Pending`.
 
 ### `task comment <id> <text>`
 

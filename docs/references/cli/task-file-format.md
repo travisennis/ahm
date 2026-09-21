@@ -28,6 +28,12 @@ Optional front matter preserved by task rewrites:
 - `parent`
 - `external_ref`
 
+Retired front matter preserved as an unknown field:
+
+- `exec_plan` — the link to an ExecPlan that older releases managed. `ahm`
+  neither reads nor validates it and never writes a new one; an existing value
+  is re-emitted in its original slot, so the file round-trips unchanged.
+
 `depends_on` accepts `-`, `[]`, or a comma-separated list. Rewrites use `-` for
 an empty dependency list and comma-separated IDs for non-empty lists.
 
@@ -73,10 +79,6 @@ Finding codes:
 | ---- | ------- |
 | `metadata_missing` | Workflow metadata `.ahm/config.json` is missing. |
 | `metadata_corrupt` | Workflow metadata exists but cannot be read or parsed. |
-| `managed_file_missing` | A managed workflow file is missing. |
-| `managed_file_unreadable` | A managed workflow file could not be read. |
-| `managed_file_untracked` | A managed workflow file exists but is not recorded in metadata; run `ahm init` to adopt. |
-| `managed_file_modified` | A managed workflow file hash differs from metadata. |
 | `task_dir_unreadable` | A task bucket directory could not be read. |
 | `task_unreadable` | A task file could not be read. |
 | `task_missing_field` | Task front matter is missing a required field. |

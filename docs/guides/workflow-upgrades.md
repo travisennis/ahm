@@ -12,8 +12,10 @@ present. It rewrites only the files ahm owns — `.ahm/config.json`, the managed
 from what ahm owns, so an up-to-date repository is left completely untouched.
 
 - Obsolete ahm-owned configuration keys (`taskWork`, `default_work_agent`,
-  `projectDocs`, `research`) are dropped. Unrelated unknown top-level fields,
-  including `files` hashes for files ahm still owns, are preserved.
+  `projectDocs`, `research`) are dropped, and `files` ownership hashes for the
+  retired managed files and generated-index paths this version knows about are
+  discarded. Other top-level fields, and any `files` entry outside that list,
+  are preserved.
 - Retired managed files stay exactly as the project left them. Older releases
   installed instruction templates, procedure skills, and record scaffold
   READMEs and tracked ownership hashes for them; `ahm init` discards those
@@ -25,6 +27,31 @@ from what ahm owns, so an up-to-date repository is left completely untouched.
 
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
+
+## Migrating To v2
+
+v2 reduces `ahm` to a records CLI for tasks and ADRs (ADR 022). Six commands
+are gone, with no aliases and no replacements: `audit`, `context`, `onboard`,
+`task groom`, `task work`, and `upgrade`. Delete every hook, CI step, script,
+and instruction that invokes them. The `records` group and its commands
+(`records migrate`, `records doctor`), `task migrate`, and `adr migrate` are
+gone with the legacy layout support they served.
+
+Research notes under `.ahm/research/` and ExecPlans under `.ahm/exec-plans/`
+stop being ahm-managed record families: `ahm` no longer reads, indexes, or
+validates them, and the task front-matter field `exec_plan` is retired.
+Nothing is deleted. Those files stay where they are, the generated indexes
+inside them stay stale, and keeping or removing them is the project's choice.
+
+Move a repository onto v2 by running `ahm init` with the new binary. It
+reconciles ahm-owned configuration — dropping `taskWork` — rewrites the
+managed `.ahm/.gitignore` so it no longer ignores the retired families'
+indexes, and regenerates the indexes. The retired families' index files were
+ignored by the old pattern, so after `ahm init` they appear as untracked paths
+in `git status` unless the project commits or deletes them. Everything not
+listed above is compatible: the task and ADR lifecycles, record formats,
+generated index formats, exit codes, and output modes behave as they did in
+v1.
 
 ## Migrating A Legacy `.agents/ahm.json` Repository
 
@@ -38,401 +65,24 @@ reads only .ahm/config.json; upgrade the repository with the final v1
 release (ahm v1.0.0) before using this version
 ```
 
-A repository on that layout must move with the final v1 release first. Run
-`ahm upgrade` and then `ahm records migrate` with ahm v1.0.0: `ahm upgrade`
-refreshes the managed files, and `ahm records migrate` moves the records to
-`.ahm/`, writes `.ahm/config.json`, and removes `.agents/ahm.json`. Then run
-`ahm init` with this version.
+A repository on that layout must move with a v1 build that ships the record
+migration before it can adopt v2. Run `ahm upgrade` and then `ahm records
+migrate`: `ahm upgrade` refreshes the managed files, and `ahm records migrate`
+moves the records to `.ahm/`, writes `.ahm/config.json`, and removes
+`.agents/ahm.json`. Then run `ahm init` with this version.
+
+The `v1.0.0` tag predates `ahm records migrate`, so a repository on that
+release needs the last v1 build before this reduction — the one whose `ahm
+records migrate` resolves — to make the move. Check with `ahm records migrate
+--help` before starting.
 
 ## Release History
 
-The sections below are the dated release history of the workflow state format
-and its commands. They are records of releases that are no longer current.
-
-## Documentation Context Scope Removal (2026-07-28)
-
-`ahm context docs` has been removed as an intentional breaking CLI change. The
-supported scopes are now exactly `task`, `plan`, `adr`, and `research`, in the
-command's usage string, help text, usage errors, and text/JSON/plain output.
-Invoking `ahm context docs` now exits with the usage error code. Remove that
-invocation from hooks, scripts, and agent instructions.
-
-The binary-owned documentation procedure was removed with it, so `ahm` no
-longer ships a general-documentation workflow reference. The embedded
-`ahm context task` reference still asks an agent to assess documentation impact
-before completing a task and to record the outcome in Acceptance Notes, but it
-now routes to the project's own documentation guidance instead of an ahm
-procedure. `ahm prime` no longer lists documentation work as managed-work
-intake.
-
-Cleanup behavior is unchanged: `ahm upgrade` still removes a historically
-managed `.agents/DOCS.md` only when existing metadata proves ahm ownership of
-that exact content. Locally modified copies are preserved and reported as
-conflicts unless `--force` is used, and `ahm` never creates, overwrites, or
-adopts project-owned documentation.
-
-## General Documentation Surface Removal (2026-07-27)
-
-Ahm now limits validation to its structured workflow records: tasks, research,
-ExecPlans, ADRs, and their generated indexes. The `ahm docs` command group,
-`ahm docs check`, and the `project-docs` scope on `status` and `doctor` have
-been removed as intentional breaking CLI changes. Remove those invocations
-from hooks and CI; projects that still want general documentation checks should
-select and own their own tooling.
-
-The `projectDocs` configuration block no longer affects runtime behavior.
-Metadata reads tolerate the obsolete key during migration, and a real `ahm
-upgrade` removes it from `.ahm/config.json` or legacy `.agents/ahm.json` while
-preserving unrelated unknown top-level fields. `ahm --dry-run upgrade` leaves
-the file unchanged.
-
-## Task Lifecycle Alignment In AGENTS.md (2026-07-20)
-
-The embedded `ahm context task` reference now explicitly states that
-`ahm task complete` must run before any git commit that includes the task's
-implementation. The project `AGENTS.md` operating loop was also updated to
-include `ahm task start` after intake and `ahm task complete` before preflight
-checks — both qualified for task-backed work only.
-
-## Stale Research Inbox Disposition (2026-07-19)
-
-The embedded `ahm context research` reference now requires stale inbox notes to be
-promoted to a durable topic, converted to a task, or deleted when they have no
-continuing value. Ahm reports the condition but never applies a disposition.
-
-The repository config accepts an optional `research.inboxStaleDays` setting in
-both `.ahm/config.json` and legacy `.agents/ahm.json`. Absence uses 21 days, a
-positive value overrides the default, and zero disables the check. The setting
-round-trips through `ahm upgrade`; negative values are rejected as invalid.
-
-`ahm status` and `ahm doctor` now emit warning-tier
-`research_inbox_stale` findings. `ahm prime` shows whole-day age for inbox
-entries in Recent Research and marks entries that have reached the enabled
-threshold. The behavior is layout-aware and applies equally to current `.ahm/`
-and legacy `.agents/` research inboxes.
-
-## Current-Layout Onboarding Guidance (2026-07-19)
-
-`ahm onboard` now describes `.ahm/` as the workflow-record directory and
-distinguishes ADRs under `docs/adr/` as project-owned durable documentation.
-It no longer advertises project-owned `.agents/` as ahm record storage.
-
-This is binary-owned CLI guidance in `internal/ahm/onboard.go`, not an embedded
-workflow template under `internal/templates/workflow/`.
-
-Use `--dry-run` to preview changes. Use `--force` only when old local
-instruction files should be removed even though they no longer match their
-recorded managed hash.
-
-## Record Layout Terminology (2026-07-18)
-
-The embedded research workflow reference now describes the metadata-selected
-record layout rather than a storage mode. Legacy `.agents/` and post-migration
-`.ahm/` layouts both keep source records as ordinary committed files.
-
-Structured `prime` output no longer includes the obsolete `records.mode`
-field, and `records doctor` no longer includes `checks.mode`. Record-path
-selection and legacy-layout compatibility are unchanged.
-
-## Context-Only Workflow References (2026-07-15)
-
-Fresh installs no longer create `.ahm/tasks/README.md`, `.ahm/research/README.md`, or
-`docs/adr/README.md`. Task, research, and ADR guidance remains available from
-`ahm context task`, `ahm context research`, and `ahm context adr` respectively.
-The embedded ADR context source was renamed from `workflow/adr-README.md` to
-`workflow/ADR.md` to reflect that it is command output rather than a copied
-README template.
-
-Existing README files are preserved. The `0.6.0` scaffold files were
-create-only and had no ownership hashes, so `ahm upgrade` cannot safely remove
-or overwrite consumer copies.
-
-## Concise Task Workflow Reference (2026-07-15)
-
-The embedded task workflow reference changed. `ahm context task` now focuses on
-task decisions and a single end-to-end working procedure while leaving task
-front matter, body scaffolding, exact flags, and lifecycle mechanics to the
-`ahm task ...` commands that own them.
-
-The procedure applies to tasks with and without ExecPlans. ExecPlan completion
-is an explicit conditional step instead of the only fully ordered completion
-path. Task storage, file formats, lifecycle semantics, and CLI behavior are
-unchanged.
-
-## Command-Based Procedures (2026-07-11)
-
-The embedded managed-file set changed. Fresh installs no longer create
-`.agents/skills/`. Grooming is delegated through `ahm task groom`, improvement
-audits through `ahm audit`, and task-work review uses a binary-embedded
-preflight procedure. `ahm onboard` replaces the removed `ahm agents`
-suggestions group.
-
-## .ahm-first init (2026-07-12)
-
-`managedFiles` in the templates package was populated with `.ahm/` scaffold targets.
-Fresh `ahm init` (no prior workflow metadata) now creates the committed
-`.ahm/` layout directly: `.ahm/config.json`, scaffold READMEs under
-`.ahm/tasks/`, `.ahm/research/`, and `docs/adr/`, and workflow directories
-under `.ahm/`. Legacy `.agents/ahm.json` is no longer created for new
-installs. Repositories with existing `.agents/ahm.json` are unaffected;
-`upgrade` continues to preserve the existing layout.
-
-The former preflight, grooming-backlog, and finding-improvements procedure
-files remain in place as project-owned content. Init, upgrade, and records
-migration discard their old managed hashes, and even a forced upgrade does not
-inspect or remove them. `AGENTS.md` remains project-owned and is never modified.
-
-The dated entries below are release history and describe behavior at those
-versions. References there to installed skills or `ahm agents suggestions` are
-superseded by the `0.5.0` migration above.
-
-## Records Migration (2026-07-06)
-
-Workflow migration moves `.agents/.tasks/`, `.agents/.research/`, and
-`.agents/exec-plans/` (including generated indexes) to non-dot names
-under `.ahm/` (`.ahm/tasks/`, `.ahm/research/`, `.ahm/exec-plans/`),
-installs internal `.ahm/.gitignore` entries, converts
-`.agents/ahm.json` into committed `.ahm/config.json`, and prints the
-`git rm -r --cached` command for the user to run instead of untracking
-project-owned records itself. It never touches project-owned `.agents/`
-content such as `.agents/prompt.md`, `.agents/skills/`, or `AGENTS.md`.
-Migration also discards any old ownership hashes for the former preflight,
-grooming-backlog, and finding-improvements skills so later ahm commands leave
-them entirely project-owned. The migration is a
-separate command, `ahm records migrate`; routine `ahm upgrade` never
-performs it, and repositories keep the current committed-record behavior
-until they opt in.
-
-Use `ahm --dry-run records migrate` to preview every effect first. The command
-is resumable after interruption, and `ahm records doctor` diagnoses partially
-migrated states. Rollback steps are documented in the
-[`records migrate` reference](../references/cli/commands.md#records-migrate).
-
-### Impact
-
-- `.ahm/config.json` becomes the committed config file after migration;
-  `ahm upgrade` and other commands read and write it instead of legacy
-  `.agents/ahm.json` (see the note above about metadata paths).
-- After migration, workflow commands (`ahm task ...`, `ahm index`,
-  `ahm status`, `ahm doctor`, `ahm context`, `ahm init`/`ahm upgrade`
-  directory creation) read and write records and generated indexes under
-  `.ahm/` instead of `.agents/`.
-- Record mutations in a migrated repository write source records as
-  normal committed project files; generated indexes are regenerated
-  locally and remain gitignored.
-- `ahm prime` is the session-start command for agents. It regenerates
-  indexes, validates workflow state, and prints the backlog briefing without
-  network or custom-ref operations.
-- Migrated record files leave normal branch history once the printed
-  `git rm -r --cached` command is run and committed.
-- Repositories that do not run `ahm records migrate` are unaffected.
-
-## Role-Specific Agent/Model Configuration (2026-07-09)
-
-`ahm task work` now supports role-specific agent and model defaults under the
-`taskWork` block in both `.ahm/config.json` and legacy `.agents/ahm.json`.
-
-The `implementation` and `review` objects each accept `agent` and `model`
-fields. Review falls back to the implementation agent when no review-specific
-config is set. Feedback-resume and commit handoff always use the implementation
-agent because they resume the implementation session.
-
-See the [workflow specification](../references/workflow-spec.md) and
-[task commands reference](../references/cli/task-commands.md) for the full
-precedence rules and examples.
-
-### Impact
-
-- Projects can now configure different agents and models for implementation vs.
-  review without relying on CLI flags.
-- Existing `default_work_agent` continues to work and serves as the fallback
-  when no role-specific config is present.
-- `ahm --dry-run task work <id>` includes `review_agent` and `review_model`
-  fields when review will run.
-
-## Layout-Aware Agent Guidance Rendering (2026-07-09)
-
-Live agent instruction output now renders workflow record, generated index, and
-metadata paths for the repository's record layout. Legacy repositories
-see direct `.agents/...` paths; migrated repositories see direct `.ahm/...`
-paths. Generic project documentation still describes both layouts where
-that distinction is durable user-facing behavior.
-
-### Impact
-
-- `ahm context task`, `ahm context research`, `ahm context plan`,
-  `ahm context docs`, and `ahm prime` avoid unnecessary paired-path wording in
-  live output when the repository layout is known.
-- Managed skill templates and `ahm agents suggestions` render the generated
-  task or research index paths for the active record layout.
-
-## Migrated Agent Guidance (2026-07-07)
-
-The embedded task, research, and ExecPlan workflow references now describe the
-current record layout instead of hard-coding only legacy `.agents/` paths.
-Legacy repositories still use `.agents/`; repositories that run
-`ahm records migrate` use `.ahm/` for task, research, ExecPlan, and generated
-index paths. The `ahm agents suggestions` advisory output now includes
-`ahm prime` as the session-start step before managed-work intake.
-
-### Impact
-
-- `ahm context task`, `ahm context research`, and `ahm context plan` output
-  describes both layouts for fallback paths and generated indexes.
-- `ahm agents suggestions` tells maintainers to put `ahm prime` before normal
-  managed-work intake in project-owned `AGENTS.md`.
-
-## Context Role Split (2026-06-20)
-
-This release splits the `ahm context` command into two distinct modes:
-
-- **Unscoped `ahm context`** is a live repository briefing. It prints root,
-  workflow version, validation, git state, task summary, and useful commands.
-  It no longer prints an `## Instructions` section or claims workflow
-  authority.
-- **Scoped `ahm context task|plan|adr|research|docs`** prints a pure managed-work
-  reference document without live briefing wrapper fields.
-- **Scoped JSON** (`ahm --json context task`) now returns `scope`,
-  `instructions`, and `commands`. It no longer includes `root`, `workflow`,
-  `git`, or `tasks` fields.
-- **Unscoped JSON** (`ahm --json context`) no longer includes `instructions`.
-- **Validation display** now distinguishes warnings-only state: `validation: ok`
-  means zero errors and zero warnings; warnings alone show the warning count
-  and sample findings.
-- `ahm agents suggestions`, managed skills, and embedded workflow references
-  now describe `ahm task show <id>` as the normal task inspection primitive
-  and `AGENTS.md` as the owner of workflow routing.
-
-### Impact
-
-- `ahm agents suggestions` output changes for the `ahm-owned-files` advisory
-  block to describe the primitives model.
-- `ahm context` text and JSON output shapes change as described above.
-  Consumers relying on the old scoped JSON shape (with `root`, `workflow`,
-  `git`, `tasks`) need to adapt.
-- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
-
-## AGENTS.md Integration Suggestions (2026-06-20)
-
-The `ahm agents suggestions` output now frames its Markdown as AGENTS.md
-integration guidance rather than simple additions. It tells maintainers or
-agents how to preserve project-specific instructions while connecting an
-existing Operating Loop and Workflow Routing section to `ahm` managed-work
-intake.
-
-The guidance now distinguishes three target shapes:
-
-- Existing Operating Loop: patch it so managed-work intake happens before
-  normal workflow routing.
-- Workflow Routing but no Operating Loop: add a short Operating Loop before
-  the routing section.
-- Neither Operating Loop nor Workflow Routing: add only the ahm-specific
-  managed-work intake and ownership sections, without inventing a full project
-  workflow.
-
-### Impact
-
-- `ahm agents suggestions` output changes for the advisory suggestion blocks.
-- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
-
-## Managed Work Intake Suggestions (2026-06-20)
-
-The `ahm-workflow-routing` advisory block printed by
-`ahm agents suggestions` now frames `ahm` as managed-work intake for tasks,
-ExecPlans, ADRs, and research rather than as a broad default first step for
-every session. The suggestion tells agents to use scoped `ahm context`
-commands for higher-order workflow records, then return to the project
-`AGENTS.md` workflow routing and load the routed docs for the actual code,
-docs, CLI, safety, or release change.
-
-### Impact
-
-- `ahm agents suggestions` output changes for the `ahm-workflow-routing`
-  advisory block.
-- Existing project-owned `AGENTS.md` files are still never modified by `ahm`.
-
-## Context-Based Agent Instructions (2026-06-19)
-
-Canonical agent workflow guidance moved from installed repository workflow
-guide files to the new `ahm context` command. Fresh installs no longer create
-starter `AGENTS.md` or instruction templates such as `.agents/TASKS.md`,
-`.agents/PLANS.md`, `.agents/RESEARCH.md`, `.agents/DOCS.md`, and
-`docs/adr/README.md`. Agent skills under `.agents/skills/` remain managed
-template files.
-
-### Impact
-
-- `ahm init` now creates workflow directories, managed skill templates,
-  `.agents/ahm.json`, and generated indexes.
-- The next `ahm upgrade` run with this version or newer removes previously
-  managed instruction files when their content still matches metadata,
-  including `.agents/TASKS.md`, `.agents/PLANS.md`, `.agents/RESEARCH.md`,
-  `.agents/DOCS.md`, `.agents/.tasks/README.md`,
-  `.agents/.research/README.md`, and `docs/adr/README.md`.
-- `ahm upgrade` still updates managed skill templates.
-- Locally modified instruction files are preserved as conflicts unless
-  `--force` is used.
-- Existing `AGENTS.md` files are never modified or removed.
-- Agents should run `ahm context` for a session briefing or a scoped form such
-  as `ahm context task` for the full scoped instruction document.
-
-## Version Separation (2026-06-10)
-
-The binary version and the workflow template version are now separate.
-
-- `internal/version.Binary` (var, set by goreleaser ldflags) is the release
-  version shown by `ahm --version` and `ahm version`. It advances with every
-  tagged release.
-
-This separation avoids the bug where `ahm --version` silently reported the
-wrong version because the workflow template version was a `const` and the linker `-X`
-flag only sets `var` symbols.
-
-*(The template version constant has since been removed entirely; the binary
-version is now the single version tracked in the repository.)*
-
-### Impact
-
-- `ahm --version` and `ahm version` now return the injected binary version,
-  which matches the release tag in goreleaser builds.
-- Dev builds (`go build`, `just build`) without ldflags show `dev` so they are
-  not confused with tagged release builds.
-
-## ADR Template Rewrite for MADR (2026-06-14)
-
-`docs/adr/README.md` was rewritten to document only the constrained MADR
-profile instead of the legacy Nygard-style format. The new template covers:
-
-- Constrained MADR front matter and section guidance.
-- The `ahm adr` command family (create/list/show/accept/reject/deprecate/
-  supersede/migrate).
-- The generated `docs/adr/index.md` ownership rule.
-- Updated supersession rules from ADR 009 (no "Superseded in part" status;
-  partial supersession via body notes).
-
-The starter `AGENTS.md` suggestions were updated to route ADR work through
-`ahm adr` commands and list `docs/adr/index.md` as an ahm-owned generated
-index.
-
-### Impact
-
-- In `0.3.0`, `ahm upgrade` updated `docs/adr/README.md` in consumer
-  repositories that had not locally modified it. Locally customized ADR guides
-  were preserved and reported as conflicts.
-- In `0.3.0`, `ahm init` in new repositories installed the MADR-only guidance.
-- The `ahm-workflow-routing` and `ahm-owned-files` agent suggestions now
-  cover ADR commands and the generated ADR index.
-
-## Task Workflow Verification Link Update (2026-06-14)
-
-The task workflow template now points contributors to `CONTRIBUTING.md` for the
-project's full CI check instead of the root `AGENTS.md`. This supports the
-progressive-disclosure split where `AGENTS.md` routes work and
-`CONTRIBUTING.md` owns setup, commands, verification, and commit workflow.
-
-### Impact
-
-- In `0.3.1`, `ahm upgrade` updated `.agents/TASKS.md` in consumer
-  repositories that had not locally modified it.
-- The generated task workflow semantics are unchanged; only the documentation
-  target for verification policy changed.
+This guide used to carry a dated entry for every workflow-state change through
+v1: added and removed commands, the `context` scope split, the research inbox,
+the record-layout moves, and the template-version separation. v2 removed most
+of the surfaces those entries describe, so they were dropped rather than left
+here offering commands that no longer exist. Recover them with `git log -p --
+docs/guides/workflow-upgrades.md`; [`CHANGELOG.md`](../../CHANGELOG.md) holds
+the released versions (v0.1.0 and v1.0.0), and [the ADRs](../adr/index.md) hold
+the decisions.

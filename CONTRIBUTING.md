@@ -25,9 +25,9 @@ prek install --hook-type commit-msg
 
 Worktrees are the parallel-work mechanism, used only when multiple tasks are
 worked at the same time (for example, two agents, or a human and an agent,
-implementing different branches at once). For a single task, skip the
-worktree and work directly on a `feat/<slug>` branch in the main checkout;
-the worktree overhead buys nothing unless the work is genuinely parallel.
+implementing different changes at once). For a single task, skip the worktree
+and commit to `master` in the main checkout; the worktree overhead buys nothing
+unless the work is genuinely parallel.
 
 Create a worktree for a task with `git worktree add -b feat/<slug>
 ../ahm-<slug> master` from the repository root, then `cd ../ahm-<slug>` and
@@ -39,14 +39,14 @@ Linked worktrees share the main checkout's hooks directory (verify with
 the main checkout covers all worktrees and no per-worktree hook install is
 needed.
 
-Cleanup after the branch merges or is abandoned: `git worktree remove
+Cleanup after the work is merged or abandoned: `git worktree remove
 ../ahm-<slug>` and `git branch -d feat/<slug>`.
 
 Agents: the cake agent runtime cannot yet create sibling-directory worktrees
 through its shell sandbox (writes are restricted to the project directory),
-so agents do not create worktrees and instead work in the main checkout on a
-`feat/<slug>` branch. Until cake is patched, the worktree flow above is for
-humans working in parallel; ahm does not rely on agent-created worktrees.
+so agents do not create worktrees and instead work in the main checkout on
+`master`. Until cake is patched, the worktree flow above is for humans working
+in parallel; ahm does not rely on agent-created worktrees.
 
 ## Command Catalog
 
@@ -70,7 +70,7 @@ just prepare-release  # calculate version, update changelog, and run release che
 just quick          # go test ./... plus go vet ./...
 just ci             # full read-only CI suite
 just fix            # mutating tidy plus fmt
-just docs-md-lint   # lint markdown structure (npx markdownlint-cli2); not yet in ci
+just docs-md-lint   # lint markdown structure (npx markdownlint-cli2); part of just ci
 ```
 
 ## Project-Specific Guidance

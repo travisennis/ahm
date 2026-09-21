@@ -60,7 +60,7 @@ Shows one ADR. ID resolution: `9`, `009`, or `009-madr-adr-management`.
 - Default prints the raw Markdown file.
 - `--json` / `--plain` prints the parsed ADR record.
 
-### `adr accept|reject|deprecate <id>`
+### `adr accept|reject|deprecate|propose <id>`
 
 Sets the ADR status, updates `date:` to today, regenerates indexes.
 
@@ -69,6 +69,19 @@ Sets the ADR status, updates `date:` to today, regenerates indexes.
 - Idempotent on already-matching status (reports `<id> already <status>`).
 - Refuses transitions that violate MADR lifecycle rules (e.g., accepting an
   already-rejected ADR).
+- `--dry-run` prints the target and new status without writing.
+
+### `adr supersede <old-id> --by <new-id>`
+
+Marks `<old-id>` as `superseded by ADR-NNN`, adds a Supersession note to it,
+and cross-references the replacement. Regenerates indexes.
+
+**Guarantees:**
+
+- `--by` is required and must resolve to an existing ADR.
+- Both ADRs must be MADR-profile records, the replacement must be `accepted`,
+  and the old ADR must be `accepted` or already superseded by that same
+  replacement. An ADR cannot supersede itself.
 - `--dry-run` prints the target and new status without writing.
 
 ### `prime`
@@ -114,8 +127,10 @@ is present.
 - Rewrites an ahm-owned file only when its bytes differ from what ahm owns, so
   an up-to-date repository is left untouched and a repeated run writes nothing.
 - Drops obsolete ahm-owned configuration keys (`taskWork`,
-  `default_work_agent`, `projectDocs`, `research`) and preserves unknown
-  metadata, including `files` hashes for files ahm still owns.
+  `default_work_agent`, `projectDocs`, `research`) and discards `files`
+  ownership hashes for the retired managed files and generated-index paths it
+  knows about. Other unknown metadata, including any other `files` entry, is
+  preserved.
 - Never creates, overwrites, or removes project-owned `AGENTS.md`.
 - Refuses a repository whose metadata is still `.agents/ahm.json` and names
   `v1.0.0`, the final v1 release, as the release to upgrade with first. A

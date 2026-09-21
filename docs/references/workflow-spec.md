@@ -7,7 +7,7 @@ under `docs/adr/`. A user can initialize a repository, create and advance
 tasks, manage ADR lifecycle, regenerate indexes, and reconcile ahm-owned
 workflow state.
 
-## Non-goals For v1
+## Non-goals
 
 - No model or coding-agent calls, and no delegation to another program. Git is
   the only subprocess `ahm` runs.
@@ -31,8 +31,7 @@ Global flags:
 - `--root <path>`
 - `--json`
 - `--plain`
-- `--quiet`
-- `--verbose`
+- `--text`
 - `--dry-run`
 - `--force`
 - `--help`
@@ -44,11 +43,13 @@ Commands:
   committed `.ahm/` layout when it is absent and rewrites only ahm-owned files
   whose content drifted; an up-to-date repository is untouched. Refuses a
   repository that still holds `.agents/ahm.json`.
+- `prime`: regenerate indexes and print the live repository briefing.
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
+- `version`: print the binary version.
 
 The complete command and flag reference is maintained in
 [`docs/cli.md`](../cli.md). That reference documents output modes, aliases,
@@ -86,9 +87,11 @@ Supported record mutations (`ahm task` lifecycle and metadata commands, and
 `ahm index` after hand edits to records) write source records directly to
 `.ahm/`. Generated indexes remain local-only under `.ahm/`.
 
-`ahm` writes `.ahm/config.json` with repository-scoped workflow settings and
-the managed file hashes it still tracks. This metadata lets future versions
-recognize files they own while preserving user edits.
+`ahm` writes `.ahm/config.json` with repository-scoped workflow settings. The
+`files` map holds ownership hashes inherited from older releases; this version
+records no new hashes and validates none, and `ahm init` deletes the entries
+for the retired managed files and generated-index paths it knows about, while
+preserving every other entry.
 
 Example:
 
@@ -211,9 +214,9 @@ validation groups over the managed workflow surface.
 
 Supported scopes:
 
-- `workflow` — managed file consistency, task front matter, dependency cycles,
-  task bucket placement, ADR records, generated index freshness. This is the
-  core workflow validation set.
+- `workflow` — workflow metadata, task front matter, dependency cycles, task
+  bucket placement, ADR records, generated index freshness. This is the core
+  workflow validation set.
 - `links` — relative Markdown link existence within task and ADR records and
   their generated indexes. Link validation is independent
   of workflow state and can be run separately to focus on record-integrity
@@ -260,16 +263,22 @@ produces, is:
 4. `priority`
 5. `effort`
 6. `labels`
-7. `depends_on`
-8. `created` (optional, omitted when empty)
-9. `updated` (optional, omitted when empty)
-10. `parent` (optional, omitted when empty)
-11. `external_ref` (optional, omitted when empty)
-12. Extra/unknown fields (sorted by key)
+7. `exec_plan` (retired, emitted only when an older `ahm` wrote a value)
+8. `depends_on`
+9. `created` (optional, omitted when empty)
+10. `updated` (optional, omitted when empty)
+11. `parent` (optional, omitted when empty)
+12. `external_ref` (optional, omitted when empty)
+13. Extra/unknown fields (sorted by key)
 
 Optional fields (`created`, `updated`, `parent`, `external_ref`) are emitted
 only when non-empty. Extra fields not recognized as standard task fields are
 emitted in alphabetical order after all standard fields.
+
+`exec_plan` is retired: `ahm` neither reads nor validates it, and no command
+writes one. A value an older release wrote survives as an unknown field and is
+re-emitted in the slot it occupied while it was schema, so such a task file
+round-trips byte-identically. Deleting the field is the project's choice.
 
 ### Front Matter Grammar
 

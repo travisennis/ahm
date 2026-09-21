@@ -151,10 +151,65 @@ deleted, and the binary runs no program but Git.
       to the live docs that named them, and `docs/guides/workflow-upgrades.md`
       now opens with the v2 migration note. Landed as `94790cf`, with the
       Windows test fix in `35ed4ec`; CI is green on both runners at `35ed4ec`.
-- [ ] Milestone 6 (264e) complete: documentation and instructions rewritten.
+- [x] Milestone 6 (264e) complete: documentation and instructions rewritten.
+      README, ARCHITECTURE, CONTRIBUTING, `.agents/prompt.md`, and the two
+      surviving skills describe the two-family records boundary; the live
+      `docs/` surfaces lost their stale claims about removed commands,
+      removed families, managed-file hashes, and task-command behavior;
+      `docs/guides/workflow-upgrades.md` gained the v2 migration note and
+      dropped its dated pre-v2 release history; `docs/VISION.md` needed no
+      edit, because milestone 4 had already rewritten it. Two subagent review
+      rounds ran; `just ci` and `just docs-md-lint` are green on the working
+      tree. Not committed at handoff — see the Revision Notes.
 - [ ] Milestone 7 (264f) complete: v2.0.0 released.
 
 ## Surprises & Discoveries
+
+- Observation: the documentation milestone had to correct claims the reference
+  pages made about current behavior, not only claims about removed surfaces.
+  Four were wrong: `docs/references/cli/task-commands.md` said `task accept`
+  completes a task (it sets `Pending`), documented a `--reason` positional for
+  `task cancel` (it is a required flag), listed `--search` and `--by-id` flags
+  that `task list` does not have, and claimed status-transition refusals that
+  no code implements (`taskStatusWithArgsLocked` guards only dependency
+  completion and strict acceptance, so `task start` on a completed task really
+  does move it back to `active/`).
+  Evidence: `internal/ahm/task_commands.go:186` (`accept` maps to `Pending`),
+  `:233` (`--reason`), `internal/ahm/task_status.go:75-135`, and
+  `/tmp/ahm-dev --dry-run task start 001` printing `move: .../active/001.md`.
+
+- Observation: `managed_file_*` finding codes no longer exist. Milestone 5
+  retired managed-file hash reconciliation, and `validateManagedFiles` now
+  only checks metadata presence and task files, so the four rows in
+  `docs/references/cli/task-file-format.md` and the "managed file consistency"
+  scope description in `docs/references/workflow-spec.md` were stale.
+  Evidence: `rg managed_file internal/` returns nothing; `validation.go:208`.
+
+- Observation: the retired generated indexes under `.ahm/exec-plans/` and
+  `.ahm/research/` were verified, not touched. ADR 022's release treatment
+  says ahm leaves them in place, and `docs/exec-plans/README.md` already
+  records that they are unmaintained, so milestone 6 owes no further action
+  here.
+  Evidence: `git status --short` shows no change under either directory.
+
+- Observation: the installed dev binary on `PATH` (`~/go/bin/ahm`, built
+  2026-09-20 09:54) is a stale v1 build: `ahm prime` still prints `## Recent
+  Research` and `ahm --root <dir> --dry-run init` still plans
+  `.ahm/research/*` directories. Every behavior probe in this milestone used a
+  build of the current tree instead, and the stale binary was left alone.
+  Evidence: `go build -o /tmp/ahm-dev ./cmd/ahm`; the two commands above.
+
+- Observation: the legacy-layout migration path names a release that cannot
+  perform it. `internal/ahm/root.go` sets `finalV1Release = "v1.0.0"`, but the
+  `v1.0.0` tag predates `ahm records migrate` (the `records` group arrived
+  after it), and v1.0.0's `upgrade` keeps `.agents/ahm.json` in place, so a
+  repository that follows the message is refused again by v2. Milestone 7 owns
+  the naming: either cut a v1.x tag from the pre-reduction tree and name that,
+  or reword the refusal. The guide now describes the requirement without
+  naming `v1.0.0` as the fix.
+  Evidence: `git ls-tree -r --name-only v1.0.0 | rg records` returns no
+  `internal/ahm/records*` file; `git log --diff-filter=A --
+  internal/ahm/records_commands.go` dates the command after the tag.
 
 - Observation: prime's `## Useful Commands` block, the ready-overflow line that
   pointed at `ahm task ready`, the blocked and open counts with their
@@ -540,6 +595,41 @@ deleted, and the binary runs no program but Git.
   `35ed4ec`.
 
 ## Decision Log
+
+- Decision: milestone 6 drops the dated pre-v2 release history from
+  `docs/guides/workflow-upgrades.md` instead of rewriting each entry.
+  Rationale: the prose rule's three exceptions do not cover a dated history,
+  and most entries address the reader in the present tense about surfaces v2
+  removes (`ahm upgrade` still removes a managed file, `ahm context docs` exits
+  with a usage error, `research_inbox_stale` findings), so they offer removed
+  commands and retired families as current. Rewriting them to past tense would
+  be a 400-line diff that still presents the retired families as ahm-managed.
+  The guide keeps its live job — reconcile behavior, the v2 migration note, and
+  the legacy-layout path — and points at `git log -p`, `CHANGELOG.md`, and the
+  ADRs for the record.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264e).
+
+- Decision: the reference pages now describe the task transitions the binary
+  implements, not the refusals they previously promised.
+  Rationale: `docs/references/cli/task-commands.md` documented refusals for
+  `task start`, `task complete`, and `task cancel` that no code path enforces,
+  and a compatibility-surface reference that promises a guard the binary lacks
+  misleads every reader who relies on it. Correcting the prose is in scope for
+  this milestone; adding the guards would be a behavior change that needs its
+  own task and, if the current behavior is the intent, no change at all.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264e).
+
+- Decision: the legacy-layout migration release name is escalated to milestone
+  7 rather than settled here.
+  Rationale: `root.go` names `v1.0.0`, and the `v1.0.0` tag predates
+  `ahm records migrate`, so the named release cannot perform the migration the
+  message asks for. Choosing the release to name is a release decision — cut a
+  v1.x tag from the pre-reduction tree, or reword the refusal — and the message
+  text is a compatibility surface. The guide now states the requirement
+  (a v1 build whose `ahm records migrate` resolves) without asserting a
+  version that cannot satisfy it; milestone 7 owes the naming and the matching
+  edit to `root.go`, the guide, and the release notes.
+  Date/Author: 2026-09-20, Travis Ennis (executed under task 264e).
 
 - Decision: root detection refuses `.agents/ahm.json` only when
   `.ahm/config.json` is absent, and every root-resolution entry point checks
@@ -1413,6 +1503,31 @@ outside `ahm`.
 
 ## Artifacts and Notes
 
+After milestone 6, measured on 2026-09-20 (working tree, uncommitted):
+
+    16 tracked files changed, +189/-541 lines (this plan file is the 17th,
+    +127/-1), plus the task record's acceptance notes and its move to
+    .ahm/tasks/completed/
+    docs/guides/workflow-upgrades.md: 438 lines to 88; its dated pre-v2 release
+    history is gone, and its live content is the reconcile behavior, the v2
+    migration note, and the legacy-layout migration path
+    claims corrected against the code: task-command flags and transitions,
+    four managed_file_* finding codes, the workflow scope description, the
+    init `files`-pruning wording, status/--root root-detection behavior, the
+    module map, and the `adr supersede` preconditions
+    no change to docs/VISION.md, docs/README.md's surface list, AGENTS.md's
+    routes, or the ownership table in docs/guardrails/documentation.md: all
+    four already satisfied their acceptance notes after milestone 4
+    .ahm/exec-plans/ and .ahm/research/ are untouched; ADR 022 keeps the
+    retired generated indexes in place, and docs/exec-plans/README.md records
+    that they are unmaintained
+    just ci green: gofmt, go mod tidy -diff, go vet, go test -race -cover
+    (88.5% internal/ahm), golangci-lint 0 issues, govulncheck no
+    vulnerabilities, markdownlint 62 files 0 issues, build, goreleaser check
+    and snapshot
+    milestone 7 owes: the release notes, and the legacy-layout release naming
+    recorded in the Decision Log
+
 Baseline measured on 2026-09-20 at commit `371fc62`, before any milestone:
 
     12302 total non-test Go lines in cmd/ and internal/
@@ -1553,6 +1668,18 @@ hold design plans; and `docs/adr/` with its generated `index.md` remains the
 ADR family `ahm` still manages.
 
 ## Revision Notes
+
+- (2026-09-20) Milestone 6 (264e) executed. The pass followed the acceptance
+  notes rather than the Work paragraph: it swept every live prose surface, then
+  corrected the reference pages against the code, which is why stale claims
+  about task-command flags and transitions, `managed_file_*` finding codes,
+  `files` pruning, and root detection changed in the same commit. Two subagent
+  review rounds ran; round one raised five should-fix items and four nits, all
+  of them fixed, and round two confirmed the fixes and escalated one release
+  naming question to milestone 7. The guide's dated release history was deleted
+  rather than rewritten, and the plan records why. `just ci` and
+  `just docs-md-lint` pass on the final tree; the milestone is uncommitted at
+  handoff.
 
 - (2026-09-20) Milestone 4 (264c) executed. The pass followed the milestone's
   acceptance notes rather than its Work paragraph, which is why the prose sweep

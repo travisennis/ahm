@@ -33,7 +33,8 @@ The repository maintains one version number:
 
 ## Common Failure Modes
 
-- Conflating `internal/version.Binary` with the removed `internal/templates.Version`.
+- Conflating `internal/version.Binary` with a workflow or template version;
+  the binary version is the only version the repository tracks.
 - Updating dependencies without checking generated `go.sum` or vulnerability
   results.
 - Changing CI commands without updating `CONTRIBUTING.md`.

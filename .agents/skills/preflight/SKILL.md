@@ -49,8 +49,8 @@ Required context items, in priority order:
 - nested `AGENTS.md` files for the changed areas
 - the [task workflow](../../../docs/workflow/tasks.md) and `ahm task show <id>` output when
   the work came from a task; open the source task record under `.ahm/tasks/`
-  (or the legacy `.agents/.tasks/active/` path) only when `ahm` is unavailable
-  or when reviewing manual edits to the task file itself
+  only when `ahm` is unavailable or when reviewing manual edits to the task
+  file itself
 - the relevant active plan under `docs/exec-plans/active/` when one exists for
   the current work
 - the [ExecPlan workflow](../../../docs/workflow/exec-plans.md) for L/XL changes

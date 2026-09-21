@@ -15,9 +15,9 @@ by root detection rather than half-adopted.
   lifecycle commands, and generated indexes.
 - Target repositories own their source code and project-specific `AGENTS.md`.
   `ahm` does not patch source files, commit, create PRs, or run implicit git
-  operations. Workflow commands read and write workflow files under `.ahm/`
-  without moving `HEAD`, staging files, writing the project index, or
-  modifying project-owned files.
+  operations. Workflow commands read and write record files under
+  `.ahm/tasks/` and `docs/adr/` without moving `HEAD`, staging files, writing
+  the project index, or modifying project-owned files.
 
 ## Compatibility Surfaces
 
@@ -40,7 +40,7 @@ location map; this section describes what each group does.
 | Entrypoint | `cmd/ahm/main.go` | Binary entrypoint. |
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
-| Infrastructure | `internal/ahm/lock.go`, `write.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go` | Atomic writes, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-path resolution, per-command record read reuse. |
+| Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes and their directory sync, repo-local locks, Git environment isolation, path helpers, shared output emitters, record-path resolution, per-command record read reuse, and Markdown heading-section lookup. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata, the managed `.ahm/.gitignore`, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking. |
@@ -51,7 +51,8 @@ location map; this section describes what each group does.
 ## Architectural Invariants
 
 - Writes are explicit and use the atomic temp-file-then-rename path in
-  `internal/ahm/write.go`.
+  `internal/ahm/write.go`, which syncs the temp file and then its parent
+  directory.
 - Cross-process workflow mutations that require read-compute-write consistency
   use repository-local locks under `.ahm/.lock/`.
 - Generated indexes are deterministic; sort output consistently and keep index

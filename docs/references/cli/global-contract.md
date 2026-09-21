@@ -36,8 +36,11 @@ Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
 `init` is lenient: it can run in any directory and creates the `.ahm` workflow
-scaffolding there. `prime` and all other state-aware commands require a managed
-repository (`.git` or `.ahm/config.json`).
+scaffolding there. `status` reports a git repository that has no
+`.ahm/config.json` as `installed: false`. Outside a managed repository, with
+neither `.git` nor `.ahm/config.json` above the working directory, `status`,
+`prime`, `doctor`, and the `task` and `adr` commands all fail with remediation
+instructions; `--root` bypasses auto-detection for any of them.
 
 ## Global Flags
 

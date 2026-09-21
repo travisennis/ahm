@@ -1,17 +1,20 @@
 # ahm
 
-`ahm` is an agent harness manager. It installs and manages a repo-local
-`.agents` workflow for agent tasks, research notes, ExecPlans, and generated
-indexes.
+`ahm` is the records CLI for repo-local workflow state. It manages two record
+families: tasks under `.ahm/tasks/` and ADRs under `docs/adr/`. It creates and
+advances those records, regenerates a deterministic Markdown index for each
+family, and validates their integrity.
 
-`ahm` replaces the earlier `agent-workflow-scaffold` skill as the owner of this
-workflow. The canonical workflow templates live in this repository and are
-embedded into the CLI at build time.
+`ahm` does nothing else. It does not run coding agents, ship workflow
+procedures, commit, push, or patch project source. Project guidance, including
+`AGENTS.md` and the prose under `docs/`, belongs to the project that owns it.
 
 ## Status
 
-Initial implementation. The CLI supports workflow init/status, native task
-index generation, task management, ADR management, and record validation.
+Active development. The tool is a tasks-and-ADRs records CLI with no
+prescribed workflow; [ADR 022](docs/adr/022-reduce-ahm-to-a-tasks-and-adrs-records-cli.md)
+records that boundary and [`CHANGELOG.md`](CHANGELOG.md) records release
+history.
 
 ## Quickstart
 
@@ -33,34 +36,36 @@ ahm status
 ahm task create "Add release workflow" --priority P2 --effort M --labels type:task,area:ci
 ahm task ready
 ahm task show 001
-ahm task work 001
+ahm adr create "Records only" --status accepted
+ahm prime
 ```
 
 Useful global flags:
 
 - `--root <path>`: target repository root. Defaults to the nearest git root or
-  current directory.
+  `.ahm/config.json` parent; `init` falls back to the current directory.
 - `--json`: print structured JSON.
 - `--plain`: print stable line-oriented output.
+- `--text`: print human-friendly text (the default).
 - `--dry-run`: preview write operations for commands that support it.
 - `--force`: override strict acceptance when supported.
 
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
-`ahm prime` gives a live repository briefing.
+`ahm prime` prints a live repository briefing: it regenerates indexes and
+reports validation findings and record counts.
 `AGENTS.md` is project-owned: `ahm init` and `--force` never create, overwrite,
 or remove it.
 
 ## Safety
 
-`ahm` does not run git commits, pushes, PRs, or source-code patches itself.
-Write commands are explicit and operate on the `.agents` workflow files unless a
-future command states otherwise. `ahm task work <id>` is an explicit delegation
-command: it validates the task workflow state, then invokes the selected
-external coding-agent CLI from the repository root. Review and commit run by
-default (`--no-review` / `--no-commit` to opt out). The delegated agent and
-project hooks own the actual git operation.
+`ahm` never commits, stages, pushes, opens pull requests, or patches project
+source, and it makes no network requests. Every write is explicit and confined
+to state `ahm` owns: task files under `.ahm/tasks/`, ADRs under `docs/adr/`,
+`.ahm/config.json`, the managed `.ahm/.gitignore`, and the generated indexes.
+Records are ordinary committed project files; generated task indexes are
+local-only. Git is the only program `ahm` runs.
 
 ## Development
 
