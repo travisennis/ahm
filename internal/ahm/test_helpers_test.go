@@ -42,6 +42,20 @@ func withinTempDir(path string) bool {
 	return clean == tmp || strings.HasPrefix(clean, tmp+string(filepath.Separator))
 }
 
+// testStorePaths returns a resolved store location for a scratch store, so a
+// test can build the home-mode workflow paths without running identity
+// resolution against a real repository.
+func testStorePaths(t *testing.T) storePaths {
+	t.Helper()
+	root := t.TempDir()
+	return storePaths{
+		Root:       root,
+		Key:        "example.com/owner/repo",
+		Kind:       "remote",
+		ProjectDir: filepath.Join(root, storeProjectsDirName, "repo-3f9ac4d1"),
+	}
+}
+
 func runCLI(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 	useTemporaryStoreHome(t)

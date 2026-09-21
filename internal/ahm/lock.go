@@ -34,7 +34,7 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 	if !mutating {
 		return f()
 	}
-	release, err := acquireWorkflowRecordLock(a.opts.root)
+	release, err := acquireWorkflowRecordLock(a.workflowPaths())
 	if err != nil {
 		return err
 	}
@@ -42,11 +42,12 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 	return f()
 }
 
-// acquireWorkflowRecordLock holds the record-mutation lock for the repository.
-// Every ahm workflow mutation serializes on the same lock file under .ahm/.
-func acquireWorkflowRecordLock(root string) (func() error, error) {
-	lockRoot := filepath.Join(root, toolRecordsDirName, ".lock")
-	return acquireNamedWorkflowLock(root, lockRoot, workflowRecordLockName)
+// acquireWorkflowRecordLock holds the record-mutation lock for the resolved
+// workflow paths. Every ahm workflow mutation serializes on the same lock, and
+// the lock lives beside the records root, so two clones that share one store
+// serialize on one lock.
+func acquireWorkflowRecordLock(paths workflowPaths) (func() error, error) {
+	return acquireNamedWorkflowLock(paths.projectRoot, paths.lockDir(), workflowRecordLockName)
 }
 
 // acquireNamedWorkflowLock waits for the named lock under a fixed lock root,

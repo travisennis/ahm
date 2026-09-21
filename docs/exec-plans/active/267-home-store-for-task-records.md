@@ -62,7 +62,7 @@ directory belongs to the current project.
   Added `internal/ahm/identity.go`, `internal/ahm/store.go`, the Git remote
   read in `internal/ahm/git.go`, and the `ahm store path` command. Every test
   runs against a temporary `AHM_HOME`.
-- [ ] 267b — Split workflow paths into a project root and a records root, and
+- [x] 267b — Split workflow paths into a project root and a records root, and
   contain every write to an owned root. No user-visible behavior change.
 - [ ] 267c — Read and write task records in the store, split index generation,
   report the store from `prime` and `status`, and report drift when records
@@ -111,6 +111,32 @@ directory belongs to the current project.
   the records are. This is an exception to add to ADR 023's display rule in
   267h, or to revisit with a `store:`-relative `records` field.
 
+- 2026-09-21 (267b): the plan's Interfaces sketch for `writeOwned` carried a
+  `mode os.FileMode` parameter, but every workflow write is 0o644, and the
+  repository's enabled `unparam` linter fails the gate on a parameter that
+  always receives the same value. The signature dropped the parameter; the
+  plan's Interfaces section and Decision Log now match. Evidence: `just lint`
+  reported `writeOwned - mode always receives 0o644 (420) (unparam)` before the
+  change and passes after it.
+- 2026-09-21 (267b): a review found that the milestone's phrase "point
+  `cleanupStaleTemps` at every owned root" cannot be implemented literally. An
+  owned root is the project root, so a literal reading walks the whole
+  repository for `*.tmp` files and reaps temp files the user owns. The cleanup
+  roots are the workflow state directories instead, which is what the scan did
+  before this milestone. Evidence:
+  `TestCleanupStaleTempsCoversEveryStateRoot` fails if the scan is widened to
+  the project root.
+- 2026-09-21 (267b): the plan and ADR 023 disagree about where the store's
+  managed `.gitignore` belongs. ADR 023 says the store root ignores
+  `registry.json`, and this plan's Idempotence section repeats "a managed
+  `.gitignore` at the store root", while the Artifacts layout puts it at
+  `<store>/projects/<slug>-<hash>/.gitignore`. 267b's containment decides the
+  question by construction: `ownedRoots` is the project root plus the store's
+  project directory, so a store-root write through `writeOwned` is refused.
+  267c creates that file and must either place it per project or make the store
+  root an owned root, and 267h must align the ADR wording with whichever it
+  chooses. No code or doc was changed for this yet.
+
 ## Decision Log
 
 - Decision: a Git read failure in a project root that holds `.git` is an error,
@@ -156,6 +182,47 @@ directory belongs to the current project.
   Rationale: the safety guardrail requires every write to be scoped to an
   owned root. Naming the roots in one place is what makes that checkable
   instead of a convention spread across call sites.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: an owned root is the project root, not the ahm-owned directories
+  inside it, so `writeOwned` accepts any path under the repository that a
+  workflow write builds. `cleanupStaleTemps` deliberately does not follow this
+  rule to the letter: it scans the workflow state directories — `<project
+  root>/.ahm` and the store's project directory — rather than the whole project
+  root, because walking the repository for `*.tmp` files would reap temp files
+  the user owns.
+  Rationale: the plan defines an owned root as the project root or the store
+  root, and `ahm` already confines its project writes to `.ahm/` and
+  `docs/adr/` by construction. Cleanup is the one write-adjacent operation
+  whose blast radius is a recursive walk, so it is scoped more tightly than
+  containment requires.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: `writeOwned` takes no file mode and writes every workflow file with
+  0o644, instead of the `mode os.FileMode` parameter the Interfaces section of
+  this plan sketched.
+  Rationale: every workflow write is 0o644, and the repository's `unparam` lint
+  rejects the unused parameter, so the signature would have to carry a
+  suppression. `writeFileAtomic` keeps its mode because it is also the store
+  and test primitive.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the record-mutation lock lives in `lockDir()`, the directory
+  containing the records root, rather than in `storePaths` as originally
+  sketched.
+  Rationale: the lock must sit beside the records wherever they are —
+  `<project>/.ahm/.lock` in project mode, the store's project directory in home
+  mode — and that is a property of the resolved paths, not of the store alone.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: 267b migrated path *construction* to the accessors and left
+  path *display* in validation, task lookup, and lock errors on `relPath`.
+  Rationale: those sites are unreachable until a command resolves home mode,
+  which is 267c's change, and every one of them is byte-identical while the
+  records stay in the project. The sites are the validation findings,
+  `validateTaskBuckets` messages, `collectTasksForPaths` parse errors,
+  `checkDuplicateTaskID`/`checkTaskDepsNotDuplicated` messages, the four task
+  paths in `task_status.go` (the raw `Task.Path` field, the dry-run `move`
+  preview, and the unblock preview's `path`), and lock timeouts. 267c must
+  switch them to `displayPath` — otherwise findings, previews, and lock
+  timeouts would render a store path against the project root — and the task
+  record for 267c carries the same list.
   Date/Author: 2026-09-21, Travis Ennis.
 - Decision: store paths are displayed as `store:` plus a store-relative path,
   and `prime` and `status` expose the store root, key, and mode as structured
@@ -212,6 +279,46 @@ directory belongs to the current project.
   Date/Author: 2026-09-21, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+### 267b — Split the roots and contain writes (2026-09-21)
+
+Delivered: `workflowPaths` is now a two-root type with the named accessors,
+`ownedRoots`, `stateRoots`, `lockDir`, and `displayPath`, plus
+`workflowPathsFor` (project mode) and `workflowPathsForStore` (store mode);
+`writeOwned` in `internal/ahm/write.go` is the containment point, and every
+workflow write routes through it; `cleanupStaleTemps` takes the resolved paths
+and scans `<project root>/.ahm` plus the store's project directory;
+`acquireWorkflowRecordLock` takes the resolved paths and puts the lock beside
+the records root. Call sites that used to join `a.opts.root` were migrated to
+the accessors, and path display in the index, install, task-create, comment,
+and prime surfaces now goes through `displayPath`. `ARCHITECTURE.md` records the
+two roots, the containment primitive, and the lock's new location, and the
+safety guardrail names `writeOwned` as the containment point.
+
+Against the milestone's acceptance: nothing user-visible changed. Records still
+live in `.ahm/tasks/`, the lock is still `<project root>/.ahm/.lock`, and the
+full suite passes with no assertion about paths, output, or on-disk layout
+changed except the mechanical updates for the renamed `recordsRel` accessor and
+the re-signatured `cleanupStaleTemps`, `writeOwned`, and
+`acquireWorkflowRecordLock` helpers. New coverage:
+`TestWriteOwnedContainsWritesToTheOwnedRoots` (a target under each owned root is
+written, a target outside every root is refused and creates nothing),
+`TestPathWithin` (prefix siblings, `..` traversal, relative against absolute),
+`TestWorkflowPathsProjectModeAccessors` and
+`TestWorkflowPathsHomeModeAccessors` (both layouts, including the lock and
+display conventions), and `TestCleanupStaleTempsCoversEveryStateRoot`. A review
+round supplied 13 mutants against the new tests; 12 were caught, and the
+survivor is equivalent.
+
+Deliberately left to 267c, and recorded in the Decision Log: path *display* in
+validation findings, `checkDuplicateTaskID` messages, the `collectTasksForPaths`
+parse-error message, the raw `Task.Path` field and the dry-run preview payloads
+in `task_status.go`, and lock timeouts still relativize a record path against
+the project root. All are unreachable until a command resolves home mode, and
+all are byte-identical in project mode. Also left open: the delete side has no
+containment counterpart (`task_status.go` removes a vacated record path
+directly). 267e's migration is the first command to delete records on purpose
+and should decide whether that needs its own owned-root check.
 
 ### 267a — Derive project identity and resolve the store root (2026-09-21)
 
@@ -394,11 +501,11 @@ keys and directories; a repository with no remote prints a `path`-kind key;
 `internal/ahm/workflow_paths.go` becomes the two-root type with accessors
 (`configPath`, `adrDir`, `recordsRel`, `tasksBucketDir`, `taskFile`),
 `ownedRoots`, and `displayPath`. `internal/ahm/write.go` gains
-`writeOwned(paths workflowPaths, path string, data []byte, mode os.FileMode)`,
-which refuses a path outside the owned roots and then calls `writeFileAtomic`;
-`cleanupStaleTemps` walks every owned root. `internal/ahm/lock.go` takes its
-lock directory from the records root. Call sites migrate from string joins on
-`a.opts.root` to the accessors.
+`writeOwned(paths workflowPaths, path string, data []byte)`, which refuses a
+path outside the owned roots and then calls `writeFileAtomic`;
+`cleanupStaleTemps` walks the workflow state directories of both roots.
+`internal/ahm/lock.go` takes its lock directory from the records root. Call
+sites migrate from string joins on `a.opts.root` to the accessors.
 
 This milestone changes no user-visible behavior, which is its acceptance
 criterion: the full test suite passes, `go test ./internal/ahm/ -run TestInit`
@@ -651,9 +758,13 @@ New file `internal/ahm/store.go` defines the store:
     }
     func storeRoot() (string, error)
     func resolveStore(projectRoot string) (storePaths, error)
-    func (s storePaths) registryPath() string
     func (s storePaths) statePath() string
-    func (s storePaths) lockRoot() string
+    func (s storePaths) recordsDir() string
+    func (s storePaths) dirName() string
+
+The registry path is derived where the registry is read and written, and the
+record-mutation lock directory is `workflowPaths.lockDir()`, because the lock
+belongs beside the records wherever they are rather than to the store alone.
 
     type projectEntry struct {
         Key          string   `json:"key"`
@@ -685,14 +796,18 @@ New file `internal/ahm/store.go` defines the store:
         mode        taskLocation
     }
     func workflowPathsFor(root string) workflowPaths            // project mode, used by tests and existing call sites
+    func workflowPathsForStore(root string, store storePaths) workflowPaths
     func resolveWorkflowPaths(root string, meta metadata, configExists bool) (workflowPaths, error)
     func (p workflowPaths) configPath() string
     func (p workflowPaths) adrDir() string
     func (p workflowPaths) adrIndexPath() string
     func (p workflowPaths) recordsRel() string                  // ".ahm/tasks" or "tasks"
+    func (p workflowPaths) inStore() bool
     func (p workflowPaths) tasksBucketDir(bucket string) string
     func (p workflowPaths) taskFile(bucket string, id string) string
     func (p workflowPaths) ownedRoots() []string
+    func (p workflowPaths) stateRoots() []string               // where cleanupStaleTemps scans
+    func (p workflowPaths) lockDir() string
     func (p workflowPaths) displayPath(path string) string
 
 `internal/ahm/install.go` gains the mode in committed configuration:
@@ -708,7 +823,7 @@ New file `internal/ahm/store.go` defines the store:
 
 `internal/ahm/write.go` gains the containment check:
 
-    func writeOwned(paths workflowPaths, path string, data []byte, mode os.FileMode) error
+    func writeOwned(paths workflowPaths, path string, data []byte) error
 
 `internal/ahm/store_migrate.go` gains the migration:
 

@@ -93,27 +93,49 @@ func writeFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	return nil
 }
 
+// writeOwned writes data to path atomically, but only when path lies inside one
+// of the paths' owned roots. writeFileAtomic guarantees atomicity, not
+// containment: it accepts any canonical path, so this helper is where the
+// ownership boundary lives. The caller must pass a path built from the
+// accessors, which is already canonical. Every workflow file is written with
+// mode 0o644, so the helper does not take a mode.
+//
+// Containment is lexical: the target is compared against each owned root after
+// cleaning, without resolving symlinks. A symlinked directory inside an owned
+// root therefore still counts as owned, which is deliberate — a symlinked
+// project or store is legitimate and resolving would refuse valid writes.
+func writeOwned(paths workflowPaths, path string, data []byte) error {
+	for _, root := range paths.ownedRoots() {
+		if pathWithin(root, path) {
+			return writeFileAtomic(path, data, 0o644)
+		}
+	}
+	return fmt.Errorf("refusing to write %s outside the owned roots (%s)", path, strings.Join(paths.ownedRoots(), ", "))
+}
+
 // cleanupStaleTempMaxAge is the minimum age a .tmp file must reach before
 // cleanupStaleTemps considers it safely stale. This protects temp files from
 // concurrent atomic writes that are still in progress: a temp file created by
 // an active writer will have a recent modification time and will be skipped.
 var cleanupStaleTempMaxAge = 5 * time.Minute
 
-// cleanupStaleTemps scans the workflow state directory inside root (.ahm) for
+// cleanupStaleTemps scans every ahm-owned workflow state directory for
 // orphaned .tmp files left behind by a crash during an atomic write. Only .tmp
 // files whose modification time is older than cleanupStaleTempMaxAge are
 // removed, so temp files from an active writer are never reaped.
 //
-// The scan walks the whole tree below .ahm/ recursively; every non-directory
-// entry ending in .tmp is a candidate, whether or not the matching target file
-// exists.
-func cleanupStaleTemps(root string) error {
+// The scan walks the whole tree below each state root recursively; every
+// non-directory entry ending in .tmp is a candidate, whether or not the
+// matching target file exists.
+func cleanupStaleTemps(paths workflowPaths) error {
 	// removeFailures collects .tmp files that could not be removed for a reason
 	// other than "already gone". A single unremovable file (permission denied,
 	// for example) must not abort cleanup of the remaining stale .tmp files.
 	var removeFailures []string
-	if err := cleanupStaleTempsIn(filepath.Join(root, toolRecordsDirName), &removeFailures); err != nil {
-		return err
+	for _, stateRoot := range paths.stateRoots() {
+		if err := cleanupStaleTempsIn(stateRoot, &removeFailures); err != nil {
+			return err
+		}
 	}
 	if len(removeFailures) > 0 {
 		return fmt.Errorf("could not remove %d stale .tmp file(s): %s", len(removeFailures), strings.Join(removeFailures, "; "))

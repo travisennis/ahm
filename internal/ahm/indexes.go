@@ -40,10 +40,11 @@ func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 	// self-heals on the next successful ahm index run. There is no
 	// rollback — the alternative (cross-file atomic commit or transaction
 	// semantics) is overengineered for regenerated output.
+	resolved := a.workflowPaths()
 	for _, path := range paths {
 		if a.opts.dryRun {
 			if isStaleIndex(cache, path, writes[path]) {
-				fmt.Fprintln(a.out, relPath(a.opts.root, path))
+				fmt.Fprintln(a.out, resolved.displayPath(path))
 			}
 			continue
 		}
@@ -51,7 +52,7 @@ func (a *app) writeIndexesForTasks(tasks []Task, completeState bool) error {
 			continue
 		}
 		data := []byte(writes[path])
-		if err := writeFileAtomic(path, data, 0o644); err != nil {
+		if err := writeOwned(resolved, path, data); err != nil {
 			return err
 		}
 		// Record what is now on disk so the validation below compares against
@@ -117,7 +118,7 @@ func indexWritesForPaths(root string, tasks []Task, paths workflowPaths, cache *
 		filepath.Join(paths.tasksBucketDir("active"), "index.md"):    renderBucketIndex(tasks, "active"),
 		filepath.Join(paths.tasksBucketDir("completed"), "index.md"): renderBucketIndex(tasks, "completed"),
 		filepath.Join(paths.tasksBucketDir("cancelled"), "index.md"): renderBucketIndex(tasks, "cancelled"),
-		filepath.Join(root, "docs", "adr", "index.md"):               renderADRIndex(adrs),
+		paths.adrIndexPath(): renderADRIndex(adrs),
 	}
 	if adrErr != nil {
 		return writes, fmt.Errorf("some ADR files could not be parsed and were skipped: %w", adrErr)

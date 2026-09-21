@@ -227,7 +227,7 @@ func validateTaskFiles(root string, paths workflowPaths, report *validationRepor
 	var tasks []Task
 	files, err := taskFilePathsFor(paths)
 	if err != nil {
-		report.addError("task_dir_unreadable", paths.tasksRel(), err.Error())
+		report.addError("task_dir_unreadable", paths.recordsRel(), err.Error())
 		return nil
 	}
 	for _, f := range files {
@@ -374,7 +374,7 @@ func validateTrackingChildrenComplete(root string, tasks []Task, report *validat
 }
 
 func validateTaskBuckets(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	tasksRel := paths.tasksRel()
+	tasksRel := paths.recordsRel()
 	for _, task := range tasks {
 		switch {
 		case task.Status == "Completed" && task.Bucket != "completed":
@@ -592,7 +592,7 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 		filepath.Join(resolved.tasksBucketDir("active"), "index.md"),
 		filepath.Join(resolved.tasksBucketDir("completed"), "index.md"),
 		filepath.Join(resolved.tasksBucketDir("cancelled"), "index.md"),
-		filepath.Join(root, "docs", "adr", "index.md"),
+		resolved.adrIndexPath(),
 	}
 	for _, path := range indexPaths {
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {

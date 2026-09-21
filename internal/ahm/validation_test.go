@@ -691,7 +691,7 @@ func TestValidateManagedRecordLinksByFamily(t *testing.T) {
 		{
 			name: "tasks",
 			dir: func(root string, paths workflowPaths) string {
-				return filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
+				return filepath.Join(root, filepath.FromSlash(paths.recordsRel()), "active")
 			},
 			sourceName: "001.md",
 			targetName: "002.md",
@@ -742,7 +742,7 @@ func TestValidateManagedRecordLinksIncludesGeneratedIndexes(t *testing.T) {
 	setupAhmRepo(t, root)
 	paths := workflowPathsFor(root)
 	indexes := []string{
-		filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "index.md"),
+		filepath.Join(root, filepath.FromSlash(paths.recordsRel()), "index.md"),
 		filepath.Join(root, "docs", "adr", "index.md"),
 	}
 	for _, path := range indexes {
@@ -771,7 +771,7 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 	root := t.TempDir()
 	setupAhmRepo(t, root)
 	paths := workflowPathsFor(root)
-	taskDir := filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "active")
+	taskDir := filepath.Join(root, filepath.FromSlash(paths.recordsRel()), "active")
 	writeFile(t, filepath.Join(taskDir, "001.md"), "# Managed\n\n[missing](managed-missing.md)\n")
 
 	for _, path := range []string{
@@ -787,7 +787,7 @@ func TestValidateManagedRecordLinksExcludesProjectOwnedMarkdown(t *testing.T) {
 			"# Project owned\n\n[missing]("+strings.ReplaceAll(path, "/", "-")+"-missing.md)\n")
 	}
 	for _, path := range []string{
-		filepath.Join(root, filepath.FromSlash(paths.tasksRel()), "README.md"),
+		filepath.Join(root, filepath.FromSlash(paths.recordsRel()), "README.md"),
 		filepath.Join(root, "docs", "adr", "README.md"),
 	} {
 		writeFile(t, path, "# Preserved scaffold\n\n[missing](scaffold-missing.md)\n")

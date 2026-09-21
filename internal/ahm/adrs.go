@@ -280,11 +280,11 @@ func validADRStatus(status string) bool {
 	}
 }
 
-func rewriteADRFrontMatter(path string, fields map[string]string) error {
-	return rewriteADR(path, fields, nil)
+func rewriteADRFrontMatter(paths workflowPaths, path string, fields map[string]string) error {
+	return rewriteADR(paths, path, fields, nil)
 }
 
-func rewriteADR(path string, fields map[string]string, updateBody func(string) string) error {
+func rewriteADR(paths workflowPaths, path string, fields map[string]string, updateBody func(string) string) error {
 	data, err := os.ReadFile(path) // #nosec G304 // path comes from resolved ADR files under docs/adr.
 	if err != nil {
 		return err
@@ -304,7 +304,7 @@ func rewriteADR(path string, fields map[string]string, updateBody func(string) s
 	if updated == text {
 		return nil
 	}
-	return writeFileAtomic(path, []byte(updated), 0o644)
+	return writeOwned(paths, path, []byte(updated))
 }
 
 // ensureSingleTrailingNewline makes a rewritten ADR end with exactly one

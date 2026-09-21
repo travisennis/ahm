@@ -228,7 +228,8 @@ func (a *app) adrCreateParsedLocked(parsed adrCreateArgs, body string) error {
 	if slug == "" {
 		return usageError("adr create requires a title with letters or digits")
 	}
-	path := filepath.Join(a.opts.root, "docs", "adr", id+"-"+slug+".md")
+	paths := a.workflowPaths()
+	path := filepath.Join(paths.adrDir(), id+"-"+slug+".md")
 	record := ADR{
 		ID:             id,
 		Slug:           slug,
@@ -245,11 +246,11 @@ func (a *app) adrCreateParsedLocked(parsed adrCreateArgs, body string) error {
 		return a.emit(map[string]any{"create": filepath.ToSlash(path), "id": id})
 	}
 	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("adr id %s already exists at %s; retry adr create", id, relPath(a.opts.root, path))
+		return fmt.Errorf("adr id %s already exists at %s; retry adr create", id, paths.displayPath(path))
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checking adr path %s: %w", relPath(a.opts.root, path), err)
+		return fmt.Errorf("checking adr path %s: %w", paths.displayPath(path), err)
 	}
-	if err := writeFileAtomic(path, []byte(renderADR(record)), 0o644); err != nil {
+	if err := writeOwned(paths, path, []byte(renderADR(record))); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -333,7 +334,7 @@ func (a *app) adrSetStatusLocked(id string, status string) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"adr": adr.ID, "status": status, "date": today})
 	}
-	if err := rewriteADRFrontMatter(adr.Path, map[string]string{
+	if err := rewriteADRFrontMatter(a.workflowPaths(), adr.Path, map[string]string{
 		"status": status,
 		"date":   today,
 	}); err != nil {
@@ -395,7 +396,8 @@ func (a *app) adrSupersedeLocked(oldID string, newID string) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"adr": oldADR.ID, "status": nextStatus, "by": newADR.ID, "date": today})
 	}
-	if err := rewriteADR(oldADR.Path, map[string]string{
+	paths := a.workflowPaths()
+	if err := rewriteADR(paths, oldADR.Path, map[string]string{
 		"status": nextStatus,
 		"date":   today,
 	}, func(body string) string {
@@ -403,7 +405,7 @@ func (a *app) adrSupersedeLocked(oldID string, newID string) error {
 	}); err != nil {
 		return err
 	}
-	if err := rewriteADR(newADR.Path, nil, func(body string) string {
+	if err := rewriteADR(paths, newADR.Path, nil, func(body string) string {
 		return upsertADRMoreInformationReference(body, oldADR)
 	}); err != nil {
 		return err

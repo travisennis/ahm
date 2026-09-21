@@ -145,7 +145,8 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	task.Status = status
 	task.Updated = now
 	bucket := bucketForStatus(status)
-	target := a.workflowPaths().taskFile(bucket, task.ID)
+	paths := a.workflowPaths()
+	target := paths.taskFile(bucket, task.ID)
 	var unblocked []Task
 	if status == "Completed" {
 		allTasks := loadTasks()
@@ -178,7 +179,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	if err != nil {
 		return fmt.Errorf("reparse updated task %s: %w", task.ID, err)
 	}
-	if err := writeFileAtomic(target, renderedTask, 0o644); err != nil {
+	if err := writeOwned(paths, target, renderedTask); err != nil {
 		return err
 	}
 	if filepath.Clean(task.Path) != filepath.Clean(target) {
@@ -193,7 +194,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		if err != nil {
 			return fmt.Errorf("reparse unblocked task %s: %w", utask.ID, err)
 		}
-		if err := writeFileAtomic(utask.Path, rendered, 0o644); err != nil {
+		if err := writeOwned(paths, utask.Path, rendered); err != nil {
 			return err
 		}
 		refreshedUnblocked = append(refreshedUnblocked, refreshed)

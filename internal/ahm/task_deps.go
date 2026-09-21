@@ -191,7 +191,7 @@ func (a *app) taskDepUpdateLocked(argv []string, add bool) error {
 	if a.opts.dryRun {
 		return a.emit(map[string]any{"task": task.ID, "depends_on": task.DependsOn})
 	}
-	if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+	if err := writeOwned(a.workflowPaths(), task.Path, []byte(renderTask(task))); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {

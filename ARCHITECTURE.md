@@ -40,7 +40,7 @@ location map; this section describes what each group does.
 | Entrypoint | `cmd/ahm/main.go` | Binary entrypoint. |
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
-| Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, record-path resolution, per-command record read reuse, and Markdown heading-section lookup. |
+| Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata, the managed `.ahm/.gitignore`, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking. |
@@ -53,8 +53,21 @@ location map; this section describes what each group does.
 - Writes are explicit and use the atomic temp-file-then-rename path in
   `internal/ahm/write.go`, which syncs the temp file and then its parent
   directory.
+- Every workflow record, index, and configuration write goes through
+  `writeOwned`, which refuses a target outside the owned roots (the project
+  root, and the store's project directory when records live in the store).
+  `writeFileAtomic` guarantees atomicity only; containment lives in
+  `writeOwned`. Two writes stay outside it by design: the lock protocol writes
+  its owner token inside the lock it just created, and the store's registry and
+  project state files have no owned root.
+- A repository has two roots: a project root that owns `.ahm/config.json` and
+  `docs/adr/`, and a records root that owns task records and their generated
+  indexes. `workflow_paths.go` is the single definition of both, and every task
+  record path is derived from it rather than joined onto a root at the call
+  site.
 - Cross-process workflow mutations that require read-compute-write consistency
-  use repository-local locks under `.ahm/.lock/`.
+  use repository-local locks beside the records root (`.ahm/.lock/` in project
+  mode), so two clones that share a store serialize on one lock.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
 - Post-mutation index generation and workflow validation may reuse a complete

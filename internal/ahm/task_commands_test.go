@@ -149,7 +149,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLock(workflowPathsFor(root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2806,7 +2806,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Locked Task", "Pending", "")
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLock(workflowPathsFor(root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2851,7 +2851,7 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Original Title", "Pending", "")
 
-	release, err := acquireWorkflowRecordLock(root)
+	release, err := acquireWorkflowRecordLock(workflowPathsFor(root))
 	if err != nil {
 		t.Fatal(err)
 	}

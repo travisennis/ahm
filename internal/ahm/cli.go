@@ -268,7 +268,7 @@ Examples:
   ahm index
   ahm --dry-run index`, func() error {
 		if !a.opts.dryRun {
-			if err := cleanupStaleTemps(a.opts.root); err != nil {
+			if err := cleanupStaleTemps(a.workflowPaths()); err != nil {
 				// Best-effort cleanup of crash leftovers; surface partial failures
 				// (e.g. permission denied) without aborting index regeneration.
 				a.addWarning("%v", err)

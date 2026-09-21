@@ -107,11 +107,12 @@ func (a *app) regenerateIndexes() error {
 		}
 		// Partial results with errors; use what we got.
 	}
+	resolved := a.workflowPaths()
 	for _, path := range sortedKeys(writes) {
 		if !isStaleIndex(nil, path, writes[path]) {
 			continue
 		}
-		if err := writeFileAtomic(path, []byte(writes[path]), 0o644); err != nil {
+		if err := writeOwned(resolved, path, []byte(writes[path])); err != nil {
 			return err
 		}
 	}
@@ -167,8 +168,8 @@ func (a *app) primeTaskSummary(tasks []Task) primeTasks {
 	counts := taskCounts(tasks)
 
 	return primeTasks{
-		InProgress: taskSummaries(inProgress, 5, a.opts.root),
-		Ready:      taskSummaries(ready, 5, a.opts.root),
+		InProgress: taskSummaries(inProgress, 5, a.workflowPaths()),
+		Ready:      taskSummaries(ready, 5, a.workflowPaths()),
 		ReadyTotal: len(ready),
 		Blocked:    len(blocked),
 		Open:       counts["Open"],
@@ -197,25 +198,25 @@ func primeFindings(report validationReport, limit int) []primeFinding {
 	return findings
 }
 
-func taskSummaries(tasks []Task, limit int, root string) []taskSummary {
+func taskSummaries(tasks []Task, limit int, paths workflowPaths) []taskSummary {
 	if len(tasks) > limit {
 		tasks = tasks[:limit]
 	}
 	summaries := make([]taskSummary, 0, len(tasks))
 	for _, task := range tasks {
-		summaries = append(summaries, taskSummaryFor(task, root))
+		summaries = append(summaries, taskSummaryFor(task, paths))
 	}
 	return summaries
 }
 
-func taskSummaryFor(task Task, root string) taskSummary {
+func taskSummaryFor(task Task, paths workflowPaths) taskSummary {
 	return taskSummary{
 		ID:       task.ID,
 		Title:    task.Title,
 		Status:   task.Status,
 		Priority: task.Priority,
 		Effort:   task.Effort,
-		Path:     relPath(root, task.Path),
+		Path:     paths.displayPath(task.Path),
 	}
 }
 

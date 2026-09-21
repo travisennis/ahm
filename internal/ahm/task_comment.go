@@ -111,7 +111,7 @@ func (a *app) taskCommentLocked(parsed taskCommentArgs, text string) error {
 		return a.emit(a.commentRecord(task, comment, parsed))
 	}
 
-	if err := writeFileAtomic(task.Path, []byte(renderTask(task)), 0o644); err != nil {
+	if err := writeOwned(a.workflowPaths(), task.Path, []byte(renderTask(task))); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -227,7 +227,7 @@ func trimTrailingBlankLines(lines []string) []string {
 func (a *app) commentRecord(task Task, comment string, parsed taskCommentArgs) map[string]any {
 	r := map[string]any{
 		"id":   task.ID,
-		"path": relPath(a.opts.root, task.Path),
+		"path": a.workflowPaths().displayPath(task.Path),
 		"text": comment,
 	}
 	if parsed.author != "" {

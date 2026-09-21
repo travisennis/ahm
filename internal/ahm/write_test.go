@@ -145,7 +145,7 @@ func TestWriteFileAtomic_StaleTmpCleanedByCleanupStaleTemps(t *testing.T) {
 	}
 
 	// cleanupStaleTemps must remove the stale .tmp.
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
 	}
 	if _, err := os.Stat(stalePath); !os.IsNotExist(err) {
@@ -243,7 +243,7 @@ func TestCleanupStaleTemps(t *testing.T) {
 	}
 
 	// Run cleanup.
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
 	}
 
@@ -314,7 +314,7 @@ func TestCleanupStaleTemps_ContinuesPastRemoveFailure(t *testing.T) {
 	// Restore write permission so t.TempDir cleanup can remove the file.
 	t.Cleanup(func() { _ = os.Chmod(lockedDir, 0o755) })
 
-	err := cleanupStaleTemps(dir)
+	err := cleanupStaleTemps(workflowPathsFor(dir))
 	if err == nil {
 		t.Fatal("expected a non-fatal cleanup error for the unremovable .tmp")
 	}
@@ -335,7 +335,7 @@ func TestCleanupStaleTemps_NoAgentsDir(t *testing.T) {
 	dir := t.TempDir()
 
 	// No .ahm state directory — should not error.
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps on dir without .ahm: %v", err)
 	}
 }
@@ -353,7 +353,7 @@ func TestCleanupStaleTemps_SkipsFreshTemp(t *testing.T) {
 	}
 
 	// The fresh .tmp file must be preserved.
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
 	}
 	if _, err := os.Stat(freshTmp); err != nil {
@@ -379,7 +379,7 @@ func TestCleanupStaleTemps_RemovesOldOrphanTemp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
 	}
 	if _, err := os.Stat(orphanTmp); !os.IsNotExist(err) {
@@ -419,7 +419,7 @@ func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
 	}
 
 	// Run cleanup while the goroutine still holds the temp file open.
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps: %v", err)
 	}
 	close(done)
@@ -436,7 +436,7 @@ func TestCleanupStaleTemps_RaceWithActiveWriter(t *testing.T) {
 	if err := os.Chtimes(activeTmp, past, past); err != nil {
 		t.Fatal(err)
 	}
-	if err := cleanupStaleTemps(dir); err != nil {
+	if err := cleanupStaleTemps(workflowPathsFor(dir)); err != nil {
 		t.Errorf("cleanupStaleTemps after aging: %v", err)
 	}
 	if _, err := os.Stat(activeTmp); !os.IsNotExist(err) {
@@ -462,5 +462,120 @@ func TestWriteFileAtomic_Permissions(t *testing.T) {
 	// Check that the execute bit is set (mode 0o755 has 0100).
 	if stat.Mode().Perm()&0o100 == 0 {
 		t.Errorf("file is not executable: mode = %o", stat.Mode().Perm())
+	}
+}
+
+// TestWriteOwnedContainsWritesToTheOwnedRoots is the containment guard for the
+// ownership boundary: a target under any owned root is written, and a target
+// outside every owned root is refused without touching the disk.
+func TestWriteOwnedContainsWritesToTheOwnedRoots(t *testing.T) {
+	projectRoot := t.TempDir()
+	store := testStorePaths(t)
+	paths := workflowPathsForStore(projectRoot, store)
+
+	tests := []struct {
+		name    string
+		path    string
+		refused bool
+	}{
+		{name: "project configuration", path: paths.configPath()},
+		{name: "project ADR", path: filepath.Join(paths.adrDir(), "001-record-the-decision.md")},
+		{name: "store record", path: paths.taskFile("active", "001")},
+		{name: "store task index", path: filepath.Join(paths.tasksBucketDir("active"), "index.md")},
+		{name: "outside every owned root", path: filepath.Join(t.TempDir(), "elsewhere.md"), refused: true},
+		{name: "sibling of the store project directory", path: store.ProjectDir + "-other", refused: true},
+		{name: "above the project root", path: filepath.Join(projectRoot, "..", "above.md"), refused: true},
+		{name: "escape out of the store through the records root", path: filepath.Join(paths.recordsRoot, "..", "..", "escape.md"), refused: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := writeOwned(paths, tt.path, []byte("payload"))
+			if tt.refused {
+				if err == nil {
+					t.Fatalf("writeOwned(%s) succeeded, want a containment error", tt.path)
+				}
+				if _, statErr := os.Stat(tt.path); !os.IsNotExist(statErr) {
+					t.Errorf("refused write created %s, stat error = %v", tt.path, statErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("writeOwned(%s): %v", tt.path, err)
+			}
+			data, readErr := os.ReadFile(tt.path)
+			if readErr != nil {
+				t.Fatalf("read back %s: %v", tt.path, readErr)
+			}
+			if string(data) != "payload" {
+				t.Errorf("content of %s = %q, want %q", tt.path, string(data), "payload")
+			}
+			// Every workflow file is written 0o644, including through the
+			// containment helper. Windows does not model Unix permissions.
+			if runtime.GOOS != "windows" {
+				info, statErr := os.Stat(tt.path)
+				if statErr != nil {
+					t.Fatalf("stat %s: %v", tt.path, statErr)
+				}
+				if got := info.Mode().Perm(); got != 0o644 {
+					t.Errorf("mode of %s = %o, want 644", tt.path, got)
+				}
+			}
+		})
+	}
+}
+
+// TestCleanupStaleTempsCoversEveryStateRoot proves the stale-temp scan follows
+// the records: in home mode the store's project directory is scanned alongside
+// the project's own .ahm directory, and a directory outside both is left alone.
+func TestCleanupStaleTempsCoversEveryStateRoot(t *testing.T) {
+	projectRoot := t.TempDir()
+	store := testStorePaths(t)
+	paths := workflowPathsForStore(projectRoot, store)
+
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	staleTemps := []string{
+		filepath.Join(projectRoot, toolRecordsDirName, "config.json.1.tmp"),
+		filepath.Join(paths.recordsRoot, "active", "001.md.2.tmp"),
+	}
+	for _, path := range staleTemps {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, past, past); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	unowned := []string{
+		// Outside .ahm/ but inside the project root: an owned root, yet not a
+		// workflow state directory, so the scan must leave it alone.
+		filepath.Join(projectRoot, "scratch.md.tmp"),
+		// An unrelated directory.
+		filepath.Join(t.TempDir(), "unowned.md.tmp"),
+	}
+	for _, path := range unowned {
+		if err := os.WriteFile(path, []byte("not ahm's"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, past, past); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := cleanupStaleTemps(paths); err != nil {
+		t.Fatalf("cleanupStaleTemps: %v", err)
+	}
+	for _, path := range staleTemps {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("stale temp %s was not removed (stat error = %v)", path, err)
+		}
+	}
+	for _, path := range unowned {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("cleanup removed a temp file outside a state root: %s: %v", path, err)
+		}
 	}
 }

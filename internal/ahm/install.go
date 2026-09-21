@@ -190,7 +190,8 @@ func reconcileMetadata(meta *metadata) {
 // runs, so install never writes into a retired tree.
 func (a *app) install() error {
 	defer a.emitWarnings()
-	root := a.opts.root
+	paths := a.workflowPaths()
+	root := paths.projectRoot
 
 	meta, err := readMetadata(root)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -233,7 +234,7 @@ func (a *app) reconcileIndexes(result map[string][]string) error {
 	stale := make([]string, 0, len(writes))
 	for _, path := range sortedKeys(writes) {
 		if isStaleIndex(nil, path, writes[path]) {
-			stale = append(stale, relPath(a.opts.root, path))
+			stale = append(stale, a.workflowPaths().displayPath(path))
 		}
 	}
 	result["indexes"] = stale
@@ -248,7 +249,8 @@ func (a *app) reconcileIndexes(result map[string][]string) error {
 // reconciling command writes nothing. It records the path as created or
 // updated when a write is needed, or would be needed in dry-run mode.
 func (a *app) reconcileFile(target string, content []byte, result map[string][]string) error {
-	path := filepath.Join(a.opts.root, filepath.FromSlash(target))
+	paths := a.workflowPaths()
+	path := filepath.Join(paths.projectRoot, filepath.FromSlash(target))
 	existing, err := os.ReadFile(path) // #nosec G304 // path constructed from project root, not user input
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -263,7 +265,7 @@ func (a *app) reconcileFile(target string, content []byte, result map[string][]s
 	if a.opts.dryRun {
 		return nil
 	}
-	return writeFileAtomic(path, content, 0o644)
+	return writeOwned(paths, path, content)
 }
 
 // ensureWorkflowGitignore creates the managed .ahm/.gitignore when it is
@@ -273,13 +275,14 @@ func (a *app) ensureWorkflowGitignore() error {
 	if a.opts.dryRun {
 		return nil
 	}
-	path := filepath.Join(a.opts.root, filepath.FromSlash(recordsGitignoreRelPath))
+	paths := a.workflowPaths()
+	path := filepath.Join(paths.projectRoot, filepath.FromSlash(recordsGitignoreRelPath))
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return writeFileAtomic(path, recordsGitignoreContent(), 0o644)
+	return writeOwned(paths, path, recordsGitignoreContent())
 }
 
 // ensureWorkflowDirs creates the record directories ahm owns and returns the
@@ -287,30 +290,31 @@ func (a *app) ensureWorkflowGitignore() error {
 // create.
 func (a *app) ensureWorkflowDirs() ([]string, error) {
 	paths := a.workflowPaths()
-	dirs := []string{
-		paths.tasksRel() + "/active",
-		paths.tasksRel() + "/completed",
-		paths.tasksRel() + "/cancelled",
-		"docs/adr",
+	// Each directory carries the label the report uses, so the reported path
+	// stays repository-relative whether or not the records live in the store.
+	dirs := []struct{ path, rel string }{
+		{paths.tasksBucketDir("active"), paths.recordsRel() + "/active"},
+		{paths.tasksBucketDir("completed"), paths.recordsRel() + "/completed"},
+		{paths.tasksBucketDir("cancelled"), paths.recordsRel() + "/cancelled"},
+		{paths.adrDir(), "docs/adr"},
 	}
 	created := []string{}
 	for _, dir := range dirs {
-		path := filepath.Join(a.opts.root, dir)
-		stat, err := os.Stat(path)
+		stat, err := os.Stat(dir.path)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			created = append(created, dir)
+			created = append(created, dir.rel)
 		case err != nil:
 			return nil, err
 		case !stat.IsDir():
-			return nil, fmt.Errorf("%s exists and is not a directory", path)
+			return nil, fmt.Errorf("%s exists and is not a directory", dir.path)
 		default:
 			continue
 		}
 		if a.opts.dryRun {
 			continue
 		}
-		if err := os.MkdirAll(path, 0o755); err != nil { // #nosec G301 // 0755 is the standard directory permission for workflow directories
+		if err := os.MkdirAll(dir.path, 0o755); err != nil { // #nosec G301 // 0755 is the standard directory permission for workflow directories
 			return nil, err
 		}
 	}
@@ -322,7 +326,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 // workflow from an unreadable one.
 func readMetadata(root string) (metadata, error) {
 	var meta metadata
-	path := filepath.Join(root, filepath.FromSlash(configMetadataRelPath))
+	path := workflowPathsFor(root).configPath()
 	data, err := os.ReadFile(path) // #nosec G304,G703 // path constructed from project root, not user input
 	if err != nil {
 		return meta, err

@@ -104,7 +104,8 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	} else {
 		id = nextTaskIDForPaths(tasks, a.workflowPaths())
 	}
-	path := a.workflowPaths().taskFile("active", id)
+	paths := a.workflowPaths()
+	path := paths.taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
 		ID:       id,
@@ -135,11 +136,11 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		return a.emit(payload)
 	}
 	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("task id %s already exists at %s; retry task create", id, relPath(a.opts.root, path))
+		return fmt.Errorf("task id %s already exists at %s; retry task create", id, paths.displayPath(path))
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checking task path %s: %w", relPath(a.opts.root, path), err)
+		return fmt.Errorf("checking task path %s: %w", paths.displayPath(path), err)
 	}
-	if err := writeFileAtomic(path, []byte(content), 0o644); err != nil {
+	if err := writeOwned(paths, path, []byte(content)); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
