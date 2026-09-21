@@ -140,9 +140,14 @@ is present.
 
 ### `index`
 
-Regenerates all generated indexes from source records.
+Regenerates all generated indexes from source records. Also removes stale
+`.tmp` files older than five minutes anywhere under `.ahm/`, including
+leftovers from an interrupted write; a cleanup failure warns instead of failing
+the command.
 
 **Guarantees:**
 
 - Deterministic sort order.
 - Never edits source records.
+- `--dry-run` previews index writes and removes nothing, including stale
+  `.tmp` files.

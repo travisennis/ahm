@@ -257,15 +257,21 @@ Examples:
 	doctorCmd.Flags().StringSliceVar(&a.opts.check, "check", nil, "Validation scope (comma-separated or repeatable): workflow, links")
 	root.AddCommand(doctorCmd)
 
-	root.AddCommand(a.simpleCommand("index", "Regenerate task indexes and clean up orphaned temp files", `Regenerate generated task and ADR indexes.
+	root.AddCommand(a.simpleCommand("index", "Regenerate task and ADR indexes and clean up stale temp files", `Regenerate the generated task and ADR indexes from source records.
+
+Also removes stale .tmp files older than five minutes anywhere under .ahm/,
+including leftovers from an interrupted write. A cleanup failure warns instead
+of failing the command, and --dry-run removes nothing.
 
 Examples:
   ahm index
   ahm --dry-run index`, func() error {
-		if err := cleanupStaleTemps(a.opts.root); err != nil {
-			// Best-effort cleanup of crash leftovers; surface partial failures
-			// (e.g. permission denied) without aborting index regeneration.
-			a.addWarning("%v", err)
+		if !a.opts.dryRun {
+			if err := cleanupStaleTemps(a.opts.root); err != nil {
+				// Best-effort cleanup of crash leftovers; surface partial failures
+				// (e.g. permission denied) without aborting index regeneration.
+				a.addWarning("%v", err)
+			}
 		}
 		return a.writeIndexes()
 	}))

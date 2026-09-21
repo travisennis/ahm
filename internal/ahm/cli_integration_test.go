@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 var cliIntegrationBinary string
@@ -235,6 +236,29 @@ func TestCLIIntegrationDryRunDoesNotMutate(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("dry-run task cancel wrote cancelled task: %v", err)
+	}
+
+	// index previews its index writes, and must not reap stale .tmp files
+	// either: cleanup is a filesystem mutation like any other.
+	staleTemp := filepath.Join(root, ".ahm", "stale-record.md.tmp")
+	if err := os.WriteFile(staleTemp, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(staleTemp, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	result = runBuiltCLI(t, root, "--dry-run", "index")
+	assertIntegrationCode(t, result, 0)
+	if _, err := os.Stat(staleTemp); err != nil {
+		t.Fatalf("dry-run index removed the stale .tmp file: %v", err)
+	}
+
+	result = runBuiltCLI(t, root, "index")
+	assertIntegrationCode(t, result, 0)
+	if _, err := os.Stat(staleTemp); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("index did not remove the stale .tmp file: %v", err)
 	}
 }
 

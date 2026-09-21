@@ -104,8 +104,9 @@ var cleanupStaleTempMaxAge = 5 * time.Minute
 // files whose modification time is older than cleanupStaleTempMaxAge are
 // removed, so temp files from an active writer are never reaped.
 //
-// Only regular files under the scanned directory are considered; files in
-// subdirectories like .git/ are not scanned.
+// The scan walks the whole tree below .ahm/ recursively; every non-directory
+// entry ending in .tmp is a candidate, whether or not the matching target file
+// exists.
 func cleanupStaleTemps(root string) error {
 	// removeFailures collects .tmp files that could not be removed for a reason
 	// other than "already gone". A single unremovable file (permission denied,
@@ -166,7 +167,8 @@ func cleanupStaleTempsIn(stateDir string, removeFailures *[]string) error {
 			return nil
 		}
 
-		// Check if the corresponding non-.tmp path exists as a regular file.
+		// Check that the corresponding non-.tmp path can be inspected: a stat
+		// error other than "doesn't exist" leaves the .tmp file alone.
 		origPath := strings.TrimSuffix(cleanPath, ".tmp")
 		_, origErr := os.Stat(origPath)
 		if origErr != nil && !os.IsNotExist(origErr) {

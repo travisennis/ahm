@@ -379,7 +379,7 @@ guarantees crash safety:
 A crash before the rename leaves the original file intact. A crash after the
 rename is indistinguishable from a successful write. Stale `.tmp` files left
 by a crash are cleaned up opportunistically at the start of the `index`
-command.
+command, except under `--dry-run`, which removes nothing.
 
 All workflow record mutations share a single repository-local lock under
 `.ahm/.lock/workflow-records` to serialize

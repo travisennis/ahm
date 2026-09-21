@@ -3,6 +3,7 @@ package ahm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,88 @@ func TestEscapeCell(t *testing.T) {
 				t.Errorf("escapeCell(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIndexDryRunLeavesStaleTempsAlone(t *testing.T) {
+	root := t.TempDir()
+	cli := func(args ...string) (string, string, int) {
+		return runCLI(t, append([]string{"--root", root}, args...)...)
+	}
+
+	setupAhmRepo(t, root)
+
+	stalePath := filepath.Join(root, ".ahm", "stale-record.md.tmp")
+	if err := os.WriteFile(stalePath, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(stalePath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	// --dry-run previews only; it must not remove the stale .tmp file or
+	// touch anything else in the tree.
+	before := snapshotTree(t, root)
+	stdout, stderr, code := cli("--dry-run", "index")
+	if code != 0 {
+		t.Errorf("dry-run index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertTreeUnchanged(t, root, before)
+	if _, err := os.Stat(stalePath); err != nil {
+		t.Errorf("dry-run index removed the stale .tmp file: %v", err)
+	}
+
+	// A real index run still cleans it up.
+	stdout, stderr, code = cli("index")
+	if code != 0 {
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(stalePath); !os.IsNotExist(err) {
+		t.Errorf("index did not remove the stale .tmp file, stat err = %v", err)
+	}
+}
+
+func TestIndexWarnsWhenStaleTempRemovalFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only directory permissions do not block file removal on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("test relies on filesystem permissions; root bypasses them")
+	}
+	root := t.TempDir()
+	setupAhmRepo(t, root)
+
+	// A .tmp file inside a read-only directory cannot be removed on Unix:
+	// removal requires write permission on the parent directory.
+	lockedDir := filepath.Join(root, ".ahm", "locked")
+	if err := os.MkdirAll(lockedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stuck := filepath.Join(lockedDir, "stuck.md.tmp")
+	if err := os.WriteFile(stuck, []byte("stuck"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * cleanupStaleTempMaxAge)
+	if err := os.Chtimes(stuck, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(lockedDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(lockedDir, 0o755) })
+
+	// Cleanup failure is best-effort: the command still regenerates indexes
+	// and exits 0, reporting the failure as a warning.
+	stdout, stderr, code := runCLI(t, "--root", root, "index")
+	if code != 0 {
+		t.Errorf("index exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "warning:") || !strings.Contains(stderr, "could not remove") {
+		t.Errorf("index should warn about the unremovable stale .tmp, stderr = %q", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "index.md")); err != nil {
+		t.Errorf("index did not regenerate indexes after a cleanup failure: %v", err)
 	}
 }
 
