@@ -71,9 +71,13 @@ All support `--dry-run` for previewing write operations.
 
 Creates a new task and regenerates indexes.
 
-**Top-level ID allocation:** next zero-padded numeric ID after the highest
-existing numeric task ID (`001`, `002`, ...). Non-numeric suffix IDs are
-ignored for this calculation.
+**Top-level ID allocation:** the next zero-padded numeric ID after the highest
+existing numeric task ID (`001`, `002`, ...), which is the higher of one past
+the highest record present and the counter the home store persists.
+Non-numeric suffix IDs are ignored for this calculation. In the store the
+counter never decreases, so a record deleted by hand does not return its ID to
+the pool, and `ahm init` records the counter the records present imply; in a
+project, Git history is the evidence that a deleted ID was used.
 
 **Subtask (child) ID allocation:** When `--parent <id>` is provided, next
 available lettered child ID under that parent (`137a`, `137b`, ...). At most

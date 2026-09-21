@@ -28,9 +28,14 @@ atomic writes, and dry-run behavior.
   owned repository or workflow directory. Route every workflow record, index,
   and configuration write through `writeOwned`, which refuses a target outside
   an owned root and then writes atomically. A direct `writeFileAtomic` call is
-  reserved for state that has no owned root, such as the store's own registry
-  and project state files, and a direct `os.WriteFile` for the lock protocol's
-  owner token inside the lock it just created.
+  reserved for the store state that `ahm store path` records, which it builds
+  from a resolved `storePaths` and no `workflowPaths`: the store's own
+  `registry.json`, which always sits at the store root, and `project.json`,
+  which is inside an owned root in `home` mode and outside one in `project`
+  mode. The task ID counter in that same `project.json` is written by
+  `task create` and `ahm init`, which do hold the resolved paths, so it goes
+  through `writeOwned`. A direct `os.WriteFile` is reserved for the lock
+  protocol's owner token inside the lock it just created.
 - Route ahm-owned Git subprocesses through the shared environment filter; do
   not rely on `git -C` alone when hook-provided `GIT_*` variables may exist.
 - Re-read ADR 001 before changing atomic write behavior.

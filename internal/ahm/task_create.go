@@ -91,19 +91,22 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		}
 	}
 	var id string
+	paths := a.workflowPaths()
 	if parsed.resolvedParentID != "" {
 		// Re-resolve parent inside the lock for consistency.
 		// The parent is known to exist from the pre-lock check, but the ID
 		// may have been zero-padded differently; use the resolved ID for child prefix.
 		parentID := parsed.resolvedParentID
-		id, err = nextChildTaskIDForPaths(tasks, a.workflowPaths(), parentID)
+		id, err = nextChildTaskIDForPaths(tasks, paths, parentID)
 		if err != nil {
 			return err
 		}
 	} else {
-		id = nextTaskIDForPaths(tasks, a.workflowPaths())
+		id, err = nextTaskIDForPaths(tasks, paths)
+		if err != nil {
+			return err
+		}
 	}
-	paths := a.workflowPaths()
 	path := paths.taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
@@ -140,6 +143,13 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		return fmt.Errorf("checking task path %s: %w", paths.displayPath(path), err)
 	}
 	if err := writeOwned(paths, path, []byte(content)); err != nil {
+		return err
+	}
+	// The record is what proves the ID was used, so the counter moves only once
+	// the record exists. A failure between the two writes leaves the counter
+	// behind, which the next allocation repairs from the records on disk; the
+	// reverse order would burn an ID for a create that never happened.
+	if err := persistTaskIDCounter(paths, id); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -278,33 +288,16 @@ func (a *app) resolveTaskCreateBody(parsed taskCreateArgs) (string, error) {
 	return body, nil
 }
 
-func nextTaskIDForPaths(tasks []Task, paths workflowPaths) string {
-	maxID := 0
-	for _, task := range tasks {
-		n, suffix, ok := splitTaskID(task.ID)
-		if ok && suffix == "" && n > maxID {
-			maxID = n
-		}
+// nextTaskIDForPaths returns the next top-level task ID: the higher of one past
+// the highest number in the records present and the store's persisted counter,
+// so a store that predates the counter heals upward instead of reissuing a
+// number.
+func nextTaskIDForPaths(tasks []Task, paths workflowPaths) (string, error) {
+	counter, err := readTaskIDCounter(paths)
+	if err != nil {
+		return "", err
 	}
-	// Also scan the filesystem for task files that may have been skipped
-	// due to parse errors, to avoid colliding with them.
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := paths.tasksBucketDir(bucket)
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			n, suffix, ok := splitTaskID(strings.TrimSuffix(entry.Name(), ".md"))
-			if ok && suffix == "" && n > maxID {
-				maxID = n
-			}
-		}
-	}
-	return fmt.Sprintf("%03d", maxID+1)
+	return fmt.Sprintf("%03d", max(counter, highestTaskNumber(tasks, paths)+1)), nil
 }
 
 func nextChildTaskIDForPaths(tasks []Task, paths workflowPaths, parentID string) (string, error) {
@@ -341,7 +334,11 @@ func nextChildTaskIDForPaths(tasks []Task, paths workflowPaths, parentID string)
 		}
 	}
 
-	// Find the first unused letter a-z.
+	// Find the first unused letter a-z. The store's ID counter is deliberately
+	// not consulted here: a child ID carries its parent's number, and the
+	// counter's guarantee is about the numbers a store has promised, not about
+	// the letters under one of them. A deleted child's letter can therefore be
+	// reused, exactly as it could when the records were committed.
 	for ch := 'a'; ch <= 'z'; ch++ {
 		suffix := string(ch)
 		if !used[suffix] {

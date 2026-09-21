@@ -67,7 +67,10 @@ directory belongs to the current project.
 - [x] 267c — Read and write task records in the store, split index generation,
   report the store from `prime` and `status`, and report drift when records
   remain in the project. `project` mode stays the default.
-- [ ] 267d — Persist a non-decrementing task ID counter in the store.
+- [x] 267d — Persist a non-decrementing task ID counter in the store. Added
+  `internal/ahm/task_id_counter.go`, the `next_id` field of the store's
+  `project.json`, the counter write in `task create`, and the counter seeding in
+  `install`.
 - [ ] 267e — Add `ahm store migrate --to home|project` and the `init` and
   validation behavior that supports it.
 - [ ] 267f — Default new projects to the home store.
@@ -190,9 +193,93 @@ directory belongs to the current project.
   rather than a new one. Evidence:
   `TestStatusReportsWorkflowArtifactConsistency` covers the project-mode
   state.
+- 2026-09-21 (267d): the counter cannot cover child IDs, and the milestone
+  keeps the child scan unchanged, so a deleted child's letter is still
+  reissued. A child carries its parent's number, so the counter's promise about
+  numbers says nothing about the letters under one of them, and `--parent`
+  allocation is unchanged by this milestone. Consequence: a note that
+  references `137d` can silently come to mean a different child in home mode,
+  exactly as it can in a committed project where no history lookup happens.
+  Evidence: `TestPersistTaskIDCounterIgnoresChildIDs` pins the behavior. If this
+  is worth closing, the fix is a per-parent suffix high-water mark, which no
+  referenced milestone owns.
+- 2026-09-21 (267d): the counter earns its keep beyond the case the milestone
+  names. Delete a parent record whose only remaining records are its children,
+  and the numeric scan sees nothing to guard the parent's number, because every
+  remaining ID carries a suffix the scan ignores. The counter is what makes the
+  next allocate `002` instead of colliding with the child's `001a`. Evidence:
+  `TestParentIDIsNotReissuedWhileItsChildRemains`, and a manual run that
+  reproduced `001` being reissued with the counter read removed.
+- 2026-09-21 (267d): the state file now has two writers with different
+  containment. The counter is written from inside the record lock through
+  `writeOwned`, because home mode makes the store's project directory an owned
+  root; `recordStoreProject` keeps `writeFileAtomic` because `store path`
+  resolves the same file for a `project`-mode repository, where it is outside
+  the owned roots. `writeProjectState` therefore re-reads the file and keeps the
+  higher counter, so a stale observation cannot lower it; a decrement would need
+  two writers inside the same read-to-rename window. That is the same
+  unlocked-state-file race 267a recorded for the registry, and it stays open
+  here.
+- 2026-09-21 (267d): `install` writes the store state file in home mode for the
+  first time - before this milestone only `store path` observed the store - and
+  it does so silently, because `project.json` is store state rather than a
+  reconciled workflow file that the `init` result lists. `--dry-run init` writes
+  nothing, counter included.
+- 2026-09-21 (267d): a review of this milestone found the Architecture
+  invariant overstated - "a top-level task ID is never reissued" is false in
+  project mode, which returns a hand-deleted record's number to the pool - and
+  that the `init` and `store path` pages of the CLI reference, the safety
+  guardrail's `writeFileAtomic` exception, the allocation self-heal, and init's
+  raise-only behavior all needed a wording or test fix. All of those are fixed
+  in this milestone. One finding is handed over instead: the spec, the upgrade
+  guide, and the glossary gain no store narrative here, because 267h owns those
+  three surfaces. The guide owes one line telling a store that already holds
+  records to run `ahm init` once, so the counter is seeded before any record is
+  deleted, and the spec owes the `next_id` field beside the store layout it
+  describes. The handoff is recorded in that task.
 
 ## Decision Log
 
+- Decision: only a top-level allocation advances the store's task ID counter,
+  and child allocation keeps its letter scan and never consults it.
+  Rationale: a child ID carries its parent's number, which the parent record
+  already reserves, and the milestone fixes the child rules. The accepted
+  consequence is that a deleted child's letter is reissued, which the
+  Surprises section records.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: `install` seeds the counter from the records present, and the
+  allocation path takes the maximum of that counter and the highest record, so
+  a store that predates the counter heals upward instead of reissuing a number.
+  Rationale: install is the last moment that sees a record before a person can
+  delete it, and seeding only there would leave an adopted store's high-water
+  mark unknown; taking the maximum at allocation is what makes both orders safe.
+  `install` does nothing in project mode and nothing on a dry run.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the counter is written after the record it accounts for, through
+  `writeOwned`, and only when it would increase.
+  Rationale: a record on disk is what proves the ID was used, so a crash
+  between the two writes leaves a counter that the next allocation repairs from
+  the records; the reverse order would spend a number for a create that never
+  happened. Writing the state file through `writeOwned` is what keeps it inside
+  the containment rule, because the store's project directory is an owned root
+  whenever this write runs.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: every write of the store state file keeps the higher `next_id`
+  already on disk rather than the value its reader carried.
+  Rationale: `store path` records its observation without holding the record
+  lock, so a read-modify-write can carry a counter a concurrent create has
+  already raised; keeping the maximum makes the file match the guarantee the
+  counter exists to provide. Deleting the counter file itself stays
+  unrecoverable, like any other lost store state, and the records present are
+  the best remaining evidence.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: an unreadable store state file fails `task create` in home mode
+  instead of falling back to the records present.
+  Rationale: the counter is the only evidence for a number whose record is
+  gone, so a create that cannot read it cannot promise never to reissue an ID;
+  failing loudly matches how `store path` already treats an unknown store
+  format version. Evidence: `TestHomeModeTaskCreateFailsOnAnUnreadableTaskIDCounter`.
+  Date/Author: 2026-09-21, Travis Ennis.
 - Decision: a Git read failure in a project root that holds `.git` is an error,
   not a silent fallback to the path key; and identity uses the project root's
   own `.git`, so a managed root nested inside another repository never inherits
@@ -707,11 +794,17 @@ suite passes with byte-identical output.
 
 `nextTaskID` in `internal/ahm/task_create.go` currently derives the next ID
 from the maximum parsed ID plus the filesystem entries. It reads and updates a
-counter in the records root's `project.json` instead, taking the maximum of
-the persisted value and the highest record present so that an existing store
-self-heals upward, and never decreasing it. Child ID allocation under
+counter in the store's `project.json` instead, taking the maximum of the
+persisted counter and one past the highest record present so that an existing
+store self-heals upward, and never decreasing it. Child ID allocation under
 `--parent` keeps its current rules against the same counter and the same
 scan.
+
+The counter and the record scan live together in
+`internal/ahm/task_id_counter.go`: `nextTaskIDForPaths` asks that file for the
+floor, and the create path raises it after the record is written. `install`
+seeds it from the records present, which is the observation that makes a
+deletion after install safe.
 
 Acceptance: create a task, delete its file by hand, create another; the second
 ID is one higher than the deleted one rather than a reuse. A test that fails
@@ -940,6 +1033,22 @@ New file `internal/ahm/store.go` defines the store:
 The registry path is derived where the registry is read and written, and the
 record-mutation lock directory is `workflowPaths.lockDir()`, because the lock
 belongs beside the records wherever they are rather than to the store alone.
+
+New file `internal/ahm/task_id_counter.go` defines the store's task ID
+counter, which is the state file's `next_id` field:
+
+    func (p workflowPaths) taskIDCounterPath() (string, bool)
+    func readTaskIDCounter(paths workflowPaths) (int, error)
+    func writeTaskIDCounter(paths workflowPaths, next int) error
+    func persistTaskIDCounter(paths workflowPaths, id string) error
+    func highestTaskNumber(tasks []Task, paths workflowPaths) int
+
+`taskIDCounterPath` reports false in project mode, where no counter exists, so
+every other helper is a no-op there. `writeTaskIDCounter` keeps the higher of
+the persisted value and `next`, and `persistTaskIDCounter` raises the counter
+only for a top-level ID, because a child carries its parent's number.
+`(a *app) initializeTaskIDCounter(paths)` seeds the counter from the records
+present and is what `install` calls.
 
     type projectEntry struct {
         Key          string   `json:"key"`

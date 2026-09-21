@@ -276,7 +276,34 @@ func (a *app) install() error {
 	if err := a.reconcileIndexes(result); err != nil {
 		return err
 	}
+	if err := a.initializeTaskIDCounter(paths); err != nil {
+		return err
+	}
 	return a.emit(result)
+}
+
+// initializeTaskIDCounter records the store's task ID counter from the records
+// present, and does nothing when the records live in the project, where Git
+// history already proves which numbers were spent. Recording the high-water
+// mark at install time is what makes a later deletion of the newest record safe
+// - including one deleted before the next create, which the allocation scan
+// would no longer see. A partial task set is enough: the counter only ever
+// moves up, and any record that did not parse is reported by the index
+// reconciliation above.
+func (a *app) initializeTaskIDCounter(paths workflowPaths) error {
+	if a.opts.dryRun {
+		return nil
+	}
+	if _, ok := paths.taskIDCounterPath(); !ok {
+		// Project mode has no counter file, and needs none: Git history proves
+		// which numbers were spent. Nothing is read, either.
+		return nil
+	}
+	tasks, err := a.getTasks()
+	if err != nil && tasks == nil {
+		return err
+	}
+	return writeTaskIDCounter(paths, highestTaskNumber(tasks, paths)+1)
 }
 
 // reconcileIndexes reports the generated indexes that are missing or stale and

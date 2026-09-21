@@ -122,8 +122,15 @@ is present.
 
 **Guarantees:**
 
-- Creates `.ahm/config.json`, the managed `.ahm/.gitignore`, the record
-  directories, and the generated indexes when they are missing.
+- In `project` mode it creates `.ahm/config.json`, the managed
+  `.ahm/.gitignore`, the record directories, and the generated indexes when they
+  are missing.
+- In `home` mode it prepares the store instead of `.ahm/tasks/`: the record
+  directories and the store's managed `.gitignore` under the store's directory
+  for the project, plus the store's `project.json` state file, which records the
+  next top-level task ID the records present imply. `project.json` is not listed
+  in the result, because it is store state rather than a reconciled workflow
+  file.
 - Rewrites an ahm-owned file only when its bytes differ from what ahm owns, so
   an up-to-date repository is left untouched and a repeated run writes nothing.
 - Drops obsolete ahm-owned configuration keys (`taskWork`,
@@ -171,6 +178,9 @@ the store root, the project key, and the records directory
   written only when their bytes change, so a repeated run writes nothing. An
   unknown store format version is refused with exit code 1. No other path is
   written.
+- The project state file holds the store format version, and `next_id` once a
+  counter has been recorded. The command records the value it read and never
+  lowers it.
 - `--json` and `--plain` emit `root`, `key`, `kind` (`remote` or `path`), and
   `records`; text output abbreviates the user's home directory to `~`.
 

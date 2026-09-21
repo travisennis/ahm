@@ -408,7 +408,10 @@ func TestStripHeadingPreservesLiteralMarkdownTitleCharacters(t *testing.T) {
 }
 
 func TestNextTaskID(t *testing.T) {
-	got := nextTaskIDForPaths([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}}, workflowPathsFor(t.TempDir()))
+	got, err := nextTaskIDForPaths([]Task{{ID: "001"}, {ID: "002a"}, {ID: "010"}}, workflowPathsFor(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "011" {
 		t.Errorf("nextTaskIDForPaths = %q", got)
 	}
@@ -436,7 +439,10 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	}
 
 	// nextTaskIDForPaths should see 005 on disk and return 006
-	got := nextTaskIDForPaths(tasks, workflowPathsFor(root))
+	got, err := nextTaskIDForPaths(tasks, workflowPathsFor(root))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "006" {
 		t.Errorf("nextTaskIDForPaths = %q, want %q", got, "006")
 	}
@@ -447,7 +453,10 @@ func TestNextTaskIDIgnoresOverflowingNumericIDs(t *testing.T) {
 	overflow := strings.Repeat("9", 100)
 	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", overflow+".md"), "# Malformed overflow task\n")
 
-	got := nextTaskIDForPaths([]Task{{ID: "001"}, {ID: overflow}}, workflowPathsFor(root))
+	got, err := nextTaskIDForPaths([]Task{{ID: "001"}, {ID: overflow}}, workflowPathsFor(root))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "002" {
 		t.Errorf("nextTaskIDForPaths = %q, want %q", got, "002")
 	}

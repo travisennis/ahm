@@ -202,6 +202,12 @@ func loadRegistry(root string) (registry, error) {
 // record deletion.
 type projectState struct {
 	Version int `json:"version"`
+
+	// NextID is the next top-level task ID this store will allocate, so that a
+	// number whose record was deleted is never handed out again. Zero means no
+	// counter has been recorded yet, which an existing store self-heals from the
+	// records present. The value only ever increases.
+	NextID int `json:"next_id,omitempty"`
 }
 
 // readProjectState reads a project's store state file. A missing file reports
@@ -270,8 +276,13 @@ func recordStoreProject(s storePaths) error {
 }
 
 // writeProjectState writes a project's state file unless it already holds
-// those exact bytes.
+// those exact bytes. It never lowers the persisted task ID counter: a state
+// write whose reader raced a task creation keeps the higher value already on
+// disk, because the counter's guarantee is that it only moves up.
 func writeProjectState(s storePaths, state projectState) error {
+	if current, err := readProjectState(s); err == nil {
+		state.NextID = higherTaskIDCounter(state.NextID, current.NextID)
+	}
 	data, err := marshalStoreJSON(state)
 	if err != nil {
 		return err

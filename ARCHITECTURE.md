@@ -43,7 +43,7 @@ location map; this section describes what each group does.
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode), the managed `.gitignore` of the resolved records location, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
-| Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking. |
+| Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_id_counter.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking, and the store's task ID counter. |
 | ADRs | `internal/ahm/adrs.go`, `adr_commands.go` | ADR model, parsing, lifecycle commands. |
 | Indexes | `internal/ahm/indexes.go` | Task and ADR generated index rendering. |
 | Version | `internal/version/version.go` | Binary version injected by release builds. |
@@ -57,9 +57,14 @@ location map; this section describes what each group does.
   `writeOwned`, which refuses a target outside the owned roots (the project
   root, and the store's project directory when records live in the store).
   `writeFileAtomic` guarantees atomicity only; containment lives in
-  `writeOwned`. Two writes stay outside it by design: the lock protocol writes
-  its owner token inside the lock it just created, and the store's registry and
-  project state files have no owned root.
+  `writeOwned`. Two writers stay outside it by design: the lock protocol writes
+  its owner token inside the lock it just created, and `store path` writes the
+  store's registry and its own observation of `project.json` directly, because
+  `recordStoreProject` works from a resolved `storePaths` rather than from the
+  owned roots. The registry is never inside an owned root, and the state file is
+  inside one only when the records live in the store. The task ID counter in
+  that same state file is written by `task create` and `ahm init`, which do hold
+  the resolved paths, so it goes through `writeOwned`.
 - A repository has two roots: a project root that owns `.ahm/config.json` and
   `docs/adr/`, and a records root that owns task records and their generated
   indexes. `workflow_paths.go` is the single definition of both, and every task
@@ -80,6 +85,19 @@ location map; this section describes what each group does.
   home mode and the record's own path in project mode, so those payloads stay
   byte-identical for existing repositories. An operating-system message keeps
   its own text.
+- Home mode never reissues a top-level task ID while the store's state file
+  survives: the store persists a `next_id` high-water mark in its project state
+  file, beside the records, and allocation is the higher of one past the highest
+  record present and that counter. The counter only ever moves up: both writers,
+  `task create` under the record lock and the `store path` observation, re-read
+  the file and keep the higher value, so a stale observation cannot lower it by
+  itself. The residual holes are the two writers interleaving inside one
+  read-to-rename window, and the state file being lost, which leaves the records
+  present as the only evidence. `ahm init` records the mark the records present
+  imply. Project mode keeps the number scan and does return a hand-deleted
+  record's number to the pool: Git history is the evidence that the ID was
+  spent, not something ahm reads before allocating. Child IDs keep their own
+  letter scan in both layouts, so a deleted child's letter can be reissued.
 - Cross-process workflow mutations that require read-compute-write consistency
   use repository-local locks beside the records root (`.ahm/.lock/` in project
   mode), so two clones that share a store serialize on one lock.
