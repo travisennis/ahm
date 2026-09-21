@@ -26,8 +26,9 @@ type app struct {
 	out        io.Writer
 	err        io.Writer
 	in         io.Reader
-	tasksCache []Task   // cached result of collectTasks, nil when stale
-	warnings   []string // non-fatal errors accumulated during a command
+	tasksCache []Task      // cached result of collectTasks, nil when stale
+	store      *storePaths // resolved home store location, nil until first use
+	warnings   []string    // non-fatal errors accumulated during a command
 }
 
 func (a *app) addWarning(format string, args ...any) {
@@ -277,6 +278,7 @@ Examples:
 	}))
 	root.AddCommand(a.adrCommand())
 	root.AddCommand(a.taskCommand())
+	root.AddCommand(a.storeCommand())
 	return root
 }
 

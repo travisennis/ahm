@@ -75,6 +75,9 @@ func runBuiltCLI(t *testing.T, dir string, args ...string) cliIntegrationResult 
 	t.Helper()
 	cmd := exec.Command(cliIntegrationBinary, args...) // #nosec G204 // tests run the freshly built ahm binary with explicit args
 	cmd.Dir = dir
+	// The child process inherits the developer's environment, so the store root
+	// is set explicitly and never resolves to the developer's own ~/.ahm.
+	cmd.Env = append(os.Environ(), storeHomeEnvVar+"="+t.TempDir())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

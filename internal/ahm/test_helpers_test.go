@@ -9,8 +9,42 @@ import (
 	"time"
 )
 
+// setStoreHome points the home store at a temporary directory and returns it.
+// Tests that need several commands to share one store call it first; the CLI
+// helpers below keep whatever value is already set.
+func setStoreHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv(storeHomeEnvVar, home)
+	return home
+}
+
+// useTemporaryStoreHome points the store at a temporary directory unless the
+// test chose one under the system temporary directory itself. A store root
+// outside it — the developer's real ~/.ahm, or any AHM_HOME a shell exports at
+// such a path — is replaced. A value under the system temporary directory is
+// kept, because that is how a test pre-populates a store before running a
+// command.
+func useTemporaryStoreHome(t *testing.T) {
+	t.Helper()
+	if home, ok := os.LookupEnv(storeHomeEnvVar); ok && withinTempDir(home) {
+		return
+	}
+	setStoreHome(t)
+}
+
+// withinTempDir reports whether path is the system temporary directory or a
+// path under it. Tests only keep a store root they can prove is a scratch
+// directory.
+func withinTempDir(path string) bool {
+	tmp := filepath.Clean(os.TempDir())
+	clean := filepath.Clean(path)
+	return clean == tmp || strings.HasPrefix(clean, tmp+string(filepath.Separator))
+}
+
 func runCLI(t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
+	useTemporaryStoreHome(t)
 	var stdout strings.Builder
 	var stderr strings.Builder
 	code := Main(args, &stdout, &stderr)
@@ -18,6 +52,15 @@ func runCLI(t *testing.T, args ...string) (string, string, int) {
 }
 
 func runCLIFromDir(t *testing.T, dir string, args ...string) (string, string, int) {
+	t.Helper()
+	useTemporaryStoreHome(t)
+	return runCLIFromDirKeepingEnv(t, dir, args...)
+}
+
+// runCLIFromDirKeepingEnv runs the CLI in process from dir with exactly the
+// environment the test set, including AHM_HOME, and installs no scratch store
+// root. Tests that exercise an unusual AHM_HOME use it.
+func runCLIFromDirKeepingEnv(t *testing.T, dir string, args ...string) (string, string, int) {
 	t.Helper()
 	origDir, err := os.Getwd()
 	if err != nil {

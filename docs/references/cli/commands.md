@@ -12,7 +12,7 @@ only compatibility guarantees that generated help cannot express.
 All non-task commands share these guarantees unless stated otherwise:
 
 - **`--dry-run`**: previews the operation without writing files. Supported by
-  `init`, `index`, `adr create`, ADR lifecycle commands.
+  `init`, `index`, `adr create`, ADR lifecycle commands, and `store path`.
 - **`--json` / `--plain`**: structured output mode. Unsupported commands print
   text regardless of the flag.
 
@@ -137,6 +137,42 @@ is present.
   repository that also holds `.ahm/config.json` is managed: the v1 migration
   wrote the config after moving the records, so the legacy file is stale.
 - `--dry-run` previews every write without touching the filesystem.
+
+### `store path`
+
+Prints where the current project's records live in the user-level home store:
+the store root, the project key, and the records directory
+(`<root>/projects/<dir>/tasks`).
+
+**Guarantees:**
+
+- The store root is `~/.ahm`, or `AHM_HOME` when it names an absolute path. A
+  relative `AHM_HOME` is a usage error (exit code 2), and an `AHM_HOME` that
+  exists and is not a directory exits 1.
+- The key is derived per command and never stored in the project. With a Git
+  remote it is the canonical `origin` URL — the lowercased `host/owner/repo`
+  form, with scheme, userinfo, default port, trailing `.git`, and trailing
+  slash removed, and non-default ports kept. A repository whose only remote is
+  not `origin` uses that remote; several remotes without an `origin`, a remote
+  that names no URL, a `file://` remote, a local-path remote, and no remote at
+  all fall back to the SHA-256 of the symlink-resolved project root.
+  Credentials are never included in the key or persisted.
+- Identity uses the project root's own `.git`. A root whose own directory
+  holds no `.git` — a directory managed by `.ahm/config.json` alone, a `--root`
+  pointing into a repository subdirectory, or a bare repository — always uses
+  the path rule, so it never inherits the remote of an enclosing repository.
+- A root that holds `.git` but that Git cannot read (git is missing, or the
+  repository is broken or unreadable) exits 1 instead of falling back to the
+  path rule, because a silent fallback would resolve a different key.
+- Two clones, and a linked path, of one project report the same key and
+  directory.
+- The command records the project in `<store>/registry.json`, and its state in
+  `<store>/projects/<dir>/project.json`, unless `--dry-run` is given; both are
+  written only when their bytes change, so a repeated run writes nothing. An
+  unknown store format version is refused with exit code 1. No other path is
+  written.
+- `--json` and `--plain` emit `root`, `key`, `kind` (`remote` or `path`), and
+  `records`; text output abbreviates the user's home directory to `~`.
 
 ### `index`
 

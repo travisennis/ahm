@@ -58,8 +58,10 @@ directory belongs to the current project.
   `docs/adr/023-store-task-records-in-a-user-level-home-store.md`.
 - [x] (2026-09-21) Wrote this plan and filed tracker 267 with children 267a
   through 267h.
-- [ ] 267a — Derive project identity and resolve the store root. Adds the
-  `ahm store path` command so the resolver is observable.
+- [x] (2026-09-21) 267a — Derive project identity and resolve the store root.
+  Added `internal/ahm/identity.go`, `internal/ahm/store.go`, the Git remote
+  read in `internal/ahm/git.go`, and the `ahm store path` command. Every test
+  runs against a temporary `AHM_HOME`.
 - [ ] 267b — Split workflow paths into a project root and a records root, and
   contain every write to an owned root. No user-visible behavior change.
 - [ ] 267c — Read and write task records in the store, split index generation,
@@ -76,11 +78,69 @@ directory belongs to the current project.
 
 ## Surprises & Discoveries
 
-None yet. Record every unexpected behavior, bug, or insight here with a short
-evidence snippet as the milestones proceed.
+- 2026-09-21 (267a): the registry records the remote spelling a key was derived
+  from, and a URL remote can carry a token (`https://user:token@host/o/r.git`).
+  Persisting the raw spelling would put a credential in `registry.json`, which
+  contradicts ADR 023's rule that credentials are never hashed or persisted.
+  The stored spelling therefore has userinfo removed. Evidence:
+  `TestStorePathCommandRecordsRegistryWithoutCredentials` fails with
+  `the registry persisted a credential` when the redaction is dropped.
+- 2026-09-21 (267a): a review found that folding "Git could not read this
+  repository" into "no remote applies" turns a transient Git failure into a
+  different key. Evidence: with `git` off `PATH`, with a `.git` file pointing
+  at a missing git directory, and with an unreadable `.git`, the resolver
+  returned a path key and exit 0. `readGitRemote` now reports that case as an
+  error, per the decision below.
+- 2026-09-21 (267a): the registry is one file per machine, and
+  `recordStoreProject` read-modify-writes it with no lock, so two concurrent
+  `ahm store path` runs in different projects can drop each other's entry. The
+  impact is bounded because a directory name is recomputable from the key, but
+  a lost `remotes`/`paths` observation is not recoverable. No referenced
+  milestone takes this on; the fix belongs with the store lock that 267b moves
+  into the store, or in its own task.
+- 2026-09-21 (267a): ADR 023 says symlink resolution "also normalizes platform
+  aliases and on-disk casing". It normalizes aliases (a macOS `/var` root
+  resolves through `/private/var`), but Go's `EvalSymlinks` does not
+  case-normalize a path component, so a differently-cased `--root` derives a
+  different key. Either the claim or the resolver has to change; the wording is
+  in 267h's scope.
+- 2026-09-21 (267a): ADR 023 says output never embeds absolute machine paths
+  except in the store root that `prime` and `status` report. `store path`
+  reports the store root and the records directory in absolute JSON, which is
+  what this plan's Concrete Steps specify; the command exists to print where
+  the records are. This is an exception to add to ADR 023's display rule in
+  267h, or to revisit with a `store:`-relative `records` field.
 
 ## Decision Log
 
+- Decision: a Git read failure in a project root that holds `.git` is an error,
+  not a silent fallback to the path key; and identity uses the project root's
+  own `.git`, so a managed root nested inside another repository never inherits
+  the outer remote.
+  Rationale: 267c reads records through the key, so a fallback would point the
+  backlog at a different, empty store directory and a write there would split
+  it. Requiring `.git` at the root also answers the nested-root case that
+  `git -C` would otherwise resolve to the outer repository. The consequence
+  267c must handle: store resolution must stay lazy where it is not needed, so
+  a `project`-mode repository never fails because Git is unreadable.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: resolving the store is a read, and `ahm store path` records the
+  observation — the registry entry and the project state file — unless
+  `--dry-run` is given, so that identity data starts accumulating before a
+  project migrates.
+  Rationale: ADR 023 wants the registry to hold "what has been observed", which
+  only happens if an ordinary command writes it, and 267a is the only store
+  command before 267c. Both files are written only when their bytes change, and
+  `--dry-run` writes nothing, so the command stays repeatable and previewable.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: a store directory is `<slug>-<hash8>`, where the slug is the key's
+  last path segment reduced to lowercase alphanumerics and the hash is the
+  first eight hex characters of the key's SHA-256; a path-rule key, which is a
+  digest with no repository name, uses `project` as its slug.
+  Rationale: naming a directory from the key alone keeps it stable across
+  checkouts, a readable slug is what makes the store inspectable, and the hash
+  is what keeps two repositories with the same name apart.
+  Date/Author: 2026-09-21, Travis Ennis.
 - Decision: the store root is `~/.ahm`, overridable with the absolute-path
   environment variable `AHM_HOME`, and it holds both the machine-level
   `config.json` and `projects/`.
@@ -153,8 +213,33 @@ evidence snippet as the milestones proceed.
 
 ## Outcomes & Retrospective
 
-Not started. Fill this in at the end of each milestone and rewrite it at
-completion, comparing the delivered behavior against the Purpose section.
+### 267a — Derive project identity and resolve the store root (2026-09-21)
+
+Delivered: `canonicalRemoteKey`, `canonicalPathKey`, `projectKeyFor`, and
+`storeDirName` in `internal/ahm/identity.go`; `storeRoot`, `resolveStore`, the
+registry and project-state read/write helpers, and the `store path` command in
+`internal/ahm/store.go`; a `readGitRemote`/`runGit` read in
+`internal/ahm/git.go`; and `identity_test.go` plus `store_test.go`. The
+golden table covers scp-like and URL spellings of one repository, uppercase,
+credentials, default and non-default ports, `file://` and local-path remotes,
+and a symlinked project root.
+
+Against the Purpose section: nothing user-visible changed for an existing
+repository. Records still live in `.ahm/tasks/`, every existing command
+produces what it produced before, and the store is only observable through a
+new command. The store's write surface so far is the registry entry and the
+project state file that `ahm store path` records.
+
+A review round hardened the identity rules: an unreadable Git repository is an
+error rather than a silently different path key, identity uses the project
+root's own `.git`, a remote that cannot key the project is still recorded as an
+observation, and a registry-supplied directory is confined to one path segment.
+The test helpers now install a scratch store root unless the test chose one
+under the system temporary directory, so no test can reach a real store.
+
+Not yet done, and deliberately: the store holds no records, the mode key is not
+read or written, and `prime`/`status` do not report the store. Those are
+267b through 267f.
 
 ## Context and Orientation
 

@@ -39,8 +39,8 @@ directory.
 scaffolding there. `status` reports a git repository that has no
 `.ahm/config.json` as `installed: false`. Outside a managed repository, with
 neither `.git` nor `.ahm/config.json` above the working directory, `status`,
-`prime`, `doctor`, and the `task` and `adr` commands all fail with remediation
-instructions; `--root` bypasses auto-detection for any of them.
+`prime`, `doctor`, and the `task`, `adr`, and `store` commands all fail with
+remediation instructions; `--root` bypasses auto-detection for any of them.
 
 ## Global Flags
 
@@ -52,7 +52,7 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, task status transitions, and task dependency add/remove. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, task status transitions, task dependency add/remove, and `store path`. |
 | `--force` | Overrides strict acceptance checks during `task complete`. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
