@@ -112,3 +112,111 @@ func TestWorkflowPathsHomeModeAccessors(t *testing.T) {
 		t.Errorf("displayPath(adr index) = %q, want %q", got, want)
 	}
 }
+
+// TestWorkflowPathsPayloadPathKeepsProjectPaths pins the one output rule that
+// differs from displayPath: a structured payload carries the record's own path,
+// so the JSON path field and the dry-run previews keep the absolute project
+// path every project-mode consumer already receives (ADR 023 keeps project-mode
+// output byte-identical) and render a store path as store:<store-relative>.
+func TestWorkflowPathsPayloadPathKeepsProjectPaths(t *testing.T) {
+	root := t.TempDir()
+	project := workflowPathsFor(root)
+	projectRecord := project.taskFile("active", "001")
+	if got := project.payloadPath(projectRecord); got != projectRecord {
+		t.Errorf("payloadPath(project record) = %q, want %q", got, projectRecord)
+	}
+
+	home := workflowPathsForStore(root, testStorePaths(t))
+	if got, want := home.payloadPath(home.taskFile("active", "267")), "store:tasks/active/267.md"; got != want {
+		t.Errorf("payloadPath(store record) = %q, want %q", got, want)
+	}
+	// A project path stays untouched even when the records live in the store.
+	if got := home.payloadPath(project.adrIndexPath()); got != project.adrIndexPath() {
+		t.Errorf("payloadPath(project path in store mode) = %q, want %q", got, project.adrIndexPath())
+	}
+}
+
+// TestWorkflowPathsInProjectRecordPath pins the mapping link validation uses as
+// its fallback: a store record resolves links against the in-project path it
+// would have if it still lived in the project.
+func TestWorkflowPathsInProjectRecordPath(t *testing.T) {
+	root := t.TempDir()
+	store := testStorePaths(t)
+	home := workflowPathsForStore(root, store)
+
+	storeRecord := home.taskFile("active", "267")
+	got, ok := home.inProjectRecordPath(storeRecord)
+	if !ok {
+		t.Fatalf("inProjectRecordPath(%q) reported no mapping", storeRecord)
+	}
+	if want := filepath.Join(root, ".ahm", "tasks", "active", "267.md"); got != want {
+		t.Errorf("inProjectRecordPath() = %q, want %q", got, want)
+	}
+
+	project := workflowPathsFor(root)
+	if _, ok := project.inProjectRecordPath(project.taskFile("active", "001")); ok {
+		t.Error("inProjectRecordPath() mapped a project record")
+	}
+	if _, ok := home.inProjectRecordPath(project.adrIndexPath()); ok {
+		t.Error("inProjectRecordPath() mapped a path outside the records root")
+	}
+}
+
+// TestWorkflowPathsGitignoreFollowsTheRecords pins where the managed .gitignore
+// lives: .ahm/.gitignore in project mode, unchanged, and the store project
+// directory's .gitignore in home mode, where the generated indexes and the
+// lock live. The store's directory is an owned root, so the write is contained.
+func TestWorkflowPathsGitignoreFollowsTheRecords(t *testing.T) {
+	root := t.TempDir()
+	project := workflowPathsFor(root)
+	if got, want := project.workflowGitignorePath(), filepath.Join(root, ".ahm", ".gitignore"); got != want {
+		t.Errorf("project gitignore path = %q, want %q", got, want)
+	}
+	if got, want := string(project.workflowGitignoreContent()), string(recordsGitignoreContent()); got != want {
+		t.Errorf("project gitignore content changed:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+
+	store := testStorePaths(t)
+	home := workflowPathsForStore(root, store)
+	gitignorePath := home.workflowGitignorePath()
+	if got, want := gitignorePath, filepath.Join(store.ProjectDir, ".gitignore"); got != want {
+		t.Errorf("store gitignore path = %q, want %q", got, want)
+	}
+	if !pathWithin(store.ProjectDir, gitignorePath) {
+		t.Errorf("store gitignore %q is outside the owned store project directory", gitignorePath)
+	}
+	content := string(home.workflowGitignoreContent())
+	assertContainsAll(t, content, "tasks/index.md", ".lock/", "*.tmp", storeStateFileName)
+	if content == string(recordsGitignoreContent()) {
+		t.Error("the store gitignore reused the in-project header and entries")
+	}
+}
+
+// TestWorkflowPathsRecordsStatus reports the store only when the records live in
+// it, which is what keeps project-mode status and prime byte-identical.
+func TestWorkflowPathsRecordsStatus(t *testing.T) {
+	root := t.TempDir()
+	if status, ok := workflowPathsFor(root).recordsStatus(); ok || status != nil {
+		t.Errorf("project mode reported a store status: %v, %v", status, ok)
+	}
+
+	store := testStorePaths(t)
+	status, ok := workflowPathsForStore(root, store).recordsStatus()
+	if !ok {
+		t.Fatal("home mode reported no store status")
+	}
+	want := map[string]string{
+		"root":     store.Root,
+		"key":      store.Key,
+		"kind":     store.Kind,
+		"location": string(locationHome),
+	}
+	if len(status) != len(want) {
+		t.Fatalf("recordsStatus() = %v, want %v", status, want)
+	}
+	for key, value := range want {
+		if status[key] != value {
+			t.Errorf("recordsStatus()[%q] = %q, want %q", key, status[key], value)
+		}
+	}
+}

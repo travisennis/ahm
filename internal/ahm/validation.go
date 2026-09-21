@@ -123,10 +123,10 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 	var tasks []Task
 	if want(CheckScopeWorkflow) {
 		tasks = validateManagedFiles(root, paths, &report)
-		validateTaskDependencies(root, tasks, &report)
-		validateBlockedDepsComplete(root, tasks, &report)
-		validateTrackingChildrenComplete(root, tasks, &report)
-		validateTaskBuckets(root, paths, tasks, &report)
+		validateTaskDependencies(paths, tasks, &report)
+		validateBlockedDepsComplete(paths, tasks, &report)
+		validateTrackingChildrenComplete(paths, tasks, &report)
+		validateTaskBuckets(paths, tasks, &report)
 		validateADRs(root, &report)
 		validateGeneratedIndexes(root, paths, tasks, &report)
 	}
@@ -151,18 +151,18 @@ func newValidationReportWithCache(cache *recordCache) validationReport {
 func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache) validationReport {
 	report := newValidationReportWithCache(cache)
 	validateMetadata(root, &report)
-	validateTaskDuplicateIDs(root, tasks, &report)
+	validateTaskDuplicateIDs(paths, tasks, &report)
 	for _, task := range tasks {
-		validateTaskFrontMatterMeta(task.meta, relPath(root, task.Path), &report)
-		validateTaskAcceptance(root, task, &report)
+		validateTaskFrontMatterMeta(task.meta, paths.displayPath(task.Path), &report)
+		validateTaskAcceptance(paths, task, &report)
 	}
-	validateTaskDependencies(root, tasks, &report)
-	validateBlockedDepsComplete(root, tasks, &report)
-	validateTrackingChildrenComplete(root, tasks, &report)
-	validateTaskBuckets(root, paths, tasks, &report)
+	validateTaskDependencies(paths, tasks, &report)
+	validateBlockedDepsComplete(paths, tasks, &report)
+	validateTrackingChildrenComplete(paths, tasks, &report)
+	validateTaskBuckets(paths, tasks, &report)
 	validateADRs(root, &report)
 	if validateGeneratedIndexMetadata(root, &report) {
-		validateGeneratedIndexWrites(root, writes, &report)
+		validateGeneratedIndexWrites(paths, writes, &report)
 	}
 	report.OK = len(report.Errors) == 0
 	return report
@@ -205,13 +205,6 @@ func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, r
 	}
 }
 
-func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
-	validateMetadata(root, report)
-	tasks := validateTaskFiles(root, paths, report)
-	validateTaskDuplicateIDs(root, tasks, report)
-	return tasks
-}
-
 func validateMetadata(root string, report *validationReport) {
 	_, metaErr := readMetadata(root)
 	if metaErr != nil {
@@ -223,11 +216,78 @@ func validateMetadata(root string, report *validationReport) {
 	}
 }
 
-func validateTaskFiles(root string, paths workflowPaths, report *validationReport) []Task {
+func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
+	validateMetadata(root, report)
+	validateRecordLocation(paths, report)
+	tasks := validateTaskFiles(paths, report)
+	validateTaskDuplicateIDs(paths, tasks, report)
+	return tasks
+}
+
+// validateRecordLocation reports drift between the configured storage location
+// and where the records actually are. It only reads: it never moves a record.
+func validateRecordLocation(paths workflowPaths, report *validationReport) {
+	if !paths.inStore() {
+		return
+	}
+	validateRecordsNotInProject(paths, report)
+	validateStoreReadable(paths, report)
+}
+
+// validateRecordsNotInProject reports task records that are still in the
+// project while the mode is home. No command reads them there, so the mode and
+// the records disagree and the finding is an error rather than a warning. The
+// generated task indexes inside the project are ignored: they are derived,
+// ignored by Git, and regenerated in the store.
+func validateRecordsNotInProject(paths workflowPaths, report *validationReport) {
+	project := workflowPathsFor(paths.projectRoot)
+	records := 0
+	for _, bucket := range []string{"active", "completed", "cancelled"} {
+		dir := project.tasksBucketDir(bucket)
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			report.addError("task_records_in_project", project.displayPath(dir), fmt.Sprintf("could not read %s while tasks_location is home: %v", project.displayPath(dir), err))
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && entry.Name() != "index.md" && strings.HasSuffix(entry.Name(), ".md") {
+				records++
+			}
+		}
+	}
+	if records == 0 {
+		return
+	}
+	message := fmt.Sprintf("%d task records remain in the project while tasks_location is home", records)
+	if records == 1 {
+		message = "a task record remains in the project while tasks_location is home"
+	}
+	report.addError("task_records_in_project", project.displayPath(project.tasksBucketDir("")), message)
+}
+
+// validateStoreReadable reports a home-mode project whose store records
+// directory is missing or unreadable. Every command then sees an empty
+// backlog, so the finding is an error rather than a silently empty task list.
+func validateStoreReadable(paths workflowPaths, report *validationReport) {
+	_, err := os.ReadDir(paths.recordsRoot)
+	if err == nil {
+		return
+	}
+	message := "the store's task records directory is missing"
+	if !errors.Is(err, os.ErrNotExist) {
+		message = fmt.Sprintf("the store's task records directory could not be read: %v", err)
+	}
+	report.addError("store_dir_unreadable", paths.displayPath(paths.recordsRoot), message)
+}
+
+func validateTaskFiles(paths workflowPaths, report *validationReport) []Task {
 	var tasks []Task
 	files, err := taskFilePathsFor(paths)
 	if err != nil {
-		report.addError("task_dir_unreadable", paths.recordsRel(), err.Error())
+		report.addError("task_dir_unreadable", paths.displayPath(paths.tasksBucketDir("")), err.Error())
 		return nil
 	}
 	for _, f := range files {
@@ -237,16 +297,16 @@ func validateTaskFiles(root string, paths workflowPaths, report *validationRepor
 				// Task file was already moved or deleted; not an error.
 				continue
 			}
-			report.addError("task_unreadable", relPath(root, f.Path), err.Error())
+			report.addError("task_unreadable", paths.displayPath(f.Path), err.Error())
 			continue
 		}
-		validateTaskFrontMatter(data, relPath(root, f.Path), report)
+		validateTaskFrontMatter(data, paths.displayPath(f.Path), report)
 		task, err := parseTaskFromData(data, f.Path, f.Bucket)
 		if err != nil {
-			report.addError("task_malformed", relPath(root, f.Path), err.Error())
+			report.addError("task_malformed", paths.displayPath(f.Path), err.Error())
 			continue
 		}
-		validateTaskAcceptance(root, task, report)
+		validateTaskAcceptance(paths, task, report)
 		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
@@ -255,34 +315,34 @@ func validateTaskFiles(root string, paths workflowPaths, report *validationRepor
 	return tasks
 }
 
-func validateTaskAcceptance(root string, task Task, report *validationReport) {
+func validateTaskAcceptance(paths workflowPaths, task Task, report *validationReport) {
 	if task.Status != "Completed" {
 		return
 	}
 	for _, finding := range parseAcceptanceNotes([]byte(task.Body)) {
-		report.addWarning(finding.validationCode(), relPath(root, task.Path), finding.message(task.ID))
+		report.addWarning(finding.validationCode(), paths.displayPath(task.Path), finding.message(task.ID))
 	}
 }
 
-func validateTaskFrontMatter(data []byte, relPath string, report *validationReport) {
+func validateTaskFrontMatter(data []byte, label string, report *validationReport) {
 	meta, _, err := parseFrontMatter(string(data))
 	if err != nil {
-		report.addError("task_malformed", relPath, err.Error())
+		report.addError("task_malformed", label, err.Error())
 		return
 	}
-	validateTaskFrontMatterMeta(meta, relPath, report)
+	validateTaskFrontMatterMeta(meta, label, report)
 }
 
-func validateTaskFrontMatterMeta(meta map[string]string, relPath string, report *validationReport) {
+func validateTaskFrontMatterMeta(meta map[string]string, label string, report *validationReport) {
 	required := []string{"id", "title", "status", "priority", "effort", "labels", "depends_on"}
 	for _, field := range required {
 		if strings.TrimSpace(meta[field]) == "" {
-			report.addError("task_missing_field", relPath, "task front matter is missing "+field)
+			report.addError("task_missing_field", label, "task front matter is missing "+field)
 		}
 	}
 }
 
-func validateTaskDependencies(root string, tasks []Task, report *validationReport) {
+func validateTaskDependencies(paths workflowPaths, tasks []Task, report *validationReport) {
 	byID := map[string]Task{}
 	for _, task := range tasks {
 		byID[task.ID] = task
@@ -290,7 +350,7 @@ func validateTaskDependencies(root string, tasks []Task, report *validationRepor
 	for _, task := range tasks {
 		for _, dep := range task.DependsOn {
 			if _, ok := byID[dep]; !ok {
-				report.addError("task_dependency_missing", relPath(root, task.Path), fmt.Sprintf("task %s depends on missing task %s", task.ID, dep))
+				report.addError("task_dependency_missing", paths.displayPath(task.Path), fmt.Sprintf("task %s depends on missing task %s", task.ID, dep))
 			}
 		}
 	}
@@ -301,7 +361,7 @@ func validateTaskDependencies(root string, tasks []Task, report *validationRepor
 		for _, dep := range task.DependsOn {
 			depTask, ok := byID[dep]
 			if ok && depTask.Status == "Cancelled" {
-				report.addWarning("task_dependency_cancelled", relPath(root, task.Path), fmt.Sprintf("task %s depends on cancelled task %s", task.ID, dep))
+				report.addWarning("task_dependency_cancelled", paths.displayPath(task.Path), fmt.Sprintf("task %s depends on cancelled task %s", task.ID, dep))
 			}
 		}
 	}
@@ -310,7 +370,7 @@ func validateTaskDependencies(root string, tasks []Task, report *validationRepor
 	}
 }
 
-func validateBlockedDepsComplete(root string, tasks []Task, report *validationReport) {
+func validateBlockedDepsComplete(paths workflowPaths, tasks []Task, report *validationReport) {
 	completed := map[string]bool{}
 	for _, task := range tasks {
 		if task.Status == "Completed" {
@@ -329,7 +389,7 @@ func validateBlockedDepsComplete(root string, tasks []Task, report *validationRe
 			}
 		}
 		if depsAllComplete {
-			report.addWarning("task_blocked_deps_complete", relPath(root, task.Path), fmt.Sprintf("task %s is Blocked but all its dependencies are Completed", task.ID))
+			report.addWarning("task_blocked_deps_complete", paths.displayPath(task.Path), fmt.Sprintf("task %s is Blocked but all its dependencies are Completed", task.ID))
 		}
 	}
 }
@@ -339,7 +399,7 @@ func validateBlockedDepsComplete(root string, tasks []Task, report *validationRe
 // tracker's own dependencies are satisfied — leaving only the tracker itself
 // to be closed. A Tracking task with no children is a valid intermediate
 // state during intake, so it does not warn.
-func validateTrackingChildrenComplete(root string, tasks []Task, report *validationReport) {
+func validateTrackingChildrenComplete(paths workflowPaths, tasks []Task, report *validationReport) {
 	completed := map[string]bool{}
 	for _, task := range tasks {
 		if task.Status == "Completed" {
@@ -368,26 +428,25 @@ func validateTrackingChildrenComplete(root string, tasks []Task, report *validat
 			}
 		}
 		if allResolved {
-			report.addWarning("task_tracking_children_complete", relPath(root, task.Path), fmt.Sprintf("task %s is Tracking but all its child tasks are Completed or Cancelled", task.ID))
+			report.addWarning("task_tracking_children_complete", paths.displayPath(task.Path), fmt.Sprintf("task %s is Tracking but all its child tasks are Completed or Cancelled", task.ID))
 		}
 	}
 }
 
-func validateTaskBuckets(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	tasksRel := paths.recordsRel()
+func validateTaskBuckets(paths workflowPaths, tasks []Task, report *validationReport) {
 	for _, task := range tasks {
 		switch {
 		case task.Status == "Completed" && task.Bucket != "completed":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "completed task should be in "+tasksRel+"/completed")
+			report.addWarning("task_bucket_mismatch", paths.displayPath(task.Path), "completed task should be in "+paths.displayPath(paths.tasksBucketDir("completed")))
 		case task.Status == "Cancelled" && task.Bucket != "cancelled":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "cancelled task should be in "+tasksRel+"/cancelled")
+			report.addWarning("task_bucket_mismatch", paths.displayPath(task.Path), "cancelled task should be in "+paths.displayPath(paths.tasksBucketDir("cancelled")))
 		case task.Status != "Completed" && task.Status != "Cancelled" && task.Bucket != "active":
-			report.addWarning("task_bucket_mismatch", relPath(root, task.Path), "active task status should be in "+tasksRel+"/active")
+			report.addWarning("task_bucket_mismatch", paths.displayPath(task.Path), "active task status should be in "+paths.displayPath(paths.tasksBucketDir("active")))
 		}
 	}
 }
 
-func validateTaskDuplicateIDs(root string, tasks []Task, report *validationReport) {
+func validateTaskDuplicateIDs(paths workflowPaths, tasks []Task, report *validationReport) {
 	byID := map[string][]Task{}
 	for _, task := range tasks {
 		byID[task.ID] = append(byID[task.ID], task)
@@ -402,12 +461,12 @@ func validateTaskDuplicateIDs(root string, tasks []Task, report *validationRepor
 		if len(matches) < 2 {
 			continue
 		}
-		paths := make([]string, 0, len(matches))
+		found := make([]string, 0, len(matches))
 		for _, task := range matches {
-			paths = append(paths, relPath(root, task.Path))
+			found = append(found, paths.displayPath(task.Path))
 		}
-		sort.Strings(paths)
-		report.addError("task_duplicate_id", "", fmt.Sprintf("task ID %s is used by multiple files: %s; resolve the duplicate manually (remove or rename one file)", id, strings.Join(paths, ", ")))
+		sort.Strings(found)
+		report.addError("task_duplicate_id", "", fmt.Sprintf("task ID %s is used by multiple files: %s; resolve the duplicate manually (remove or rename one file)", id, strings.Join(found, ", ")))
 	}
 }
 
@@ -429,7 +488,7 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 		// validateADRs reports each malformed ADR. Keep checking the indexes
 		// rendered from the readable records instead of duplicating that finding.
 	}
-	validateGeneratedIndexWrites(root, writes, report)
+	validateGeneratedIndexWrites(paths, writes, report)
 }
 
 func validateGeneratedIndexMetadata(root string, report *validationReport) bool {
@@ -442,19 +501,19 @@ func validateGeneratedIndexMetadata(root string, report *validationReport) bool 
 	return true
 }
 
-func validateGeneratedIndexWrites(root string, writes map[string]string, report *validationReport) {
+func validateGeneratedIndexWrites(paths workflowPaths, writes map[string]string, report *validationReport) {
 	for _, path := range sortedKeys(writes) {
 		data, err := report.cache.readFile(path)
 		if errors.Is(err, os.ErrNotExist) {
-			report.addError("generated_index_missing", relPath(root, path), "generated index is missing; run ahm index")
+			report.addError("generated_index_missing", paths.displayPath(path), "generated index is missing; run ahm index")
 			continue
 		}
 		if err != nil {
-			report.addError("generated_index_unreadable", relPath(root, path), err.Error())
+			report.addError("generated_index_unreadable", paths.displayPath(path), err.Error())
 			continue
 		}
 		if string(data) != writes[path] {
-			report.addWarning("generated_index_stale", relPath(root, path), "generated index is stale; run ahm index")
+			report.addWarning("generated_index_stale", paths.displayPath(path), "generated index is stale; run ahm index")
 		}
 	}
 }
@@ -551,7 +610,7 @@ func validateMarkdownLinks(root string, paths workflowPaths, report *validationR
 		return
 	}
 	for _, path := range workflowMarkdownFilesForPaths(root, paths) {
-		validateMarkdownFileLinks(root, path, report)
+		validateMarkdownFileLinks(paths, path, report)
 	}
 }
 
@@ -603,10 +662,10 @@ func workflowMarkdownFilesForPaths(root string, resolved workflowPaths) []string
 	return paths
 }
 
-func validateMarkdownFileLinks(root string, path string, report *validationReport) {
+func validateMarkdownFileLinks(paths workflowPaths, path string, report *validationReport) {
 	data, err := report.cache.readFile(path)
 	if err != nil {
-		report.addWarning("markdown_link_check_failed", relPath(root, path), err.Error())
+		report.addWarning("markdown_link_check_failed", paths.displayPath(path), err.Error())
 		return
 	}
 	walkMarkdownLinks(data, func(lineNo int, rawTarget string) {
@@ -614,13 +673,43 @@ func validateMarkdownFileLinks(root string, path string, report *validationRepor
 		if target == "" || shouldSkipMarkdownLink(target) {
 			return
 		}
-		resolved := filepath.Clean(filepath.Join(filepath.Dir(path), filepath.FromSlash(target)))
-		if _, err := os.Stat(resolved); errors.Is(err, os.ErrNotExist) {
-			report.addWarning("markdown_link_missing", fmt.Sprintf("%s:%d", relPath(root, path), lineNo), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
-		} else if err != nil {
-			report.addWarning("markdown_link_check_failed", fmt.Sprintf("%s:%d", relPath(root, path), lineNo), err.Error())
+		err := markdownLinkTargetError(paths, path, target)
+		switch {
+		case err == nil:
+			return
+		case !errors.Is(err, os.ErrNotExist):
+			report.addWarning("markdown_link_check_failed", fmt.Sprintf("%s:%d", paths.displayPath(path), lineNo), err.Error())
+			return
 		}
+		report.addWarning("markdown_link_missing", fmt.Sprintf("%s:%d", paths.displayPath(path), lineNo), fmt.Sprintf("relative Markdown link target does not exist: %s", target))
 	})
+}
+
+// markdownLinkTargetError resolves one relative Markdown link from a record.
+// The target is resolved against the record's own directory first and, only
+// when that target does not exist, against the record's logical in-project
+// directory, so a record that moved into the store keeps every link that was
+// written under the committed-in-project model working (ADR 023). It returns
+// nil when the target exists and the first resolution's error otherwise.
+func markdownLinkTargetError(paths workflowPaths, path string, target string) error {
+	err := statMarkdownLinkTarget(filepath.Dir(path), target)
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	logical, ok := paths.inProjectRecordPath(path)
+	if !ok {
+		return err
+	}
+	if logicalErr := statMarkdownLinkTarget(filepath.Dir(logical), target); logicalErr == nil {
+		return nil
+	}
+	return err
+}
+
+// statMarkdownLinkTarget stats a link target resolved from one directory.
+func statMarkdownLinkTarget(dir string, target string) error {
+	_, err := os.Stat(filepath.Clean(filepath.Join(dir, filepath.FromSlash(target))))
+	return err
 }
 
 func normalizeMarkdownLinkTarget(target string) string {

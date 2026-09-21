@@ -92,7 +92,7 @@ func (a *app) taskCommentLocked(parsed taskCommentArgs, text string) error {
 	if err != nil {
 		return err
 	}
-	if err := checkDuplicateTaskID(tasks, task.ID, a.opts.root); err != nil {
+	if err := checkDuplicateTaskID(tasks, task.ID, a.workflowPaths()); err != nil {
 		return err
 	}
 

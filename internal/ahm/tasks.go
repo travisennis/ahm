@@ -80,7 +80,7 @@ type Task struct {
 // parses without replacing the workflow file reader.
 var taskParseHook = func(string) {}
 
-func collectTasksForPaths(root string, paths workflowPaths) ([]Task, error) {
+func collectTasksForPaths(paths workflowPaths) ([]Task, error) {
 	files, err := taskFilePathsFor(paths)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func collectTasksForPaths(root string, paths workflowPaths) ([]Task, error) {
 	for _, f := range files {
 		task, err := parseTask(f.Path, f.Bucket)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", relPath(root, f.Path), err))
+			errs = append(errs, fmt.Errorf("%s: %w", paths.displayPath(f.Path), err))
 			continue
 		}
 		tasks = append(tasks, task)

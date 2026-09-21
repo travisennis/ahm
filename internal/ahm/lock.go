@@ -47,15 +47,17 @@ func (a *app) withWorkflowRecordLock(mutating bool, f func() error) (resultErr e
 // the lock lives beside the records root, so two clones that share one store
 // serialize on one lock.
 func acquireWorkflowRecordLock(paths workflowPaths) (func() error, error) {
-	return acquireNamedWorkflowLock(paths.projectRoot, paths.lockDir(), workflowRecordLockName)
+	return acquireNamedWorkflowLock(paths, paths.lockDir(), workflowRecordLockName)
 }
 
 // acquireNamedWorkflowLock waits for the named lock under a fixed lock root,
-// cleaning up stale locks and respecting the configured timeout.
-func acquireNamedWorkflowLock(root string, lockRoot string, name string) (func() error, error) {
+// cleaning up stale locks and respecting the configured timeout. Lock paths are
+// reported through paths, so a lock that lives in the store is never rendered
+// against the project root.
+func acquireNamedWorkflowLock(paths workflowPaths, lockRoot string, name string) (func() error, error) {
 	deadline := time.Now().Add(workflowLockTimeout)
 	for {
-		release, err := tryAcquireWorkflowLock(root, lockRoot, name)
+		release, err := tryAcquireWorkflowLock(paths, lockRoot, name)
 		if err == nil {
 			return release, nil
 		}
@@ -65,7 +67,7 @@ func acquireNamedWorkflowLock(root string, lockRoot string, name string) (func()
 		lockPath := filepath.Join(lockRoot, name)
 		_ = removeStaleWorkflowLock(lockPath)
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timed out waiting for workflow lock %s", relPath(root, lockPath))
+			return nil, fmt.Errorf("timed out waiting for workflow lock %s", paths.displayPath(lockPath))
 		}
 		time.Sleep(workflowLockRetryDelay)
 	}
@@ -73,7 +75,7 @@ func acquireNamedWorkflowLock(root string, lockRoot string, name string) (func()
 
 // tryAcquireWorkflowLock makes a single attempt to create the named lock
 // directory. It returns os.ErrExist when the lock is already held.
-func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() error, error) {
+func tryAcquireWorkflowLock(paths workflowPaths, lockRoot string, name string) (func() error, error) {
 	if err := os.MkdirAll(lockRoot, 0o755); err != nil { // #nosec G301 // workflow lock directories use standard permissions
 		return nil, fmt.Errorf("acquire workflow lock: create lock dir: %w", err)
 	}
@@ -84,7 +86,7 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 		token, tokenErr := workflowLockTokenWriter(lockPath)
 		if tokenErr != nil {
 			_ = os.RemoveAll(lockPath)
-			return nil, fmt.Errorf("acquire workflow lock %s: write owner token: %w", relPath(root, lockPath), tokenErr)
+			return nil, fmt.Errorf("acquire workflow lock %s: write owner token: %w", paths.displayPath(lockPath), tokenErr)
 		}
 
 		heartbeatDone := make(chan struct{})
@@ -106,13 +108,13 @@ func tryAcquireWorkflowLock(root string, lockRoot string, name string) (func() e
 			// waits out any in-flight heartbeat write.
 			heartbeatWG.Wait()
 			if err := removeWorkflowLockIfOwned(lockPath, token); err != nil {
-				return fmt.Errorf("release workflow lock %s: %w", relPath(root, lockPath), err)
+				return fmt.Errorf("release workflow lock %s: %w", paths.displayPath(lockPath), err)
 			}
 			return nil
 		}, nil
 	}
 	if !errors.Is(err, os.ErrExist) {
-		return nil, fmt.Errorf("acquire workflow lock %s: %w", relPath(root, lockPath), err)
+		return nil, fmt.Errorf("acquire workflow lock %s: %w", paths.displayPath(lockPath), err)
 	}
 	return nil, err
 }

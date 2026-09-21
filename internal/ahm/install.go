@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -16,6 +15,10 @@ const (
 	configMetadataRelPath = ".ahm/config.json"
 
 	recordsGitignoreRelPath = ".ahm/.gitignore"
+
+	// gitignoreFileName is the managed .gitignore's name in each layout: the
+	// project's .ahm/.gitignore, and the store project directory's .gitignore.
+	gitignoreFileName = ".gitignore"
 )
 
 // recordsGitignoreEntries keep generated workflow indexes and machine-local
@@ -30,9 +33,29 @@ var recordsGitignoreEntries = []string{
 	"*.tmp",
 }
 
+// storeGitignoreEntries are the entries the store's directory for a project
+// ignores. The records live in the store rather than in a repository, so the
+// list covers the same generated indexes, lock directory, and temp files, plus
+// the project state file, which holds store-local state and changes with almost
+// every task mutation.
+var storeGitignoreEntries = []string{
+	storeStateFileName,
+	"tasks/index.md",
+	"tasks/*/index.md",
+	".lock/",
+	"*.tmp",
+}
+
 const recordsGitignoreHeader = "# Managed by ahm. Generated workflow indexes and machine-local state stay local-only;\n# source records and config.json remain committed.\n"
 
+// storeRecordsGitignoreHeader heads the managed .gitignore of the store's
+// project directory, where the records are machine-local and are never part of
+// a repository's history.
+const storeRecordsGitignoreHeader = "# Managed by ahm. Generated task indexes and machine-local state stay local-only;\n# these task records live in the user-level store, outside a project's history.\n"
+
 // recordsGitignoreContent is the complete .ahm/.gitignore that ahm owns.
+// workflowPaths.workflowGitignoreContent returns the same content for the
+// in-project layout and the store's header for the home layout.
 func recordsGitignoreContent() []byte {
 	return []byte(recordsGitignoreHeader + strings.Join(recordsGitignoreEntries, "\n") + "\n")
 }
@@ -43,6 +66,7 @@ func recordsGitignoreContent() []byte {
 type metadata struct {
 	Version          string                     `json:"version,omitempty"`
 	StrictAcceptance bool                       `json:"strict_acceptance"`
+	TasksLocation    string                     `json:"tasks_location,omitempty"`
 	Files            map[string]string          `json:"files"`
 	Extra            map[string]json.RawMessage `json:"-"`
 }
@@ -60,6 +84,7 @@ func (m *metadata) UnmarshalJSON(data []byte) error {
 	for _, key := range []string{
 		"version",
 		"strict_acceptance",
+		"tasks_location",
 		// Consume obsolete ahm-owned keys without preserving them in Extra so
 		// the next metadata write removes them.
 		"default_work_agent",
@@ -88,6 +113,11 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	}
 	if err := writeJSONField(&buf, &first, "strict_acceptance", m.StrictAcceptance); err != nil {
 		return nil, err
+	}
+	if m.TasksLocation != "" {
+		if err := writeJSONField(&buf, &first, "tasks_location", m.TasksLocation); err != nil {
+			return nil, err
+		}
 	}
 	if err := writeJSONField(&buf, &first, "files", m.Files); err != nil {
 		return nil, err
@@ -170,6 +200,23 @@ func relinquishMetadataOwnership(meta *metadata, targets []string) {
 	}
 }
 
+// resolveTaskLocation maps a repository's committed configuration to its
+// storage mode. A configuration that names home uses the store, a missing key
+// and every unrecognized value keep the records in the project, and a
+// repository with no configuration at all is a new project: milestone 267f
+// turns on the home default for that case, which is why this milestone still
+// resolves it as project — a bare checkout with no configuration keeps behaving
+// exactly as it did before the store existed.
+func resolveTaskLocation(meta metadata, configExists bool) taskLocation {
+	if !configExists {
+		return locationProject
+	}
+	if taskLocation(meta.TasksLocation) == locationHome {
+		return locationHome
+	}
+	return locationProject
+}
+
 // reconcileMetadata drops ahm-owned metadata that this version no longer
 // maintains and keeps everything else, including unknown fields.
 func reconcileMetadata(meta *metadata) {
@@ -190,14 +237,23 @@ func reconcileMetadata(meta *metadata) {
 // runs, so install never writes into a retired tree.
 func (a *app) install() error {
 	defer a.emitWarnings()
-	paths := a.workflowPaths()
-	root := paths.projectRoot
+	root := a.opts.root
 
 	meta, err := readMetadata(root)
+	configExists := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("corrupt workflow metadata %s: %v", configMetadataRelPath, err)
 	}
 	reconcileMetadata(&meta)
+
+	// Install resolves the layout from the configuration it owns rather than
+	// from the cached resolution taken before this command ran, so the mode this
+	// run writes is the mode this run lays down directories for.
+	paths, err := resolveWorkflowPaths(root, meta, configExists)
+	if err != nil {
+		return err
+	}
+	a.useWorkflowPaths(paths)
 
 	result := map[string][]string{"created": {}, "updated": {}, "directories": {}}
 	created, err := a.ensureWorkflowDirs()
@@ -206,14 +262,15 @@ func (a *app) install() error {
 	}
 	result["directories"] = created
 
-	if err := a.reconcileFile(recordsGitignoreRelPath, recordsGitignoreContent(), result); err != nil {
+	gitignorePath := paths.workflowGitignorePath()
+	if err := a.reconcileFile(gitignorePath, paths.displayPath(gitignorePath), paths.workflowGitignoreContent(), result); err != nil {
 		return err
 	}
 	config, err := marshalMetadata(meta)
 	if err != nil {
 		return err
 	}
-	if err := a.reconcileFile(configMetadataRelPath, config, result); err != nil {
+	if err := a.reconcileFile(paths.configPath(), configMetadataRelPath, config, result); err != nil {
 		return err
 	}
 	if err := a.reconcileIndexes(result); err != nil {
@@ -244,45 +301,44 @@ func (a *app) reconcileIndexes(result map[string][]string) error {
 	return a.writeIndexes()
 }
 
-// reconcileFile writes content to target — a repository-relative slash path —
-// unless the file already holds those exact bytes, so a second run of a
-// reconciling command writes nothing. It records the path as created or
-// updated when a write is needed, or would be needed in dry-run mode.
-func (a *app) reconcileFile(target string, content []byte, result map[string][]string) error {
-	paths := a.workflowPaths()
-	path := filepath.Join(paths.projectRoot, filepath.FromSlash(target))
-	existing, err := os.ReadFile(path) // #nosec G304 // path constructed from project root, not user input
+// reconcileFile writes content to an ahm-owned file unless it already holds
+// those exact bytes, so a second run of a reconciling command writes nothing. It
+// records label as created or updated when a write is needed, or would be needed
+// in dry-run mode.
+func (a *app) reconcileFile(path string, label string, content []byte, result map[string][]string) error {
+	existing, err := os.ReadFile(path) // #nosec G304 // path built from a workflow accessor, not user input
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		result["created"] = append(result["created"], target)
+		result["created"] = append(result["created"], label)
 	case err != nil:
 		return err
 	case bytes.Equal(existing, content):
 		return nil
 	default:
-		result["updated"] = append(result["updated"], target)
+		result["updated"] = append(result["updated"], label)
 	}
 	if a.opts.dryRun {
 		return nil
 	}
-	return writeOwned(paths, path, content)
+	return writeOwned(a.workflowPaths(), path, content)
 }
 
-// ensureWorkflowGitignore creates the managed .ahm/.gitignore when it is
-// missing and leaves an existing file untouched. prime calls it to prepare the
-// worktree; ahm init reconciles the content instead.
+// ensureWorkflowGitignore creates the managed .gitignore for the resolved
+// records location when it is missing and leaves an existing file untouched.
+// prime calls it to prepare the worktree; ahm init reconciles the content
+// instead.
 func (a *app) ensureWorkflowGitignore() error {
 	if a.opts.dryRun {
 		return nil
 	}
 	paths := a.workflowPaths()
-	path := filepath.Join(paths.projectRoot, filepath.FromSlash(recordsGitignoreRelPath))
+	path := paths.workflowGitignorePath()
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return writeOwned(paths, path, recordsGitignoreContent())
+	return writeOwned(paths, path, paths.workflowGitignoreContent())
 }
 
 // ensureWorkflowDirs creates the record directories ahm owns and returns the
@@ -291,11 +347,11 @@ func (a *app) ensureWorkflowGitignore() error {
 func (a *app) ensureWorkflowDirs() ([]string, error) {
 	paths := a.workflowPaths()
 	// Each directory carries the label the report uses, so the reported path
-	// stays repository-relative whether or not the records live in the store.
-	dirs := []struct{ path, rel string }{
-		{paths.tasksBucketDir("active"), paths.recordsRel() + "/active"},
-		{paths.tasksBucketDir("completed"), paths.recordsRel() + "/completed"},
-		{paths.tasksBucketDir("cancelled"), paths.recordsRel() + "/cancelled"},
+	// follows the records into the store when they live there.
+	dirs := []struct{ path, label string }{
+		{paths.tasksBucketDir("active"), paths.displayPath(paths.tasksBucketDir("active"))},
+		{paths.tasksBucketDir("completed"), paths.displayPath(paths.tasksBucketDir("completed"))},
+		{paths.tasksBucketDir("cancelled"), paths.displayPath(paths.tasksBucketDir("cancelled"))},
 		{paths.adrDir(), "docs/adr"},
 	}
 	created := []string{}
@@ -303,7 +359,7 @@ func (a *app) ensureWorkflowDirs() ([]string, error) {
 		stat, err := os.Stat(dir.path)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			created = append(created, dir.rel)
+			created = append(created, dir.label)
 		case err != nil:
 			return nil, err
 		case !stat.IsDir():

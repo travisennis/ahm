@@ -26,9 +26,11 @@ type app struct {
 	out        io.Writer
 	err        io.Writer
 	in         io.Reader
-	tasksCache []Task      // cached result of collectTasks, nil when stale
-	store      *storePaths // resolved home store location, nil until first use
-	warnings   []string    // non-fatal errors accumulated during a command
+	tasksCache []Task         // cached result of collectTasks, nil when stale
+	store      *storePaths    // resolved home store location, nil until first use
+	paths      *workflowPaths // resolved records layout, nil until first use
+	pathsErr   error          // resolution error for paths, nil when resolution succeeded
+	warnings   []string       // non-fatal errors accumulated during a command
 }
 
 func (a *app) addWarning(format string, args ...any) {
@@ -57,15 +59,53 @@ func (a *app) getTasks() ([]Task, error) {
 	if a.tasksCache != nil {
 		return a.tasksCache, nil
 	}
-	tasks, err := collectTasksForPaths(a.opts.root, a.workflowPaths())
+	tasks, err := collectTasksForPaths(a.workflowPaths())
 	if err == nil {
 		a.tasksCache = tasks
 	}
 	return tasks, err
 }
 
+// workflowPaths returns the resolved records layout for the command's root.
+// Every command resolves through detectRoot, which reports the resolution
+// error; this accessor exists for helpers that cannot return one and falls back
+// to the project layout, which is the only layout that cannot fail.
 func (a *app) workflowPaths() workflowPaths {
-	return workflowPathsFor(a.opts.root)
+	paths, err := a.resolveWorkflowPaths()
+	if err != nil {
+		return workflowPathsFor(a.opts.root)
+	}
+	return paths
+}
+
+// resolveWorkflowPaths resolves the records layout for the command's root from
+// the committed configuration, at most once per command. A project-mode
+// repository resolves without reading the store or running Git.
+func (a *app) resolveWorkflowPaths() (workflowPaths, error) {
+	if a.paths != nil {
+		return *a.paths, a.pathsErr
+	}
+	meta, err := readMetadata(a.opts.root)
+	configExists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// A configuration that cannot be read names no location, so the
+		// repository resolves as project mode and the corrupt file is reported
+		// by validation rather than failing every command before it can report
+		// anything.
+		meta = metadata{}
+		configExists = true
+	}
+	paths, err := resolveWorkflowPaths(a.opts.root, meta, configExists)
+	a.paths, a.pathsErr = &paths, err
+	return paths, err
+}
+
+// useWorkflowPaths replaces the resolved layout, so a command that decides the
+// layout itself — install resolves the mode it is about to write — lays down
+// directories, indexes, and the managed .gitignore for that mode.
+func (a *app) useWorkflowPaths(paths workflowPaths) {
+	a.paths = &paths
+	a.pathsErr = nil
 }
 
 // invalidateTasks clears the cached task list so the next call to

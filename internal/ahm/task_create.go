@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -87,7 +86,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	if parsed.resolvedParentID != "" {
-		if err := checkDuplicateTaskID(tasks, parsed.resolvedParentID, a.opts.root); err != nil {
+		if err := checkDuplicateTaskID(tasks, parsed.resolvedParentID, a.workflowPaths()); err != nil {
 			return err
 		}
 	}
@@ -129,7 +128,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	}
 	content := renderTask(task)
 	if a.opts.dryRun {
-		payload := map[string]any{"create": filepath.ToSlash(path), "id": id}
+		payload := map[string]any{"create": paths.payloadPath(path), "id": id}
 		if len(task.DependsOn) > 0 {
 			payload["depends_on"] = task.DependsOn
 		}
@@ -215,7 +214,7 @@ func (a *app) validateTaskCreateDeps(tasks []Task, task Task, patterns []string)
 
 	canonical := task
 	canonical.DependsOn = deps
-	if err := checkTaskDepsNotDuplicated(tasks, canonical, a.opts.root); err != nil {
+	if err := checkTaskDepsNotDuplicated(tasks, canonical, a.workflowPaths()); err != nil {
 		return nil, err
 	}
 	// Simulate the new task in the dependency graph. A cycle arises when the

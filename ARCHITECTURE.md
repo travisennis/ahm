@@ -41,7 +41,7 @@ location map; this section describes what each group does.
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
-| Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata, the managed `.ahm/.gitignore`, and generated index writes. |
+| Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode), the managed `.gitignore` of the resolved records location, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking. |
 | ADRs | `internal/ahm/adrs.go`, `adr_commands.go` | ADR model, parsing, lifecycle commands. |
@@ -65,6 +65,21 @@ location map; this section describes what each group does.
   indexes. `workflow_paths.go` is the single definition of both, and every task
   record path is derived from it rather than joined onto a root at the call
   site.
+- The committed `tasks_location` key selects the layout: `project` keeps the
+  records in the project, `home` resolves the store and puts the records, their
+  generated indexes, the managed `.gitignore`, and the lock in the store's
+  directory for the project. A missing key means `project`, and the store is
+  resolved only for a repository that names `home`, so a project-mode command
+  never reads Git and never fails because the store is unavailable. A
+  repository without configuration at all resolves as `project` until the
+  new-project default lands.
+- Record paths in findings, error messages, index listings, directory labels,
+  and lock errors render through `displayPath` (`store:<store-relative>` in home
+  mode, repository-relative in project mode). The JSON record path and the
+  dry-run previews render through `payloadPath`: `store:<store-relative>` in
+  home mode and the record's own path in project mode, so those payloads stay
+  byte-identical for existing repositories. An operating-system message keeps
+  its own text.
 - Cross-process workflow mutations that require read-compute-write consistency
   use repository-local locks beside the records root (`.ahm/.lock/` in project
   mode), so two clones that share a store serialize on one lock.

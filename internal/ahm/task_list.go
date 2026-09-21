@@ -78,7 +78,7 @@ func (a *app) taskListSorted(mode string, statuses []string, labels []string, pr
 		return nil
 	}
 	if a.opts.json {
-		return a.emit(filtered)
+		return a.emit(a.tasksForOutput(filtered))
 	}
 	for _, task := range filtered {
 		a.printTaskLine(task)
@@ -222,7 +222,7 @@ func (a *app) taskSearch(query string, statuses []string, labels []string) error
 		return nil
 	}
 	if a.opts.json {
-		return a.emit(filtered)
+		return a.emit(a.tasksForOutput(filtered))
 	}
 	for _, task := range filtered {
 		a.printTaskLine(task)
@@ -269,7 +269,7 @@ func (a *app) taskNext() error {
 		return nil
 	}
 	if a.opts.json {
-		return a.emit(ready[0])
+		return a.emit(a.taskForOutput(ready[0]))
 	}
 	a.printTaskLine(ready[0])
 	return nil
@@ -292,9 +292,9 @@ func (a *app) taskShow(argv []string) error {
 		case 0:
 			return errors.Join(append([]error{a.emit(nil)}, errs...)...)
 		case 1:
-			return errors.Join(append([]error{a.emit(tasks[0])}, errs...)...)
+			return errors.Join(append([]error{a.emit(a.taskForOutput(tasks[0]))}, errs...)...)
 		default:
-			return errors.Join(append([]error{a.emit(tasks)}, errs...)...)
+			return errors.Join(append([]error{a.emit(a.tasksForOutput(tasks))}, errs...)...)
 		}
 	}
 
@@ -318,6 +318,23 @@ func (a *app) taskShow(argv []string) error {
 
 func (a *app) printTaskLine(task Task) {
 	fmt.Fprintf(a.out, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
+}
+
+// taskForOutput renders one task for structured output: its record path is
+// rendered for the layout the records live in, so a store record path is never
+// printed as an absolute machine path.
+func (a *app) taskForOutput(task Task) Task {
+	task.Path = a.workflowPaths().payloadPath(task.Path)
+	return task
+}
+
+// tasksForOutput renders a task list for structured output.
+func (a *app) tasksForOutput(tasks []Task) []Task {
+	rendered := make([]Task, 0, len(tasks))
+	for _, task := range tasks {
+		rendered = append(rendered, a.taskForOutput(task))
+	}
+	return rendered
 }
 
 func filterTasks(tasks []Task, mode string) []Task {

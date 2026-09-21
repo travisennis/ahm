@@ -15,10 +15,11 @@ import (
 // primeReport is the structured data for the ahm prime session briefing.
 // It implements textRenderer for text output.
 type primeReport struct {
-	Root     string        `json:"root"`
-	Workflow primeWorkflow `json:"workflow"`
-	Git      primeGit      `json:"git"`
-	Tasks    primeTasks    `json:"tasks"`
+	Root     string            `json:"root"`
+	Workflow primeWorkflow     `json:"workflow"`
+	Git      primeGit          `json:"git"`
+	Tasks    primeTasks        `json:"tasks"`
+	Store    map[string]string `json:"store,omitempty"`
 }
 
 type primeWorkflow struct {
@@ -139,6 +140,7 @@ func (a *app) buildPrimeReport() primeReport {
 	taskInfo := a.primeTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
 
+	storeStatus, _ := a.workflowPaths().recordsStatus()
 	return primeReport{
 		Root: a.opts.root,
 		Workflow: primeWorkflow{
@@ -151,6 +153,7 @@ func (a *app) buildPrimeReport() primeReport {
 		},
 		Git:   gitInfo,
 		Tasks: taskInfo,
+		Store: storeStatus,
 	}
 }
 
@@ -283,6 +286,16 @@ func (r primeReport) RenderText(w io.Writer) error {
 			fmt.Fprintf(w, "- %s %s %s: %s\n", finding.Severity, finding.Code, finding.Path, finding.Message)
 		} else {
 			fmt.Fprintf(w, "- %s %s: %s\n", finding.Severity, finding.Code, finding.Message)
+		}
+	}
+
+	// Section 2b: store location, when the records live in the home store.
+	if len(r.Store) > 0 {
+		fmt.Fprintln(w, "store:")
+		for _, key := range []string{"root", "key", "kind", "location"} {
+			if value, ok := r.Store[key]; ok {
+				fmt.Fprintf(w, "  %s: %s\n", key, value)
+			}
 		}
 	}
 

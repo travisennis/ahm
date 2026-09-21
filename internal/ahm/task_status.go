@@ -96,7 +96,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	// but only when the status is actually changing.
 	if task.Status != status && status == "Completed" && len(task.DependsOn) > 0 {
 		allTasks := loadTasks()
-		if err := checkTaskDepsNotDuplicated(allTasks, task, a.opts.root); err != nil {
+		if err := checkTaskDepsNotDuplicated(allTasks, task, a.workflowPaths()); err != nil {
 			return err
 		}
 		completed := map[string]bool{}
@@ -154,10 +154,10 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		// own dependencies are duplicated.
 		for _, t := range allTasks {
 			if t.Status == "Blocked" && taskDependsOn(t, task.ID) {
-				if err := checkDuplicateTaskID(allTasks, t.ID, a.opts.root); err != nil {
+				if err := checkDuplicateTaskID(allTasks, t.ID, paths); err != nil {
 					return err
 				}
-				if err := checkTaskDepsNotDuplicated(allTasks, t, a.opts.root); err != nil {
+				if err := checkTaskDepsNotDuplicated(allTasks, t, paths); err != nil {
 					return err
 				}
 			}
@@ -165,12 +165,12 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		unblocked = a.taskUnblockDependents(allTasks, task.ID, now)
 	}
 	if a.opts.dryRun {
-		preview := map[string]any{"move": filepath.ToSlash(target), "status": status}
+		preview := map[string]any{"move": paths.payloadPath(target), "status": status}
 		if status == "Cancelled" {
 			preview["reason"] = cancelReason
 		}
 		if len(unblocked) > 0 {
-			preview["unblocked"] = taskUnblockPreview(unblocked)
+			preview["unblocked"] = taskUnblockPreview(unblocked, paths)
 		}
 		return a.emit(preview)
 	}
@@ -263,12 +263,12 @@ func taskDependsOn(task Task, depID string) bool {
 	return false
 }
 
-func taskUnblockPreview(tasks []Task) []map[string]any {
+func taskUnblockPreview(tasks []Task, paths workflowPaths) []map[string]any {
 	preview := make([]map[string]any, 0, len(tasks))
 	for _, task := range tasks {
 		preview = append(preview, map[string]any{
 			"id":     task.ID,
-			"path":   filepath.ToSlash(task.Path),
+			"path":   paths.payloadPath(task.Path),
 			"status": "Pending",
 		})
 	}

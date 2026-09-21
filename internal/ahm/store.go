@@ -133,10 +133,16 @@ func validStoreDirName(dir string) bool {
 }
 
 // storePathsFor resolves the store location of the command's project root at
-// most once per command.
+// most once per command. A repository that already resolved its records layout
+// has the store in hand, so the store is read once per command even when the
+// command reports both.
 func (a *app) storePathsFor() (storePaths, error) {
 	if a.store != nil {
 		return *a.store, nil
+	}
+	if paths, err := a.resolveWorkflowPaths(); err == nil && paths.inStore() {
+		a.store = &paths.store
+		return paths.store, nil
 	}
 	paths, err := resolveStore(a.opts.root)
 	if err != nil {

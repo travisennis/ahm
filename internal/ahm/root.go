@@ -29,37 +29,43 @@ func (e legacyLayoutError) Error() string {
 }
 
 func (a *app) detectRoot() error {
-	if a.opts.root != "" {
-		return rejectLegacyLayout(a.opts.root)
-	}
-	root, err := detectManagedRoot()
-	if err != nil {
+	if a.opts.root == "" {
+		root, err := detectManagedRoot()
+		if err != nil {
+			return err
+		}
+		a.opts.root = root
+	} else if err := rejectLegacyLayout(a.opts.root); err != nil {
 		return err
 	}
-	a.opts.root = root
-	return nil
+	// Resolve the records layout with the root, so a command that needs the
+	// store fails before it touches anything.
+	_, err := a.resolveWorkflowPaths()
+	return err
 }
 
 // detectRootOrCWD is the lenient detection used by init: an unmanaged
 // directory is initialized in place. A legacy layout is an error rather than a
 // fallback, because initializing in place would leave its records behind.
 func (a *app) detectRootOrCWD() error {
-	if a.opts.root != "" {
-		return rejectLegacyLayout(a.opts.root)
-	}
-	root, err := detectManagedRoot()
-	if err != nil {
-		var legacy legacyLayoutError
-		if errors.As(err, &legacy) {
-			return err
-		}
-		root, err = os.Getwd()
+	if a.opts.root == "" {
+		root, err := detectManagedRoot()
 		if err != nil {
-			return err
+			var legacy legacyLayoutError
+			if errors.As(err, &legacy) {
+				return err
+			}
+			root, err = os.Getwd()
+			if err != nil {
+				return err
+			}
 		}
+		a.opts.root = root
+	} else if err := rejectLegacyLayout(a.opts.root); err != nil {
+		return err
 	}
-	a.opts.root = root
-	return nil
+	_, err := a.resolveWorkflowPaths()
+	return err
 }
 
 func detectManagedRoot() (string, error) {

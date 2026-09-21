@@ -48,7 +48,7 @@ func TestAcquireWorkflowLock_AcquireRelease(t *testing.T) {
 	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 
 	// First acquire must succeed.
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-a")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-a")
 	if err != nil {
 		t.Fatalf("first acquire failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestAcquireWorkflowLock_AcquireRelease(t *testing.T) {
 	}
 
 	// Acquire again on the same name must succeed.
-	release2, err := acquireNamedWorkflowLock(dir, lockRoot, "test-a")
+	release2, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-a")
 	if err != nil {
 		t.Fatalf("second acquire failed: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestAcquireWorkflowLock_BlocksContention(t *testing.T) {
 	workflowLockTimeout = 50 * time.Millisecond
 
 	// Hold the lock.
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-b")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-b")
 	if err != nil {
 		t.Fatalf("first acquire failed: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestAcquireWorkflowLock_BlocksContention(t *testing.T) {
 	}()
 
 	// A second acquire on the same name must time out.
-	_, err = acquireNamedWorkflowLock(dir, lockRoot, "test-b")
+	_, err = acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-b")
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -106,7 +106,7 @@ func TestAcquireWorkflowLock_ConcurrentSerialization(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-c")
+			release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-c")
 			if err != nil {
 				t.Errorf("concurrent acquire failed: %v", err)
 				return
@@ -131,7 +131,7 @@ func TestAcquireWorkflowLock_Timeout(t *testing.T) {
 	workflowLockTimeout = 10 * time.Millisecond
 
 	// Hold the lock so the second attempt must wait.
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-d")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-d")
 	if err != nil {
 		t.Fatalf("first acquire failed: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestAcquireWorkflowLock_Timeout(t *testing.T) {
 	}()
 
 	start := time.Now()
-	_, err = acquireNamedWorkflowLock(dir, lockRoot, "test-d")
+	_, err = acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-d")
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -183,7 +183,7 @@ func TestAcquireWorkflowLock_StaleLockCleanup(t *testing.T) {
 	}
 
 	// Acquire must succeed: the stale lock is detected and cleaned up.
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-e")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-e")
 	if err != nil {
 		t.Fatalf("acquire after stale cleanup failed: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 			t.Fatalf("remove observed stale lock: %v", err)
 		}
 		var err error
-		replacementRelease, err = tryAcquireWorkflowLock(dir, lockRoot, "test-replacement")
+		replacementRelease, err = tryAcquireWorkflowLock(workflowPathsFor(dir), lockRoot, "test-replacement")
 		if err != nil {
 			t.Fatalf("acquire replacement lock: %v", err)
 		}
@@ -294,7 +294,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsReplacement(t *testing.T) {
 	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-release-replacement")
 
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-release-replacement")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-release-replacement")
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
 	lockRoot := filepath.Join(dir, toolRecordsDirName, ".lock")
 	lockPath := filepath.Join(lockRoot, "test-release-missing")
 
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-release-missing")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-release-missing")
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestAcquireWorkflowLock_NonStaleLockIsNotRemoved(t *testing.T) {
 	// The lock directory modtime is now (fresh).
 
 	// Acquire must fail with timeout because the non-stale lock is held.
-	_, err := acquireNamedWorkflowLock(dir, lockRoot, "test-f")
+	_, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-f")
 	if err == nil {
 		t.Fatal("expected timeout error for non-stale held lock")
 	}
@@ -486,7 +486,7 @@ func TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock(t *testing.T) {
 	workflowLockTokenWriter = func(string) (string, error) { return "", tokenErr }
 	t.Cleanup(func() { workflowLockTokenWriter = orig })
 
-	_, err := tryAcquireWorkflowLock(dir, lockRoot, "test-token-failure")
+	_, err := tryAcquireWorkflowLock(workflowPathsFor(dir), lockRoot, "test-token-failure")
 	if !errors.Is(err, tokenErr) {
 		t.Fatalf("acquire error = %v, want injected token write failure", err)
 	}
@@ -638,7 +638,7 @@ func TestAcquireWorkflowLock_ReleaseJoinsHeartbeat(t *testing.T) {
 	}
 	t.Cleanup(func() { workflowLockChtimes = origChtimes })
 
-	release, err := acquireNamedWorkflowLock(dir, lockRoot, "test-join-heartbeat")
+	release, err := acquireNamedWorkflowLock(workflowPathsFor(dir), lockRoot, "test-join-heartbeat")
 	if err != nil {
 		t.Fatalf("acquire lock: %v", err)
 	}

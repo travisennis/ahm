@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"path/filepath"
+	"strings"
 )
 
 // toolRecordsDirName is the tool-owned directory that holds ahm workflow
@@ -55,6 +56,21 @@ func workflowPathsForStore(root string, store storePaths) workflowPaths {
 		store:       store,
 		mode:        locationHome,
 	}
+}
+
+// resolveWorkflowPaths resolves the layout of one repository root from its
+// committed configuration. The store is resolved only when the configuration
+// names home, so a project-mode repository never reads Git and never fails
+// because a store is unavailable.
+func resolveWorkflowPaths(root string, meta metadata, configExists bool) (workflowPaths, error) {
+	if resolveTaskLocation(meta, configExists) == locationProject {
+		return workflowPathsFor(root), nil
+	}
+	store, err := resolveStore(root)
+	if err != nil {
+		return workflowPaths{}, err
+	}
+	return workflowPathsForStore(root, store), nil
 }
 
 // configPath is the committed .ahm/config.json, which always lives in the
@@ -129,9 +145,10 @@ func (p workflowPaths) stateRoots() []string {
 	return roots
 }
 
-// displayPath renders a path for user-facing output. A store path is shown as
-// store: followed by its path inside the store, and a project path is shown
-// relative to the project root.
+// displayPath renders a path for user-facing output: findings, error messages,
+// and index listings. A store path is shown as store: followed by its path
+// inside the store, and a project path is shown relative to the project root,
+// which is what every one of those messages printed before the home store.
 func (p workflowPaths) displayPath(path string) string {
 	if p.inStore() && pathWithin(p.store.ProjectDir, path) {
 		if rel, err := filepath.Rel(p.store.ProjectDir, path); err == nil {
@@ -139,6 +156,73 @@ func (p workflowPaths) displayPath(path string) string {
 		}
 	}
 	return relPath(p.projectRoot, path)
+}
+
+// payloadPath renders a record path for a structured payload: the JSON path
+// field of a task, and the dry-run create, move, and unblock previews. A store
+// path is displayed the same way displayPath displays it, and a project path is
+// returned unchanged, because those payloads carry the record's own path and
+// ADR 023 keeps project-mode output byte-identical.
+func (p workflowPaths) payloadPath(path string) string {
+	if p.inStore() && pathWithin(p.store.ProjectDir, path) {
+		return p.displayPath(path)
+	}
+	return path
+}
+
+// inProjectRecordPath maps a store record path to the in-project path the
+// record would have if it still lived in the project. It reports false for a
+// project record path. Markdown link validation uses it as the fallback base
+// for a relative link written under the committed-in-project model, so that a
+// record that moved into the store keeps resolving its links (ADR 023).
+func (p workflowPaths) inProjectRecordPath(path string) (string, bool) {
+	if !p.inStore() || !pathWithin(p.recordsRoot, path) {
+		return "", false
+	}
+	rel, err := filepath.Rel(p.recordsRoot, path)
+	if err != nil {
+		return "", false
+	}
+	return filepath.Join(p.projectRoot, toolRecordsDirName, storeRecordsDirName, rel), true
+}
+
+// workflowGitignorePath is the managed .gitignore for ahm-owned workflow state:
+// .ahm/.gitignore in project mode, and the store project directory's .gitignore
+// in home mode, where the generated task indexes and the records lock live. A
+// store-root write is deliberately not part of this: the store's project
+// directory is the only owned root inside the store.
+func (p workflowPaths) workflowGitignorePath() string {
+	if p.inStore() {
+		return filepath.Join(p.store.ProjectDir, gitignoreFileName)
+	}
+	return filepath.Join(p.projectRoot, filepath.FromSlash(recordsGitignoreRelPath))
+}
+
+// workflowGitignoreContent is the complete .gitignore ahm owns for the resolved
+// workflow state. Both layouts ignore the generated task indexes, the lock
+// directory, and temp files; the store's project directory additionally ignores
+// its state file.
+func (p workflowPaths) workflowGitignoreContent() []byte {
+	if p.inStore() {
+		return []byte(storeRecordsGitignoreHeader + strings.Join(storeGitignoreEntries, "\n") + "\n")
+	}
+	return recordsGitignoreContent()
+}
+
+// recordsStatus reports where this project's records live: the store root, the
+// project key and its kind, and the storage location. It reports false when the
+// records live in the project, so project-mode output is byte-identical to the
+// output before the home store existed.
+func (p workflowPaths) recordsStatus() (map[string]string, bool) {
+	if !p.inStore() {
+		return nil, false
+	}
+	return map[string]string{
+		"root":     p.store.Root,
+		"key":      p.store.Key,
+		"kind":     p.store.Kind,
+		"location": string(p.mode),
+	}, true
 }
 
 // lockDirName is the directory inside a workflow state root that holds the

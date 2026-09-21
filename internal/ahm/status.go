@@ -20,6 +20,9 @@ func (a *app) status() error {
 		"tasks":             taskCounts(tasks),
 		"validation":        validation,
 	}
+	if storeStatus, ok := a.workflowPaths().recordsStatus(); ok {
+		status["store"] = storeStatus
+	}
 	if err := a.emit(status); err != nil {
 		return err
 	}

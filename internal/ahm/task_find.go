@@ -77,7 +77,7 @@ func (a *app) resolveTaskForMutation(pattern string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	if err := checkDuplicateTaskID(tasks, task.ID, a.opts.root); err != nil {
+	if err := checkDuplicateTaskID(tasks, task.ID, a.workflowPaths()); err != nil {
 		return Task{}, err
 	}
 	return task, nil
@@ -87,16 +87,16 @@ func (a *app) resolveTaskForMutation(pattern string) (Task, error) {
 // one file. If so, it returns an error listing the conflicting paths and the
 // manual recovery action so that mutation commands can refuse to operate on
 // a duplicated ID.
-func checkDuplicateTaskID(tasks []Task, id string, root string) error {
-	var paths []string
+func checkDuplicateTaskID(tasks []Task, id string, paths workflowPaths) error {
+	var found []string
 	for _, task := range tasks {
 		if task.ID == id {
-			paths = append(paths, relPath(root, task.Path))
+			found = append(found, paths.displayPath(task.Path))
 		}
 	}
-	if len(paths) > 1 {
-		sort.Strings(paths)
-		return fmt.Errorf("task ID %s is duplicated across %s; resolve the duplicate manually (remove or rename one file) before retrying", id, strings.Join(paths, ", "))
+	if len(found) > 1 {
+		sort.Strings(found)
+		return fmt.Errorf("task ID %s is duplicated across %s; resolve the duplicate manually (remove or rename one file) before retrying", id, strings.Join(found, ", "))
 	}
 	return nil
 }
@@ -104,9 +104,9 @@ func checkDuplicateTaskID(tasks []Task, id string, root string) error {
 // checkTaskDepsNotDuplicated checks that none of the given task's dependency
 // IDs appear in more than one file. It is called by mutation paths before
 // operating on a task whose dependencies must be unambiguous.
-func checkTaskDepsNotDuplicated(tasks []Task, task Task, root string) error {
+func checkTaskDepsNotDuplicated(tasks []Task, task Task, paths workflowPaths) error {
 	for _, dep := range task.DependsOn {
-		if err := checkDuplicateTaskID(tasks, dep, root); err != nil {
+		if err := checkDuplicateTaskID(tasks, dep, paths); err != nil {
 			return err
 		}
 	}

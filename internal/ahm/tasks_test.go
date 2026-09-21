@@ -427,7 +427,7 @@ func TestNextTaskIDScansFilesystemForSkippedTasks(t *testing.T) {
 	}
 
 	// Only 001 is parsed; 005 is skipped due to parse error
-	tasks, err := collectTasksForPaths(root, workflowPathsFor(root))
+	tasks, err := collectTasksForPaths(workflowPathsFor(root))
 	if err == nil {
 		t.Error("expected error from malformed task")
 	}

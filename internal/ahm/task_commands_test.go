@@ -651,7 +651,7 @@ func TestTaskCreateSubtaskCollisionAvoidance(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001e.md"), "001e", "Completed Child E", "Completed", "parent: 001\n")
 
 	// Collect tasks and call nextChildTaskIDForPaths directly.
-	tasks, err := collectTasksForPaths(root, workflowPathsFor(root))
+	tasks, err := collectTasksForPaths(workflowPathsFor(root))
 	if err == nil {
 		t.Log("collectTasksForPaths returned no error") // may warn but succeed
 	}

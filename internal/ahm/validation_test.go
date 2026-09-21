@@ -84,7 +84,7 @@ parent: 303
 # Child open
 `)
 
-	tasks, err := collectTasksForPaths(root, paths)
+	tasks, err := collectTasksForPaths(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func TestValidateTaskDuplicateIDsReportsErrorInReusedState(t *testing.T) {
 	writeTaskFile(t, paths.taskFile("active", "042"), "042", "Duplicate Task A", "Pending", "")
 	writeTaskFile(t, paths.taskFile("completed", "042"), "042", "Duplicate Task B", "Completed", "depends_on: -\n")
 
-	tasks, err := collectTasksForPaths(root, paths)
+	tasks, err := collectTasksForPaths(paths)
 	if err != nil {
 		t.Fatal(err)
 	}

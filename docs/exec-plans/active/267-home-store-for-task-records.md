@@ -64,7 +64,7 @@ directory belongs to the current project.
   runs against a temporary `AHM_HOME`.
 - [x] 267b — Split workflow paths into a project root and a records root, and
   contain every write to an owned root. No user-visible behavior change.
-- [ ] 267c — Read and write task records in the store, split index generation,
+- [x] 267c — Read and write task records in the store, split index generation,
   report the store from `prime` and `status`, and report drift when records
   remain in the project. `project` mode stays the default.
 - [ ] 267d — Persist a non-decrementing task ID counter in the store.
@@ -127,15 +127,69 @@ directory belongs to the current project.
   `TestCleanupStaleTempsCoversEveryStateRoot` fails if the scan is widened to
   the project root.
 - 2026-09-21 (267b): the plan and ADR 023 disagree about where the store's
-  managed `.gitignore` belongs. ADR 023 says the store root ignores
-  `registry.json`, and this plan's Idempotence section repeats "a managed
-  `.gitignore` at the store root", while the Artifacts layout puts it at
+  managed `.gitignore` belongs. ADR 023 is in fact silent on a store
+  `.gitignore`, while this plan's Idempotence section says "a managed
+  `.gitignore` at the store root" and the Artifacts layout puts it at
   `<store>/projects/<slug>-<hash>/.gitignore`. 267b's containment decides the
   question by construction: `ownedRoots` is the project root plus the store's
   project directory, so a store-root write through `writeOwned` is refused.
   267c creates that file and must either place it per project or make the store
-  root an owned root, and 267h must align the ADR wording with whichever it
-  chooses. No code or doc was changed for this yet.
+  root an owned root, and 267h owes the ADR wording for whichever it chooses.
+  No code or doc was changed for this yet. Resolved in 267c: the file is per
+  project, at `<store>/projects/<slug>-<hash>/.gitignore`, so the owned roots do
+  not change and `registry.json` stays commit-visible.
+- 2026-09-21 (267c): the display list 267b handed over names "the JSON path
+  fields" and the dry-run previews as sites that relativize a record path, but
+  they do not: `ahm --json task show <id>` and `ahm --dry-run task create` print
+  the record's absolute path. Switching them to `displayPath` would change
+  project-mode output, which ADR 023 and this milestone's acceptance forbid, so
+  `workflowPaths.payloadPath` renders a store path as `store:<rel>` and returns
+  a project path untouched. Evidence: the milestone's project-mode guard, and
+  the payload assertions in `TestWorkflowPathsPayloadPathKeepsProjectPaths`.
+- 2026-09-21 (267c): the `resolveTaskLocation(meta, configExists)` this
+  milestone adds cannot use its no-configuration branch yet. Resolving a
+  repository with no configuration as `home` splits its records: `init` would
+  lay the store down and write a configuration without the key, and the next
+  command would read that configuration as `project` and find an empty
+  `.ahm/tasks/`. It also fails 87 tests in the existing suite, most of them the
+  install and lifecycle tests that assert the in-project layout. Evidence: a
+  mutation probe on a copy of the tree with the branch flipped to `locationHome`
+  reports 87 `--- FAIL` lines. 267f flips the branch and writes the key in the
+  same run; the milestone text already says the default for a new project is
+  267f's change.
+- 2026-09-21 (267c): resolving the layout in `detectRoot` means a home-mode
+  project whose Git state cannot be read fails every command with the resolver's
+  error, `doctor` and `status` included, where the previous behavior was to
+  report findings. Project mode is unaffected, which is what the 267a decision
+  requires, and failing is the intended alternative to deriving a different key
+  from the path. Evidence: an empty `.git` directory plus a `home`
+  configuration fails `ahm status` with `reading Git remotes in <root>: git
+  remote: fatal: not a git repository`. 267h's display and upgrade wording
+  should say that a home-mode project needs readable Git state, or that Git must
+  be on `PATH`.
+- 2026-09-21 (267c): operating-system error messages can still name an absolute
+  path in either layout. `validateTaskEnums` prefixes the path it was given, so
+  a malformed record reports `store:tasks/active/050.md: <store absolute
+  path>/tasks/active/050.md: unsupported task status "-"`, and the same is true
+  of raw `os` errors in `task_unreadable`, `generated_index_unreadable`, and
+  `markdown_link_check_failed`. Project mode already printed its own absolute
+  path this way, so fixing it would change project-mode messages; the display
+  rule should be written so that findings and labels render through
+  `displayPath` while an operating-system message keeps its own text.
+  Evidence: the messages above, reproduced in both layouts.
+- 2026-09-21 (267c): the Artifacts layout shows `.lock/workflow-records` and
+  `project.json` in the store's project directory, but `install` creates
+  neither: the lock directory appears with the first mutation and the state file
+  with the first command that records the store observation. That matches
+  project mode, where `init` does not create `.ahm/.lock` either.
+- 2026-09-21 (267c): a `home` project whose store records directory is missing
+  reports the missing generated task indexes alongside `store_dir_unreadable`.
+  Suppressing them was considered and rejected: project mode reports exactly the
+  same generated-index findings when `.ahm/tasks/` is deleted with the
+  configuration still present, so the cascade is the existing layout's behavior
+  rather than a new one. Evidence:
+  `TestStatusReportsWorkflowArtifactConsistency` covers the project-mode
+  state.
 
 ## Decision Log
 
@@ -277,8 +331,126 @@ directory belongs to the current project.
   default for new projects costs nothing extra to explain, and shipping the
   storage change in a minor release afterward would mean two migration notes.
   Date/Author: 2026-09-21, Travis Ennis.
+- Decision: milestone 267c resolves a repository with no configuration as
+  `project`, and 267f changes `resolveTaskLocation`'s no-configuration branch to
+  `home` and writes the key. The storage mode otherwise comes from
+  `tasks_location`: `home` uses the store, and a missing key or an unrecognized
+  value keeps the records in the project.
+  Rationale: the milestone's acceptance requires byte-identical project-mode
+  output and layout, and a bare checkout with no configuration would otherwise
+  resolve a store it cannot own yet. Keeping the branch in place and flipping
+  one return value in 267f is a smaller change than a second resolution path.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the store's managed `.gitignore` lives in the store's project
+  directory, `<store>/projects/<slug>-<hash>/.gitignore`, not at the store root,
+  and the store root stays outside the owned roots. It ignores the generated
+  task indexes, the lock directory, temp files, and `project.json`, the store's
+  own state file, which holds store-local state and changes with almost every
+  task mutation. `registry.json` is left commit-visible, because the
+  key-to-directory mapping is derived data that can be recomputed.
+  Rationale: 267b's containment already accepts the store's project directory,
+  so the per-project location needs no change to the ownership boundary, and the
+  file only has to ignore the machine-local state that sits beside the records.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: record paths in findings, error messages, index listings, directory
+  labels, and lock errors render through `displayPath`, while the JSON `path`
+  field of a task and the dry-run create, move, and unblock previews render
+  through `payloadPath`, which is `displayPath` for a store path and the
+  record's own path otherwise.
+  Rationale: the two payload families carry the absolute record path today, so
+  routing them through `displayPath` would change project-mode output that ADR
+  023 and this milestone's acceptance both promise stays byte-identical. Every
+  other site already printed a project-relative path, so `displayPath` leaves it
+  byte-identical and turns a store path into `store:<rel>`. An operating-system
+  error keeps its own text, which can name an absolute path in either layout.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the drift findings are error-tier and read-only. `task_records_in_project`
+  aggregates every project bucket that still holds records into one finding on
+  `.ahm/tasks` that names the count, and `store_dir_unreadable` reports a missing
+  or unreadable store records directory. Both run in the disk-reading validation
+  path — `status`, `doctor`, and `prime` — and in the fallback to that path that
+  a mutation or `ahm index` takes when a task parse was partial; they never run
+  in the post-mutation state validation that follows a clean write.
+  Rationale: records left in the project are invisible to every command, and a
+  missing store means the backlog cannot be read, so both are failures rather
+  than advice; keeping them out of the clean post-mutation path keeps ordinary
+  mutations quiet while a person is mid-migration.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: commands resolve the records layout once, in `detectRoot` /
+  `detectRootOrCWD`, and `install` re-resolves it from the configuration it owns
+  through `app.useWorkflowPaths`.
+  Rationale: resolution can fail (an unreadable Git repository, a corrupt
+  registry, a relative `AHM_HOME`) and a command must fail before it touches
+  anything, while the lazy `workflowPaths()` accessor keeps helpers that cannot
+  return an error working with the project layout. `install` resolves its own
+  layout because the mode it writes is the mode it must lay directories down
+  for, which is the seam 267f needs when it starts writing `tasks_location`.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the delete side of a record move stays a direct `os.Remove` of the
+  vacated record path, with no owned-root check of its own, and 267e owns the
+  decision about whether deletion needs one.
+  Rationale: 267c was asked to confirm the delete side, and the path it removes
+  is the record path the task scan just produced under the resolved records
+  root, so it is confined by construction; every other workflow write still goes
+  through `writeOwned`, and 267e is the first command that deletes records on
+  purpose rather than because one moved.
+  Date/Author: 2026-09-21, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+### 267c — Read and write task records in the home store (2026-09-21)
+
+Delivered: `metadata` gained `TasksLocation`, written and consumed by the
+hand-written `MarshalJSON` and removed from the unknown-field map on read, plus
+`resolveTaskLocation(meta, configExists)` and `resolveWorkflowPaths(root, meta,
+configExists)`. `app` resolves the records layout once after root detection and
+caches it; `workflowPaths()` is the lazy accessor for helpers that cannot return
+an error, and `install` re-resolves the layout it is about to write. Task reads
+and writes, the four task indexes, the lock, and the managed `.gitignore` all
+follow the records root, while `.ahm/config.json` and `docs/adr/` stay in the
+project. `prime` and `status` report the store root, key, kind, and location
+only when the records live in the store, and the drill-down findings, error
+messages, index listings, and lock timeouts render record paths through
+`displayPath`. Validation gained `task_records_in_project` and
+`store_dir_unreadable`, and Markdown link validation resolves a relative link
+against the record's own directory first and the record's logical in-project
+directory second.
+
+Against the milestone's acceptance: with `tasks_location: home`, `ahm task
+create`, `list`, `show`, `complete`, and `dep` operate entirely in the store and
+write nothing under `.ahm/tasks/`, which
+`TestHomeModeKeepsTaskRecordsInTheStore` drives through the whole lifecycle
+(create, list, show, `--json` show, dependent create, dry-run complete, real
+complete, indexes, and the store's `.gitignore`). `ahm doctor` and `ahm status`
+report `task_records_in_project` for a record left in the project while the mode
+is `home`, and `store_dir_unreadable` when the store records directory is
+missing. A store record linking to `../../../docs/adr/001-probe.md` still
+validates after the move, a sibling link resolves from the record's own
+directory, and a broken link is still reported. With the key absent the entire
+suite passes with project-mode records, output, and layout unchanged:
+`TestProjectModeOutputHasNoStoreField` pins the absent store field for `status`,
+`prime`, and `doctor`, and `TestWorkflowPathsPayloadPathKeepsProjectPaths` pins
+the absolute project path in the structured payloads.
+
+The judgment calls are recorded above. The no-configuration branch of
+`resolveTaskLocation` stays `project` until 267f turns it on, because resolving
+a repository with no configuration as `home` splits its records between the run
+that creates the configuration and every run after it. Structured payloads use
+`payloadPath` rather than `displayPath`, because they carry the record's
+absolute path today and project-mode output is byte-identical by contract. The
+store's managed `.gitignore` sits in the store's project directory and ignores
+the generated indexes, the lock, temp files, and the store state file, so the
+ownership boundary did not change; 267h owes the ADR and guide wording for that
+choice, the location of the file, and the fact that `registry.json` stays
+commit-visible.
+
+A review round found one real defect: `ahm --json task list` emitted raw task
+records, so a home-mode listing leaked the absolute store path even though
+`task show` and `task search` did not. The list path now renders through
+`tasksForOutput`, and `TestHomeModeKeepsTaskRecordsInTheStore` covers `task
+list` and `task search`. The same round corrected the evidence cited for the
+`resolveTaskLocation` decision, the drift findings' scope, and the plan's claim
+that ADR 023 named the store's `.gitignore` location.
 
 ### 267b — Split the roots and contain writes (2026-09-21)
 
@@ -701,8 +873,11 @@ commit restores the in-project layout. `ahm` never stages, commits, or moves
 If the store is lost, the task list is lost. That is the accepted tradeoff of
 ADR 023. A user who wants a copy may place the store under their own version
 control; `ahm` runs no Git commands against it and writes a managed
-`.gitignore` at the store root that ignores generated indexes, the lock
-directory, temporary files, and `registry.json`.
+`.gitignore` in the store's directory for the project that ignores the generated
+task indexes, the lock directory, temporary files, and the store state file. The
+store root stays outside the owned roots, so `registry.json` is left
+commit-visible; it is derived data whose mapping can be recomputed from the
+project keys.
 
 ## Artifacts and Notes
 

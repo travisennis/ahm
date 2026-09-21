@@ -79,6 +79,8 @@ Finding codes:
 | ---- | ------- |
 | `metadata_missing` | Workflow metadata `.ahm/config.json` is missing. |
 | `metadata_corrupt` | Workflow metadata exists but cannot be read or parsed. |
+| `task_records_in_project` | A task record is still in `.ahm/tasks/` while `tasks_location` is `home`, so no command reads it. This is an error-tier finding. |
+| `store_dir_unreadable` | The configured home store's task records directory is missing or unreadable, so the task list cannot be read. This is an error-tier finding. |
 | `task_dir_unreadable` | A task bucket directory could not be read. |
 | `task_unreadable` | A task file could not be read. |
 | `task_missing_field` | Task front matter is missing a required field. |
