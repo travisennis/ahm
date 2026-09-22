@@ -25,12 +25,17 @@ func hashBytes(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// taskBuckets are the record buckets a task record can live in, in the order the
+// task scan reads them. The scan and the uncommitted-record check that guards a
+// store migration both read this var, so the two agree on the set.
+var taskBuckets = []string{"active", "completed", "cancelled"}
+
 // taskFilePathsFor collects all task markdown file paths across the
 // active, completed, and cancelled buckets. It skips index.md and
 // non-.md entries. Directories that do not exist are silently skipped.
 func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 	var files []taskFileInfo
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
+	for _, bucket := range taskBuckets {
 		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if errors.Is(err, os.ErrNotExist) {

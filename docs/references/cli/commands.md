@@ -12,7 +12,8 @@ only compatibility guarantees that generated help cannot express.
 All non-task commands share these guarantees unless stated otherwise:
 
 - **`--dry-run`**: previews the operation without writing files. Supported by
-  `init`, `index`, `adr create`, ADR lifecycle commands, and `store path`.
+  `init`, `index`, `adr create`, ADR lifecycle commands, `store path`, and
+  `store migrate`.
 - **`--json` / `--plain`**: structured output mode. Unsupported commands print
   text regardless of the flag.
 
@@ -183,6 +184,97 @@ the store root, the project key, and the records directory
   lowers it.
 - `--json` and `--plain` emit `root`, `key`, `kind` (`remote` or `path`), and
   `records`; text output abbreviates the user's home directory to `~`.
+
+### `store migrate --to home|project`
+
+Moves this project's task records between the project and the user-level home
+store. It is the only command that moves a record between the two layouts;
+`task status` moves a record between buckets inside one layout.
+
+**Guarantees:**
+
+- `--to` is required and names the destination. The direction is never inferred
+  from the current configuration, so repeating the command after an interrupt
+  finishes the move it started. A missing or unknown `--to` is a usage error
+  (exit code 2).
+- Each record is read, written atomically into the destination, and removed from
+  the source only afterwards. Nothing is renamed, so the move works when the
+  store and the project are on different volumes, and a crash or an interrupt
+  leaves the record on both sides; re-running the command completes the move and
+  leaves a record that already arrived byte-identical, modification time
+  included.
+- Every read whose failure would leave the move owing a file it cannot write —
+  the committed configuration, and the store state and registry it records —
+  happens before the first record moves, so a precondition that cannot be met
+  (an unreadable configuration, a store file a newer ahm wrote) fails with the
+  records still in their source layout. A failure after that point leaves the
+  move finishable by running the same command again.
+- The whole move holds the record-mutation lock of the layout the configuration
+  currently names, which is the lock every other command serializes on. The
+  configuration flips only at the end of the move, so the lock stays the one
+  every other command takes for as long as the move writes anything.
+- The committed `tasks_location` key names the destination, and is written in
+  both directions, so a repository moved back to the project keeps the project
+  layout even once a configuration without the key defaults to the store. It is
+  written last of all, after the source's derived files are gone: it is the
+  move's commit point, and until it lands a repeated command continues the same
+  move instead of treating it as finished. A move that stops at that point
+  leaves the records in the destination while the configuration still names the
+  source, so `status`, `doctor`, and the record commands read a layout the
+  records have left and report an empty backlog; `git status` shows the
+  deletions or additions, and re-running the same command finishes the move.
+- The managed `.gitignore` of the destination layout is rewritten for the new
+  mode, and a move into the store writes the store's `.gitignore` beside the
+  records. The store's file covers the generated indexes, the lock, the state
+  file, and temp files; the committed `.ahm/.gitignore` keeps only the `*.tmp`
+  pattern in home mode, because the atomic rewrite of `config.json` is the one
+  ahm write that stays in the project.
+- Generated indexes are regenerated on the destination side, the committed ADR
+  index stays under the project root, and the source's generated task indexes
+  and the empty records tree they leave are removed with the records. Those
+  removals happen before the committed `.gitignore` stops ignoring them; a run
+  that finds nothing to move but such leftovers still removes them.
+- The store's task ID counter is initialized from the records present, so a
+  record deleted after the move cannot have its number reissued.
+- The move is recorded in the store registry entry as `migrated_from`, naming
+  the layout the records came from. A move out of a store this machine has no
+  state file for — a fresh clone, say — records nothing: it creates no registry
+  entry and no store state file, because it has nothing observed to record.
+- Records moving out of the project are refused (exit code 1) when Git reports
+  record content only the working tree has: a modified, staged, or untracked task
+  record is named, because the move deletes it and only committed content is
+  recoverable afterwards. Generated indexes and other files in the records tree
+  are not named. `--force` moves such records anyway. A deletion relative to
+  `HEAD` is not such a change: the deleted content is in Git's history or already
+  in the destination, and a half-finished move leaves exactly that behind.
+- A destination that already holds the arriving record's identity is refused
+  (exit code 1) in both directions, with both paths named: a record with
+  different bytes under the same name, or a record wearing the same ID in
+  another bucket, which would survive the move as a duplicate. The resume case
+  is always byte-identical, so neither is one. `--force` moves the source record
+  anyway, overwriting the first and duplicating the second.
+- A destination store directory that `registry.json` registers to a different
+  project key is refused (exit code 1) with both paths named, so two projects'
+  records never share one directory. This refusal has no override: a store
+  directory registered to another key is a misregistration to repair, not a risk
+  to accept.
+- A root whose own directory holds no `.git` is moved without the Git check:
+  there is no project history to protect and no Git to ask.
+- `ahm` never stages, commits, or moves `HEAD`. The project-side deletions or
+  additions the move leaves are printed as the commit list for the user to
+  review.
+- `--dry-run` previews the record moves, the committed configuration and
+  `.gitignore` writes, the destination indexes, the source index removals, and
+  the commit list. It writes nothing, takes no lock, creates no store
+  directory, and does not list the store's own `project.json` and
+  `registry.json` bookkeeping. It reports the refusals a real run would hit.
+- `--json` and `--plain` emit `to`, `moved` (source and destination pairs),
+  `written`, `removed`, `dry_run` (dry runs only), and the `deletions` or
+  `additions` commit list. Text output prints the same actions, one per line,
+  and abbreviates no path: a store path renders as `store:<store-relative>`.
+- A repeated run whose records already live in the destination reports no work
+  and writes nothing, unless it finds the source's generated indexes or empty
+  records directories still there, which it removes and reports.
 
 ### `index`
 

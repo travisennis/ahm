@@ -17,17 +17,32 @@ var gitRepositoryEnvironment = []string{
 	"GIT_COMMON_DIR",
 }
 
+// gitOptionalLocksEnvVar is the variable ahm sets to 0 for every Git subprocess
+// it runs, so no ahm Git command takes Git's optional lock.
+const gitOptionalLocksEnvVar = "GIT_OPTIONAL_LOCKS"
+
 func cleanGitEnvironment() []string {
 	env := os.Environ()
 	clean := make([]string, 0, len(env))
 	for _, entry := range env {
 		name, _, _ := strings.Cut(entry, "=")
-		if isGitRepositoryEnvironment(name) {
+		if isGitRepositoryEnvironment(name) || strings.EqualFold(name, gitOptionalLocksEnvVar) {
 			continue
 		}
 		clean = append(clean, entry)
 	}
 	return clean
+}
+
+// gitCommandEnvironment is the environment for an ahm-owned Git subprocess: the
+// cleaned environment plus the optional-lock setting. Claiming an optional lock
+// is how `git status` refreshes its own index stat cache, which rewrites
+// .git/index — so without this setting a read-only ahm command would still
+// modify the repository's Git state, and a --dry-run run would not be
+// observably read-only. A caller-set GIT_OPTIONAL_LOCKS is dropped by
+// cleanGitEnvironment, so this is the only occurrence of the variable.
+func gitCommandEnvironment() []string {
+	return append(cleanGitEnvironment(), gitOptionalLocksEnvVar+"=0")
 }
 
 func isGitRepositoryEnvironment(name string) bool {
@@ -139,7 +154,7 @@ func runGit(root string, args ...string) (string, error) {
 		return "", fmt.Errorf("git is not available: %w", err)
 	}
 	cmd := exec.Command("git", append([]string{"-C", root}, args...)...) // #nosec G204 // read-only git command scoped to the detected repository root
-	cmd.Env = cleanGitEnvironment()
+	cmd.Env = gitCommandEnvironment()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

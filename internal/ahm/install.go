@@ -30,8 +30,14 @@ var recordsGitignoreEntries = []string{
 	"tasks/index.md",
 	"tasks/*/index.md",
 	".lock/",
-	"*.tmp",
+	gitignoreTempPattern,
 }
+
+// gitignoreTempPattern is the temp-file pattern every managed .gitignore carries.
+// An atomic write creates its temp file beside its target, so the states ahm
+// writes into — .ahm/ in project mode, the store's project directory in home
+// mode — always need it, even once the records themselves have moved away.
+const gitignoreTempPattern = "*.tmp"
 
 // storeGitignoreEntries are the entries the store's directory for a project
 // ignores. The records live in the store rather than in a repository, so the
@@ -43,10 +49,15 @@ var storeGitignoreEntries = []string{
 	"tasks/index.md",
 	"tasks/*/index.md",
 	".lock/",
-	"*.tmp",
+	gitignoreTempPattern,
 }
 
 const recordsGitignoreHeader = "# Managed by ahm. Generated workflow indexes and machine-local state stay local-only;\n# source records and config.json remain committed.\n"
+
+// homeRecordsGitignoreHeader heads the committed .ahm/.gitignore once the
+// records live in the store: the task records are not committed any more, and
+// the only ahm write left in .ahm/ is the atomic rewrite of config.json.
+const homeRecordsGitignoreHeader = "# Managed by ahm. Machine-local state stays local-only; config.json remains\n# committed, and the task records live in the user-level store.\n"
 
 // storeRecordsGitignoreHeader heads the managed .gitignore of the store's
 // project directory, where the records are machine-local and are never part of

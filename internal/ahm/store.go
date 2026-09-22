@@ -243,6 +243,21 @@ func checkStoreVersion(path string, version int) error {
 // each file is written only when the bytes on disk change, so a repeated
 // command leaves the store untouched.
 func recordStoreProject(s storePaths) error {
+	return updateStoreProject(s, func(*projectEntry) {})
+}
+
+// recordStoreMigration records that this project's task records were moved from
+// another layout, so the registry says where the records a store holds came
+// from. It writes the same entry and state file a project observation writes.
+func recordStoreMigration(s storePaths, from taskLocation) error {
+	return updateStoreProject(s, func(entry *projectEntry) {
+		entry.MigratedFrom = string(from)
+	})
+}
+
+// updateStoreProject reads the project's state file and registry entry, applies
+// mutate to the entry, and writes both back unless their bytes are unchanged.
+func updateStoreProject(s storePaths, mutate func(*projectEntry)) error {
 	state, err := readProjectState(s)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -271,6 +286,7 @@ func recordStoreProject(s storePaths) error {
 	}
 	entry.Remotes = appendUniqueString(entry.Remotes, redactRemote(s.rawRemote))
 	entry.Paths = appendUniqueString(entry.Paths, s.resolvedPath)
+	mutate(&entry)
 	reg.Projects[s.Key] = entry
 	return writeRegistry(s.Root, reg)
 }
@@ -385,16 +401,18 @@ func abbreviateHome(path string) string {
 func (a *app) storeCommand() *cobra.Command {
 	store := &cobra.Command{
 		Use:   "store",
-		Short: "Inspect the user-level home store",
-		Long: `Inspect where this project's records live in the user-level store.
+		Short: "Inspect and migrate the user-level home store",
+		Long: `Inspect where this project's records live in the user-level store, and move
+them into or out of it.
 
 The store is ~/.ahm, or AHM_HOME when it names an absolute path. Records live
 per project under a key derived from the project's identity. A repository keeps
-its records in the project until it opts in, so this group inspects and reports
-the store location without moving anything.
+its records in the project until it opts in with 'store migrate --to home', so
+this group inspects the store location and performs that move explicitly.
 
 Examples:
-  ahm store path`,
+  ahm store path
+  ahm store migrate --to home`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return usageError(fmt.Sprintf("unknown subcommand %q for %q", args[0], cmd.CommandPath()))
@@ -402,6 +420,7 @@ Examples:
 			return usageError("store requires a subcommand\n  ahm store <subcommand>")
 		},
 	}
+	store.AddCommand(a.storeMigrateCommand())
 	store.AddCommand(&cobra.Command{
 		Use:   "path",
 		Short: "Print the store root, project key, and records directory",

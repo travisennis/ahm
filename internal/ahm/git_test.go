@@ -60,3 +60,26 @@ func TestGitCommandsIgnoreInheritedRepositoryLocationEnvironment(t *testing.T) {
 		t.Fatalf("readGitContext() = %#v, want available Git context without error", info)
 	}
 }
+
+// TestGitCommandEnvironmentTakesNoOptionalLock pins the setting that keeps an
+// ahm Git subprocess from rewriting .git/index while refreshing its own stat
+// cache, and that a caller-set value cannot shadow it with a second entry: the
+// lookup order of duplicate variables is not portable.
+func TestGitCommandEnvironmentTakesNoOptionalLock(t *testing.T) {
+	t.Setenv(gitOptionalLocksEnvVar, "1")
+
+	seen := 0
+	for _, entry := range gitCommandEnvironment() {
+		name, value, _ := strings.Cut(entry, "=")
+		if !strings.EqualFold(name, gitOptionalLocksEnvVar) {
+			continue
+		}
+		seen++
+		if value != "0" {
+			t.Errorf("%s = %q, want 0", gitOptionalLocksEnvVar, value)
+		}
+	}
+	if seen != 1 {
+		t.Errorf("gitCommandEnvironment() carries %d %s entries, want exactly 1", seen, gitOptionalLocksEnvVar)
+	}
+}

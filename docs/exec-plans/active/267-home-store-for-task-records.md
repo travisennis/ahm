@@ -71,8 +71,12 @@ directory belongs to the current project.
   `internal/ahm/task_id_counter.go`, the `next_id` field of the store's
   `project.json`, the counter write in `task create`, and the counter seeding in
   `install`.
-- [ ] 267e — Add `ahm store migrate --to home|project` and the `init` and
-  validation behavior that supports it.
+- [x] 267e — Added `ahm store migrate --to home|project` in
+  `internal/ahm/store_migrate.go`: the resumable read-write-remove move, the
+  precondition reads that precede it, the destination-key,
+  destination-identity, and uncommitted-record refusals, the `tasks_location`
+  and managed `.gitignore` rewrites, the destination indexes, the store counter
+  seeding, and the registry `migrated_from` record.
 - [ ] 267f — Default new projects to the home store.
 - [ ] 267g — Migrate this repository's own tasks to the home store as the
   first real use.
@@ -237,6 +241,121 @@ directory belongs to the current project.
   records to run `ahm init` once, so the counter is seeded before any record is
   deleted, and the spec owes the `next_id` field beside the store layout it
   describes. The handoff is recorded in that task.
+- 2026-09-21 (267e): the uncommitted-record refusal cannot treat every
+  `git status` entry as a change, or the command refuses to finish its own
+  interrupted work. An interrupt that has already removed a source record
+  leaves an unstaged deletion in the project, and refusing on it makes the
+  resumable move unresumable. Evidence: with the deletion check in place,
+  `TestStoreMigrateResumesAfterAnInterruptedMove` failed with
+  `refusing to move task records: .ahm/tasks has uncommitted changes
+   .ahm/tasks/active/001.md`. Deletions are now filtered out: a deleted record's
+  content is in Git's history or already in the destination, so it is never the
+  content the move can lose.
+- 2026-09-21 (267e): `--dry-run` must not write the store's registry either. The
+  first version recorded `migrated_from` unconditionally, and a smoke test in a
+  scratch repository showed the preview creating `registry.json`,
+  `projects/`, and `project.json`. The acceptance text names the store
+  explicitly ("leaves the filesystem and the store untouched"), so the store
+  state and registry writes are now inside the same dry-run guard as the
+  records. Evidence: `assertStoreAbsent` in
+  `TestStoreMigrateDryRunPreviewsWithoutWriting` fails when the guard is
+  dropped.
+- 2026-09-21 (267e): moving the records out of the project leaves an empty
+  `.ahm/.lock/` directory behind, because the move itself holds that lock and
+  cannot remove the directory it is running inside. It is invisible to Git —
+  empty directories are untracked — and the home-mode lock lives in the store
+  from then on, so nothing reads it. Documented rather than worked around.
+- 2026-09-21 (267e): the committed `.ahm/.gitignore` cannot keep the
+  project-mode entry list once the records live in the store: the task-index
+  and `.lock/` patterns would describe paths that no longer exist, and the
+  migration leaves no in-project record tree for them to hide. It keeps the
+  `*.tmp` pattern only, because the atomic rewrite of `.ahm/config.json` still
+  creates a temp file there, and it carries its own header, because the
+  project-mode header claims the task records stay committed, which is exactly
+  what changed. `install` does not reconcile this file: it is a move artefact,
+  and no other home-mode command writes into `.ahm/` besides `config.json`.
+- 2026-09-21 (267e): the source's generated task indexes are removed by the
+  move, and the destination's are regenerated. The plan's phrase "regenerates
+  indexes on both sides" resolves to the destination's task indexes plus the
+  committed ADR index, which lives in the project in the new layout too:
+  regenerating the source's indexes would recreate the very files the new
+  `.gitignore` stops ignoring, as untracked files describing an empty backlog.
+- 2026-09-22 (267e, review pass): the move has to resolve every read it owes
+  before it moves a byte. The first version read the committed configuration
+  inside its last write, after `moveTaskRecords` had already deleted the source
+  records and filled the destination. A committed configuration with a JSON typo
+  therefore moved the records out of the project, exited 1 with only the
+  metadata error, printed no report and no commit list, and failed identically
+  on every re-run — while the configuration still resolved as project mode, so
+  the destination copy was unreachable from ahm. Evidence: with `{oops` in
+  `.ahm/config.json`, `store migrate --to home` left the record deleted from the
+  working tree and present in the store, and a re-run repeated the error;
+  `TestStoreMigrateResolvesItsOwedWritesBeforeMovingRecords` now pins the
+  reverse.
+- 2026-09-22 (267e, review pass): the "no work" shortcut made the tail of a move
+  unrecoverable. The early return keyed on the record count and the
+  configuration alone, so a run that ended between its committed writes and
+  `removeSourceIndexes` left the source's generated indexes behind — un-ignored,
+  because the committed `.gitignore` had already flipped — and every later run
+  reported no work instead of removing them, while the printed commit list
+  invites the `git add -A` that would commit generated indexes. Evidence: a
+  probe left `?? .ahm/tasks/index.md` and "no work: task records already live in
+  the home store" on the re-run; `TestStoreMigrateWithoutWorkRemovesTheSourceLeftovers`
+  now pins the cleanup.
+- 2026-09-22 (267e, review pass): the move overwrote a destination record whose
+  bytes differed from the source's, in silence. The resume case is byte-identical
+  by construction, so a differing destination is a second copy of one record, and
+  a store copy has no history to recover from. Evidence: a store copy titled
+  "Store version" was replaced by the project's record with no warning and no
+  report line; `TestStoreMigrateRefusesADivergentDestinationRecord` now requires
+  the refusal in both directions and the `--force` override.
+- 2026-09-22 (267e, review pass): the post-mutation findings of a move passed the
+  ADR list's parse status where the task scan's belongs, because
+  `indexWritesForPaths` reused the `err` variable. That flag decides whether
+  validation reuses the partial task set or re-reads the tree, so a malformed
+  record lost the finding only the disk path produces: `ahm index` printed
+  "unsupported block list syntax in front matter" and `store migrate` printed
+  only the aggregate parse warning. Evidence:
+  `TestStoreMigrateReportsTheFindingsIndexReports` pins both commands' warnings.
+- 2026-09-22 (267e, review pass): the drift finding that makes a half-finished
+  move visible covers one direction only. `task_records_in_project` catches
+  records left in the project while the mode is home. The other residue — a move
+  out of the project that stops after the records moved but before its commit
+  point — leaves the records in the store while the configuration still names the
+  project, and `status`, `doctor`, and `prime` then report a healthy empty
+  backlog, because project mode never resolves the store. Evidence: with a
+  failure injected at or after the source-index cleanup, `status` reported
+  `Open: 0` and `doctor` reported `ok: true` while the store held
+  `tasks/active/001.md`; the only residue is the unstaged deletions in
+  `git status --short`, and re-running the same command finishes the move. A
+  mirror finding is not available: project mode deliberately does not read the
+  store, and a key is shared across clones, so the disk-reading path cannot tell
+  "the store holds this project's records" from "another clone is using it".
+- 2026-09-22 (267e, review pass): a move out of a store this machine has no
+  state file for — a fresh clone of a home-mode project — must record nothing.
+  The first version wrote the registry entry and the store's state file
+  unconditionally, so `store migrate --to project` created a store for a project
+  that had just declared it keeps its records in the project. Evidence:
+  `TestStoreMigrateToProjectDoesNotCreateAStore`. The store's project directory
+  still appears, because the lock a home-mode command holds lives there and the
+  lock protocol creates its directory; that is true of every home-mode mutation,
+  not of the move.
+- 2026-09-22 (267e, review pass): the uncommitted-record filter has to match the
+  task scan exactly, or it blocks a move over files the move never touches. A
+  first version kept every `.md` under the records root; a stray `.ahm/tasks/notes.md`
+  or `.ahm/tasks/active/sub/nested.md` then made the move refuse until
+  `--force`. The filter now keeps a `.md` file directly inside one of the
+  layout's record buckets, from the same `taskBuckets` set the scan reads.
+  Evidence: `TestRecordPathsOnlyKeepsRecordPaths`.
+- 2026-09-22 (267e, review pass): `git status --porcelain` is not read-only on
+  its own. It claims Git's optional lock to refresh its own index stat cache and
+  rewrites `.git/index`, which made the guardrail's read-only claim and the
+  preview's "writes nothing" false. Every ahm Git subprocess now runs with
+  `GIT_OPTIONAL_LOCKS=0`. Evidence: `.git/index`'s digest moved after
+  `ahm --dry-run store migrate --to home` before the change and stayed put after
+  it, while a plain `git status` in the same state still rewrote it;
+  `TestStoreMigratePreviewLeavesTheGitIndexAlone` and
+  `TestGitCommandEnvironmentTakesNoOptionalLock` pin it.
 
 ## Decision Log
 
@@ -482,8 +601,185 @@ directory belongs to the current project.
   through `writeOwned`, and 267e is the first command that deletes records on
   purpose rather than because one moved.
   Date/Author: 2026-09-21, Travis Ennis.
+- Decision: 267e confirms the delete side needs no separate containment check.
+  Every removed path is built from an accessor of the source layout — the task
+  scan's record paths, `tasksBucketDir(bucket)/index.md`, the empty records
+  directories — so the removal is confined by construction, exactly like the
+  vacated record path `task status` already removes. Every write the move makes
+  still goes through `writeOwned`, including into the store's project directory.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: `store migrate` takes the direction from `--to` alone, which is
+  required, and writes the committed `tasks_location` key after the records.
+  Rationale: deriving the direction from the configuration would invert a move
+  that stopped halfway (the configuration still names the old layout, and the
+  records are on both sides), and a resume has to be the same command that
+  started the move. Writing the key last means the configuration never names a
+  layout that does not hold the records yet, so an interrupted move leaves the
+  active layout usable instead of a half-empty one.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the move refuses record content that exists only in the working tree
+  — modified, staged, or untracked records — and names the paths, unless
+  `--force` is given. A deletion relative to `HEAD` is not such a change.
+  Rationale: the move deletes the source records, and Git history is then the
+  only record of their committed state, so a move that discards uncommitted
+  content is the one failure the command must not have. Deletions are excluded
+  because their content is in Git's history or already in the destination, and
+  because an interrupted move leaves exactly an unstaged deletion behind;
+  refusing on it would make the resumable move unresumable.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: the destination check refuses a store directory that
+  `<store>/registry.json` registers to a different project key, naming both
+  paths, and reads the registry rather than the directory's contents.
+  Rationale: a directory name is derived from a key, so two projects can share
+  one directory only through the registry, which is the authority for the
+  key-to-directory mapping; there is no other durable statement of whose records
+  a store directory holds.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: a move into the store rewrites the committed `.ahm/.gitignore` to
+  the `*.tmp` pattern only (with its own header), and `install` keeps
+  reconciling the store's `.gitignore` rather than the committed one in home
+  mode.
+  Rationale: the task-index and lock patterns describe the in-project state the
+  move removed, while the atomic rewrite of `.ahm/config.json` still creates a
+  temp file in `.ahm/`; and `init`'s home-mode reconcile targets the store's
+  file, so making it own two gitignores would add a second managed file per
+  install for one stale pattern list.
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: `store migrate` does not run the drift findings; it regenerates the
+  destination's indexes and emits the post-mutation state validation, which is
+  what every index-writing mutation does.
+  Rationale: 267c scoped the drift findings (`task_records_in_project`,
+  `store_dir_unreadable`) to the disk-reading validation path that `status`,
+  `doctor`, and `prime` use, and a migration is a mutation whose post-state
+  `ahm doctor` reports on; a move that stops with records left in the project is
+  visible through those two commands, which the milestone's acceptance names.
+  (The reverse residue — records in the store while the configuration still
+  names the project — reads as a healthy empty backlog; see the 2026-09-22
+  Surprises entry.)
+  Date/Author: 2026-09-21, Travis Ennis.
+- Decision: `store migrate` resolves the committed configuration, the store state
+  file, and the registry before it moves the first record, and writes the
+  committed `tasks_location` key last, after the source's derived files are gone;
+  a run that finds no records to move but finds those derived leftovers still
+  removes them.
+  Rationale: the move deletes the source records, so a failure it cannot recover
+  from has to happen while they are still there. Writing the configuration last
+  makes it the move's commit point: until it lands, the configuration still names
+  the source layout, so a repeated command takes the full path again, and the
+  lock this run holds stays the lock every other command takes. The leftover
+  cleanup is owed because the committed `.gitignore` write is what stops ignoring
+  the source's generated indexes, and no other command removes them.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: a destination that already holds the arriving record's identity is
+  refused in both directions, with `--force` as the documented override, instead
+  of being overwritten or duplicated. That covers different bytes under the same
+  name, and the same ID in another bucket, which would survive the move beside
+  the record that just arrived.
+  Rationale: the resume path only ever meets a byte-identical destination in the
+  same bucket, so neither case is two copies of one record arriving. A store copy
+  has no history and a project copy may be the only committed one, so neither
+  can be reconstructed from the other; and two records with one ID is a state no
+  command can resolve. Replacing or duplicating either is the user's decision,
+  not the move's.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: the uncommitted-record refusal reports task record paths only, not
+  the generated indexes or other files inside the records tree.
+  Rationale: the move deletes records, so record content is the only thing Git
+  history has to preserve. Naming a derived file would ask the user to commit
+  output ahm regenerates, and would block a move over files it never touches; the
+  filter mirrors the task scan's own.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: every ahm Git subprocess runs with `GIT_OPTIONAL_LOCKS=0`, and the
+  shared environment filter drops a caller-set value before adding it.
+  Rationale: the project claims ahm's Git commands are read-only, and `git
+  status` claims Git's optional lock to refresh its own index stat cache, so it
+  rewrites `.git/index` without the setting. Dropping the caller's value keeps
+  exactly one occurrence of the variable in the environment, because the lookup
+  order among duplicates is not portable.
+  Date/Author: 2026-09-22, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+### 267e — Add the migration command (2026-09-21)
+
+Delivered: `internal/ahm/store_migrate.go` holds `ahm store migrate --to
+home|project`, the `storeMigrateReport` it emits, and the move itself
+(`moveTaskRecords`, `copyRecord`, `migratedRecordPath`). `workflowPaths` gained
+`projectGitignorePath` and `projectGitignoreContent`, so the committed
+`.ahm/.gitignore` has one definition per mode, and `store.go` gained
+`recordStoreMigration` (a thin `updateStoreProject` mutation) so the registry
+can record where the records came from. The `store` group's help, the CLI
+reference, the global contract's `--dry-run` and `--force` rows, the
+architecture map and invariants, and the safety guardrail all name the new
+command.
+
+Against this milestone's acceptance. `ahm --dry-run store migrate --to home` in
+a scratch repository lists every move, write, removal, and commit list, takes no
+lock, writes nothing, and leaves the store uncreated
+(`TestStoreMigrateDryRunPreviewsWithoutWriting`, whose `assertStoreAbsent` probe
+caught the first version writing `registry.json` during a preview). A real run
+moves the records, prints the deletions, and leaves them visible to
+`git status --short` (`TestStoreMigrateToHomeMovesTheRecords`, which also
+requires the second run to report no work and to rewrite nothing on either
+side). `--to project` restores the project layout, the committed
+`.ahm/.gitignore` and configuration, and the store's counter
+(`TestStoreMigrateRoundTripRestoresTheProjectLayout`); an interrupted move is
+finished by re-running the command, and the record that already arrived keeps
+its bytes and its modification time
+(`TestStoreMigrateResumesAfterAnInterruptedMove`, driven by
+`storeMigrateRecordHook`). A destination registered to another key fails with
+both paths named (`TestStoreMigrateRefusesAStoreOfAnotherKey`), uncommitted
+record content fails and names the paths until `--force` is given
+(`TestStoreMigrateRefusesUncommittedRecords`), and a root with no `.git` of its
+own moves without the Git check
+(`TestStoreMigrateWithoutGitMetadataSkipsTheCommitCheck`). A store populated by
+the move seeds `next_id`, so deleting the newest record by hand and creating
+another still yields `003` (`TestStoreMigrateSeedsTheTaskIDCounter`).
+`TestStatusReportsTaskRecordsLeftInTheProject` pins the drift finding the
+milestone asked for in `status`; `doctor` already had it, and both read the same
+validation scope, so no finding code was added.
+
+Judgment calls, recorded in the Decision Log and Surprises. The direction comes
+only from `--to`, and the committed `tasks_location` key is written after the
+records, so an interrupt leaves a usable layout and a re-run continues the same
+move rather than inverting it. The uncommitted check ignores deletions, because
+the move itself leaves unstaged deletions behind when it stops halfway. The
+committed `.ahm/.gitignore` keeps only `*.tmp` in home mode and is not
+reconciled by `install`, which continues to own the store's `.gitignore` in that
+mode. The record removal has no containment wrapper, per the 267c handoff: every
+removed path comes from a source-layout accessor, and every write still goes
+through `writeOwned`. The deleted index files are the source's generated task
+indexes, removed rather than regenerated; "regenerates indexes on both sides" is
+the destination's task indexes plus the committed ADR index.
+
+What is left for 267h: the workflow spec's store layout gains the migration and
+the committed `.ahm/.gitignore` content per mode, the upgrade guide gains the
+opt-in procedure (which is now exercisable end to end), and the glossary gains
+`store migrate`, `tasks_location`, and `migrated_from`.
+
+A review pass on 2026-09-22 reordered the move and added the refusals it owes,
+all recorded in the Surprises and Decision Log above: every read whose failure
+would strand the move happens before the first record moves, the committed
+configuration is written last and is therefore the move's commit point, a
+no-work run still removes the source's derived leftovers, a destination that
+already holds the arriving record's identity is refused rather than overwritten
+or duplicated, a move out of a store that holds nothing records nothing, the
+uncommitted check names record paths only and matches the task scan's file set,
+the post-mutation findings take the task scan's completeness rather than the ADR
+list's, and every ahm Git subprocess runs with `GIT_OPTIONAL_LOCKS=0`. Ten tests
+cover the behavior those changes introduce, and the CLI reference,
+`ARCHITECTURE.md`, and the safety guardrail were corrected where they described
+the old order, overstated the read-only Git guarantee, or named `--force` as an
+override the store-directory refusal does not have.
+
+### 267d — Persist a non-decrementing task ID counter (2026-09-21)
+
+Delivered in `internal/ahm/task_id_counter.go`: the store's `next_id` high-water
+mark in `project.json`, allocation as the higher of that counter and one past
+the highest record present, the raise after a top-level create, and init's
+seeding from the records present. Full detail, evidence, and the judgment calls
+live in that task's completion comment; this entry records the milestone in the
+plan's own history, which the milestone itself left out.
 
 ### 267c — Read and write task records in the home store (2026-09-21)
 
@@ -911,16 +1207,38 @@ To watch 267a work, run it in two clones of one repository and compare:
     $ ahm --json store path
     {"root":"/Users/you/.ahm","key":"github.com/travisennis/ahm","kind":"remote","records":"/Users/you/.ahm/projects/ahm-3f9ac4d1/tasks"}
 
-To watch 267e work, use a scratch repository so nothing important is at risk:
+To watch 267e work, use a scratch repository so nothing important is at risk.
+The records are committed first, because a move out of the project refuses
+record content that exists only in the working tree:
 
     $ mkdir -p /tmp/ahm-migrate && cd /tmp/ahm-migrate
     $ git init -q && ahm init && ahm task create "First"
+    $ git add -A && git commit -qm 'workflow and first task'
     $ AHM_HOME=/tmp/ahm-home ahm --dry-run store migrate --to home
-    would move .ahm/tasks/active/001.md -> store:tasks/active/001.md
-    would update .ahm/config.json, .ahm/.gitignore, and 1 index
+    would move 1 record(s) to the home store
+      .ahm/tasks/active/001.md -> store:tasks/active/001.md
+    would write store:tasks/active/index.md
+    would write store:tasks/cancelled/index.md
+    would write store:tasks/completed/index.md
+    would write store:tasks/index.md
+    would write .ahm/.gitignore
+    would write store:.gitignore
+    would write .ahm/config.json
+    would remove .ahm/tasks/index.md
+    would remove .ahm/tasks/active/index.md
+    would remove .ahm/tasks/completed/index.md
+    would remove .ahm/tasks/cancelled/index.md
+    deletions to commit after the move:
+      .ahm/tasks/active/001.md
     $ AHM_HOME=/tmp/ahm-home ahm store migrate --to home
-    moved 1 record to store:tasks/active/001.md
+    move 1 record(s) to the home store
+      .ahm/tasks/active/001.md -> store:tasks/active/001.md
+    ...
+    deletions to commit:
+      .ahm/tasks/active/001.md
     $ git status --short
+     M .ahm/.gitignore
+     M .ahm/config.json
      D .ahm/tasks/active/001.md
 
 ## Validation and Acceptance
@@ -945,7 +1263,13 @@ two clones of one repository, a repository with no remote, a repository whose
 symlinked path resolves to one key, the containment refusal in `writeOwned`,
 the drift finding for records left in the project, the counter's
 non-decrementing property, a full `--to home` and `--to project` round trip,
-and an interrupted move that is completed by re-running the command.
+an interrupted move that is completed by re-running the command, a
+precondition read that fails before any record moves, a repeated run that
+cleans up the source leftovers, a destination that already holds the arriving
+record's identity (different bytes under the same name, or the same ID in
+another bucket), a move that stops at its commit point, a move out of a store
+that holds nothing, the record-path filter the uncommitted check applies to
+Git's output, and a preview that leaves `.git/index` alone.
 
 ## Idempotence and Recovery
 
@@ -957,6 +1281,20 @@ atomically into the destination, and then removed from the source, so a crash
 or an interrupt leaves records on both sides, and re-running the command
 finishes the move. The command never uses a rename across filesystems, because
 the store and the project may be on different volumes.
+
+The recovery boundary is the committed `tasks_location` key, which the move
+writes last: until it lands, the configuration still names the source layout,
+so a repeated command takes the full path again and finishes whatever the
+interrupted run had left — including the source's generated indexes, which the
+destination's `.gitignore` write stops ignoring. Every read whose failure would
+strand the move — the committed configuration, and the store state and registry
+it records — happens before the first record moves, so a precondition that
+cannot be met (the configuration is unreadable, a store file was written by a
+newer ahm) leaves the records in their source layout rather than stranding them
+in the destination with no way back; a failure after that point leaves the move
+finishable by the same command. A destination that already holds the arriving
+record's identity is refused rather than overwritten or duplicated, because
+neither copy can be reconstructed from the other.
 
 Before the user commits, `git restore` returns the working tree to its
 pre-migration state. After the user commits, `git revert` of the migration

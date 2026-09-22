@@ -28,16 +28,33 @@ atomic writes, and dry-run behavior.
   owned repository or workflow directory. Route every workflow record, index,
   and configuration write through `writeOwned`, which refuses a target outside
   an owned root and then writes atomically. A direct `writeFileAtomic` call is
-  reserved for the store state that `ahm store path` records, which it builds
-  from a resolved `storePaths` and no `workflowPaths`: the store's own
-  `registry.json`, which always sits at the store root, and `project.json`,
-  which is inside an owned root in `home` mode and outside one in `project`
-  mode. The task ID counter in that same `project.json` is written by
-  `task create` and `ahm init`, which do hold the resolved paths, so it goes
-  through `writeOwned`. A direct `os.WriteFile` is reserved for the lock
-  protocol's owner token inside the lock it just created.
+  reserved for the store state that `ahm store path` and `ahm store migrate`
+  write, which they build from a resolved `storePaths` and no `workflowPaths`:
+  the store's own `registry.json`, which always sits at the store root, and
+  `project.json`, which is inside an owned root in `home` mode and outside one
+  in `project` mode. The task ID counter in that same `project.json` is written
+  by `task create`, `ahm init`, and `ahm store migrate`, which do hold the
+  resolved paths, so it goes through `writeOwned`. A direct `os.Remove` is
+  reserved for ahm-owned scratch and derived paths, never a path that came from
+  user input: paths under a resolved records root built from that layout's own
+  accessors (the task scan's record paths, its generated index paths, and the
+  records directories a move emptied), the stale temp files `cleanupStaleTemps`
+  reaps, the temp file an atomic write removes beside its target when a step
+  fails, and the lock protocol's own directories — the quarantine a reclaimed
+  lock moves through and the lock a failed acquire rolls back. `store migrate`
+  is the only command that removes records on purpose, and a removal is not a
+  write, so it has no containment counterpart (see the migration invariant in
+  `ARCHITECTURE.md`). A direct `os.WriteFile` is reserved for the lock protocol's
+  owner token inside the lock it just created.
 - Route ahm-owned Git subprocesses through the shared environment filter; do
   not rely on `git -C` alone when hook-provided `GIT_*` variables may exist.
+  The commands ahm runs stay read-only: the remote reads identity resolution
+  needs, `prime`'s `git status --short --branch` worktree summary, and the
+  `git status --porcelain` that `store migrate --to home` uses to find record
+  content that exists only in the working tree. Read-only has to be enforced
+  rather than assumed: the shared environment sets `GIT_OPTIONAL_LOCKS=0`,
+  because both `git status` reads otherwise claim Git's optional lock to refresh
+  its own index stat cache and so rewrite `.git/index`.
 - Re-read ADR 001 before changing atomic write behavior.
 - Re-read `docs/references/workflow-spec.md` before changing ownership
   boundaries or validation side effects.

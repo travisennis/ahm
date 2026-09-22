@@ -17,7 +17,11 @@ by root detection rather than half-adopted.
   `ahm` does not patch source files, commit, create PRs, or run implicit git
   operations. Workflow commands read and write record files under
   `.ahm/tasks/` and `docs/adr/` without moving `HEAD`, staging files, writing
-  the project index, or modifying project-owned files.
+  the project index, or modifying project-owned files. A repository whose
+  records live in the user-level store keeps its task records there instead,
+  and `store migrate` is the one command that moves records between the two
+  layouts — as files, never as a Git operation: it reads Git only to derive
+  identity and to check for uncommitted record changes.
 
 ## Compatibility Surfaces
 
@@ -28,6 +32,10 @@ by root detection rather than half-adopted.
 - Install reconciliation behavior, including project-owned `AGENTS.md`
   behavior and the retired-file ownership boundary.
 - Atomic write guarantees and stale temp-file cleanup.
+- Home-store resolution: the `tasks_location` mode, the derived project key and
+  registry mapping, the `store path` and `store migrate` command surface with
+  its exit codes and refusals, and the `store:<store-relative>` display
+  convention.
 - Go module version, local tool versions, CI, and release packaging.
 
 ## Module Map
@@ -41,6 +49,7 @@ location map; this section describes what each group does.
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
+| Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, counter, and registry writes the move owes. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode), the managed `.gitignore` of the resolved records location, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_id_counter.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking, and the store's task ID counter. |
@@ -58,13 +67,45 @@ location map; this section describes what each group does.
   root, and the store's project directory when records live in the store).
   `writeFileAtomic` guarantees atomicity only; containment lives in
   `writeOwned`. Two writers stay outside it by design: the lock protocol writes
-  its owner token inside the lock it just created, and `store path` writes the
-  store's registry and its own observation of `project.json` directly, because
-  `recordStoreProject` works from a resolved `storePaths` rather than from the
-  owned roots. The registry is never inside an owned root, and the state file is
-  inside one only when the records live in the store. The task ID counter in
-  that same state file is written by `task create` and `ahm init`, which do hold
-  the resolved paths, so it goes through `writeOwned`.
+  its owner token inside the lock it just created, and `store path` and
+  `store migrate` write the store's registry and their own observation of
+  `project.json` directly, because they work from a resolved `storePaths`
+  rather than from the owned roots. The registry is never inside an owned root,
+  and the state file is inside one only when the records live in the store. The
+  task ID counter in that same state file is written by `task create`,
+  `ahm init`, and `store migrate`, which do hold the resolved paths, so it goes
+  through `writeOwned`.
+- Records move between the two layouts only through `store migrate`, and only in
+  the direction `--to` names: the layout the configuration currently names is
+  never the evidence for a direction. Each record is read, written atomically
+  into the destination through `writeOwned`, and removed from the source only
+  afterwards, because the store and the project may not share a filesystem, so
+  the move is resumable and idempotent by construction. Every read whose failure
+  would leave the move owing a file it cannot write — the committed
+  configuration, and the store state and registry it records — happens before
+  the first record moves, so a precondition that cannot be met leaves the
+  records where they are; a failure after that point (an unreadable ADR tree,
+  say) leaves the move finishable by running the same command again. The
+  committed `tasks_location` key is written last of all, after the records and
+  the source's derived files are gone: it is the move's one commit point, so
+  until it lands the configuration still names the source layout, a repeated
+  command takes the same path again, and the lock this run holds stays the lock
+  every other command takes. The source deletions are direct `os.Remove` calls
+  on paths built from the source layout's own accessors — the task scan's record
+  paths, its generated index paths, and the records directories the move emptied
+  — which confines them by construction. Every write the move makes still goes
+  through `writeOwned`, including the managed `.gitignore` of either layout and
+  the task ID counter in the store's state file; the migration's own observation
+  of that state file and of the registry stays the direct `writeFileAtomic` the
+  bullet above describes. The move refuses a destination store directory the
+  registry registers to another project key, refuses a destination that already
+  holds the arriving record's identity — different bytes under the same name, or
+  the same ID in another bucket — and refuses to delete records whose content
+  exists only in the working tree, asking Git through one read-only
+  `git status --porcelain` on the records root. The store-directory refusal is
+  a misregistration to repair rather than to force past; the other two apply to
+  both directions and to a move out of the project respectively, and `--force`
+  overrides them.
 - A repository has two roots: a project root that owns `.ahm/config.json` and
   `docs/adr/`, and a records root that owns task records and their generated
   indexes. `workflow_paths.go` is the single definition of both, and every task

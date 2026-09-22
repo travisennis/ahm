@@ -195,7 +195,26 @@ func (p workflowPaths) workflowGitignorePath() string {
 	if p.inStore() {
 		return filepath.Join(p.store.ProjectDir, gitignoreFileName)
 	}
+	return p.projectGitignorePath()
+}
+
+// projectGitignorePath is the committed .ahm/.gitignore, which lives in the
+// project in both layouts.
+func (p workflowPaths) projectGitignorePath() string {
 	return filepath.Join(p.projectRoot, filepath.FromSlash(recordsGitignoreRelPath))
+}
+
+// projectGitignoreContent is the content of the committed .ahm/.gitignore for
+// the resolved mode. Project mode owns the full list of generated task indexes,
+// the records lock, and temp files. Home mode owns only the temp-file pattern:
+// the task indexes and the lock moved into the store with the records, and the
+// one write ahm still makes in .ahm/ is the atomic rewrite of config.json,
+// whose leftover temp file must stay out of Git.
+func (p workflowPaths) projectGitignoreContent() []byte {
+	if p.inStore() {
+		return []byte(homeRecordsGitignoreHeader + gitignoreTempPattern + "\n")
+	}
+	return recordsGitignoreContent()
 }
 
 // workflowGitignoreContent is the complete .gitignore ahm owns for the resolved
