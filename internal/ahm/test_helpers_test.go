@@ -149,6 +149,19 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
+// projectRoot returns a temporary directory prepared as a repository that
+// predates the home store: its committed configuration carries no
+// tasks_location key, so its records stay in the project. A repository with no
+// configuration at all is a new project and defaults to the store, so a test
+// that exercises the in-project layout asks for this fixture instead of a bare
+// temporary directory.
+func projectRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	writeMetadataFile(t, root, metadata{Files: map[string]string{}})
+	return root
+}
+
 // setupAhmRepo creates minimal .ahm/ workflow state in root: .ahm/config.json
 // and the directory structure ahm installs.
 func setupAhmRepo(t *testing.T, root string) {

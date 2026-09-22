@@ -123,15 +123,38 @@ is present.
 
 **Guarantees:**
 
-- In `project` mode it creates `.ahm/config.json`, the managed
-  `.ahm/.gitignore`, the record directories, and the generated indexes when they
-  are missing.
-- In `home` mode it prepares the store instead of `.ahm/tasks/`: the record
-  directories and the store's managed `.gitignore` under the store's directory
-  for the project, plus the store's `project.json` state file, which records the
-  next top-level task ID the records present imply. `project.json` is not listed
-  in the result, because it is store state rather than a reconciled workflow
-  file.
+- A repository with no `.ahm/config.json` is a new project, and a new project
+  keeps its task records in the user-level store. The run writes
+  `tasks_location: home` into the configuration it creates and prepares the
+  store: the record directories, the generated task indexes, and the store's
+  managed `.gitignore` under the store's directory for the project, plus the
+  store's `project.json` state file, which records the next top-level task ID
+  the records present imply, and its identity in `<store>/registry.json`.
+  Neither store file is listed in the result, because they are store state
+  rather than reconciled workflow files.
+- A new project whose root holds `.git` needs Git to read that repository: an
+  unreadable one fails (exit code 1) rather than deriving a different store key,
+  because identity comes from the `origin` remote. A root with no `.git` uses
+  the path rule and reads no Git.
+- A repository that already has a configuration keeps the mode it names: a
+  configuration without a `tasks_location` key — every repository that predates
+  the store — keeps its records in the project, and `init` leaves the file
+  byte-identical. In `project` mode it creates the `.ahm/tasks/` record
+  directories and the generated indexes under the project root instead of the
+  store's.
+- In both modes it writes the committed `.ahm/config.json` and the managed
+  `.ahm/.gitignore` when they are missing. The committed `.gitignore` lists the
+  generated task indexes and the records lock in `project` mode, and only the
+  temp-file pattern in `home` mode, where the task indexes and the lock live in
+  the store.
+- There is no `--tasks-project` flag. A new repository that wants its records in
+  the project runs `ahm store migrate --to project`, which writes the mode and
+  needs no preceding `ahm init`.
+- The store must be writable, because the run records the project in the store
+  registry: a store that cannot be written exits 1 and names the path, at the
+  first write that fails. A store root that cannot be created fails before
+  anything is written; a store whose state cannot be written fails after the
+  project's own files are installed.
 - Rewrites an ahm-owned file only when its bytes differ from what ahm owns, so
   an up-to-date repository is left untouched and a repeated run writes nothing.
 - Drops obsolete ahm-owned configuration keys (`taskWork`,
@@ -144,7 +167,8 @@ is present.
   `v1.0.0`, the final v1 release, as the release to upgrade with first. A
   repository that also holds `.ahm/config.json` is managed: the v1 migration
   wrote the config after moving the records, so the legacy file is stale.
-- `--dry-run` previews every write without touching the filesystem.
+- `--dry-run` previews every write without touching the filesystem, the store
+  directory included.
 
 ### `store path`
 
@@ -197,6 +221,11 @@ store. It is the only command that moves a record between the two layouts;
   from the current configuration, so repeating the command after an interrupt
   finishes the move it started. A missing or unknown `--to` is a usage error
   (exit code 2).
+- A repository with no configuration names no layout, so it takes the full move
+  in either direction and writes the mode `--to` asks for: `--to home` sets a new
+  project up in the store, and `--to project` keeps a new project's records in
+  the project. The configuration is written even though no record moved, because
+  the run is what commits the layout.
 - Each record is read, written atomically into the destination, and removed from
   the source only afterwards. Nothing is renamed, so the move works when the
   store and the project are on different volumes, and a crash or an interrupt
@@ -272,7 +301,8 @@ store. It is the only command that moves a record between the two layouts;
   `written`, `removed`, `dry_run` (dry runs only), and the `deletions` or
   `additions` commit list. Text output prints the same actions, one per line,
   and abbreviates no path: a store path renders as `store:<store-relative>`.
-- A repeated run whose records already live in the destination reports no work
+- A repeated run whose records already live in the destination — a repository
+  whose configuration names it — reports no work
   and writes nothing, unless it finds the source's generated indexes or empty
   records directories still there, which it removes and reports.
 

@@ -173,7 +173,7 @@ func TestStatusReportsValidationFindings(t *testing.T) {
 }
 
 func TestValidationReportsCancelledDependency(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -196,7 +196,7 @@ func TestValidationReportsCancelledDependency(t *testing.T) {
 }
 
 func TestValidationReportsBlockedDepsComplete(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// 002 is Blocked but all its deps (001) are Completed.
 	// Use writeTaskFileWithDeps for all tasks so depends_on is always present.
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done Dep", "Completed", "-")
@@ -339,7 +339,7 @@ func TestStatusWithoutMetadataDoesNotCascadeWorkflowArtifactFindings(t *testing.
 }
 
 func TestStatusWithMetadataShowsInstalledVersion(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -392,7 +392,7 @@ func TestDoctorWithoutMetadataShowsInstalledVersionNone(t *testing.T) {
 }
 
 func TestStatusReportsWorkflowArtifactConsistency(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -531,7 +531,7 @@ func TestValidateGeneratedIndexesContinuesAfterPartialADRParseError(t *testing.T
 }
 
 func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -562,7 +562,7 @@ func TestStatusAndDoctorReportLegacyADRsWithoutFailing(t *testing.T) {
 }
 
 func TestStatusReportsADRErrors(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -583,7 +583,7 @@ func TestStatusReportsADRErrors(t *testing.T) {
 }
 
 func TestStatusReportsMarkdownLinksInWorkflowFiles(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -652,7 +652,7 @@ func TestWalkMarkdownLinks(t *testing.T) {
 }
 
 func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1016,7 +1016,7 @@ func TestValidateWorkflowScopedWorkflowOnly(t *testing.T) {
 }
 
 func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1055,7 +1055,7 @@ func TestValidateWorkflowScopedLinksOnly(t *testing.T) {
 
 func TestValidateWorkflowScopedAll(t *testing.T) {
 	// nil scopes = default checks (same as validateWorkflow): workflow + links.
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1087,7 +1087,7 @@ func TestValidateWorkflowScopedAll(t *testing.T) {
 }
 
 func TestCLIStatusInvalidCheckScope(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1105,7 +1105,7 @@ func TestCLIStatusInvalidCheckScope(t *testing.T) {
 }
 
 func TestCLIDoctorWithCheckScope(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1285,7 +1285,7 @@ func TestPostMutation_DryRunSkipsValidation(t *testing.T) {
 }
 
 func TestDocsCommandRemoved(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -1304,7 +1304,7 @@ func TestDocsCommandRemoved(t *testing.T) {
 }
 
 func TestProjectDocsCheckScopeRemoved(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {

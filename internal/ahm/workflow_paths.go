@@ -198,6 +198,29 @@ func (p workflowPaths) workflowGitignorePath() string {
 	return p.projectGitignorePath()
 }
 
+// managedGitignore is one .gitignore ahm owns for a resolved layout, with the
+// content ahm writes into it.
+type managedGitignore struct {
+	path    string
+	content []byte
+}
+
+// managedGitignores are the managed .gitignore files the resolved mode owns.
+// Project mode owns one: the committed .ahm/.gitignore, which covers the
+// generated task indexes, the records lock, and temp files. Home mode owns two:
+// the committed .ahm/.gitignore, which keeps the atomic rewrite of config.json
+// from leaving an untracked temp file behind, and the store's own .gitignore
+// beside the records, where the indexes, the lock, and the store state live.
+// Every command that reconciles or rewrites them — install, prime, and the
+// migration — owns the same set.
+func (p workflowPaths) managedGitignores() []managedGitignore {
+	files := []managedGitignore{{p.projectGitignorePath(), p.projectGitignoreContent()}}
+	if p.inStore() {
+		files = append(files, managedGitignore{p.workflowGitignorePath(), p.workflowGitignoreContent()})
+	}
+	return files
+}
+
 // projectGitignorePath is the committed .ahm/.gitignore, which lives in the
 // project in both layouts.
 func (p workflowPaths) projectGitignorePath() string {

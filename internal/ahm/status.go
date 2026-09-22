@@ -20,8 +20,13 @@ func (a *app) status() error {
 		"tasks":             taskCounts(tasks),
 		"validation":        validation,
 	}
-	if storeStatus, ok := a.workflowPaths().recordsStatus(); ok {
-		status["store"] = storeStatus
+	// The store is reported only for an installed project whose records live
+	// there: a repository with no configuration is not installed yet, and its
+	// store directories appear with the first command that writes into them.
+	if metaErr == nil {
+		if storeStatus, ok := a.workflowPaths().recordsStatus(); ok {
+			status["store"] = storeStatus
+		}
 	}
 	if err := a.emit(status); err != nil {
 		return err

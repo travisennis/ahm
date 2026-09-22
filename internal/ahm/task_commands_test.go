@@ -14,7 +14,7 @@ import (
 )
 
 func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -53,7 +53,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 }
 
 func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -73,7 +73,7 @@ func TestTaskCreateAllowsFlagsAfterTitle(t *testing.T) {
 }
 
 func TestTaskCreateParallelAllocatesUniqueIDs(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -142,7 +142,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 		workflowLockTimeout = oldTimeout
 	}()
 
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -193,7 +193,7 @@ func TestTaskCreateWaitsForIDAllocationLock(t *testing.T) {
 }
 
 func TestTaskCreateBodyFile(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -236,7 +236,7 @@ func TestTaskCreateBodyFile(t *testing.T) {
 }
 
 func TestTaskCreateBodyFileFromStdin(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -315,7 +315,7 @@ func TestTaskCreateBodyFileErrors(t *testing.T) {
 }
 
 func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -349,7 +349,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1(t *testing.T) {
 }
 
 func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -376,7 +376,7 @@ func TestTaskCreateBodyFileStripsDuplicateH1WithLeadingBlanks(t *testing.T) {
 }
 
 func TestTaskCreateBodyFilePreservesDifferentH1(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -533,7 +533,7 @@ func TestTaskCreateRejectsWhitespace(t *testing.T) {
 }
 
 func TestTaskCreateCanonicalizesEmptyLabels(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -553,7 +553,7 @@ func TestTaskCreateCanonicalizesEmptyLabels(t *testing.T) {
 }
 
 func TestTaskCreateSubtask(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -637,7 +637,7 @@ func TestTaskCreateSubtaskParentIsChildRejected(t *testing.T) {
 }
 
 func TestTaskCreateSubtaskCollisionAvoidance(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -694,7 +694,7 @@ func TestTaskCreateSubtaskDryRun(t *testing.T) {
 
 func TestTaskCreateTopLevelUnchangedWithParentFlag(t *testing.T) {
 	// Verify that not using --parent still produces top-level IDs.
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -710,7 +710,7 @@ func TestTaskCreateTopLevelUnchangedWithParentFlag(t *testing.T) {
 }
 
 func TestTaskCreateDependsOn(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -780,7 +780,7 @@ func TestTaskCreateDependsOn(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnResolvesBeforeSelfCycleCheck(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -841,7 +841,7 @@ func TestTaskCreateDependsOnRejectsSelfCycle(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsDanglingCycle(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -864,7 +864,7 @@ func TestTaskCreateDependsOnRejectsDanglingCycle(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsAmbiguous(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -889,7 +889,7 @@ func TestTaskCreateDependsOnRejectsAmbiguous(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsAmbiguousNotSelfCycle(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -918,7 +918,7 @@ func TestTaskCreateDependsOnRejectsAmbiguousNotSelfCycle(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsDuplicatedBucketID(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -942,7 +942,7 @@ func TestTaskCreateDependsOnRejectsDuplicatedBucketID(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsCompleted(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -965,7 +965,7 @@ func TestTaskCreateDependsOnRejectsCompleted(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnRejectsCancelled(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -1004,7 +1004,7 @@ func TestTaskCreateDependsOnRejectsEmptyPart(t *testing.T) {
 }
 
 func TestTaskCreateDependsOnWithParent(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -1072,7 +1072,7 @@ func TestTaskCreateDependsOnDryRun(t *testing.T) {
 }
 
 func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Preserve Metadata", "Pending", "depends_on: []\n"+
 		"created: 2026-05-01\n"+
@@ -1110,7 +1110,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 }
 
 func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Unknown Fields", "Pending",
 		"assignee: alice\n"+
@@ -1159,7 +1159,7 @@ func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			root := t.TempDir()
+			root := projectRoot(t)
 			path := filepath.Join(root, ".ahm", "tasks", tt.initialBucket, "001.md")
 			writeFormattedTitleTask(t, path, "001", "Fix ahm task accept", tt.initial)
 
@@ -1226,7 +1226,7 @@ func assertTaskHasSinglePlainH1(t *testing.T, path string, title string) {
 }
 
 func TestTaskStatusNoOp(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	path := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, path, "001", "Already In Progress", "In Progress", "depends_on: -\n")
 
@@ -1256,7 +1256,7 @@ func TestTaskStatusNoOp(t *testing.T) {
 }
 
 func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Task has Completed status but sits in active bucket.
 	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
@@ -1283,7 +1283,7 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 }
 
 func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Task has Cancelled status but sits in active bucket.
 	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Cancelled", "Cancelled", "depends_on: -\n")
@@ -1309,7 +1309,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 }
 
 func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Task has Completed status but sits in active bucket.
 	oldPath := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
 	writeTaskFile(t, oldPath, "001", "Already Completed", "Completed", "depends_on: -\n")
@@ -1331,7 +1331,7 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 }
 
 func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Task is Completed and already in completed bucket — true no-op.
 	path := filepath.Join(root, ".ahm", "tasks", "completed", "001.md")
 	writeTaskFile(t, path, "001", "Truly Completed", "Completed", "depends_on: -\n")
@@ -1376,7 +1376,7 @@ func TestFilterReadyAndBlockedTasks(t *testing.T) {
 }
 
 func TestTaskListFiltersStatus(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Pending Task", "Pending", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "002.md"), "002", "Completed Task", "Completed", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "003.md"), "003", "Cancelled Task", "Cancelled", "")
@@ -1452,7 +1452,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 }
 
 func TestTaskListFiltersLabels(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "CLI Feature", "Pending", "labels: type:feature, area:cli\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Docs Feature", "Pending", "labels: type:feature, area:docs\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "CLI Bug", "Pending", "labels: type:bug, area:cli\n")
@@ -1493,7 +1493,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 }
 
 func TestTaskSearch(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Add timeout handling", "Pending", "labels: type:feature, area:cli\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Document Timeout defaults", "Open", "labels: type:docs, area:docs\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Unrelated work", "Pending", "labels: type:task, area:cli\n")
@@ -1579,7 +1579,7 @@ func TestTaskSearchCLINoQuery(t *testing.T) {
 }
 
 func TestTaskListFiltersPriority(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P0 Task", "Pending", "P0", "")
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P1 Task", "Pending", "P1", "")
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "P2 Task", "Pending", "P2", "")
@@ -1642,7 +1642,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 }
 
 func TestTaskListFiltersEffort(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Write task files with custom effort values via extraFrontMatter override
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "XS Task", "Pending", "P2", "effort: XS\n")
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "S Task", "Pending", "P2", "effort: S\n")
@@ -1706,7 +1706,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 }
 
 func TestTaskListFiltersPriorityEffortJSON(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P0 XS", "Pending", "P0", "effort: XS\n")
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P1 M", "Pending", "P1", "effort: M\n")
 
@@ -1723,7 +1723,7 @@ func TestTaskListFiltersPriorityEffortJSON(t *testing.T) {
 }
 
 func TestTaskReadyFiltersLabels(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:task, area:cli\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "CLI Ready", "Pending", "labels: type:feature, area:cli\ndepends_on: 001\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Docs Ready", "Pending", "labels: type:feature, area:docs\n")
@@ -1738,7 +1738,7 @@ func TestTaskReadyFiltersLabels(t *testing.T) {
 }
 
 func TestTaskReadyIncludesTrackingWithAllChildrenResolved(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// 001 is Tracking with all children Completed or Cancelled — ready.
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Tracker Done", "Tracking", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
@@ -1808,7 +1808,7 @@ func TestTaskCompleteLastChildWarnsTrackerChildrenComplete(t *testing.T) {
 }
 
 func TestTaskNextSelectsHighestPriorityReadyTracking(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// P1 tracker with all children Completed beats the P2 pending task.
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "P1 Tracker", "Tracking", "P1", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001a.md"), "001a", "Child A", "Completed", "parent: 001\n")
@@ -1825,7 +1825,7 @@ func TestTaskNextSelectsHighestPriorityReadyTracking(t *testing.T) {
 }
 
 func TestTaskLabelsListsCounts(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "labels: type:feature, area:cli\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Ready", "Pending", "labels: type:feature, area:cli\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Needs Triage", "Open", "labels: type:bug, area:cli\n")
@@ -1845,7 +1845,7 @@ func TestTaskLabelsListsCounts(t *testing.T) {
 }
 
 func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Done", "Completed", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "P2 Ready", "Pending", "depends_on: 001\n")
 	writeTaskFileWithPriority(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "P1 Ready", "Pending", "P1", "")
@@ -1862,7 +1862,7 @@ func TestTaskNextShowsHighestPriorityReadyTask(t *testing.T) {
 }
 
 func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Valid task
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Valid Task", "Pending", "")
 	// Malformed task: invalid enum value "Doing"
@@ -2016,7 +2016,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 }
 
 func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2074,7 +2074,7 @@ func TestTaskCreateWithMalformedTaskDeduplicatesWarnings(t *testing.T) {
 }
 
 func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2165,7 +2165,7 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 }
 
 func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
 
@@ -2185,7 +2185,7 @@ func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 }
 
 func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "001", "Completed Dep", "Completed", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Main Task", "Pending", "001")
 
@@ -2201,7 +2201,7 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 }
 
 func TestTaskStatusReusesParsedStateAfterLock(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	const taskCount = 300
 	for i := 1; i <= taskCount; i++ {
 		id := fmt.Sprintf("%03d", i)
@@ -2309,7 +2309,7 @@ func TestTaskMutationRefusesDuplicateIDs(t *testing.T) {
 }
 
 func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Standalone Task", "Pending", "")
 
 	var out strings.Builder
@@ -2324,7 +2324,7 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 }
 
 func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
 
@@ -2340,7 +2340,7 @@ func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 }
 
 func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "First Dependency", "Pending", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Second Dependency", "Pending", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Dependent Task", "Blocked", "001, 002")
@@ -2357,7 +2357,7 @@ func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) 
 }
 
 func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Finished Dependency", "Pending", "")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "002.md"), "002", "Other Dependency", "Completed", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Unrelated Blocked Task", "Blocked", "002")
@@ -2374,7 +2374,7 @@ func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 }
 
 func TestTaskCompleteDryRunReportsUnblockedDependentsWithoutWriting(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency Task", "Pending", "")
 	writeTaskFileWithDeps(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Dependent Task", "Blocked", "001")
 
@@ -2418,7 +2418,7 @@ func TestTaskCompleteWarnsForIncompleteAcceptanceByDefault(t *testing.T) {
 }
 
 func TestTaskCancelRequiresReason(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2458,7 +2458,7 @@ func TestTaskCancelForceDoesNotBypassMissingReason(t *testing.T) {
 }
 
 func TestTaskCancelPersistsReason(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2480,7 +2480,7 @@ func TestTaskCancelPersistsReason(t *testing.T) {
 }
 
 func TestTaskCancelDryRunShowsReasonWithoutWriting(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2586,7 +2586,7 @@ func TestTaskCompleteForceOverridesStrictAcceptance(t *testing.T) {
 }
 
 func TestTaskCompleteDryRunPreservesPreviewWithAcceptanceWarning(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -2657,7 +2657,7 @@ func TestTaskCompleteRefusesIncompleteDepsIntegration(t *testing.T) {
 }
 
 func TestTaskAcceptMovesOpenToPending(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	_, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
@@ -2680,7 +2680,7 @@ func TestTaskAcceptMovesOpenToPending(t *testing.T) {
 }
 
 func TestTaskAcceptDryRunPreviews(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	_, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stderr = %s", code, stderr)
@@ -2701,7 +2701,7 @@ func TestTaskAcceptDryRunPreviews(t *testing.T) {
 }
 
 func TestTaskAcceptFromBlocked(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	// Create a Blocked task directly.
@@ -2715,7 +2715,7 @@ func TestTaskAcceptFromBlocked(t *testing.T) {
 }
 
 func TestTaskAcceptNoOp(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
@@ -2733,7 +2733,7 @@ func writeTaskFileWithDeps(t *testing.T, path string, id string, title string, s
 }
 
 func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// Create tasks manually (no install needed — just raw task files).
 	// 001 and 002 are dependencies of 003 (Blocked).
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Dependency A", "Pending", "")
@@ -2798,7 +2798,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	workflowLockTimeout = 2 * time.Second
 	workflowLockRetryDelay = time.Millisecond
 
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -2843,7 +2843,7 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	workflowLockTimeout = 2 * time.Second
 	workflowLockRetryDelay = time.Millisecond
 
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -2908,7 +2908,7 @@ func TestTaskCommentAndCompleteSerialized(t *testing.T) {
 	workflowLockRetryDelay = time.Millisecond
 
 	for i := 0; i < 10; i++ {
-		root := t.TempDir()
+		root := projectRoot(t)
 		var installOut strings.Builder
 		installer := app{opts: options{root: root}, out: &installOut}
 		if err := installer.install(); err != nil {
@@ -2980,7 +2980,7 @@ func TestTaskCommentAndCompleteSerialized(t *testing.T) {
 }
 
 func TestTaskCompleteWarnsOnCorruptMetadata(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -3086,7 +3086,7 @@ func TestAppendComment(t *testing.T) {
 }
 
 func TestTaskCommentCLI(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)

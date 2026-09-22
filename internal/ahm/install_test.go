@@ -65,8 +65,12 @@ func TestReadWorkflowFile_BOM(t *testing.T) {
 	}
 }
 
-func TestFreshInitWritesConfigGitignoreAndIndexes(t *testing.T) {
-	root := t.TempDir()
+// TestFreshInitDefaultsToTheHomeStore is the milestone's headline behavior: a
+// repository with no configuration is a new project, and a new project keeps
+// its task records in the user-level store.
+func TestFreshInitDefaultsToTheHomeStore(t *testing.T) {
+	home := setStoreHome(t)
+	root := newGitRepo(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -75,30 +79,53 @@ func TestFreshInitWritesConfigGitignoreAndIndexes(t *testing.T) {
 		"created:",
 		"  .ahm/.gitignore",
 		"  .ahm/config.json",
+		"  store:.gitignore",
 		"directories:",
-		"  .ahm/tasks/active",
+		"  store:tasks/active",
+		"  store:tasks/completed",
+		"  store:tasks/cancelled",
 		"  docs/adr",
 		"indexes:",
-		"  .ahm/tasks/index.md",
-		"  .ahm/tasks/active/index.md",
+		"  store:tasks/index.md",
+		"  store:tasks/active/index.md",
 		"  docs/adr/index.md",
 	)
 	assertNotContains(t, stdout, "AGENTS.md", ".agents/TASKS.md")
 	assertNotContains(t, stdout, ".ahm/.tasks", ".ahm/.research", ".ahm/exec-plans")
 
 	config := mustRead(t, filepath.Join(root, ".ahm", "config.json"))
-	assertContainsAll(t, config, `"strict_acceptance": false`, `"files": {}`)
+	assertContainsAll(t, config, `"tasks_location": "home"`, `"strict_acceptance": false`, `"files": {}`)
 	assertNotContains(t, config, `"version":`, "taskWork", "projectDocs", "research")
+	// The committed .gitignore keeps only the temp-file pattern: the generated
+	// task indexes and the records lock moved into the store with the records.
 	gitignore := mustRead(t, filepath.Join(root, ".ahm", ".gitignore"))
-	if gitignore != string(recordsGitignoreContent()) {
-		t.Errorf(".ahm/.gitignore = %q, want the managed content", gitignore)
+	if want := homeRecordsGitignoreHeader + gitignoreTempPattern + "\n"; gitignore != want {
+		t.Errorf(".ahm/.gitignore = %q, want %q", gitignore, want)
 	}
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "index.md"),
+	projectRecords := filepath.Join(root, ".ahm", "tasks")
+	if _, err := os.Stat(projectRecords); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("home-mode init created %s: %v", projectRecords, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, storeProjectsDirName)); err != nil {
+		t.Errorf("home-mode init did not create the store project directory: %v", err)
+	}
+	assertFileContainsAll(t, storeTaskFile(t, root, "", "index"),
 		"# Task Index",
 		"- Pending: 0",
 		"## Next Ready Queue",
 		"None.",
 	)
+
+	// A task created after this init lands in the store and never in the project.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Fresh task")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("task create: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+	assertFileContainsAll(t, storeTaskFile(t, root, "active", "001"), "title: Fresh task")
+	if _, err := os.Stat(projectRecords); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("task create wrote under the project records directory: %v", err)
+	}
+
 	for _, target := range []string{
 		"AGENTS.md",
 		".agents/TASKS.md",
@@ -116,6 +143,205 @@ func TestFreshInitWritesConfigGitignoreAndIndexes(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(target))); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("%s should not be installed, err = %v", target, err)
 		}
+	}
+}
+
+// TestInitOnExistingConfigurationKeepsTheProjectLayout is the guard for
+// existing repositories: a configuration written before the home store existed
+// has no tasks_location key, so it keeps its records in the project and never
+// touches the store.
+func TestInitOnExistingConfigurationKeepsTheProjectLayout(t *testing.T) {
+	home := setStoreHome(t)
+	root := projectRoot(t)
+	configPath := filepath.Join(root, ".ahm", "config.json")
+	before := mustRead(t, configPath)
+
+	// A dry run previews the project layout and writes nothing, the store
+	// included.
+	var preview strings.Builder
+	dry := app{opts: options{root: root, dryRun: true}, out: &preview}
+	if err := dry.install(); err != nil {
+		t.Fatal(err)
+	}
+	assertContainsAll(t, preview.String(),
+		"created:",
+		"directories:",
+		"  .ahm/tasks/active",
+		"indexes:",
+		"  .ahm/tasks/index.md",
+	)
+	assertNotContains(t, preview.String(), "store:", ".ahm/config.json")
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dry-run init created the project records directory: %v", err)
+	}
+
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout,
+		"directories:",
+		"  .ahm/tasks/active",
+		"  docs/adr",
+		"indexes:",
+		"  .ahm/tasks/index.md",
+		"  .ahm/tasks/active/index.md",
+		"  docs/adr/index.md",
+	)
+	assertNotContains(t, stdout, "store:")
+	if got := mustRead(t, configPath); got != before {
+		t.Errorf("init rewrote a configuration that predates the store:\nbefore: %s\nafter:  %s", before, got)
+	}
+	gitignore := mustRead(t, filepath.Join(root, ".ahm", ".gitignore"))
+	if gitignore != string(recordsGitignoreContent()) {
+		t.Errorf(".ahm/.gitignore = %q, want the managed content", gitignore)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Project task")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("task create: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", "active", "001.md")); err != nil {
+		t.Errorf("the record is not in the project: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, storeProjectsDirName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a project-mode repository touched the store: %v", err)
+	}
+	if got := relativeTreePaths(t, home); len(got) != 0 {
+		t.Errorf("a project-mode repository left %v in the store, want nothing", got)
+	}
+}
+
+// TestInitOnHomeRepositoryNeverCreatesProjectRecords covers the init side of the
+// new default: a directory with no Git metadata is keyed by its path, every run
+// of init leaves .ahm/tasks/ absent - including a repeated run and one with
+// --force - and the store it lays down is left untouched by those runs.
+func TestInitOnHomeRepositoryNeverCreatesProjectRecords(t *testing.T) {
+	home := setStoreHome(t)
+	root := t.TempDir()
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	projectRecords := filepath.Join(root, ".ahm", "tasks")
+	if _, err := os.Stat(projectRecords); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("init created the project records directory: %v", err)
+	}
+
+	storeBefore := snapshotTree(t, home)
+	projectBefore := snapshotTree(t, root)
+	for _, args := range [][]string{{"init"}, {"--force", "init"}} {
+		stdout, stderr, code := runCLI(t, append([]string{"--root", root}, args...)...)
+		if code != 0 {
+			t.Fatalf("%v exit code = %d, stdout = %s, stderr = %s", args, code, stdout, stderr)
+		}
+		if strings.TrimSpace(stdout) != "" {
+			t.Errorf("%v reported work on an up-to-date repository:\n%s", args, stdout)
+		}
+		if _, err := os.Stat(projectRecords); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%v created the project records directory: %v", args, err)
+		}
+		assertTreeUnchanged(t, home, storeBefore)
+		assertTreeUnchanged(t, root, projectBefore)
+	}
+
+	// A directory with no .git is keyed by its symlink-resolved path, and the
+	// store serves the task lifecycle from there.
+	store, err := resolveStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.Kind != "path" {
+		t.Errorf("a directory with no Git metadata resolved key kind %q, want path", store.Kind)
+	}
+	if _, err := os.Stat(store.recordsDir()); err != nil {
+		t.Errorf("the store's records directory is missing: %v", err)
+	}
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "create", "Path-keyed task")
+	if code != 0 || strings.TrimSpace(stdout) != "001" {
+		t.Fatalf("task create: stdout=%q stderr=%q code=%d", stdout, stderr, code)
+	}
+	assertFileContainsAll(t, storeTaskFile(t, root, "active", "001"), "title: Path-keyed task")
+}
+
+// TestInitRewritesDriftedManagedGitignoreInHomeMode covers the committed
+// .gitignore in the layout a new project gets: home mode keeps the temp-file
+// pattern only, so an in-project entry list is drift that init rewrites.
+func TestInitRewritesDriftedManagedGitignoreInHomeMode(t *testing.T) {
+	setStoreHome(t)
+	root := t.TempDir()
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	gitignorePath := filepath.Join(root, ".ahm", ".gitignore")
+	writeFile(t, gitignorePath, string(recordsGitignoreContent()))
+
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "updated:", "  .ahm/.gitignore")
+	if got, want := mustRead(t, gitignorePath), homeRecordsGitignoreHeader+gitignoreTempPattern+"\n"; got != want {
+		t.Errorf(".ahm/.gitignore = %q, want %q", got, want)
+	}
+}
+
+// TestFreshInitRecordsTheNewProjectInTheStore covers the identity a new project
+// leaves behind: the store directory is keyed by the origin remote, and init
+// records the observation in the store registry.
+func TestFreshInitRecordsTheNewProjectInTheStore(t *testing.T) {
+	home := setStoreHome(t)
+	root := newGitRepo(t)
+	git(t, root, "remote", "add", "origin", "git@github.com:example/repo.git")
+
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	store, err := resolveStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.Kind != "remote" || store.Key != "github.com/example/repo" {
+		t.Errorf("store identity = kind %q key %q, want the remote key github.com/example/repo", store.Kind, store.Key)
+	}
+	if _, err := os.Stat(store.recordsDir()); err != nil {
+		t.Errorf("the store's records directory is missing: %v", err)
+	}
+	reg, err := loadRegistry(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, ok := reg.Projects[store.Key]
+	if !ok {
+		t.Fatalf("init recorded no registry entry for %s: %+v", store.Key, reg.Projects)
+	}
+	if entry.Kind != "remote" || entry.Dir != store.dirName() {
+		t.Errorf("registry entry = %+v, want kind remote and dir %q", entry, store.dirName())
+	}
+	if len(entry.Remotes) != 1 {
+		t.Errorf("registry entry recorded remotes %v, want the one origin spelling", entry.Remotes)
+	}
+}
+
+// TestInitFailsWhenGitCannotReadTheRepository pins the consequence of the new
+// default: a new project resolves the store, so a root that holds .git but that
+// Git cannot read fails before init writes anything instead of deriving a
+// different key from the path.
+func TestInitFailsWhenGitCannotReadTheRepository(t *testing.T) {
+	setStoreHome(t)
+	root := newGitRepo(t)
+	gitDir := filepath.Join(root, ".git")
+	if err := os.RemoveAll(gitDir); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, gitDir, "gitdir: /nonexistent/ahm-test-git-dir\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "init")
+	if code != 1 {
+		t.Fatalf("init exited %d for an unreadable repository, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "reading Git remotes")
+	if _, err := os.Stat(filepath.Join(root, ".ahm")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("init wrote into a repository whose identity could not be derived: %v", err)
 	}
 }
 
@@ -202,7 +428,7 @@ func TestInitDropsObsoleteKeysAndPreservesUnknownMetadata(t *testing.T) {
 }
 
 func TestInitRewritesDriftedManagedGitignore(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	// A repository that ran the retired records migration keeps the broad
 	// index.md line that no longer describes ahm-managed state.
 	writeFile(t, filepath.Join(root, ".ahm", ".gitignore"), "# Managed by ahm.\nindex.md\n")
@@ -223,6 +449,7 @@ func TestInitRewritesDriftedManagedGitignore(t *testing.T) {
 }
 
 func TestInitDryRunPreviewsWritesWithoutWriting(t *testing.T) {
+	home := setStoreHome(t)
 	root := t.TempDir()
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
@@ -235,11 +462,12 @@ func TestInitDryRunPreviewsWritesWithoutWriting(t *testing.T) {
 		"created:",
 		"  .ahm/.gitignore",
 		"  .ahm/config.json",
+		"  store:.gitignore",
 		"directories:",
-		"  .ahm/tasks/active",
+		"  store:tasks/active",
 		"  docs/adr",
 		"indexes:",
-		"  .ahm/tasks/index.md",
+		"  store:tasks/index.md",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("dry-run output missing %q:\n%s", want, got)
@@ -250,6 +478,11 @@ func TestInitDryRunPreviewsWritesWithoutWriting(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, dir)); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("dry-run created %s, err = %v", dir, err)
 		}
+	}
+	// The store is resolved without being created, so a preview leaves no store
+	// directory behind.
+	if _, err := os.Stat(filepath.Join(home, storeProjectsDirName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dry-run created the store's project directory: %v", err)
 	}
 }
 

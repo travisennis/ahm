@@ -212,15 +212,14 @@ func relinquishMetadataOwnership(meta *metadata, targets []string) {
 }
 
 // resolveTaskLocation maps a repository's committed configuration to its
-// storage mode. A configuration that names home uses the store, a missing key
-// and every unrecognized value keep the records in the project, and a
-// repository with no configuration at all is a new project: milestone 267f
-// turns on the home default for that case, which is why this milestone still
-// resolves it as project — a bare checkout with no configuration keeps behaving
-// exactly as it did before the store existed.
+// storage mode. A configuration that names home uses the store, and a missing
+// key, every unrecognized value, and every configuration written before the
+// store existed keep the records in the project. A repository with no
+// configuration at all is a new project, and a new project keeps its records in
+// the store.
 func resolveTaskLocation(meta metadata, configExists bool) taskLocation {
 	if !configExists {
-		return locationProject
+		return locationHome
 	}
 	if taskLocation(meta.TasksLocation) == locationHome {
 		return locationHome
@@ -256,6 +255,15 @@ func (a *app) install() error {
 		return fmt.Errorf("corrupt workflow metadata %s: %v", configMetadataRelPath, err)
 	}
 	reconcileMetadata(&meta)
+	if !configExists {
+		// A repository with no configuration is a new project, and a new project
+		// keeps its records in the store. Writing the key here, before the layout
+		// is resolved below, is what makes this run lay the store down and every
+		// later run read the mode back. An existing configuration is preserved
+		// untouched, so a repository that predates the store stays in the
+		// project.
+		meta.TasksLocation = string(locationHome)
+	}
 
 	// Install resolves the layout from the configuration it owns rather than
 	// from the cached resolution taken before this command ran, so the mode this
@@ -265,6 +273,7 @@ func (a *app) install() error {
 		return err
 	}
 	a.useWorkflowPaths(paths)
+	a.warnAboutStrandedProjectRecords(paths)
 
 	result := map[string][]string{"created": {}, "updated": {}, "directories": {}}
 	created, err := a.ensureWorkflowDirs()
@@ -273,9 +282,10 @@ func (a *app) install() error {
 	}
 	result["directories"] = created
 
-	gitignorePath := paths.workflowGitignorePath()
-	if err := a.reconcileFile(gitignorePath, paths.displayPath(gitignorePath), paths.workflowGitignoreContent(), result); err != nil {
-		return err
+	for _, gitignore := range paths.managedGitignores() {
+		if err := a.reconcileFile(gitignore.path, paths.displayPath(gitignore.path), gitignore.content, result); err != nil {
+			return err
+		}
 	}
 	config, err := marshalMetadata(meta)
 	if err != nil {
@@ -290,7 +300,40 @@ func (a *app) install() error {
 	if err := a.initializeTaskIDCounter(paths); err != nil {
 		return err
 	}
+	if err := a.recordStoreInstall(paths); err != nil {
+		return err
+	}
 	return a.emit(result)
+}
+
+// warnAboutStrandedProjectRecords warns when the layout install is about to
+// write keeps the records in the store while task records are still in the
+// project: the mode becomes permanent in this run, and no command reads those
+// records afterwards. It reports the finding that status, doctor, and prime
+// report, at the command that decides the mode. A dry run warns too, because
+// the preview is where a person sees what the run would leave behind.
+func (a *app) warnAboutStrandedProjectRecords(paths workflowPaths) {
+	if !paths.inStore() {
+		return
+	}
+	var report validationReport
+	validateRecordsNotInProject(paths, &report)
+	for _, finding := range report.Errors {
+		a.addWarning("%s", finding.Message)
+	}
+}
+
+// recordStoreInstall records the project in the store when install lays the
+// store down: the registry entry, which holds the observations a later adoption
+// or migration command reads, and the state file beside the records. A fresh
+// home project is the default path, so install is where its identity first
+// becomes an observation. It writes nothing in project mode, nothing on a dry
+// run, and nothing when the store already holds those bytes.
+func (a *app) recordStoreInstall(paths workflowPaths) error {
+	if a.opts.dryRun || !paths.inStore() {
+		return nil
+	}
+	return recordStoreProject(paths.store)
 }
 
 // initializeTaskIDCounter records the store's task ID counter from the records
@@ -361,7 +404,7 @@ func (a *app) reconcileFile(path string, label string, content []byte, result ma
 	return writeOwned(a.workflowPaths(), path, content)
 }
 
-// ensureWorkflowGitignore creates the managed .gitignore for the resolved
+// ensureWorkflowGitignore creates each managed .gitignore for the resolved
 // records location when it is missing and leaves an existing file untouched.
 // prime calls it to prepare the worktree; ahm init reconciles the content
 // instead.
@@ -370,13 +413,17 @@ func (a *app) ensureWorkflowGitignore() error {
 		return nil
 	}
 	paths := a.workflowPaths()
-	path := paths.workflowGitignorePath()
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+	for _, gitignore := range paths.managedGitignores() {
+		if _, err := os.Stat(gitignore.path); err == nil {
+			continue
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := writeOwned(paths, gitignore.path, gitignore.content); err != nil {
+			return err
+		}
 	}
-	return writeOwned(paths, path, paths.workflowGitignoreContent())
+	return nil
 }
 
 // ensureWorkflowDirs creates the record directories ahm owns and returns the

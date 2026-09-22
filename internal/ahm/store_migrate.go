@@ -293,12 +293,21 @@ func (a *app) migrateTaskRecords(from workflowPaths, to workflowPaths, force boo
 	}
 	report := storeMigrateReport{To: string(to.mode), DryRun: a.opts.dryRun}
 
-	// The configuration already names the destination and the source holds no
-	// records: the move itself has nothing to do. A run that stopped before it
-	// cleaned up its source may still have left the source's derived files
-	// behind, so they are cleaned up here rather than skipped: nothing else
+	// The committed configuration already names the destination and the source
+	// holds no records: the move itself has nothing to do. A run that stopped
+	// before it cleaned up its source may still have left the source's derived
+	// files behind, so they are cleaned up here rather than skipped: nothing else
 	// removes them once the committed .gitignore stopped ignoring them.
-	if len(files) == 0 && a.workflowPaths().inStore() == to.inStore() {
+	//
+	// A repository with no configuration names no layout, so it never takes this
+	// shortcut: it runs the move below, which writes the mode --to asks for.
+	// --to home therefore sets a new project up in the store, and --to project is
+	// the one-step way to keep a new project's records in the project. A corrupt
+	// configuration counts as present, exactly as it does for layout resolution,
+	// so the failure it owes stays with planMigration.
+	_, metaErr := readMetadata(a.opts.root)
+	configured := !errors.Is(metaErr, fs.ErrNotExist)
+	if len(files) == 0 && configured && a.workflowPaths().inStore() == to.inStore() {
 		return a.finishSourceCleanup(from, &report)
 	}
 
@@ -712,19 +721,16 @@ func (a *app) writeMigratedConfig(to workflowPaths, config []byte, report *store
 	return a.writeMigratedFile(to, to.configPath(), config, report)
 }
 
-// writeMigratedGitignores writes the managed .gitignore of both layouts for the
-// destination mode: the committed .ahm/.gitignore, and — when the records move
-// into the store — the store's own .gitignore beside them.
+// writeMigratedGitignores writes the managed .gitignore of every layout the
+// destination mode owns: the committed .ahm/.gitignore, and — when the records
+// move into the store — the store's own .gitignore beside them.
 func (a *app) writeMigratedGitignores(to workflowPaths, report *storeMigrateReport) error {
-	projectGitignore := to.projectGitignorePath()
-	if err := a.writeMigratedFile(to, projectGitignore, to.projectGitignoreContent(), report); err != nil {
-		return err
+	for _, gitignore := range to.managedGitignores() {
+		if err := a.writeMigratedFile(to, gitignore.path, gitignore.content, report); err != nil {
+			return err
+		}
 	}
-	if !to.inStore() {
-		return nil
-	}
-	storeGitignore := to.workflowGitignorePath()
-	return a.writeMigratedFile(to, storeGitignore, to.workflowGitignoreContent(), report)
+	return nil
 }
 
 // removeSourceIndexes removes the generated task indexes the source layout

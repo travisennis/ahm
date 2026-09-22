@@ -686,6 +686,53 @@ func TestStatusReportsTaskRecordsLeftInTheProject(t *testing.T) {
 	)
 }
 
+// TestStoreMigrateToHomeOnAnUninitializedRepository pins the direction a
+// repository with no configuration takes: it names no layout, so the move runs
+// instead of reporting that the records already live in the store, and the mode
+// --to asks for is written.
+func TestStoreMigrateToHomeOnAnUninitializedRepository(t *testing.T) {
+	home := setStoreHome(t)
+	root := newGitRepo(t)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "store", "migrate", "--to", "home")
+	if code != 0 {
+		t.Fatalf("migrate: stdout=%q stderr=%q", stdout, stderr)
+	}
+	assertNotContains(t, stdout, "no work")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"tasks_location": "home"`)
+	store, err := resolveStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(store.recordsDir()); err != nil {
+		t.Errorf("the move did not create the store's records directory: %v", err)
+	}
+	assertFileContainsAll(t, filepath.Join(home, storeRegistryFileName), store.Key)
+}
+
+// TestStoreMigrateToProjectOnAnUninitializedRepository pins the other direction:
+// a repository with no configuration can keep its records in the project without
+// an init first, and the move records nothing in a store that holds nothing.
+func TestStoreMigrateToProjectOnAnUninitializedRepository(t *testing.T) {
+	home := setStoreHome(t)
+	root := newGitRepo(t)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "store", "migrate", "--to", "project")
+	if code != 0 {
+		t.Fatalf("migrate: stdout=%q stderr=%q", stdout, stderr)
+	}
+	assertNotContains(t, stdout, "no work")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "config.json"), `"tasks_location": "project"`)
+	for _, bucket := range []string{"active", "completed", "cancelled"} {
+		if _, err := os.Stat(filepath.Join(root, ".ahm", "tasks", bucket)); err != nil {
+			t.Errorf("the move did not create .ahm/tasks/%s: %v", bucket, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, storeRegistryFileName)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the move recorded a registry entry for a store that holds nothing: %v", err)
+	}
+}
+
 // TestStoreMigrateReportsTheFindingsIndexReports pins the post-mutation findings
 // a move emits: a record the scan could not parse is reported with the same
 // disk-derived finding ahm index reports, not only the aggregate warning that

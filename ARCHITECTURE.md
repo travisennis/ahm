@@ -50,7 +50,7 @@ location map; this section describes what each group does.
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
 | Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, counter, and registry writes the move owes. |
-| Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode), the managed `.gitignore` of the resolved records location, and generated index writes. |
+| Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode, which a new project writes as `home`), the managed `.gitignore` of every layout the mode owns, the store observation a new project records, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
 | Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_id_counter.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking, and the store's task ID counter. |
 | ADRs | `internal/ahm/adrs.go`, `adr_commands.go` | ADR model, parsing, lifecycle commands. |
@@ -67,11 +67,12 @@ location map; this section describes what each group does.
   root, and the store's project directory when records live in the store).
   `writeFileAtomic` guarantees atomicity only; containment lives in
   `writeOwned`. Two writers stay outside it by design: the lock protocol writes
-  its owner token inside the lock it just created, and `store path` and
-  `store migrate` write the store's registry and their own observation of
-  `project.json` directly, because they work from a resolved `storePaths`
-  rather than from the owned roots. The registry is never inside an owned root,
-  and the state file is inside one only when the records live in the store. The
+  its owner token inside the lock it just created, and `store path`,
+  `store migrate`, and a home-mode `ahm init` write the store's registry — and
+  their own observation of `project.json` — directly, because the registry
+  always sits at the store root, outside every owned root, and a resolved
+  `storePaths` is what names it. The state file is inside an owned root only
+  when the records live in the store. The
   task ID counter in that same state file is written by `task create`,
   `ahm init`, and `store migrate`, which do hold the resolved paths, so it goes
   through `writeOwned`.
@@ -114,11 +115,14 @@ location map; this section describes what each group does.
 - The committed `tasks_location` key selects the layout: `project` keeps the
   records in the project, `home` resolves the store and puts the records, their
   generated indexes, the managed `.gitignore`, and the lock in the store's
-  directory for the project. A missing key means `project`, and the store is
-  resolved only for a repository that names `home`, so a project-mode command
-  never reads Git and never fails because the store is unavailable. A
-  repository without configuration at all resolves as `project` until the
-  new-project default lands.
+  directory for the project. A missing key means `project`, so every repository
+  that predates the store keeps its records in the project. A repository with no
+  configuration at all is a new project: it resolves as `home`, and `init`
+  writes that key. The store is resolved only when the configuration resolves
+  to `home`, so a project-mode repository never reads Git and never fails
+  because the store is unavailable. A home-mode project whose root holds `.git`
+  needs Git to read that repository, because its key comes from the `origin`
+  remote; a root with no `.git` uses the path rule and reads no Git.
 - Record paths in findings, error messages, index listings, directory labels,
   and lock errors render through `displayPath` (`store:<store-relative>` in home
   mode, repository-relative in project mode). The JSON record path and the

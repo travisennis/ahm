@@ -140,7 +140,12 @@ func (a *app) buildPrimeReport() primeReport {
 	taskInfo := a.primeTaskSummary(tasks)
 	gitInfo := readGitContext(a.opts.root)
 
-	storeStatus, _ := a.workflowPaths().recordsStatus()
+	// Like status, the briefing reports the store only for an installed project
+	// whose records live there.
+	var storeStatus map[string]string
+	if metaErr == nil {
+		storeStatus, _ = a.workflowPaths().recordsStatus()
+	}
 	return primeReport{
 		Root: a.opts.root,
 		Workflow: primeWorkflow{

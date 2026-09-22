@@ -257,7 +257,13 @@ func recordStoreMigration(s storePaths, from taskLocation) error {
 
 // updateStoreProject reads the project's state file and registry entry, applies
 // mutate to the entry, and writes both back unless their bytes are unchanged.
+// An unresolved store location is refused rather than written: the registry
+// lives at the store root, and a zero storePaths would name the process's
+// working directory.
 func updateStoreProject(s storePaths, mutate func(*projectEntry)) error {
+	if s.Root == "" || s.ProjectDir == "" {
+		return fmt.Errorf("recording a store project needs a resolved store location")
+	}
 	state, err := readProjectState(s)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -406,9 +412,11 @@ func (a *app) storeCommand() *cobra.Command {
 them into or out of it.
 
 The store is ~/.ahm, or AHM_HOME when it names an absolute path. Records live
-per project under a key derived from the project's identity. A repository keeps
-its records in the project until it opts in with 'store migrate --to home', so
-this group inspects the store location and performs that move explicitly.
+per project under a key derived from the project's identity. A repository
+whose configuration predates the store keeps its records in the project until
+it opts in with 'store migrate --to home', while a repository with no
+configuration is a new project that 'ahm init' starts in the store. This
+group inspects the store location and performs a move explicitly.
 
 Examples:
   ahm store path

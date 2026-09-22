@@ -277,6 +277,21 @@ func TestStorePathCommandFallsBackToPathKey(t *testing.T) {
 	}
 }
 
+// TestRecordingAStoreProjectRefusesAnUnresolvedStore keeps the containment rule
+// structural: the registry lives at the store root, so a zero store location
+// must fail instead of naming the process's working directory.
+func TestRecordingAStoreProjectRefusesAnUnresolvedStore(t *testing.T) {
+	for _, store := range []storePaths{
+		{},
+		{Root: t.TempDir()},
+		{ProjectDir: filepath.Join(t.TempDir(), "projects", "repo-3f9ac4d1")},
+	} {
+		if err := recordStoreProject(store); err == nil {
+			t.Errorf("recordStoreProject(%+v) succeeded, want an error", store)
+		}
+	}
+}
+
 func TestStorePathCommandRecordsRegistryWithoutCredentials(t *testing.T) {
 	storeHome := setStoreHome(t)
 	root := newGitRepo(t)

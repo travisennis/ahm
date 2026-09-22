@@ -145,7 +145,7 @@ func TestADRCreateEndsWithSingleNewline(t *testing.T) {
 }
 
 func TestADRCreateBodyFileFromStdin(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -538,7 +538,7 @@ func bodyAfterRawFrontMatter(t *testing.T, text string) string {
 }
 
 func TestADRCreateParallelAllocatesUniqueIDs(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {

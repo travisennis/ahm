@@ -28,8 +28,8 @@ atomic writes, and dry-run behavior.
   owned repository or workflow directory. Route every workflow record, index,
   and configuration write through `writeOwned`, which refuses a target outside
   an owned root and then writes atomically. A direct `writeFileAtomic` call is
-  reserved for the store state that `ahm store path` and `ahm store migrate`
-  write, which they build from a resolved `storePaths` and no `workflowPaths`:
+  reserved for the store state that `ahm store path`, `ahm store migrate`, and a
+  home-mode `ahm init` write, which they build from a resolved `storePaths`:
   the store's own `registry.json`, which always sits at the store root, and
   `project.json`, which is inside an owned root in `home` mode and outside one
   in `project` mode. The task ID counter in that same `project.json` is written

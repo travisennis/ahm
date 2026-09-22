@@ -37,10 +37,14 @@ directory.
 
 `init` is lenient: it can run in any directory and creates the `.ahm` workflow
 scaffolding there. `status` reports a git repository that has no
-`.ahm/config.json` as `installed: false`. Outside a managed repository, with
-neither `.git` nor `.ahm/config.json` above the working directory, `status`,
-`prime`, `doctor`, and the `task`, `adr`, and `store` commands all fail with
-remediation instructions; `--root` bypasses auto-detection for any of them.
+`.ahm/config.json` as `installed: false`, provided Git can read the repository:
+a repository with no configuration is a new project, so it resolves the store,
+and a `.git` directory Git cannot read (or a `git` missing from `PATH`) fails
+the command with the resolver's error instead of reporting. Outside a managed
+repository, with neither `.git` nor `.ahm/config.json` above the working
+directory, `status`, `prime`, `doctor`, and the `task`, `adr`, and `store`
+commands all fail with remediation instructions; `--root` bypasses
+auto-detection for any of them.
 
 ## Global Flags
 

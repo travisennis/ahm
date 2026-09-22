@@ -69,11 +69,11 @@ func TestResolveTaskLocation(t *testing.T) {
 		{name: "explicit project", tasksLocation: "project", configExists: true, want: locationProject},
 		{name: "missing key", tasksLocation: "", configExists: true, want: locationProject},
 		{name: "unrecognized value", tasksLocation: "elsewhere", configExists: true, want: locationProject},
-		// A repository with no configuration at all is a new project. Milestone
-		// 267f turns on the home default for it; until then every configuration
-		// without a key keeps its records in the project, which is what protects
-		// existing repositories.
-		{name: "no configuration", tasksLocation: "", configExists: false, want: locationProject},
+		// A repository with no configuration at all is a new project, and a new
+		// project keeps its records in the store. A configuration without the key
+		// is what protects an existing repository, and install writes the key when
+		// it creates one.
+		{name: "no configuration", tasksLocation: "", configExists: false, want: locationHome},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -155,6 +155,7 @@ func TestHomeModeKeepsTaskRecordsInTheStore(t *testing.T) {
 	}
 	assertContainsAll(t, stdout,
 		"created:",
+		"  .ahm/.gitignore",
 		"  store:.gitignore",
 		"directories:\n  store:tasks/active\n  store:tasks/completed\n  store:tasks/cancelled\n  docs/adr\n",
 		"indexes:",
@@ -238,12 +239,13 @@ func TestHomeModeKeepsTaskRecordsInTheStore(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(filepath.Dir(filepath.Dir(record)), "index.md"), "Completed: 1")
 
 	// The whole run left the project's records directory absent and .ahm/ holding
-	// nothing ahm did not have to put there.
+	// nothing but the committed configuration and the managed .gitignore that
+	// keeps its atomic rewrite from leaving an untracked temp file behind.
 	if _, err := os.Stat(projectRecords); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the task lifecycle created the project records directory: %v", err)
 	}
-	if got := relativeTreePaths(t, filepath.Join(root, ".ahm")); !slices.Equal(got, []string{"config.json"}) {
-		t.Errorf("home mode left %v under .ahm/, want only config.json", got)
+	if got := relativeTreePaths(t, filepath.Join(root, ".ahm")); !slices.Equal(got, []string{".gitignore", "config.json"}) {
+		t.Errorf("home mode left %v under .ahm/, want .gitignore and config.json", got)
 	}
 	// The store's managed .gitignore covers the generated indexes, the lock, the
 	// store state file, and temp files.
@@ -364,6 +366,64 @@ func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 		t.Fatalf("dry-run complete: stdout=%q stderr=%q", stdout, stderr)
 	}
 	assertContainsAll(t, stdout, "move: "+filepath.ToSlash(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")))
+}
+
+// TestUninstalledRepositoryReportsNoStoreState covers the state a new project
+// starts in: with no configuration the workflow is not installed, so the store's
+// location and its missing-directory finding stay out of the report, and nothing
+// writes to the store. Records left in the project are still reported - by
+// status, and by the init that decides the mode - because the resolved mode is
+// home and no command reads them there.
+func TestUninstalledRepositoryReportsNoStoreState(t *testing.T) {
+	home := setStoreHome(t)
+	root := newGitRepo(t)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--json", "status")
+	if code != 1 {
+		t.Fatalf("status exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, `"installed": false`, `"code": "metadata_missing"`)
+	assertNotContains(t, stdout, `"store"`, "store_dir_unreadable", "task_records_in_project")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "prime")
+	if code != 0 {
+		t.Fatalf("prime exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, `"installed": false`, `"code": "metadata_missing"`)
+	assertNotContains(t, stdout, `"store"`, "store_dir_unreadable", "task_records_in_project")
+
+	if got := relativeTreePaths(t, home); len(got) != 0 {
+		t.Errorf("an uninstalled repository wrote to the store: %v", got)
+	}
+
+	// Records written under .ahm/tasks/ before the repository was initialized are
+	// stranded: the resolved mode is home, so the drift finding is the only thing
+	// that names them, and the command that makes the mode permanent warns.
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Stranded task", "Pending", "")
+	const strandedWarning = "warning: a task record remains in the project while tasks_location is home"
+	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "init")
+	if code != 0 {
+		t.Fatalf("dry-run init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, strandedWarning)
+	if _, err := os.Stat(filepath.Join(root, ".ahm", "config.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dry-run init wrote a configuration: %v", err)
+	}
+
+	stdout, stderr, code = runCLI(t, "--root", root, "init")
+	if code != 0 {
+		t.Fatalf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, strandedWarning)
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--json", "status")
+	if code != 1 {
+		t.Fatalf("status exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	// The project is installed now, so the report names the store its records
+	// moved to, and the drift finding still names the record left behind.
+	assertContainsAll(t, stdout, `"code": "task_records_in_project"`, `"store"`)
+	assertNotContains(t, stdout, "store_dir_unreadable")
 }
 
 func TestHomeModeInitIsIdempotentAndDryRunWritesNothing(t *testing.T) {

@@ -107,7 +107,7 @@ func assertIntegrationCode(t *testing.T, got cliIntegrationResult, want int) {
 }
 
 func TestCLIIntegrationExitCodes(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	result := runBuiltCLI(t, root, "init")
 	assertIntegrationCode(t, result, 0)
 
@@ -130,7 +130,7 @@ func TestCLIIntegrationExitCodes(t *testing.T) {
 }
 
 func TestCLIIntegrationTaskLifecycle(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	result := runBuiltCLI(t, root, "init")
 	assertIntegrationCode(t, result, 0)
 
@@ -172,7 +172,7 @@ func TestCLIIntegrationTaskLifecycle(t *testing.T) {
 }
 
 func TestCLIIntegrationOutputModes(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	result := runBuiltCLI(t, root, "init")
 	assertIntegrationCode(t, result, 0)
 
@@ -211,7 +211,7 @@ func assertJSONField(t *testing.T, object map[string]any, field string) {
 }
 
 func TestCLIIntegrationDryRunDoesNotMutate(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	result := runBuiltCLI(t, root, "init")
 	assertIntegrationCode(t, result, 0)
 

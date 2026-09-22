@@ -77,7 +77,16 @@ directory belongs to the current project.
   destination-identity, and uncommitted-record refusals, the `tasks_location`
   and managed `.gitignore` rewrites, the destination indexes, the store counter
   seeding, and the registry `migrated_from` record.
-- [ ] 267f — Default new projects to the home store.
+- [x] 267f — Defaulted new projects to the home store: `resolveTaskLocation`
+  resolves a repository with no configuration as `home`, `install` writes
+  `tasks_location: home` into the configuration it creates and records the new
+  project in the store registry, and the managed `.gitignore` of every layout
+  the mode owns is reconciled from one list. An uninstalled repository no
+  longer reports a store it has not created yet, and the `init` help text, the
+  CLI reference, and the architecture invariant that said a repository without
+  configuration resolves as `project` were updated. The suite's in-project
+  fixtures now declare a configuration without the key, and `init` warns when
+  the mode it writes would strand records that are still in the project.
 - [ ] 267g — Migrate this repository's own tasks to the home store as the
   first real use.
 - [ ] 267h — Update the workflow spec, upgrade guide, CLI reference,
@@ -274,6 +283,9 @@ directory belongs to the current project.
   project-mode header claims the task records stay committed, which is exactly
   what changed. `install` does not reconcile this file: it is a move artefact,
   and no other home-mode command writes into `.ahm/` besides `config.json`.
+  Superseded by 267f, which makes home mode the fresh-project path: `install`
+  reconciles the file there too, from the `workflowPaths.managedGitignores`
+  list the migration now shares.
 - 2026-09-21 (267e): the source's generated task indexes are removed by the
   move, and the destination's are regenerated. The plan's phrase "regenerates
   indexes on both sides" resolves to the destination's task indexes plus the
@@ -356,6 +368,118 @@ directory belongs to the current project.
   it, while a plain `git status` in the same state still rewrote it;
   `TestStoreMigratePreviewLeavesTheGitIndexAlone` and
   `TestGitCommandEnvironmentTakesNoOptionalLock` pin it.
+- 2026-09-22 (267f): turning the default on failed 112 tests, not the 87 that
+  267c's probe predicted, because a test root with no configuration used to read
+  `.ahm/tasks/` and now resolves the store. Every failure was a test that wanted
+  the in-project layout for a reason other than the mode, so the suite gained a
+  `projectRoot(t)` fixture that writes a configuration with no `tasks_location`
+  key, and the tests written before the store now declare that they exercise an
+  existing repository. Evidence: `--- FAIL` lines went from 112 to 0 with no
+  assertion about record paths, output, or layout changed, and the tests whose
+  subject is the new default or the missing-key guard were rewritten by hand
+  rather than converted.
+- 2026-09-22 (267f): a test root with no configuration and no `AHM_HOME` now
+  reaches the developer's own store. Tests in five files called `install()` or a
+  command on a bare temporary directory and failed with `mkdir
+  /Users/<user>/.ahm: operation not permitted`, which is the sandbox refusing
+  the write a real run would have made. The fixture above removes the path, and
+  the tests that genuinely exercise the store set a temporary store root.
+- 2026-09-22 (267f): `prime` can no longer report `metadata_missing` and a
+  malformed project record in one run. A repository with no configuration
+  resolves to the store, so the record the missing-metadata fallback test needs
+  lives in the store; the test writes it there. The combination that test used
+  to exercise - records in `.ahm/tasks/` with no configuration - is the drift
+  state `task_records_in_project` reports, and no command reads it.
+- 2026-09-22 (267f, review pass): the flip made an uninstalled repository
+  report a store it has not created yet. With `.git` and no configuration,
+  `ahm status` gained a `store:` block and `store_dir_unreadable` ("the store's
+  task records directory is missing") beside `metadata_missing`, which
+  contradicts the not-installed output documented in
+  `docs/references/cli/global-contract.md`. The store's missing-directory
+  finding is now gated on the configuration existing, and the `status` and
+  `prime` store block on the workflow being installed. A record left in
+  `.ahm/tasks/` is still reported in that state, because the resolved mode is
+  home and no command reads it there. Evidence:
+  `TestUninstalledRepositoryReportsNoStoreState` fails on both mutations.
+- 2026-09-22 (267f, review pass): `ahm init` now fails (exit 1, writing nothing)
+  in a root that holds `.git` but that Git cannot read, because a new project
+  resolves the store and its key comes from the `origin` remote. That is the
+  fail-closed rule 267c recorded, now reachable from the bootstrap command, and
+  it is pinned by `TestInitFailsWhenGitCannotReadTheRepository`. A root with no
+  `.git` is unaffected: `readGitRemote` returns before it runs Git, so the
+  architecture sentence this milestone wrote had to say "a home-mode project
+  whose root holds `.git`" rather than "a new or home-mode project".
+- 2026-09-22 (267f): `--force` is a no-op for `install`, so the acceptance's
+  "including when run with `--force`" case exercises no distinct branch. The
+  assertion is kept as a cheap guard on a command that ignores the flag, not as
+  evidence that the flag changes anything.
+- 2026-09-22 (267f, second review pass): a repository that was never initialized
+  but holds records under `.ahm/tasks/` still strands them silently unless a
+  person runs `status`, `doctor`, or `prime`. 267c scoped the drift findings to
+  the disk-reading validation path, so the post-mutation path that `init` and
+  every task mutation take does not report them; `install` now warns with the
+  same finding text at the command that makes the mode permanent, and a dry run
+  warns too. Evidence: with the warning removed,
+  `TestUninstalledRepositoryReportsNoStoreState` reports no warning where the
+  stranded record is.
+- 2026-09-22 (267f, second review pass): recording the project in the registry
+  gives `ahm init` a new failure mode. The registry is written last, so a
+  home-mode install whose store root is unwritable installs the project's own
+  files and then exits 1 with the store path in the error. The behavior is kept
+  - the store is unusable in that state, and `store path` fails the same way -
+  and the `init` guarantees now say the store must be writable.
+- 2026-09-22 (267f, second review pass): `recordStoreProject` accepted an
+  unresolved `storePaths` and wrote `registry.json` and `project.json` into the
+  process working directory. No caller can reach that today, but the new call
+  site made the containment conventional rather than structural, so
+  `updateStoreProject` now refuses an empty store root or project directory.
+  Evidence: `TestRecordingAStoreProjectRefusesAnUnresolvedStore`, which fails
+  when the guard is removed.
+- 2026-09-22 (267f, preflight pass): the flip swapped which direction
+  `store migrate` short-circuits on a repository with no configuration. The
+  shortcut in `migrateTaskRecords` compares the *resolved* layout with `--to`,
+  and a no-configuration repository now resolves `home`, so `--to home` became a
+  no-op that printed "no work: task records already live in the home store"
+  while the repository held no configuration and no store, and `--to project`
+  became the run that sets the project layout up. Evidence: a binary built from
+  `a9d1878` wrote `.ahm/config.json`, the store's directories, and
+  `registry.json` for `--to home` on a repository with no configuration, where
+  the working tree wrote nothing. The shortcut now requires the configuration to
+  exist, so a repository that names no layout takes the full move in both
+  directions; `TestStoreMigrateToHomeOnAnUninitializedRepository` fails when the
+  guard is removed.
+- 2026-09-22 (267f, preflight pass): the `init` guarantee about an unwritable
+  store was wrong about ordering. The store's record directories are created
+  before any project write, so a store root that cannot be created fails with
+  `mkdir <store>/projects: permission denied` and `.ahm/` is never created;
+  only a store whose state cannot be written fails after the project's files
+  exist. The CLI reference now says "at the first write that fails" and names
+  both orderings, and the earlier claim in this section was corrected.
+- 2026-09-22 (267f, preflight pass): the fail-closed identity rule now reaches
+  *uninstalled* repositories, because a repository with no configuration
+  resolves the store and therefore reads Git. A root that holds `.git` but that
+  Git cannot read fails `status`, `doctor`, `prime`, and `task list` with the
+  resolver's error where they used to report; a machine with no `git` on `PATH`
+  behaves the same. That is 267a/267c's decision extended to the commands that
+  do not touch records, and `docs/references/cli/global-contract.md`'s
+  "`status` reports a git repository that has no `.ahm/config.json` as
+  `installed: false`" sentence was made false by it; the caveat is now in the
+  contract. Swallowing the resolver error in `status` or `doctor` would reopen
+  that decision, so the behavior stays and 267h's sweep inherits the wording.
+- 2026-09-22 (267f, preflight pass): `store migrate` on a repository with no
+  configuration prints `warning: workflow metadata is missing` on stderr,
+  because the move's post-mutation findings run before the committed
+  configuration is written - it is the move's commit point, written last of all.
+  The warning describes the state the run found, the command still writes the
+  mode `--to` names, and suppressing one finding code inside one command was
+  rejected as a special case.
+- 2026-09-22 (267f, preflight pass): a `--to home` run on a repository with no
+  configuration records `migrated_from: project` in the store registry even
+  though no record moved and the project was never in project mode. The field is
+  derived, the pre-store default is what it names, and gating the stamp on
+  records having moved would change 267e's behavior for a configured
+  project-mode repository that moves no records, so it is recorded rather than
+  fixed.
 
 ## Decision Log
 
@@ -697,8 +821,140 @@ directory belongs to the current project.
   exactly one occurrence of the variable in the environment, because the lookup
   order among duplicates is not portable.
   Date/Author: 2026-09-22, Travis Ennis.
+- Decision: `install` reconciles the managed `.gitignore` of every layout the
+  mode owns — the committed `.ahm/.gitignore`, and the store's own `.gitignore`
+  when the records live there — from one `workflowPaths.managedGitignores` list
+  that `prime` and `store migrate` share. This supersedes 267e's decision that
+  `init` keeps reconciling only the store's file in home mode.
+  Rationale: 267e's rationale rested on home mode being reachable only through a
+  configuration that already existed or a migration, and a migration writes the
+  committed file itself. 267f makes home mode the fresh-project path, where
+  nothing has written it and the atomic rewrite of `config.json` still leaves a
+  `*.tmp` file in `.ahm/`; without the write, a fresh home project's `.ahm/`
+  holds no ignore rule at all and its layout differs from a migrated one, which
+  is not what the plan's Artifacts layout shows. One list also removes the
+  duplication between install and the migration, and project mode is unchanged
+  because both accessors name the same file there.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: tests that exercise the in-project layout declare it with a
+  `projectRoot(t)` fixture that writes a configuration with no `tasks_location`
+  key, instead of relying on a bare temporary directory.
+  Rationale: the protected behavior is "a repository whose configuration
+  predates the change keeps its records in the project", and the fixture is
+  exactly that state, so the guard is now the shape of the fixture across the
+  suite rather than one claim in one test. A bare directory is a new project by
+  definition, and the tests whose subject is that default were rewritten to
+  assert the store layout instead.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: 267f updates the `init` help text, the CLI reference's `init`
+  section, and the `ARCHITECTURE.md` invariant this milestone made false. The
+  root command's "repo-local" summary and the README, workflow spec, glossary,
+  upgrade guide, and `AGENTS.md` stay with 267h.
+  Rationale: the milestone's task text scopes documentation to the `init` help
+  text and the CLI reference, and 267h's acceptance already requires that no
+  document still claims task records are always committed under `.ahm/tasks/`.
+  The root summary is help text rather than behavior, so it belongs with that
+  sweep instead of the behavior change.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: `install` records the project in the store when it lays the store
+  down - the registry entry and the state file - unless `--dry-run` is given,
+  through `recordStoreProject`.
+  Rationale: a fresh project is now the default path, so leaving the
+  observation unrecorded would mean the default path never tells the registry
+  which key, remotes, and paths it holds, and the ADR's adoption story rests on
+  those observations. The write is idempotent, it is the same write `store path`
+  already makes, and it leaves the store root - which is deliberately outside
+  the owned roots - written by exactly the commands that own store state.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: an uninstalled repository reports no store block and no
+  `store_dir_unreadable`, but a record left in the project is still reported.
+  Rationale: the store's directories appear with the first command that writes
+  into them, so blaming a repository that has not been initialized for a missing
+  store directory is noise on top of `metadata_missing`, and the documented
+  not-installed output has to stay reachable. Records in `.ahm/tasks/` are a
+  different matter: the resolved mode is home, nothing reads them there, and the
+  finding is the only thing that names them in a repository that was never
+  initialized.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: the store block in `status` and `prime` stays tied to an installed
+  workflow rather than to the store's records directory existing. A repository
+  whose configuration was deleted keeps its records in the store, so its counts
+  come from there while the block is hidden, but `installed: false` is the
+  headline in that state, and the alternative condition would make a reported
+  field depend on what is on disk.
+  Rationale: one condition is easier to explain and to test, and the hidden
+  state is a deleted configuration rather than a normal one.
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: `store migrate`'s no-work shortcut requires the committed
+  configuration to exist, so a repository that names no layout takes the full
+  move in either direction and writes the mode `--to` asks for. A corrupt
+  configuration counts as present, exactly as it does for layout resolution, so
+  the failure it owes stays with the plan's precondition reads.
+  Rationale: the shortcut means "the committed configuration already names the
+  destination", and a repository with no configuration names nothing. Without
+  the guard, the new default made `--to home` a no-op that printed a message
+  about a store that did not exist, and left `--to project` as the only way to
+  commit a layout. Writing the configuration for a move that carried no record
+  is what makes either direction a complete answer to "keep my records here".
+  Date/Author: 2026-09-22, Travis Ennis.
+- Decision: the drift between a home layout and records still in the project is
+  reported at `ahm init` as a warning, and 267c's scope for the findings - the
+  disk-reading path that `status`, `doctor`, and `prime` use - is unchanged.
+  Rationale: `init` is the command that makes the mode permanent and the one a
+  person runs immediately before an empty `task list`, so silence there is the
+  difference between learning that the backlog split and discovering it later.
+  Adding the finding to the post-mutation path instead would contradict 267c's
+  decision to keep ordinary mutations quiet mid-migration.
+  Date/Author: 2026-09-22, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+### 267f — Default new projects to the home store (2026-09-22)
+
+Delivered: `resolveTaskLocation` resolves a repository with no configuration as
+`home`, and `install` writes `tasks_location: home` into the configuration it
+creates before it resolves the layout, so the run that creates the
+configuration is the run that lays the store down. `workflowPaths` gained
+`managedGitignores`, one definition of the `.gitignore` files the resolved mode
+owns, which `install`, `prime`'s `ensureWorkflowGitignore`, and the migration's
+`writeMigratedGitignores` all use. The `init` help text and the CLI reference's
+`init` section describe what the command creates in each mode and note that
+there is no `--tasks-project` flag, and `ARCHITECTURE.md`'s layout invariant now
+says that a repository with no configuration is a new project that resolves as
+`home` and needs readable Git state.
+
+Against the milestone's acceptance: `git init` plus `ahm init` in a fresh
+directory writes `tasks_location: home` and puts a created task in the store,
+which `TestFreshInitDefaultsToTheHomeStore` drives end to end; a repository
+whose configuration predates the change keeps its records in the project,
+creates no store entry, and keeps its configuration byte-identical, which
+`TestInitOnExistingConfigurationKeepsTheProjectLayout` and the new
+`projectRoot(t)` fixture across the suite cover; `ahm init` on a `home`
+repository never creates `.ahm/tasks/`, including on a repeated run and with
+`--force`, which `TestInitOnHomeRepositoryNeverCreatesProjectRecords` covers
+together with the path-keyed non-Git case; and `ahm --dry-run init` previews the
+store layout while creating neither the project directories nor the store's,
+which `TestInitDryRunPreviewsWritesWithoutWriting` covers.
+
+The judgment calls are recorded above. `install` now owns the committed
+`.ahm/.gitignore` in home mode, superseding 267e's decision, because the fresh
+path is what 267f introduces; it also records the new project's identity in the
+store registry, so the default path leaves the observation the ADR's adoption
+story reads. The suite's in-project fixtures declare a configuration with no key
+rather than a bare directory, so "existing repositories are unaffected" is the
+fixture's shape. Two review passes shaped the reporting: the flip made an
+uninstalled repository report a store it had not created yet, so the store's
+missing-directory finding and the `status`/`prime` store block now require the
+workflow to be installed, while a record left in the project is reported by
+`status` and warned about by the `init` that makes the mode permanent;
+`updateStoreProject` refuses an unresolved store location, which keeps every
+store write inside a resolved store root by construction; and `store migrate`'s
+no-work shortcut requires a committed configuration, so a repository that names
+no layout is set up in the mode `--to` asks for instead of reporting that its
+records already live there.
+The documentation sweep beyond the `init` help text, the CLI reference, and the
+architecture invariant stays with 267h, and the release that ships this default
+is gated on it.
 
 ### 267e — Add the migration command (2026-09-21)
 
@@ -1133,7 +1389,18 @@ it completes the move.
 repository that has none, and preserves an existing value otherwise. Root
 detection is unchanged: a directory with neither `.git` nor `.ahm/config.json`
 still needs `ahm init`, and a no-Git directory works after that because its
-key falls back to the path rule.
+key falls back to the path rule. `resolveTaskLocation` resolves a repository
+with no configuration as `home` for the same reason: the layout a command reads
+before `init` and the layout `init` writes must be the same one, or the first
+record a person creates lands where the configuration will not look for it.
+
+`install` reconciles the managed `.gitignore` of every layout the mode owns,
+which is the one write the new default owes the fresh path: a new home project
+has no committed `.ahm/.gitignore` yet, and the atomic rewrite of
+`config.json` still leaves a temp file in `.ahm/`. The set has one definition in
+`workflowPaths.managedGitignores`, shared with the migration. Tests that
+exercise the in-project layout declare a configuration with no `tasks_location`
+key, because a bare directory is a new project.
 
 Acceptance: `git init` plus `ahm init` in a fresh directory puts tasks in the
 store; a repository that already has configuration keeps its records in the
@@ -1458,6 +1725,32 @@ Git, and adds only a read of the `origin` remote URL through the existing
 
 ## Change Notes
 
+- 2026-09-22: 267f preflight pass. `store migrate` requires a committed
+  configuration for its no-work shortcut, so a repository with no configuration
+  is set up in the mode `--to` names; the `init` guarantee about an unwritable
+  store now describes the failure ordering it actually has; and
+  `global-contract.md` gained the caveat that `installed: false` needs readable
+  Git state. New tests: `TestStoreMigrateToHomeOnAnUninitializedRepository` and
+  `TestStoreMigrateToProjectOnAnUninitializedRepository`.
+- 2026-09-22: 267f second review pass. `install` warns when the mode it is
+  about to write would strand records that are still in the project,
+  `updateStoreProject` refuses an unresolved store location, and the `init`
+  guarantees note that the store must be writable.
+- 2026-09-22: 267f review pass. An uninstalled repository no longer reports a
+  store block or `store_dir_unreadable` (a record left in the project is still
+  reported), `install` records the new project in the store registry, and the
+  architecture sentence about which layouts read Git was corrected. The new
+  tests are `TestUninstalledRepositoryReportsNoStoreState`,
+  `TestInitRewritesDriftedManagedGitignoreInHomeMode`,
+  `TestFreshInitRecordsTheNewProjectInTheStore`, and
+  `TestInitFailsWhenGitCannotReadTheRepository`.
+- 2026-09-22: 267f delivered. A repository with no configuration is a new
+  project and resolves as `home`; `install` writes the key and reconciles the
+  managed `.gitignore` of every layout the mode owns from one list, which
+  supersedes 267e's decision that install reconciles only the store's file in
+  home mode; the suite's in-project fixtures declare a configuration without the
+  key; and the `init` help text, the CLI reference, and the architecture
+  invariant were updated.
 - 2026-09-21: Initial version, written before implementation. Records the
   decision set agreed with the maintainer: the store root and `AHM_HOME`, the
   two-root split, the `store:` display convention, derived identity with a

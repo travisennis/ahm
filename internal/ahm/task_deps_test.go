@@ -9,7 +9,7 @@ import (
 )
 
 func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: []\n"+
 		"created: 2026-05-01\n"+
 		"updated: 2026-05-02\n"+
@@ -48,7 +48,7 @@ func TestTaskDepUpdatePreservesOptionalFrontMatter(t *testing.T) {
 }
 
 func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending",
 		"assignee: alice\n"+
 			"due: 2026-06-01\n"+
@@ -81,7 +81,7 @@ func TestTaskDepUpdatePreservesUnknownFrontMatter(t *testing.T) {
 }
 
 func TestTaskDependencyTreeOutput(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
@@ -142,7 +142,7 @@ func TestTaskDependencyCycleNoAliasing(t *testing.T) {
 }
 
 func TestTaskDepCyclesCommand(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "completed", "003.md"), "003", "Completed Cycle", "Completed", "depends_on: 004\n")
@@ -163,7 +163,7 @@ func TestTaskDepCyclesCommand(t *testing.T) {
 }
 
 func TestTaskDepAddNoOp(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Existing Dep", "Pending", "depends_on: -\n")
 
@@ -206,7 +206,7 @@ func TestTaskDepAddNoOp(t *testing.T) {
 }
 
 func TestTaskDepRemoveNoOp(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Not A Dep", "Pending", "depends_on: -\n")
 
@@ -236,7 +236,7 @@ func TestTaskDepRemoveNoOp(t *testing.T) {
 }
 
 func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
 
 	var out strings.Builder
@@ -251,7 +251,7 @@ func TestTaskDepAddRejectsSelfDependency(t *testing.T) {
 }
 
 func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Main Task", "Pending", "depends_on: -\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "cancelled", "002.md"), "002", "Cancelled Task", "Cancelled", "depends_on: -\n")
 
@@ -267,7 +267,7 @@ func TestTaskDepAddRejectsCancelledDependency(t *testing.T) {
 }
 
 func TestTaskDepAddRejectsCycle(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Task A", "Pending", "depends_on: 002\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Task B", "Pending", "depends_on: -\n")
 
@@ -283,7 +283,7 @@ func TestTaskDepAddRejectsCycle(t *testing.T) {
 }
 
 func TestMainDependencyCyclesIntegration(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	stdout, stderr, code := runCLI(t, "--root", root, "init")
 	if code != 0 {
 		t.Errorf("init exit code = %d, stdout = %s, stderr = %s", code, stdout, stderr)
@@ -316,7 +316,7 @@ func TestTaskDepCyclesCommand_JSON_NoCycles(t *testing.T) {
 }
 
 func TestTaskDepCyclesCommand_JSON_WithCycles(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Cycle A", "Pending", "depends_on: 002\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Cycle B", "Pending", "depends_on: 001\n")
 
@@ -351,7 +351,7 @@ func TestTaskDepCyclesCommand_Plain_NoCycles(t *testing.T) {
 }
 
 func TestTaskDepTree_JSON(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002, 999\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Middle", "Pending", "depends_on: 003\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "003.md"), "003", "Leaf", "Pending", "depends_on: 002\n")
@@ -387,7 +387,7 @@ func TestTaskDependencyTree_FibonacciScale(t *testing.T) {
 	// Without memoization this produces exponential output;
 	// with memoization it must be linear in node count.
 	const n = 40
-	root := t.TempDir()
+	root := projectRoot(t)
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("%03d", i+1)
 		var deps string
@@ -461,7 +461,7 @@ func TestTaskDependencyTree_FibonacciScale(t *testing.T) {
 }
 
 func TestTaskDepTree_Plain(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Root", "Pending", "depends_on: 002\n")
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "002.md"), "002", "Child", "Pending", "depends_on: -\n")
 

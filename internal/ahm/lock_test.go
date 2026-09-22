@@ -337,7 +337,7 @@ func TestAcquireWorkflowLock_ReleaseRejectsMissingLock(t *testing.T) {
 }
 
 func TestWithWorkflowRecordLock_ReturnsReleaseOwnershipLoss(t *testing.T) {
-	dir := t.TempDir()
+	dir := projectRoot(t)
 	a := app{opts: options{root: dir}}
 	lockPath := filepath.Join(dir, ".ahm", ".lock", workflowRecordLockName)
 

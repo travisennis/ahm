@@ -70,7 +70,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 }
 
 func TestPrimeJSONOutput(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -229,7 +229,7 @@ func TestPrimeNoDirtyWarningOnCleanTree(t *testing.T) {
 }
 
 func TestPrimeNoWrites(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -292,8 +292,11 @@ func TestPrimeReportsValidationFindingsWithoutFailing(t *testing.T) {
 }
 
 func TestPrimeWarnsWhenMissingMetadataFallbackSkipsMalformedTasks(t *testing.T) {
+	setStoreHome(t)
+	// A repository with no configuration is a new project, so its records live in
+	// the store; metadata is missing all the same.
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "---\nbad key: value\n---\n# Broken Task\n")
+	writeFile(t, storeTaskFile(t, root, "active", "001"), "---\nbad key: value\n---\n# Broken Task\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "prime")
 	if code != 0 {

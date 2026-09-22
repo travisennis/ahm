@@ -150,7 +150,7 @@ func newValidationReportWithCache(cache *recordCache) validationReport {
 // pass reuses them instead of re-reading. Pass nil to read everything fresh.
 func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache) validationReport {
 	report := newValidationReportWithCache(cache)
-	validateMetadata(root, &report)
+	_ = validateMetadata(root, &report)
 	validateTaskDuplicateIDs(paths, tasks, &report)
 	for _, task := range tasks {
 		validateTaskFrontMatterMeta(task.meta, paths.displayPath(task.Path), &report)
@@ -205,7 +205,7 @@ func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, r
 	}
 }
 
-func validateMetadata(root string, report *validationReport) {
+func validateMetadata(root string, report *validationReport) error {
 	_, metaErr := readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
@@ -214,11 +214,12 @@ func validateMetadata(root string, report *validationReport) {
 			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", metaErr))
 		}
 	}
+	return metaErr
 }
 
 func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
-	validateMetadata(root, report)
-	validateRecordLocation(paths, report)
+	metaErr := validateMetadata(root, report)
+	validateRecordLocation(paths, metaErr, report)
 	tasks := validateTaskFiles(paths, report)
 	validateTaskDuplicateIDs(paths, tasks, report)
 	return tasks
@@ -226,12 +227,19 @@ func validateManagedFiles(root string, paths workflowPaths, report *validationRe
 
 // validateRecordLocation reports drift between the configured storage location
 // and where the records actually are. It only reads: it never moves a record.
-func validateRecordLocation(paths workflowPaths, report *validationReport) {
+func validateRecordLocation(paths workflowPaths, metaErr error, report *validationReport) {
 	if !paths.inStore() {
 		return
 	}
+	// Records left in the project are drift whether or not the configuration is
+	// present: the resolved mode is home, so no command reads them there.
 	validateRecordsNotInProject(paths, report)
-	validateStoreReadable(paths, report)
+	// The store's directories appear with the first command that writes into
+	// them, so a repository whose configuration is missing has not been installed
+	// yet and cannot be missing them; `metadata_missing` already describes it.
+	if !errors.Is(metaErr, os.ErrNotExist) {
+		validateStoreReadable(paths, report)
+	}
 }
 
 // validateRecordsNotInProject reports task records that are still in the

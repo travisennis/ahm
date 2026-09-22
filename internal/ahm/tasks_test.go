@@ -286,7 +286,7 @@ func TestParseFrontMatter_EOF(t *testing.T) {
 }
 
 func TestParseTask_CRLF(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	var installOut strings.Builder
 	installer := app{opts: options{root: root}, out: &installOut}
 	if err := installer.install(); err != nil {
@@ -490,7 +490,7 @@ func TestSplitTaskID(t *testing.T) {
 }
 
 func TestResolveTask(t *testing.T) {
-	root := t.TempDir()
+	root := projectRoot(t)
 	initDir := filepath.Join(root, ".ahm", "tasks")
 	for _, dir := range []string{"active", "completed", "cancelled"} {
 		if err := os.MkdirAll(filepath.Join(initDir, dir), 0o755); err != nil {

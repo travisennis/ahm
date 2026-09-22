@@ -211,17 +211,29 @@ Examples:
 	root.AddCommand(a.lenientCommand("init", "Create or reconcile ahm-owned workflow state", `Create ahm-owned workflow state when it is absent and reconcile it when
 it is present.
 
-The command creates the .ahm/ record directories, .ahm/config.json, the
-managed .ahm/.gitignore, and the generated indexes when they are missing,
-and rewrites them when they differ from what ahm owns. Obsolete ahm-owned
-configuration keys are dropped and unknown metadata is preserved. An
-up-to-date repository is left untouched. Project-owned files, including
-AGENTS.md, are never created, replaced, or removed.
+A repository with no .ahm/config.json is a new project, and a new project
+keeps its task records in the user-level store: the command writes
+tasks_location: home, creates the store's record directories, generated task
+indexes, and managed .gitignore, and writes the committed .ahm/config.json
+and .ahm/.gitignore. A repository that already has a configuration keeps the
+mode it names, so one written before the store existed still keeps its
+records in .ahm/tasks/.
+
+The command rewrites an ahm-owned file when its bytes differ from what ahm
+owns, drops obsolete ahm-owned configuration keys, and preserves unknown
+metadata. An up-to-date repository is left untouched. Project-owned files,
+including AGENTS.md, are never created, replaced, or removed.
+
+There is no --tasks-project flag: a new repository that wants its records in
+the project runs 'ahm store migrate --to project', which writes the mode and
+needs no preceding 'ahm init'. Run 'ahm store path' to see where this project's
+records live.
 
 Examples:
   ahm init
   ahm --dry-run init
-  ahm --force init`, func() error {
+  ahm --force init
+  ahm store migrate --to project`, func() error {
 		return a.install()
 	}))
 	primeCmd := &cobra.Command{
