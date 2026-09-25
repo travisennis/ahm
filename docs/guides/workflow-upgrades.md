@@ -28,6 +28,68 @@ from what ahm owns, so an up-to-date repository is left completely untouched.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Moving Task Records To The Home Store
+
+Existing repositories keep task records in the project until they opt in to
+the home store. Install a build that includes the `store migrate` command;
+v2.0.0 is the first release that provides it. Set `AHM_HOME` to an absolute
+path to override the default `~/.ahm` store root. Record the current status
+before moving, then preview and run the move from the repository root:
+
+```bash
+ahm status --json > /tmp/ahm-status-before.json
+ahm --dry-run store migrate --to home
+ahm store migrate --to home
+```
+
+The migration refuses to run when task records under `.ahm/tasks/` have
+uncommitted changes, because the move deletes them and Git history is the only
+recovery for content that exists only in the working tree. Commit or discard
+those record changes first. Do not start a task immediately before the
+migration: `ahm task start` changes the task record and therefore trips the
+same guard; start it after the move. A dry run previews the record moves and
+the configuration, ignore-file, and index writes without touching the project
+or creating the store.
+
+After the move, inspect the resolved store and exercise the workflow surface.
+If the store already contained records for this project, run `ahm init` once
+before deleting any remaining project records; `init` seeds or raises the
+store's `next_id` counter from the records present.
+
+```bash
+ahm store path
+ahm init
+ahm prime
+ahm doctor
+ahm status --json > /tmp/ahm-status-after.json
+ahm task list
+TASK_ID=001  # replace with an existing task ID
+ahm task show "$TASK_ID"
+ahm task next
+ahm index
+```
+
+Compare the `tasks` counts and `validation` sections in the before and after
+status reports; they should match, while the after report also contains the
+`store` block. `prime`, `status`, and the task commands read the store named by
+`store path`; ADRs and `docs/adr/index.md` stay in the repository. The
+migration writes `tasks_location: home` to `.ahm/config.json`, removes the
+project's task records and generated task indexes, and leaves the deletions
+unstaged. A leftover `.ahm/tasks/**/index.md` from an interrupted or older
+migration is derived output, not a source record: rerun the same
+`store migrate --to home` to remove it, or delete it after verifying the
+store-side index. Do not commit a project task index in home mode; the store's
+managed `.gitignore` excludes its generated indexes, lock, and state file.
+Review `git status --short` and commit the deletions together with
+`.ahm/config.json` and `.ahm/.gitignore`. The store is machine-local and is
+not part of the repository. `ahm` never stages or commits the move.
+
+To move the records back to the repository, run
+`ahm store migrate --to project`. The uncommitted-record refusal applies only
+when moving records out of the project, so it does not guard this direction;
+review the project additions and the configuration change before committing
+them.
+
 ## Migrating To v2
 
 v2 reduces `ahm` to a records CLI for tasks and ADRs (ADR 022). Six commands

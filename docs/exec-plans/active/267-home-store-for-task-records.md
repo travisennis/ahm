@@ -87,8 +87,16 @@ directory belongs to the current project.
   configuration resolves as `project` were updated. The suite's in-project
   fixtures now declare a configuration without the key, and `init` warns when
   the mode it writes would strand records that are still in the project.
-- [ ] 267g — Migrate this repository's own tasks to the home store as the
-  first real use.
+- [x] (2026-09-25) 267g — Migrated this repository's own tasks to the home store
+  as the first real use. The 330 committed task records moved to
+  `~/.ahm/projects/ahm-0242d8b9/tasks`; `.ahm/tasks/` is gone, and
+  `.ahm/config.json` now names `tasks_location: home`. `ahm prime`,
+  `doctor`, `status`, `task list`, `task show 267g`, `task next`, `index`, and
+  `store path` all read the store successfully. The before and after status
+  counts match exactly and `doctor` reports no findings. At migration time,
+  `git status --short` showed only the two intended ahm-owned modifications
+  and 330 task-record deletions. The upgrade guide now records the opt-in
+  procedure and the observed friction.
 - [ ] 267h — Update the workflow spec, upgrade guide, CLI reference,
   architecture map, and agent instructions; hand the release notes to 264f.
 
@@ -480,6 +488,30 @@ directory belongs to the current project.
   records having moved would change 267e's behavior for a configured
   project-mode repository that moves no records, so it is recorded rather than
   fixed.
+- 2026-09-25 (267g): the `ahm` binary installed on `PATH` predated the store
+  command and rejected `store migrate --to home` with `unknown flag: --to`.
+  The migration was exercised with a build of the current checkout instead;
+  consumers must install the version that contains the command before they run
+  it. Evidence: `go build -o /tmp/ahm-dev ./cmd/ahm` followed by
+  `/tmp/ahm-dev --dry-run store migrate --to home`, which planned the move
+  without writing.
+- 2026-09-25 (267g): `store migrate --to home` correctly refuses a repository
+  with uncommitted task records because it is about to delete them. Starting
+  task 267g before the migration made that precondition fail, so the
+  start-only metadata edit was restored, the clean migration ran, and the task
+  was started in the store afterwards. The upgrade guide now warns about this
+  ordering and the exact refusal. Evidence: the command named
+  `.ahm/tasks/active/267g.md` and suggested committing or discarding it or
+  passing `--force`; no force override was used.
+- 2026-09-25 (267g): the real migration moved 330 records and produced exactly
+  332 tracked worktree changes at the time: the two ahm-owned files
+  (`.ahm/config.json` and `.ahm/.gitignore`) and 330 task-record deletions.
+  The two documentation edits made after the migration are separate changes.
+  The before and after status reports had identical counts and an empty
+  validation finding set; `doctor`
+  also reported no findings after the move. Evidence: the captured JSON
+  reports differed only by the `store` field and the pre-migration binary
+  metadata.
 
 ## Decision Log
 
@@ -908,6 +940,34 @@ directory belongs to the current project.
   Date/Author: 2026-09-22, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+### 267g — Migrate this repository (2026-09-25)
+
+Delivered: `ahm store migrate --to home` moved this repository's 330 committed
+task records from `.ahm/tasks/` to the registered home-store directory
+`~/.ahm/projects/ahm-0242d8b9/tasks`. The project configuration now contains
+`tasks_location: home`, the managed `.ahm/.gitignore` describes the home
+layout, and no task file remains under `.ahm/tasks/`. The move was not a Git
+operation: the command left the deletions unstaged for review, and the store's
+records and generated indexes live outside the repository.
+
+The required post-migration surface was exercised with a build of the current
+checkout: `ahm prime`, `doctor`, `status`, `task list`, `task show 267g`,
+`task next`, `index`, and `store path` all succeeded against the store. The
+status counts matched the pre-migration report exactly (42 cancelled, 271
+completed, one in-progress, two open, 12 pending, and two tracking), and both
+`status` and `doctor` reported an empty validation finding set. At migration time, `git status --short` showed
+only the two intended ahm-owned modifications and the 330 task deletions; the
+two documentation edits made afterwards are separate changes. No code change or new task was needed for the
+migration.
+
+Two pieces of friction are now recorded rather than hidden: the installed
+`ahm` on `PATH` was an older build that did not know the `--to` flag, so a
+build that includes `store migrate` must be installed before migrating; and
+the migration refuses uncommitted task records, which means a task should be
+started only after the move when the move itself is the next step. The opt-in procedure and its
+preconditions are in `docs/guides/workflow-upgrades.md`. The broader
+home-store documentation sweep remains 267h.
 
 ### 267f — Default new projects to the home store (2026-09-22)
 
@@ -1417,7 +1477,8 @@ becomes a fix in this milestone or a new task. The ExecPlan, the ADR, and
 real records.
 
 Acceptance: this repository's backlog is served from the store, `git status`
-shows only the intended deletions, and `ahm doctor` reports no findings.
+shows only the intended ahm-owned changes and task-record deletions, and
+`ahm doctor` reports no findings.
 
 ### 267h — Documentation and release notes
 
@@ -1725,6 +1786,16 @@ Git, and adds only a read of the `origin` remote URL through the existing
 
 ## Change Notes
 
+- 2026-09-25: 267g executed. The repository's 330 task records now live in the
+  home store; the required command surface was verified against the store, the
+  pre/post status counts and validation findings matched, and the upgrade guide
+  now carries the opt-in procedure. The two observed friction points are
+  recorded in the Surprises section: install a build that includes
+  `store migrate` first, and migrate before starting a task whose record would
+  otherwise be an
+  uncommitted change. The worktree is left with the migration's intended
+  ahm-owned modifications and 330 unstaged task deletions for the maintainer to
+  commit, alongside the two documentation edits.
 - 2026-09-22: 267f preflight pass. `store migrate` requires a committed
   configuration for its no-work shortcut, so a repository with no configuration
   is set up in the mode `--to` names; the `init` guarantee about an unwritable
