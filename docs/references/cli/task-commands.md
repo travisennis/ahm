@@ -9,8 +9,15 @@ only compatibility guarantees that generated help cannot express.
 
 ## Task Record Locations
 
-Task files live under `.ahm/tasks/`, in one of the `active/`, `completed/`, or
-`cancelled/` buckets. ADRs live under `docs/adr/`.
+Task records live under the records root selected by `tasks_location`. In
+project mode they are in `.ahm/tasks/active/`, `.ahm/tasks/completed/`, and
+`.ahm/tasks/cancelled/`. In home mode the same buckets live under
+`~/.ahm/projects/<dir>/tasks/`, or under the absolute `AHM_HOME` override.
+ADRs always live under `docs/adr/`. Run `ahm store path` to print the resolved
+home-store records directory; findings, index listings, and task JSON paths
+render home-mode records relative to the store project directory as
+`store:<path-relative-to-store-project-directory>`, for example
+`store:tasks/active/001.md`.
 
 Task statuses: `Open`, `Pending`, `In Progress`, `Blocked`, `Tracking`,
 `Completed`, `Cancelled`.
@@ -84,7 +91,8 @@ available lettered child ID under that parent (`137a`, `137b`, ...). At most
 26 children per parent. Scans across `active/`, `completed/`, `cancelled/`
 buckets to avoid collisions.
 
-Concurrent creates are serialized with a repo-local workflow lock.
+Concurrent creates are serialized with the workflow record lock beside the
+records root, so clones that share a home store serialize on the same lock.
 
 **Guarantees:**
 

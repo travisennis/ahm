@@ -2,14 +2,18 @@
 
 ## Project
 
-`ahm` is a Go CLI that manages repo-local workflow records: tasks under
-`.ahm/tasks/` and ADRs under `docs/adr/`. Config and generated indexes live
-under `.ahm/`; project guidance lives under `.agents/` and `docs/`. Records are
-branch-scoped and use normal Git behavior; `ahm` performs no ref or network
-operations.
+`ahm` is a Go CLI that manages task records in either the project or a
+user-level home store, and ADRs under `docs/adr/`. Task records are
+branch-scoped committed files only in `project` mode; in `home` mode they live
+in the machine-level store, are shared across branches, and are shared across
+clones that resolve to the same project key. Config and generated indexes live
+under `.ahm/` in project mode and beside the records
+in home mode; project guidance lives under `.agents/` and `docs/`. `ahm`
+performs no ref or network operations.
 
 Compatibility surfaces include CLI behavior, workflow metadata and formats,
-indexes, atomic writes, root detection, validation, and releases;
+storage mode and home-store resolution, indexes, atomic writes, root detection,
+validation, and releases;
 [`ARCHITECTURE.md`](ARCHITECTURE.md) enumerates them. `ahm` does
 not patch source, stage files, move `HEAD`, mutate branches, or create project
 commits.

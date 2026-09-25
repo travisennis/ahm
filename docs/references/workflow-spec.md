@@ -2,10 +2,11 @@
 
 ## Goals
 
-`ahm` manages repo-local workflow records: tasks under `.ahm/tasks/` and ADRs
-under `docs/adr/`. A user can initialize a repository, create and advance
-tasks, manage ADR lifecycle, regenerate indexes, and reconcile ahm-owned
-workflow state.
+`ahm` manages task records in either a project or a user-level home store,
+and ADRs under `docs/adr/`. In project mode task records live under
+`.ahm/tasks/`; in home mode they live under the store's project directory. A
+user can initialize a repository, create and advance tasks, manage ADR
+lifecycle, regenerate indexes, and reconcile ahm-owned workflow state.
 
 ## Non-goals
 
@@ -13,9 +14,10 @@ workflow state.
   the only subprocess `ahm` runs.
 - No source-code patching.
 - No implicit git commits, pushes, PRs, or branch operations. Workflow
-  commands may read and write under `.ahm/`, but they must not move
-  `HEAD`, create branch commits, stage files, write the project index, or
-  modify project-owned files.
+  commands may read and write under the resolved records root and the
+  ahm-owned project state, but they must not move `HEAD`, create branch
+  commits, stage files, write the project index, or modify project-owned
+  files.
 - No database.
 
 ## CLI Contract
@@ -47,6 +49,8 @@ Commands:
 - `status`: report workflow health.
 - `doctor`: report environment and workflow checks.
 - `index`: regenerate generated indexes.
+- `store`: report the home-store location and migrate task records between
+  layouts.
 - `adr`: manage ADR records.
 - `task`: manage tasks and dependencies.
 - `version`: print the binary version.
@@ -64,17 +68,21 @@ Exit codes:
 
 ## Workflow State
 
-Workflow state is repo-local and lives under tool-owned `.ahm/`: committed
-source records, committed configuration at `.ahm/config.json`, the managed
-`.ahm/.gitignore`, and generated indexes. Project-owned agent content stays
-outside it, including `AGENTS.md` and files under `.agents/`.
+Workflow state has a project root that owns committed configuration at
+`.ahm/config.json`, the managed `.ahm/.gitignore`, and ADRs under `docs/adr/`.
+Task records and their generated indexes live in a records root selected by
+`tasks_location`: `project` keeps them under `.ahm/tasks/`, and `home` keeps
+them under `<store>/projects/<dir>/tasks/`. Project-owned agent content stays
+outside ahm-managed state, including `AGENTS.md` and files under `.agents/`.
 
-Workflow commands resolve one layout. Task records live under `.ahm/tasks/`,
-ADRs under `docs/adr/`, and generated indexes are regenerated at the same
-relative paths under `.ahm/`. Record writes never touch branches, `HEAD`, or
-the project index. A repository whose metadata is still the retired
-`.agents/ahm.json` layout, without `.ahm/config.json`, is refused by root
-detection, which names the final v1 release (`v1.0.0`) that can migrate it.
+A repository has two managed roots. The project root is always the directory
+containing `.ahm/` and `docs/adr/`. The records root is the project root's
+`.ahm/tasks/` in project mode, or the store project's `tasks/` directory in
+home mode. Every task record path is derived from the records root. Record
+writes never touch branches, `HEAD`, or the project index. A repository whose
+metadata is still the retired `.agents/ahm.json` layout, without
+`.ahm/config.json`, is refused by root detection, which names the final v1
+release (`v1.0.0`) that can migrate it.
 
 When `ahm` invokes Git, it scopes the command to the detected repository root
 and removes inherited `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
@@ -84,8 +92,10 @@ ahm-owned Git operations to another repository's metadata, worktree, or index.
 See ADR 018.
 
 Supported record mutations (`ahm task` lifecycle and metadata commands, and
-`ahm index` after hand edits to records) write source records directly to
-`.ahm/`. Generated indexes remain local-only under `.ahm/`.
+`ahm index` after hand edits to records) write task records and their generated
+indexes to the resolved records root. ADR records and `docs/adr/index.md`
+remain in the project root. `store migrate` is the only command that moves task
+records between the two records roots.
 
 `ahm` writes `.ahm/config.json` with repository-scoped workflow settings. The
 `files` map holds ownership hashes inherited from older releases; this version
@@ -98,6 +108,7 @@ Example:
 ```json
 {
   "strict_acceptance": true,
+  "tasks_location": "home",
   "files": {}
 }
 ```
@@ -136,10 +147,11 @@ untouched.
 
 All workflow record mutations (`ahm task` lifecycle and metadata commands and
 `ahm adr` lifecycle commands) serialize on a single repository-local workflow
-record lock. The lock lives under `.ahm/.lock/workflow-records`. It is held
-across the full read-compute-write sequence for each command, including ID
-allocation, file writes, and index regeneration. `--dry-run` and read-only
-preview paths do not take the lock and do not write workflow state.
+record lock. The lock lives beside the records root: `.ahm/.lock/` in project
+mode, or the store project's `.lock/` in home mode. It is held across the full
+read-compute-write sequence for each command, including ID allocation, file
+writes, and index regeneration. `--dry-run` and read-only preview paths do not
+take the lock and do not write workflow state.
 
 When the `--parent <id>` flag is provided, `ahm task create` allocates the next
 available lettered child ID under that parent (`137a`, `137b`, ..., `137z`) and
@@ -149,6 +161,67 @@ scans parsed tasks and filesystem entries across all three task buckets to avoid
 collisions. At most 26 children are allowed per parent. The workflow lock
 serializes both top-level and child ID allocation.
 
+### Task Records And The Home Store
+
+The store root is `~/.ahm` by default. `AHM_HOME` overrides it and must name
+an absolute path; a relative value is a usage error. The root holds
+`registry.json` and a `projects/` directory. Each project directory is named
+`<slug>-<hash8>`, where the slug is the key's repository name for a remote key
+and `project` for a path key, and the hash keeps same-named projects apart. It
+contains the task records under `tasks/`,
+the store-managed `.gitignore`, the project state file `project.json`, and the
+`.lock/` directory.
+
+A project key is derived per command from the remote Git selects: `origin`
+when it exists, otherwise the only remote when the repository has exactly one.
+The key is the lowercased `host/owner/repo` form, with the scheme, userinfo,
+default port, trailing `.git`, and trailing slash removed, while non-default
+ports remain. A repository with no single remote candidate, a remote that names
+no URL, a `file://` or local-path remote, or no remote at all uses the SHA-256
+of the symlink-resolved project root instead. Credentials are never included in
+the key or persisted in the registry. A home-mode project whose root has
+`.git` needs Git to read that repository; a Git read failure is reported rather
+than silently deriving a different key. A root with no `.git` uses the path
+rule and reads no Git.
+
+`registry.json` is the machine-level mapping from project key to store
+directory. It is derived data and is never the authority for record contents.
+Each project directory's `project.json` records store format version `1` and
+the non-decrementing `next_id` counter that prevents a deleted top-level task
+ID from being reissued. A store or project file with a format version newer
+than this version is refused rather than partially read. The registry may also
+record observed remote spellings with credentials removed and `migrated_from`.
+
+The committed `.ahm/config.json` selects the layout with `tasks_location`:
+`project` keeps records in the project, `home` resolves the store, and a
+missing key means `project`. A repository with no configuration at all is a new
+project and resolves as `home`; `ahm init` writes `tasks_location: home` when
+it creates that configuration. A home-mode project keeps its records, generated
+indexes, managed store `.gitignore`, and workflow lock in the store's project
+directory, while the committed configuration and ADRs stay in the repository.
+
+Paths in validation findings, error messages, index listings, and lock errors
+render as `store:<path-relative-to-the-store-project-directory>` in home mode
+(for example, `store:tasks/active/001.md`) and repository-relative paths in
+project mode. The JSON `path` field of a task and the dry-run create, move, and
+unblock previews use the same store display while leaving project-mode payloads
+byte-identical. An operating-system error keeps its own text. `ahm store path`
+is the exception: it reports the absolute store root and records directory,
+with `~` abbreviation in text output.
+
+A relative Markdown link in a task record resolves first against the record's
+own directory. If the target does not exist there, home mode retries against
+the record's logical in-project path (`<project>/.ahm/tasks/<bucket>/`), so
+links written before a migration keep working. Project mode uses the project
+layout directly. Link validation covers task records, ADR records, and their
+generated indexes; it does not scan general project documentation.
+
+Workflow record mutations take the lock beside the records root:
+`.ahm/.lock/` in project mode, or `<store>/projects/<dir>/.lock/` in home mode.
+Stale temporary-file cleanup scans the project's `.ahm/` state directory and,
+in home mode, the store project's state directory; it never walks the whole
+repository or store root.
+
 ## File Ownership Boundary
 
 `ahm` owns the workflow files it installs, maintains, generates, and upgrades.
@@ -157,8 +230,8 @@ for using `ahm` commands.
 
 The ownership categories are:
 
-1. **Generated indexes** (the task index and its bucket indexes under
-   `.ahm/tasks/`, plus `docs/adr/index.md`) — owned by
+1. **Generated indexes** (the task index and its bucket indexes under the
+   resolved records root, plus `docs/adr/index.md`) — owned by
    `ahm`. Do not edit by hand. Update source records and run `ahm index`.
 
 2. **Workflow procedures** — project-owned. `ahm` emits no procedure text:
@@ -177,28 +250,37 @@ The ownership categories are:
    skill files are project-owned: ahm leaves them in place and never inspects,
    reports, overwrites, or removes them. Fresh installs create none.
 
-4. **Workflow source records** — task files live under `.ahm/tasks/`. Update
-   them through their
-   documented workflows (e.g., `ahm task create`, `ahm task complete <id>`, or
-   `ahm index` after manual edits). These records
-   are committed project files under `.ahm/`. ADRs under
-   `docs/adr/` remain project-owned durable documentation and use `ahm adr`
-   lifecycle commands.
+4. **Workflow source records** — task files live under the resolved records
+   root. Update them through their documented workflows (e.g., `ahm task
+   create`, `ahm task complete <id>`, or `ahm index` after manual edits). In
+   project mode these records are committed project files under `.ahm/`. In
+   home mode they are machine-local files in the store's project directory.
+   ADRs under `docs/adr/` remain project-owned durable documentation and use
+   `ahm adr` lifecycle commands.
 
 5. **`AGENTS.md`** — project-owned. `ahm init` and `--force`
    never create, overwrite, or remove `AGENTS.md`. Bootstrap text is README
    prose the project writes for itself; `ahm` prints no snippet and inspects
    no project instruction file.
 
+In home mode, the store's per-project directory is ahm-owned working state:
+its `.gitignore`, generated indexes, `project.json`, and `.lock/` are managed
+there, while `<store>/registry.json` is machine-level derived data. The
+project root remains the only place `ahm` writes committed workflow state
+(`.ahm/config.json`, the committed `.ahm/.gitignore`, and ADRs).
+
 Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, duplicate task IDs across task files, task status and bucket
 mismatches, broken task dependencies, tracking tasks with at least one child
 whose child tasks are all Completed or Cancelled, completed task
 acceptance-note drift, ADR record issues, and broken relative Markdown links
-within tasks, ADRs, and their generated indexes. Link discovery uses the
-current record root for tasks plus ADR source files and the
-generated ADR index under `docs/adr/`; it does not scan general project
-documentation or project-owned agent instructions.
+within tasks, ADRs, and their generated indexes. They also report the home
+store's error-tier `task_records_in_project` finding when a task record remains
+under `.ahm/tasks/` while `tasks_location` is `home`, and
+`store_dir_unreadable` when the resolved store records directory is missing or
+unreadable. Link discovery uses the current record root for tasks plus ADR
+source files and the generated ADR index under `docs/adr/`; it does not scan
+general project documentation or project-owned agent instructions.
 Duplicate task IDs are error-tier findings that name every conflicting path and
 require manual removal or renaming; task-record mutation commands refuse to
 operate on an affected ID until the conflict is resolved. Read-only list and
@@ -222,7 +304,7 @@ Supported scopes:
   of workflow state and can be run separately to focus on record-integrity
   drift. It does not scan README, CONTRIBUTING, ARCHITECTURE, general `docs/`,
   `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records outside the
-  `.ahm/tasks/` and `docs/adr/` record roots.
+  resolved task records root and `docs/adr/`.
 
 Scopes compose: `--check workflow --check links` or `--check workflow,links`
 runs both the workflow and link validators. Passing an unknown scope value is a
@@ -381,14 +463,16 @@ rename is indistinguishable from a successful write. Stale `.tmp` files left
 by a crash are cleaned up opportunistically at the start of the `index`
 command, except under `--dry-run`, which removes nothing.
 
-All workflow record mutations share a single repository-local lock under
-`.ahm/.lock/workflow-records` to serialize
-read-compute-write sequences across concurrent `ahm` invocations. Dry-run and
-read-only preview paths do not take the lock. While the lock is held, a
-background heartbeat periodically refreshes the lock directory's modification
-time so that the stale-lock reclamation can distinguish a live lock from an
-abandoned one. Stale lock reclamation uses a two-check pattern: it observes
-the modification time, waits a short delay, and observes again. It only
+All workflow record mutations share a single repository-local lock beside the
+records root: `.ahm/.lock/workflow-records` in project mode, or
+`<store>/projects/<dir>/.lock/workflow-records` in home mode. It serializes
+read-compute-write sequences across concurrent `ahm` invocations, including
+clones that share one store. Dry-run and read-only preview paths do not take
+the lock. While the lock is held, a background heartbeat periodically refreshes
+the lock directory's modification time so that the stale-lock reclamation can
+distinguish a live lock from an abandoned one. Stale lock reclamation uses a
+two-check pattern: it observes the modification time, waits a short delay, and
+observes again. It only
 reclaims when both observations show an unchanged modification time past the
 stale threshold, preventing the reclamation from stealing a lock from a
 heartbeating owner. Each acquire writes a unique owner token file named

@@ -35,6 +35,20 @@ with an error that names the final v1 release (`v1.0.0`) to upgrade with first;
 Use `--root <path>` to bypass auto-detection and operate on a specific
 directory.
 
+## Home Store Environment
+
+Task records in home mode are stored outside the repository under `~/.ahm`.
+Set `AHM_HOME` to override the store root with an absolute path; a relative
+value is a usage error. The store root contains `registry.json` and
+`projects/<slug>-<hash8>/` directories. `ahm store path` reports the resolved
+root, project key, and records directory. Home-mode identity uses the remote
+Git selects: `origin` when present, otherwise the only remote when the
+repository has exactly one. A project whose root contains `.git` requires
+readable Git state; a project root without `.git` uses the path rule and reads
+no Git. See
+[the workflow specification](../workflow-spec.md) for the store format and
+ownership boundary.
+
 `init` is lenient: it can run in any directory and creates the `.ahm` workflow
 scaffolding there. `status` reports a git repository that has no
 `.ahm/config.json` as `installed: false`, provided Git can read the repository:
@@ -83,6 +97,11 @@ print human-friendly key-value output:
 root: /path/to/repo
 installed: true
 installed_version: 1.0.0
+store:
+  root: /Users/you/.ahm
+  key: github.com/owner/repo
+  kind: remote
+  location: home
 tasks:
   total: 5
   pending: 2
@@ -93,6 +112,13 @@ validation:
   errors: 0
   warnings: 0
 ```
+
+The `store` block is present in `status` and `prime` only for an installed
+project whose records live in the home store. It is absent in project mode and
+for an uninstalled repository; JSON and plain output carry the same
+`root`, `key`, `kind`, and `location` fields. `ahm store path` is the
+deliberate exception: it reports absolute store paths, and text output
+abbreviates the user's home directory to `~`.
 
 When the workflow metadata is missing (not yet installed), `installed_version`
 shows as `none` in text mode and `null` in JSON/plain mode, and the

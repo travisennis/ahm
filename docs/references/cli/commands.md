@@ -94,6 +94,12 @@ live repository briefing. The entry point for agent sessions.
 
 - Fast, offline-tolerant, idempotent.
 - Prints validation findings, task counts, and the backlog.
+- For an installed home-mode project, text and structured output include
+  `store.root`, `store.key`, `store.kind` (`remote` or `path`), and
+  `store.location` (`home`). The block is absent in project mode and for an
+  uninstalled repository.
+- `--dry-run` previews index regeneration and does not write files or create
+  store state.
 
 ### `status`
 
@@ -103,6 +109,9 @@ validation scopes by default.
 **Guarantees:**
 
 - Exit code 1 when validation contains errors.
+- For an installed home-mode project, text and structured output include the
+  same `store` object as `prime`; the block is absent in project mode and for
+  an uninstalled repository.
 - See `docs/references/workflow-spec.md` for validation scopes and finding codes.
 - See `task-file-format.md` for the full validation finding code catalog.
 
@@ -114,7 +123,9 @@ state.
 **Guarantees:**
 
 - Exit code 1 when validation contains errors.
-- Shares validation infrastructure with `status`.
+- Shares validation infrastructure with `status`; it does not add a separate
+  `store` block. A home-mode store failure appears in its validation findings
+  as `store_dir_unreadable`.
 
 ### `init`
 
@@ -134,7 +145,8 @@ is present.
   rather than reconciled workflow files.
 - A new project whose root holds `.git` needs Git to read that repository: an
   unreadable one fails (exit code 1) rather than deriving a different store key,
-  because identity comes from the `origin` remote. A root with no `.git` uses
+  because identity comes from the selected Git remote (`origin`, or the only
+  remote when there is one). A root with no `.git` uses
   the path rule and reads no Git.
 - A repository that already has a configuration keeps the mode it names: a
   configuration without a `tasks_location` key — every repository that predates
@@ -172,9 +184,10 @@ is present.
 
 ### `store path`
 
-Prints where the current project's records live in the user-level home store:
-the store root, the project key, and the records directory
-(`<root>/projects/<dir>/tasks`).
+Prints the resolved home-store location for this project: the store root, the
+project key, and the records directory
+(`<root>/projects/<dir>/tasks`). The command resolves this location even when
+the repository currently keeps records in the project.
 
 **Guarantees:**
 
@@ -182,13 +195,13 @@ the store root, the project key, and the records directory
   relative `AHM_HOME` is a usage error (exit code 2), and an `AHM_HOME` that
   exists and is not a directory exits 1.
 - The key is derived per command and never stored in the project. With a Git
-  remote it is the canonical `origin` URL — the lowercased `host/owner/repo`
-  form, with scheme, userinfo, default port, trailing `.git`, and trailing
-  slash removed, and non-default ports kept. A repository whose only remote is
-  not `origin` uses that remote; several remotes without an `origin`, a remote
-  that names no URL, a `file://` remote, a local-path remote, and no remote at
-  all fall back to the SHA-256 of the symlink-resolved project root.
-  Credentials are never included in the key or persisted.
+  remote it is the canonical form of the selected remote — the lowercased
+  `host/owner/repo` form, with scheme, userinfo, default port, trailing `.git`,
+  and trailing slash removed, and non-default ports kept. A repository whose
+  only remote is not `origin` uses that remote; several remotes without an
+  `origin`, a remote that names no URL, a `file://` remote, a local-path remote,
+  and no remote at all fall back to the SHA-256 of the symlink-resolved project
+  root. Credentials are never included in the key or persisted.
 - Identity uses the project root's own `.git`. A root whose own directory
   holds no `.git` — a directory managed by `.ahm/config.json` alone, a `--root`
   pointing into a repository subdirectory, or a bare repository — always uses
@@ -197,7 +210,8 @@ the store root, the project key, and the records directory
   repository is broken or unreadable) exits 1 instead of falling back to the
   path rule, because a silent fallback would resolve a different key.
 - Two clones, and a linked path, of one project report the same key and
-  directory.
+  directory when they resolve to the same project key. Path-keyed projects at
+  different roots resolve to different keys and directories.
 - The command records the project in `<store>/registry.json`, and its state in
   `<store>/projects/<dir>/project.json`, unless `--dry-run` is given; both are
   written only when their bytes change, so a repeated run writes nothing. An
@@ -300,7 +314,8 @@ store. It is the only command that moves a record between the two layouts;
 - `--json` and `--plain` emit `to`, `moved` (source and destination pairs),
   `written`, `removed`, `dry_run` (dry runs only), and the `deletions` or
   `additions` commit list. Text output prints the same actions, one per line,
-  and abbreviates no path: a store path renders as `store:<store-relative>`.
+  and abbreviates no path: a store path renders relative to the store project
+  directory, such as `store:tasks/active/001.md`.
 - A repeated run whose records already live in the destination — a repository
   whose configuration names it — reports no work
   and writes nothing, unless it finds the source's generated indexes or empty
@@ -309,9 +324,10 @@ store. It is the only command that moves a record between the two layouts;
 ### `index`
 
 Regenerates all generated indexes from source records. Also removes stale
-`.tmp` files older than five minutes anywhere under `.ahm/`, including
-leftovers from an interrupted write; a cleanup failure warns instead of failing
-the command.
+`.tmp` files older than five minutes from the project's `.ahm/` state
+directory and, in home mode, the store project's state directory, including
+leftovers from an interrupted write; a cleanup failure warns instead of
+failing the command. It never scans the whole repository or store root.
 
 **Guarantees:**
 

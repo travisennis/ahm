@@ -9,7 +9,7 @@ they need.
 - [Global contract](references/cli/global-contract.md): usage, root selection,
   global flags, output modes, and exit codes.
 - [Commands](references/cli/commands.md): non-task commands including ADR,
-  init, status, doctor, and index behavior.
+  init, status, doctor, index, and home-store commands.
 - [Task commands](references/cli/task-commands.md): task lifecycle,
   dependencies, completion, cancellation, and reopening.
 - [Task file and validation formats](references/cli/task-file-format.md): task
@@ -24,12 +24,16 @@ contract.
 
 Structured `init` summaries have a stable set of array-valued keys:
 `created`, `updated`, `directories`, and `indexes`. Every key remains present as
-an empty array when a reconcile pass changed nothing.
+an empty array when a reconcile pass changed nothing. `status` and `prime`
+add a `store` object with `root`, `key`, `kind`, and `location` when an
+installed project keeps task records in the home store; the field is absent in
+project mode.
 
 `task list`, `task ready`, and `task blocked` share configurable deterministic
 ordering through `--sort` and `--reverse`; the supported fields and rank rules
 are documented in the task command reference.
 
 For implementation boundaries and invariants, see
-[`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state and file-format
-semantics, see [the workflow specification](references/workflow-spec.md).
+[`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state, store identity,
+and file-format semantics, see
+[the workflow specification](references/workflow-spec.md).

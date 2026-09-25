@@ -1,9 +1,10 @@
 # ahm
 
-`ahm` is the records CLI for repo-local workflow state. It manages two record
-families: tasks under `.ahm/tasks/` and ADRs under `docs/adr/`. It creates and
-advances those records, regenerates a deterministic Markdown index for each
-family, and validates their integrity.
+`ahm` is the records CLI for project workflow state and the user-level home
+store. It manages two record families: tasks, which live under `.ahm/tasks/` in
+`project` mode or under the resolved home-store directory in `home` mode, and
+ADRs under `docs/adr/`. It creates and advances those records, regenerates a
+deterministic Markdown index for each family, and validates their integrity.
 
 `ahm` does nothing else. It does not run coding agents, ship workflow
 procedures, commit, push, or patch project source. Project guidance, including
@@ -32,6 +33,7 @@ irm https://raw.githubusercontent.com/travisennis/ahm/master/scripts/install.ps1
 
 ```bash
 ahm init
+ahm store path
 ahm status
 ahm task create "Add release workflow" --priority P2 --effort M --labels type:task,area:ci
 ahm task ready
@@ -50,6 +52,12 @@ Useful global flags:
 - `--dry-run`: preview write operations for commands that support it.
 - `--force`: override strict acceptance when supported.
 
+Set the absolute `AHM_HOME` environment variable to override the default
+`~/.ahm` home-store root. Existing repositories keep project-local task
+records until they opt in with `ahm store migrate --to home`; new projects
+initialize in home mode by default. `ahm store path` reports the resolved
+location.
+
 For the full command, flag, output, and task-file contract, start with
 [`docs/cli.md`](docs/cli.md).
 
@@ -62,10 +70,11 @@ or remove it.
 
 `ahm` never commits, stages, pushes, opens pull requests, or patches project
 source, and it makes no network requests. Every write is explicit and confined
-to state `ahm` owns: task files under `.ahm/tasks/`, ADRs under `docs/adr/`,
-`.ahm/config.json`, the managed `.ahm/.gitignore`, and the generated indexes.
-Records are ordinary committed project files; generated task indexes are
-local-only. Git is the only program `ahm` runs.
+to state `ahm` owns: task records and generated indexes under the resolved
+records root, the store registry and per-project state when home mode is
+active, ADRs under `docs/adr/`, `.ahm/config.json`, and the managed
+`.ahm/.gitignore` files. Project-mode task records are committed files;
+home-mode task records are machine-local. Git is the only program `ahm` runs.
 
 ## Development
 

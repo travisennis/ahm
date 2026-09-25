@@ -97,8 +97,12 @@ directory belongs to the current project.
   `git status --short` showed only the two intended ahm-owned modifications
   and 330 task-record deletions. The upgrade guide now records the opt-in
   procedure and the observed friction.
-- [ ] 267h — Update the workflow spec, upgrade guide, CLI reference,
-  architecture map, and agent instructions; hand the release notes to 264f.
+- [x] (2026-09-25) 267h — Consolidated the home-store documentation across
+  the workflow spec, upgrade guide, CLI references, architecture map, glossary,
+  task workflow, README, VISION, CONTRIBUTING, and AGENTS.md. The three review
+  rounds resolved the identity wording; option 1 qualifies clone sharing by
+  equal resolved key and documents the path-key slug as `project`. The
+  release-note handoff is recorded on 264f.
 
 ## Surprises & Discoveries
 
@@ -512,6 +516,13 @@ directory belongs to the current project.
   also reported no findings after the move. Evidence: the captured JSON
   reports differed only by the `store` field and the pre-migration binary
   metadata.
+- 2026-09-25 (267h): three documentation review rounds stayed in the
+  identity-semantics class. The first corrected the root boundary, selected
+  remote rule, index distinction, and `store:` path base; the second corrected
+  the CLI identity paragraph and added the display example; the third found
+  two remaining generalizations. The approved option 1 qualifies cross-clone
+  sharing by equal resolved project key and documents the `project` slug for
+  path keys. Evidence: the final documentation lint and full CI gate are green.
 
 ## Decision Log
 
@@ -968,6 +979,21 @@ the migration refuses uncommitted task records, which means a task should be
 started only after the move when the move itself is the next step. The opt-in procedure and its
 preconditions are in `docs/guides/workflow-upgrades.md`. The broader
 home-store documentation sweep remains 267h.
+
+### 267h — Documentation and release handoff (2026-09-25)
+
+Delivered: the home-store boundary is documented across the workflow spec,
+upgrade guide, CLI overview and references, architecture map, glossary, task
+workflow, README, VISION, CONTRIBUTING, and AGENTS.md. The documentation now
+covers project and home storage modes, project identity and remote selection,
+`AHM_HOME`, store output fields, drift findings, link resolution, owned roots,
+the lock and cleanup locations, the ID counter, the store format version, and
+the opt-in/reverse migration procedure.
+
+The AGENTS.md behavior edit was verified with a fresh Codex agent: it read the
+new rule and `.ahm/config.json`, reported that home-mode records are not
+branch-scoped, and named `ahm store path`. The release-note handoff is recorded
+on task 264f. `just docs-md-lint` and `just ci` pass.
 
 ### 267f — Default new projects to the home store (2026-09-22)
 
@@ -1786,6 +1812,9 @@ Git, and adds only a read of the `origin` remote URL through the existing
 
 ## Change Notes
 
+- 2026-09-25: 267h delivered after the option-1 identity wording decision. The
+  documentation sweep is complete, the release-note handoff is on 264f, and the
+  final lint and CI checks are green.
 - 2026-09-25: 267g executed. The repository's 330 task records now live in the
   home store; the required command surface was verified against the store, the
   pre/post status counts and validation findings matched, and the upgrade guide

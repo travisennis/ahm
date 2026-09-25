@@ -149,7 +149,7 @@ The standard sequence:
 
 1. Sync `master`: `git pull --ff-only`.
 2. Run `ahm prime` before any work and after any checkout; it regenerates the
-   branch-scoped indexes and prints the briefing.
+   resolved workflow indexes and prints the briefing.
 3. Implement, then commit on `master`. Do not commit or push unless explicitly
    asked.
 4. Push with `git push origin master`. CI runs on the push; check it with

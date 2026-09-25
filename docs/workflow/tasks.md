@@ -138,19 +138,29 @@ and regenerates indexes.
 
 ## Storage And Manual Fallback
 
-Task source records live under `.ahm/tasks/`: active records under
-`.ahm/tasks/active/`, completed records under `.ahm/tasks/completed/`, and
-cancelled records under `.ahm/tasks/cancelled/`. Task ids and filenames remain
-stable across lifecycle moves.
+Task source records live under the records root selected by
+`tasks_location`. In project mode they are under `.ahm/tasks/`: `active/`
+records under `.ahm/tasks/active/`, `completed/` records under
+`.ahm/tasks/completed/`, and `cancelled/` records under
+`.ahm/tasks/cancelled/`. In home mode the same buckets live under the store
+directory reported by `ahm store path` (`~/.ahm/projects/<dir>/tasks/` by
+default). Task IDs and filenames remain stable across lifecycle moves.
 
-`.ahm/tasks/index.md` and its linked indexes are generated, read-only views.
-Never edit them directly. Normal `ahm task ...` mutations regenerate indexes
-automatically. Run `ahm index` only after manually changing task metadata,
-location, or linkage; body-only edits do not require it. Preview an index
-regeneration with `ahm --dry-run index`.
+The task index and its linked bucket indexes are generated, read-only views at
+the records root. Never edit them directly. Normal `ahm task ...` mutations
+regenerate indexes automatically. Run `ahm index` only after manually changing
+task metadata, location, or linkage; body-only edits do not require it. Preview
+an index regeneration with `ahm --dry-run index`.
+
+In project mode, task records are committed under `.ahm/tasks/`. In home mode,
+they are machine-local and are not part of the repository's Git history; the
+committed `.ahm/config.json` records `tasks_location: home`, and the project's
+managed `.gitignore` leaves only the config temp-file pattern. The store's own
+`.gitignore` excludes its generated indexes, lock, and `project.json` state
+file.
 
 If `ahm` is unavailable, inspect the task source files and generated index as a
 fallback. Avoid manual creation or lifecycle moves when possible. If a manual
-metadata or location change is unavoidable, preserve the task id and filename,
+metadata or location change is unavoidable, preserve the task ID and filename,
 keep active, completed, and cancelled records in their matching buckets, and
 run `ahm index` once the CLI is available again.
