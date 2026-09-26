@@ -82,7 +82,7 @@ home mode. Every task record path is derived from the records root. Record
 writes never touch branches, `HEAD`, or the project index. A repository whose
 metadata is still the retired `.agents/ahm.json` layout, without
 `.ahm/config.json`, is refused by root detection, which names the final v1
-release (`v1.0.0`) that can migrate it.
+release (`v1.1.0`) that can migrate it.
 
 When `ahm` invokes Git, it scopes the command to the detected repository root
 and removes inherited `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,

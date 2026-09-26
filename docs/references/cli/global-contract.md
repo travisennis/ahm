@@ -29,7 +29,7 @@ By default, `ahm` walks upward from the current working directory until it finds
 a `.git` directory or `.ahm/config.json`. If neither is found, the command
 fails with an error message that explains how to use `--root` or `ahm init`.
 A repository whose metadata is still the retired `.agents/ahm.json` is refused
-with an error that names the final v1 release (`v1.0.0`) to upgrade with first;
+with an error that names the final v1 release (`v1.1.0`) to upgrade with first;
 `ahm` never treats such a repository as unmanaged.
 
 Use `--root <path>` to bypass auto-detection and operate on a specific

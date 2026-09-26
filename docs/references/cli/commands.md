@@ -176,7 +176,7 @@ is present.
   preserved.
 - Never creates, overwrites, or removes project-owned `AGENTS.md`.
 - Refuses a repository whose metadata is still `.agents/ahm.json` and names
-  `v1.0.0`, the final v1 release, as the release to upgrade with first. A
+  `v1.1.0`, the final v1 release, as the release to upgrade with first. A
   repository that also holds `.ahm/config.json` is managed: the v1 migration
   wrote the config after moving the records, so the legacy file is stale.
 - `--dry-run` previews every write without touching the filesystem, the store

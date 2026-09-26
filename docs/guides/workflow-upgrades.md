@@ -124,19 +124,18 @@ half-adopted:
 ```text
 error: legacy ahm workflow layout <root>/.agents/ahm.json: this version
 reads only .ahm/config.json; upgrade the repository with the final v1
-release (ahm v1.0.0) before using this version
+release (ahm v1.1.0) before using this version
 ```
 
-A repository on that layout must move with a v1 build that ships the record
-migration before it can adopt v2. Run `ahm upgrade` and then `ahm records
-migrate`: `ahm upgrade` refreshes the managed files, and `ahm records migrate`
-moves the records to `.ahm/`, writes `.ahm/config.json`, and removes
-`.agents/ahm.json`. Then run `ahm init` with this version.
+A repository on that layout must move with `v1.1.0`, the last release that
+reads it, before it can adopt v2. Install that build, then run `ahm upgrade`
+and then `ahm records migrate`: `ahm upgrade` refreshes the managed files, and
+`ahm records migrate` moves the records to `.ahm/`, writes `.ahm/config.json`,
+and removes `.agents/ahm.json`. Then install v2 and run `ahm init`.
 
-The `v1.0.0` tag predates `ahm records migrate`, so a repository on that
-release needs the last v1 build before this reduction — the one whose `ahm
-records migrate` resolves — to make the move. Check with `ahm records migrate
---help` before starting.
+The `v1.0.0` tag predates `ahm records migrate`, so it cannot perform the move
+and is not the release this error names. If you are on `v1.0.0`, install
+`v1.1.0` rather than trying to migrate with what you have.
 
 ## Release History
 
@@ -146,5 +145,5 @@ the record-layout moves, and the template-version separation. v2 removed most
 of the surfaces those entries describe, so they were dropped rather than left
 here offering commands that no longer exist. Recover them with `git log -p --
 docs/guides/workflow-upgrades.md`; [`CHANGELOG.md`](../../CHANGELOG.md) holds
-the released versions (v0.1.0 and v1.0.0), and [the ADRs](../adr/index.md) hold
-the decisions.
+the released versions (v0.1.0, v1.0.0, and v1.1.0), and
+[the ADRs](../adr/index.md) hold the decisions.
