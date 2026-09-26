@@ -3,24 +3,30 @@
 # https://git-cliff.org/docs/configuration
 
 [changelog]
+# The header stops at the end of its last line and the body opens with a
+# blank line, so every version heading gets exactly one blank line above it
+# and the first one still has one after the header. The `-%}` markers in the
+# body keep the same spacing around each `###` group heading and list, which
+# markdownlint (MD012, MD022, MD032) checks on the release commit.
 header = """
 # Changelog
 
 All notable user-facing changes to `ahm` are recorded here.
-
 """
 body = """
-{% if version %}\
+
+{% if version -%}
 ## {{ version }} - {{ timestamp | date(format="%Y-%m-%d") }}
-{% else %}\
+{% else -%}
 ## Unreleased
-{% endif %}\
-{% for group, commits in commits | group_by(attribute="group") %}
+{% endif %}
+{% for group, commits in commits | group_by(attribute="group") -%}
 ### {{ group | striptags | trim }}
+
 {% for commit in commits -%}
 - {% if commit.scope %}*({{ commit.scope }})* {% endif %}{% if commit.breaking %}**breaking:** {% endif %}{{ commit.message | upper_first }}
-{% endfor %}
-{% endfor %}
+{% endfor -%}{% if not loop.last %}
+{% endif %}{% endfor -%}
 """
 trim = true
 
