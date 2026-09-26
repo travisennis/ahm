@@ -161,7 +161,9 @@ deleted, and the binary runs no program but Git.
       edit, because milestone 4 had already rewritten it. Two subagent review
       rounds ran; `just ci` and `just docs-md-lint` are green on the working
       tree. Not committed at handoff — see the Revision Notes.
-- [ ] Milestone 7 (264f) complete: v2.0.0 released.
+- [x] (2026-09-26) Milestone 7 (264f) complete: v2.0.0 released, preceded by
+      v1.1.0 as the legacy-layout migration waypoint. See the Decision Log
+      and Outcomes for what the release forced that the plan did not foresee.
 
 ## Surprises & Discoveries
 
@@ -975,6 +977,24 @@ deleted, and the binary runs no program but Git.
   Date/Author: 2026-09-20, Travis Ennis.
 
 ## Outcomes & Retrospective
+
+- (2026-09-26) Milestone 7 (task 264f). Outcome: `v2.0.0` is tagged on
+  `396bf3c` and published with all six target archives; the release body is
+  `docs/releases/v2.0.0.md`, which names every removed command, configuration
+  key, and record family and gives the `ahm init` and home-store steps. The
+  release forced three things the plan did not foresee, each recorded in the
+  Surprises and Decision Log: no published release could perform the legacy
+  `.agents/ahm.json` migration the plan's prose rule depends on, so `v1.1.0`
+  was cut from `bcb8ae0` as the waypoint; the GitHub Release body was a
+  generated commit list that cannot state a removal, so per-tag release notes
+  became a documented release step; and `just prepare-release` produced a
+  changelog that failed `docs-md-lint`, so the documented release flow could
+  not produce a green release commit. `master` was also red on
+  `windows-latest` before this milestone - six test failures from a
+  `payloadPath` separator regression introduced by the home store - which the
+  milestone's CI-green acceptance caught. Lesson: a release milestone is the
+  first time the whole documented pipeline actually runs, and every step in it
+  that had only ever been run in pieces was broken.
 
 - (2026-09-20) Milestone 4 (task 264c). Outcome: `ahm` no longer prints
   instructions. `context`, `onboard`, their templates, and the two remaining
