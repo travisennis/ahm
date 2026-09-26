@@ -118,11 +118,14 @@ func TestWorkflowPathsHomeModeAccessors(t *testing.T) {
 // so the JSON path field and the dry-run previews keep the absolute project
 // path every project-mode consumer already receives (ADR 023 keeps project-mode
 // output byte-identical) and render a store path as store:<store-relative>.
+// The project path is slash-separated on every platform, which is what the
+// pre-home-store output emitted, so the expectation is built with ToSlash
+// rather than comparing against the native path.
 func TestWorkflowPathsPayloadPathKeepsProjectPaths(t *testing.T) {
 	root := t.TempDir()
 	project := workflowPathsFor(root)
-	projectRecord := project.taskFile("active", "001")
-	if got := project.payloadPath(projectRecord); got != projectRecord {
+	projectRecord := filepath.ToSlash(project.taskFile("active", "001"))
+	if got := project.payloadPath(project.taskFile("active", "001")); got != projectRecord {
 		t.Errorf("payloadPath(project record) = %q, want %q", got, projectRecord)
 	}
 
@@ -130,9 +133,11 @@ func TestWorkflowPathsPayloadPathKeepsProjectPaths(t *testing.T) {
 	if got, want := home.payloadPath(home.taskFile("active", "267")), "store:tasks/active/267.md"; got != want {
 		t.Errorf("payloadPath(store record) = %q, want %q", got, want)
 	}
-	// A project path stays untouched even when the records live in the store.
-	if got := home.payloadPath(project.adrIndexPath()); got != project.adrIndexPath() {
-		t.Errorf("payloadPath(project path in store mode) = %q, want %q", got, project.adrIndexPath())
+	// A project path stays an absolute project path even when the records live
+	// in the store.
+	adrIndex := filepath.ToSlash(project.adrIndexPath())
+	if got := home.payloadPath(project.adrIndexPath()); got != adrIndex {
+		t.Errorf("payloadPath(project path in store mode) = %q, want %q", got, adrIndex)
 	}
 }
 

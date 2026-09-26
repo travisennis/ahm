@@ -39,10 +39,20 @@ func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if errors.Is(err, os.ErrNotExist) {
-			continue
+			// On Windows, os.ReadDir of a regular file fails with an error that
+			// satisfies os.ErrNotExist, so a stat decides whether a failed read
+			// means "no bucket here" or "the bucket is not a directory". Only
+			// the former is skipped; see adrFilePathsFor for the same check.
+			info, statErr := os.Stat(dir)
+			if errors.Is(statErr, os.ErrNotExist) {
+				continue
+			}
+			if statErr == nil && !info.IsDir() {
+				return nil, fmt.Errorf("reading %s: not a directory", paths.displayPath(dir))
+			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", dir, err)
+			return nil, fmt.Errorf("reading %s: %w", paths.displayPath(dir), err)
 		}
 		for _, entry := range entries {
 			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {

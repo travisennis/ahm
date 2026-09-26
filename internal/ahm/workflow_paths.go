@@ -160,14 +160,15 @@ func (p workflowPaths) displayPath(path string) string {
 
 // payloadPath renders a record path for a structured payload: the JSON path
 // field of a task, and the dry-run create, move, and unblock previews. A store
-// path is displayed the same way displayPath displays it, and a project path is
-// returned unchanged, because those payloads carry the record's own path and
-// ADR 023 keeps project-mode output byte-identical.
+// path is displayed the same way displayPath displays it. A project path keeps
+// the record's own absolute path, with slashes, because ADR 023 keeps
+// project-mode output byte-identical to the output from before the home store,
+// and that output was slash-separated on every platform.
 func (p workflowPaths) payloadPath(path string) string {
 	if p.inStore() && pathWithin(p.store.ProjectDir, path) {
 		return p.displayPath(path)
 	}
-	return path
+	return filepath.ToSlash(path)
 }
 
 // inProjectRecordPath maps a store record path to the in-project path the
