@@ -23,6 +23,8 @@ index.
   and the legacy `.agents/ahm.json` migration path.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
+- [Release notes](releases/README.md): the published body for each tagged
+  version.
 - [Guardrails](guardrails/): short agent-facing rules by risk surface.
 - [ADRs](adr/index.md): decision record lifecycle and decision history.
 
@@ -45,6 +47,8 @@ changes, or agent instructions), see the **Workflow Routing** section in
 - `references/`: stable contracts, schemas, formats, and lookup material.
 - `workflow/`: project-owned task, ADR, and ExecPlan procedures.
 - `exec-plans/`: design plans for large or cross-cutting work.
+- `releases/`: one release-notes file per tagged version, published as the
+  GitHub Release body.
 - `adr/`: architecture decision records and the generated ADR index.
 
 Do not hand-edit generated indexes such as `docs/adr/index.md`; update source

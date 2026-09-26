@@ -55,6 +55,26 @@ Releases are prepared on `master`: the changelog commit lands there like any
 other commit, and the tag is created and pushed from the same commit. CI runs
 on the push, so confirm it is green before tagging.
 
+## Release Notes
+
+`CHANGELOG.md` is generated from Conventional Commits, so it cannot carry
+release-specific prose: `just prepare-release` overwrites the whole file. Write
+the release body in `docs/releases/<tag>.md` instead, where the filename
+matches the tag exactly, including the `v` prefix.
+
+The release workflow publishes `docs/releases/<tag>.md` as the GitHub Release
+body when that file exists on the tagged commit, and falls back to the
+changelog GoReleaser generates from the commit log when it does not. A release
+that removes a command, a configuration key, or a record family must have a
+notes file: those are the only consumer-facing details the generated changelog
+cannot state, and the removed surfaces need to be named rather than left for a
+reader to infer from commit subjects.
+
+A release notes file is committed with the changelog, before the tag is pushed,
+so the tagged commit already contains it. Keep it self-contained — it is
+rendered on a release page, not in the docs tree, so link to documentation
+with absolute URLs.
+
 ## Weekly Release Checklist
 
 1. Make sure all intended changes are merged and the worktree is clean.
@@ -103,7 +123,8 @@ git push origin v0.3.0
 
 The release workflow runs GoReleaser for tags matching `v*`. GoReleaser builds
 Linux, macOS, and Windows archives for amd64 and arm64, publishes them to the
-GitHub Release, and uploads `checksums.txt`.
+GitHub Release, and uploads `checksums.txt`. It publishes
+`docs/releases/<tag>.md` as the release body when that file exists.
 
 1. Watch the release workflow:
 
@@ -148,6 +169,8 @@ git tag --points-at HEAD
 ## Version Rules
 
 - Release tags use SemVer with a `v` prefix, for example `v0.3.0`.
+- A release notes file is named for the tag it belongs to, for example
+  `docs/releases/v0.3.0.md`, and is committed before the tag is pushed.
 - `svu` calculates the next tag from Conventional Commit history.
 - `git-cliff` generates `CHANGELOG.md` from Conventional Commit history.
 - Archive names use the bare version, for example

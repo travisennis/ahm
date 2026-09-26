@@ -15,6 +15,7 @@ workflow specs, upgrade docs, ADR docs, project workflow docs under
 - `docs/references/workflow-spec.md` workflow semantics and file formats.
 - `docs/workflow/` project-owned task, ADR, and ExecPlan procedures.
 - `docs/exec-plans/` project-owned design plans.
+- `docs/releases/` one published release-notes file per tagged version.
 - Generated `docs/adr/index.md`.
 
 ## Ownership
@@ -25,6 +26,7 @@ workflow specs, upgrade docs, ADR docs, project workflow docs under
 - Docs navigation: `docs/README.md`
 - Task, ADR, and ExecPlan procedures: `docs/workflow/`
 - Design plans for large work: `docs/exec-plans/`
+- Release notes for published versions: `docs/releases/`
 - CLI contracts: `docs/cli.md`
 - Workflow semantics: `docs/references/workflow-spec.md`
 - Risk-surface rules: `docs/guardrails/`

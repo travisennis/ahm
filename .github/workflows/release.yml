@@ -22,6 +22,11 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.16.0
-          args: release --clean
+          # A tag that has a matching docs/releases/<tag>.md file publishes
+          # that file as the release body; any other tag falls back to the
+          # changelog GoReleaser generates from the commit log.
+          args: >-
+            release --clean
+            ${{ hashFiles(format('docs/releases/{0}.md', github.ref_name)) != '' && format('--release-notes=docs/releases/{0}.md', github.ref_name) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
