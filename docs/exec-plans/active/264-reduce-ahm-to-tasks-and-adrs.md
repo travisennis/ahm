@@ -598,6 +598,29 @@ deleted, and the binary runs no program but Git.
 
 ## Decision Log
 
+- Decision: the structured record path is rendered by two functions rather
+  than one. `recordPath` serves the JSON `path` field and returns a project
+  path unchanged; `payloadPath` serves the dry-run create, move, and unblock
+  previews and separates the project path with slashes.
+  Rationale: milestone 7's release gate caught six windows-latest failures
+  caused by the home store replacing `filepath.ToSlash` with a single
+  `payloadPath`. Restoring `ToSlash` there fixed the five preview failures and
+  the `move:` assertion, and the sixth, `TestProjectModeOutputHasNoStoreField`,
+  was asserting a slash-separated JSON `path` field that the pre-home-store tree
+  never emitted: at `6eed190^` only the three preview sites applied `ToSlash`,
+  and `Task.Path` reached JSON straight from `filepath.Join`. So the field was
+  backslash-separated on Windows, and unifying on `ToSlash` changed Windows
+  project-mode output rather than restoring it, which contradicts the
+  byte-identical promise in ADR 023 and `docs/references/workflow-spec.md`. One
+  function cannot be byte-identical to two different historical behaviors, so
+  both are reproduced and the asymmetry is documented at each function. The
+  alternative - keeping the slashes and amending ADR 023 - was rejected because
+  it would bless a change that arrived by accident rather than by decision.
+  Consequence: `payloadPath` is a thin `filepath.ToSlash` over `recordPath`, and
+  a new call site must choose deliberately. The separator choice is only
+  testable on Windows, so the windows-latest leg of CI is its discriminator.
+  Date/Author: 2026-09-26, Travis Ennis (executed under task 264f).
+
 - Decision: milestone 6 drops the dated pre-v2 release history from
   `docs/guides/workflow-upgrades.md` instead of rewriting each entry.
   Rationale: the prose rule's three exceptions do not cover a dated history,
@@ -990,9 +1013,10 @@ deleted, and the binary runs no program but Git.
   became a documented release step; and `just prepare-release` produced a
   changelog that failed `docs-md-lint`, so the documented release flow could
   not produce a green release commit. `master` was also red on
-  `windows-latest` before this milestone - six test failures from a
-  `payloadPath` separator regression introduced by the home store - which the
-  milestone's CI-green acceptance caught. Lesson: a release milestone is the
+  `windows-latest` before this milestone - five test failures from a
+  `payloadPath` separator regression introduced by the home store and one from
+  a separate `os.ReadDir` non-directory case - which the milestone's CI-green
+  acceptance caught. Lesson: a release milestone is the
   first time the whole documented pipeline actually runs, and every step in it
   that had only ever been run in pieces was broken.
 
