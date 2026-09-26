@@ -11,7 +11,11 @@ import (
 // layout and can migrate a repository off it. Root detection refuses such a
 // repository instead of treating it as unmanaged, so a legacy tree is never
 // half-adopted by an init that would leave its records behind.
-const finalV1Release = "v1.0.0"
+//
+// v1.0.0 is not that release: it predates `ahm records migrate`, so it cannot
+// perform the move. v1.1.0 is the tag on the last master commit that still
+// carries both the legacy reader and the migration.
+const finalV1Release = "v1.1.0"
 
 // legacyLayoutError reports a repository that still holds the retired
 // .agents/ahm.json workflow layout.
