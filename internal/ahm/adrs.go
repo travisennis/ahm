@@ -36,6 +36,12 @@ type ADR struct {
 	ParseError     string
 }
 
+// adrFilePaths collects the ADR markdown paths under root. It stats before it
+// reads so that a path which exists but is not a directory is reported the same
+// way on every platform. os.ReadDir cannot carry that distinction on Windows:
+// syscall.ENOTDIR is ERROR_PATH_NOT_FOUND there, and Errno.Is accepts
+// ERROR_PATH_NOT_FOUND as os.ErrNotExist, so a regular file at the ADR
+// directory's path reads as absent rather than as a non-directory.
 func adrFilePaths(root string) ([]string, error) {
 	dir := filepath.Join(root, "docs", "adr")
 	info, err := os.Stat(dir)
@@ -46,9 +52,6 @@ func adrFilePaths(root string) ([]string, error) {
 		return nil, fmt.Errorf("reading %s: %w", relPath(root, dir), err)
 	}
 	if !info.IsDir() {
-		// On Windows, os.ReadDir of a regular file does not fail (it has no
-		// ENOTDIR semantics), so the non-directory case must be checked
-		// explicitly to keep collection errors platform-consistent.
 		return nil, fmt.Errorf("reading %s: not a directory", relPath(root, dir))
 	}
 	entries, err := os.ReadDir(dir)

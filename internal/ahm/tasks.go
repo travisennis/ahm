@@ -39,10 +39,12 @@ func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 		dir := paths.tasksBucketDir(bucket)
 		entries, err := os.ReadDir(dir)
 		if errors.Is(err, os.ErrNotExist) {
-			// On Windows, os.ReadDir of a regular file fails with an error that
-			// satisfies os.ErrNotExist, so a stat decides whether a failed read
-			// means "no bucket here" or "the bucket is not a directory". Only
-			// the former is skipped; see adrFilePathsFor for the same check.
+			// os.ReadDir cannot distinguish a missing directory from one that
+			// exists but is not a directory on Windows: syscall.ENOTDIR is
+			// ERROR_PATH_NOT_FOUND there, and Errno.Is accepts it as
+			// os.ErrNotExist, so a regular file at the bucket's path reads as
+			// absent. Stat to tell the two apart, and skip only the genuinely
+			// absent one. adrFilePaths has the same guard for the same reason.
 			info, statErr := os.Stat(dir)
 			if errors.Is(statErr, os.ErrNotExist) {
 				continue

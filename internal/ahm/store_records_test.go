@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -347,19 +348,23 @@ func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 
 	// Structured payloads keep the record's own absolute path in project mode,
 	// which is what keeps project-mode output byte-identical: displayPath would
-	// have made them repository-relative.
+	// have made them repository-relative. That field kept the platform's own
+	// separator before the home store, so the expectation is the JSON encoding
+	// of the native path - strconv.Quote is what carries a Windows separator
+	// through JSON's own escaping, where a ToSlash expectation would not.
 	record := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
+	wantPath := `"path": ` + strconv.Quote(record)
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "task", "list")
 	if code != 0 {
 		t.Fatalf("task list --json: stdout=%q stderr=%q", stdout, stderr)
 	}
-	assertContainsAll(t, stdout, `"path": "`+filepath.ToSlash(record)+`"`)
+	assertContainsAll(t, stdout, wantPath)
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--json", "task", "show", "001")
 	if code != 0 {
 		t.Fatalf("task show --json: stdout=%q stderr=%q", stdout, stderr)
 	}
-	assertContainsAll(t, stdout, `"path": "`+filepath.ToSlash(record)+`"`)
+	assertContainsAll(t, stdout, wantPath)
 
 	stdout, stderr, code = runCLI(t, "--root", root, "--dry-run", "task", "complete", "001")
 	if code != 0 {

@@ -324,7 +324,7 @@ func (a *app) printTaskLine(task Task) {
 // rendered for the layout the records live in, so a store record path is never
 // printed as an absolute machine path.
 func (a *app) taskForOutput(task Task) Task {
-	task.Path = a.workflowPaths().payloadPath(task.Path)
+	task.Path = a.workflowPaths().recordPath(task.Path)
 	return task
 }
 
