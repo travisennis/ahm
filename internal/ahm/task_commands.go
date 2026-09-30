@@ -52,6 +52,8 @@ Examples:
 				return err
 			}
 			createArgs.title = strings.Join(args, " ")
+			createArgs.bodySet = cmd.Flags().Changed("body")
+			createArgs.bodyFileSet = cmd.Flags().Changed("body-file")
 			return a.taskCreateParsed(createArgs)
 		},
 	}
@@ -60,10 +62,14 @@ Examples:
 	create.Flags().StringVar(&createArgs.labels, "labels", createArgs.labels, "Set task labels")
 	create.Flags().StringVar(&createArgs.status, "status", createArgs.status, "Set initial task status")
 	create.Flags().StringVarP(&createArgs.description, "description", "d", "", "Set task summary text")
-	create.Flags().StringVar(&createArgs.bodyFile, "body-file", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
+	create.Flags().StringVarP(&createArgs.body, "body", "b", "", "Full Markdown body text; exclusive with --body-file and --description")
+	create.Flags().StringVarP(&createArgs.bodyFile, "body-file", "F", "", "Full Markdown body from a file (or - for stdin); ahm handles ID, front matter, and indexes")
+	create.Flags().StringVar(&createArgs.externalRef, "external-ref", "", "External reference recorded in the task front matter")
 	create.Flags().StringVar(&createArgs.parent, "parent", "", "Parent task ID for subtask creation; allocates a suffixed child ID like 137a, 137b")
 	create.Flags().StringVar(&createArgs.dependsOn, "depends-on", "", "Comma-separated task IDs this task depends on")
 	task.AddCommand(create)
+
+	task.AddCommand(a.taskEditCommand())
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.
 

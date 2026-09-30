@@ -17,7 +17,11 @@ type taskCreateArgs struct {
 	labels            string
 	status            string
 	description       string
+	body              string
+	bodySet           bool // --body was supplied, so an empty value is an error rather than an omission
 	bodyFile          string
+	bodyFileSet       bool // --body-file was supplied, so an empty value is an error rather than an omission
+	externalRef       string
 	parent            string
 	dependsOn         string
 	resolvedParentID  string   // set after parent validation, used inside locked section
@@ -39,6 +43,9 @@ func (a *app) taskCreateParsed(parsed taskCreateArgs) error {
 	}
 	if strings.ContainsAny(parsed.labels, "\n\r") {
 		return usageError("task create labels must not contain newlines")
+	}
+	if strings.ContainsAny(parsed.externalRef, "\n\r") {
+		return usageError("task create external reference must not contain newlines")
 	}
 	if parsed.labels == "" {
 		parsed.labels = "-"
@@ -110,14 +117,15 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	path := paths.taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
-		ID:       id,
-		Title:    parsed.title,
-		Status:   parsed.status,
-		Priority: parsed.priority,
-		Effort:   parsed.effort,
-		Labels:   parsed.labels,
-		Created:  now,
-		Body:     body,
+		ID:          id,
+		Title:       parsed.title,
+		Status:      parsed.status,
+		Priority:    parsed.priority,
+		Effort:      parsed.effort,
+		Labels:      parsed.labels,
+		ExternalRef: parsed.externalRef,
+		Created:     now,
+		Body:        body,
 	}
 	if parsed.resolvedParentID != "" {
 		task.Parent = parsed.resolvedParentID
@@ -249,43 +257,69 @@ func sameTaskID(a string, b string) bool {
 }
 
 // resolveTaskCreateBody returns the Markdown body to render after the H1 title.
-// When --body-file is set, the provided content (everything after the H1) is used
+// An inline --body or a --body-file provides the full content below the H1
 // verbatim; otherwise a default Summary/Acceptance Notes scaffold is generated
 // from the optional --description text.
+//
+// The --body and --body-file branches test presence rather than value, so an
+// explicitly empty flag is refused instead of silently falling through to the
+// scaffold and skipping the exclusivity checks below. A non-empty value counts
+// as present on its own, so a caller that builds taskCreateArgs directly rather
+// than through Cobra keeps working.
 func (a *app) resolveTaskCreateBody(parsed taskCreateArgs) (string, error) {
-	if parsed.bodyFile == "" {
-		body := parsed.description
-		if body == "" {
-			body = "TODO."
-		}
-		return "## Summary\n\n" + body + "\n\n## Acceptance Notes\n\n- [ ] TODO\n", nil
+	bodySet := parsed.bodySet || parsed.body != ""
+	bodyFileSet := parsed.bodyFileSet || parsed.bodyFile != ""
+	if bodySet && bodyFileSet {
+		return "", usageError("task create supports --body or --body-file, not both")
 	}
 	if parsed.description != "" {
-		return "", usageError("task create supports --body-file or --description, not both")
-	}
-	var (
-		data   []byte
-		err    error
-		source string
-	)
-	if parsed.bodyFile == "-" {
-		source = "stdin"
-		if a.in == nil {
-			return "", usageError("task create --body-file - requires stdin")
+		if bodySet {
+			return "", usageError("task create supports --body or --description, not both")
 		}
-		data, err = io.ReadAll(a.in)
-	} else {
-		source = parsed.bodyFile
-		data, err = os.ReadFile(parsed.bodyFile)
+		if bodyFileSet {
+			return "", usageError("task create supports --body-file or --description, not both")
+		}
 	}
-	if err != nil {
-		return "", fmt.Errorf("reading task body from %s: %w", source, err)
+	if bodySet {
+		body := strings.TrimSpace(strings.ReplaceAll(parsed.body, "\r\n", "\n"))
+		if body == "" {
+			return "", usageError("task create --body cannot be empty")
+		}
+		return body, nil
 	}
-	body := strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n"))
+	if bodyFileSet {
+		if parsed.bodyFile == "" {
+			return "", usageError("task create --body-file cannot be empty")
+		}
+		var (
+			data   []byte
+			err    error
+			source string
+		)
+		if parsed.bodyFile == "-" {
+			source = "stdin"
+			if a.in == nil {
+				return "", usageError("task create --body-file - requires stdin")
+			}
+			data, err = io.ReadAll(a.in)
+		} else {
+			source = parsed.bodyFile
+			data, err = os.ReadFile(parsed.bodyFile)
+		}
+		if err != nil {
+			return "", fmt.Errorf("reading task body from %s: %w", source, err)
+		}
+		body := strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n"))
+		if body == "" {
+			return "", usageError(fmt.Sprintf("task body from %s is empty", source))
+		}
+		return body, nil
+	}
+	body := parsed.description
 	if body == "" {
-		return "", usageError(fmt.Sprintf("task body from %s is empty", source))
+		body = "TODO."
 	}
-	return body, nil
+	return "## Summary\n\n" + body + "\n\n## Acceptance Notes\n\n- [ ] TODO\n", nil
 }
 
 // nextTaskIDForPaths returns the next top-level task ID: the higher of one past

@@ -28,6 +28,10 @@ Optional front matter preserved by task rewrites:
 - `parent`
 - `external_ref`
 
+`parent` and `external_ref` are written only by `ahm task create` (`--parent`,
+`--external-ref`) and `ahm task edit <id>`. `task create --external-ref` sets
+it at creation; `task edit --external-ref ""` clears it.
+
 Retired front matter preserved as an unknown field:
 
 - `exec_plan` — the link to an ExecPlan that older releases managed. `ahm`
@@ -59,6 +63,16 @@ under a `## Comments` heading in the task body:
 The section is created if it does not exist. New comments are appended after
 existing ones. The comment command preserves all front matter, body sections,
 and unknown fields.
+
+### Sections Owned By Another Command
+
+`## Comments` (written by `task comment`) and `## Cancellation Reason` (written
+by `task cancel`) hold machine-generated provenance, so `task edit` treats them
+as one-writer sections. `ahm task edit <id> --section Comments` and
+`--section "Cancellation Reason"` are usage errors naming the owning command,
+and a whole-body `task edit` that would drop either section is refused unless
+`--force` is passed. Every other `##` section is editable, and
+`--section <name>` rewrites one section without touching the rest of the body.
 
 ## Validation Findings
 

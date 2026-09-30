@@ -61,7 +61,7 @@ produce output from remaining valid tasks, and print a warning to stderr.
 next available ID, scanning both parsed tasks and task files on disk to avoid
 collisions.
 
-Task resolution commands (`task show`, `task start`,
+Task resolution commands (`task show`, `task edit`, `task start`,
 `task complete`, `task cancel`, `task accept`, `task reopen`, `task comment`,
 `task dep add`, `task dep remove`) skip malformed files during ID resolution.
 A malformed task cannot be resolved and produces a `task not found` error.
@@ -99,6 +99,11 @@ records root, so clones that share a home store serialize on the same lock.
 - `--body-file` provides full body content below the H1; ahm owns ID, front
   matter, heading, location, and index regeneration.
 - `--body-file` and `--description` are mutually exclusive.
+- `--body` takes the same full-body content as `--body-file` but inline. It is
+  mutually exclusive with both `--body-file` and `--description`. An inline
+  `--body` of only whitespace is a usage error.
+- `--external-ref` writes the `external_ref` front-matter field, which no other
+  flag sets. A value containing a newline or carriage return is a usage error.
 - Title and `--labels` must not contain leading/trailing whitespace, newlines,
   or carriage returns. Empty labels canonicalize to `-`.
 - `--depends-on <ids>` accepts a comma-separated list of task IDs. Each ID is
@@ -110,6 +115,105 @@ records root, so clones that share a home store serialize on the same lock.
 - `--dry-run` prints the target path and ID without creating, plus the planned
   `depends_on` when `--depends-on` is set. Dependency validation still runs in
   dry-run mode.
+
+### `task edit <id> [flags]`
+
+Edits an existing task's front matter and body. Added after v2.0.0.
+
+Every flag replaces its field when supplied and leaves the field alone when
+omitted, so a caller can change one field without restating the rest. The
+`<id>` resolves with the same rules as `task show`, so a record in any bucket
+is reachable.
+
+| Flag | Semantics |
+| ---- | --------- |
+| `-t, --title` | Replace the title. |
+| `-p, --priority` | Replace the priority. |
+| `--effort` | Replace the effort. |
+| `--add-label` | Add a label; comma-separated or repeatable. |
+| `--remove-label` | Remove a label; comma-separated or repeatable. |
+| `--external-ref` | Replace the external reference; an empty value clears it. |
+| `--parent` | Replace the parent task ID. The parent must exist and be top-level. |
+| `--clear-parent` | Remove the parent task ID. |
+| `-b, --body` | Replace the body, or one section when `--section` is set. |
+| `-F, --body-file` | Read the replacement body from a file, or `-` for stdin. |
+| `--section <name>` | Scope `--body`/`--body-file` to one `##` section instead of the whole body. |
+
+**Guarantees:**
+
+- Labels are additive: `--add-label` and `--remove-label` adjust the set and
+  never clobber labels the caller did not name. `--labels` remains create-only.
+  Each accepts a comma-separated list and may be repeated. `-` and `[]` are the
+  empty-list sentinels of the front-matter format, not labels, and are refused.
+- `--section <name>` replaces exactly that heading section, creating it at the
+  end of the body when absent, and leaves every other section byte-identical.
+  The heading is matched case-insensitively at `##` or `###`. The name must be
+  non-empty, must not contain newlines, and must not contain `#`, since the
+  name is spliced into a `## <name>` heading.
+  A `--section` replacement builds the whole resulting body and passes it
+  through the same audit-trail guard as a whole-body replacement, so replacing a
+  section that contains a nested protected heading cannot delete it. Supplying
+  text that introduces a `## Comments` or `## Cancellation Reason` heading is
+  not refused; the guard protects existing provenance, it does not police the
+  headings a caller writes.
+- `edit` never moves a record between buckets and never rewrites `status` or
+  `depends_on`; `task accept|start|complete|cancel|reopen` and
+  `task dep add|remove` remain the only writers of those fields and keep their
+  guards.
+- `edit` has no `--status` and no `--depends-on` flag.
+- A mutation flag whose value already matches the record prints
+  `<id> unchanged`, writes nothing, and exits 0.
+- A write regenerates the task indexes. `edit` re-resolves its target inside the
+  workflow record lock, so a concurrent update that lands before the lock is
+  acquired is preserved.
+- `--dry-run` prints the record path and a per-field diff (`<id> priority: P2 ->
+  P1`) and writes nothing. `--json` returns the record plus a `changed` array of
+  the field names that changed, empty on the unchanged path.
+
+**Refusals (exit code 2, `--force` where noted):**
+
+- `task edit <id>` with no mutation flag. The message lists the available
+  flags. There is no editor fallback: no code path reads `EDITOR` or `VISUAL`.
+- `--body` with `--body-file`, `--section` with neither, `--parent` with
+  `--clear-parent`, an empty `--title`, a newline in `--title` or
+  `--external-ref`, and an unsupported `--priority` or `--effort`.
+- `--section Comments` and `--section "Cancellation Reason"`. Those sections
+  are owned by `task comment` and `task cancel` respectively, and the message
+  names the owning command. `--force` does not override this.
+- A `--body`, `--body-file`, or `--section` replacement that does not carry over
+  the content of a `## Comments` or `## Cancellation Reason` section the record
+  already has is refused unless `--force` is passed. The rule is: some section of
+  the same name at the same heading depth in the resulting body must contain the
+  current section's text, compared with whitespace runs collapsed. A missing
+  heading, an emptied heading, rewritten or truncated text, and a `###`
+  demotion all count as a drop. Re-wrapping, re-indenting, or moving a preserved
+  section within the body is allowed. A record that has no content in a
+  protected section is not constrained at all.
+  Known limit of this check, which needs a whole-body rewrite to reach: it does
+  not require the carrying section to be the *first* one of that name, so a
+  forged section placed ahead of the real log is accepted; and it compares by
+  substring, so text that merely contains the original passes.
+- A `--body` whose value equals the current body, and a `--section` whose
+  content already matches, are no-ops: they report `unchanged` and write
+  nothing.
+
+**Text output:**
+
+```text
+$ ahm task edit 270 --priority P1 --effort S
+270 updated (priority, effort)
+
+$ ahm task edit 270 --priority P1
+270 unchanged
+```
+
+**Dry-run output:**
+
+```text
+$ ahm --dry-run task edit 270 --priority P1
+270 edit: store:tasks/active/270.md
+270 priority: P2 -> P1
+```
 
 ### `task list` / `task ls`
 

@@ -5,6 +5,12 @@ import "strings"
 type markdownHeadingSection struct {
 	Start int
 	End   int
+	// Content is the section's lines between the heading and End, joined with
+	// newlines. Callers that only need the line range leave it unset.
+	Content string
+	// Level is the heading depth that opened the section (2 for `##`, 3 for
+	// `###`). Callers that only need the line range leave it unset.
+	Level int
 }
 
 // locateHeadingSections returns every matching Markdown section in source

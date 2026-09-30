@@ -33,6 +33,11 @@ project mode.
 ordering through `--sort` and `--reverse`; the supported fields and rank rules
 are documented in the task command reference.
 
+`task edit <id>` replaces a task field when its flag is supplied and leaves the
+field alone when the flag is omitted. It refuses to write the `## Comments` and
+`## Cancellation Reason` body sections, which `task comment` and `task cancel`
+own, and it never writes `status` or `depends_on`.
+
 For implementation boundaries and invariants, see
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state, store identity,
 and file-format semantics, see

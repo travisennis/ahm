@@ -70,8 +70,8 @@ Global flags must appear before the command.
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, task status transitions, task dependency add/remove, `store path`, and `store migrate`. |
-| `--force` | Overrides strict acceptance checks during `task complete`, the refusal of `store migrate --to home` when the project's records have uncommitted changes, and the refusal of a `store migrate` whose destination record differs from the record arriving. It never creates, overwrites, or removes `AGENTS.md`. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task edit`, task status transitions, task dependency add/remove, `store path`, and `store migrate`. |
+| `--force` | Overrides strict acceptance checks during `task complete`, a whole-body `task edit` that would drop a `## Comments` or `## Cancellation Reason` section, the refusal of `store migrate --to home` when the project's records have uncommitted changes, and the refusal of a `store migrate` whose destination record differs from the record arriving. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |
 
@@ -156,6 +156,9 @@ mode:
 
 - `adr create` prints the created ADR ID.
 - `task create` prints the created task ID.
+- `task edit` prints `<id> updated (<fields>)` on a write, `<id> unchanged`
+  when every supplied flag already matches, or, in `--dry-run`, the record
+  path followed by a `<id> <field>: <from> -> <to>` line per changed field.
 - `task list`, `task ready`, `task blocked`, and `task next` print task lines.
 - `task labels` prints label summary lines.
 - `task show` prints the task Markdown file unless `--json` is used.
