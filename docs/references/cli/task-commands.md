@@ -7,6 +7,41 @@ finding codes, see [task file and validation formats](task-file-format.md).
 Exhaustive flag details live in `ahm <command> --help`. This page documents
 only compatibility guarantees that generated help cannot express.
 
+## Task Command Inventory
+
+The blocks below are machine-checked against the Cobra command tree by
+`just cli-parity`: every visible `task` and `task dep` subcommand appears in
+one of them. Add or remove a subcommand in `internal/ahm/task_commands.go` or
+`task_deps.go` and update the matching block in the same change. Command
+aliases are one inventory for the whole tree, so they are documented on the
+[commands page](commands.md#command-inventory) rather than here.
+
+```text ahm-inventory task-subcommands
+accept
+blocked
+cancel
+comment
+complete
+create
+dep
+edit
+labels
+list
+next
+ready
+reopen
+search
+show
+start
+```
+
+```text ahm-inventory dep-subcommands
+add
+cycles
+remove
+tree
+```
+
 ## Task Record Locations
 
 Task records live under the records root selected by `tasks_location`. In

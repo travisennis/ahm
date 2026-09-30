@@ -1,11 +1,67 @@
 # ahm Commands
 
-This reference covers non-task `ahm` commands. For global flags and output
-modes, see [the global CLI contract](global-contract.md). For task lifecycle
-commands, see [task commands](task-commands.md).
+This reference covers non-task `ahm` commands and the tree-wide command and
+alias inventories. For global flags and output modes, see [the global CLI
+contract](global-contract.md). For task lifecycle commands, see [task
+commands](task-commands.md).
 
 Exhaustive flag details live in `ahm <command> --help`. This page documents
 only compatibility guarantees that generated help cannot express.
+
+## Command Inventory
+
+The blocks below are machine-checked against the Cobra command tree by
+`just cli-parity`: every visible top-level command, `adr` subcommand, and
+`store` subcommand appears in one of them, and nothing else does. Add or
+remove a command in `internal/ahm/cli.go`, `adr_commands.go`, or
+`store.go` and update the matching block in the same change. Command aliases
+are inventoried here too, so an alias anywhere in the tree belongs on this
+page.
+
+```text ahm-inventory commands
+adr
+completion
+doctor
+help
+index
+init
+prime
+status
+store
+task
+version
+```
+
+```text ahm-inventory adr-subcommands
+accept
+create
+deprecate
+list
+propose
+reject
+show
+supersede
+```
+
+```text ahm-inventory store-subcommands
+migrate
+path
+```
+
+Each alias line reads `<alias path> = <canonical path>`, and the block covers
+aliases anywhere in the tree, including the task family.
+
+```text ahm-inventory command-aliases
+task close = task complete
+task dep rm = task dep remove
+task ls = task list
+```
+
+`help` and `completion` are Cobra's built-in commands, enabled by default and
+documented here because they appear in `ahm --help`. They bring their own
+shape with them: `completion`'s shell subcommands (`bash`, `zsh`, `fish`,
+`powershell`) are not inventoried here, and a hidden command is neither
+documented nor inventoried, because a user cannot reach it from help.
 
 ## Compatibility Guarantees
 

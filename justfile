@@ -12,6 +12,11 @@ build:
 test:
     go test ./...
 
+# Check the documented CLI command, flag, and alias inventories against the
+# Cobra command tree. Part of `just test`; run it after changing CLI wiring.
+cli-parity:
+    go test ./internal/ahm -run 'TestCLIDocumentationParity|TestInventoryDrift'
+
 test-race:
     go test -race -cover ./...
 

@@ -28,37 +28,14 @@ Usage:
 ahm [global flags] <command> [command flags]
 ```
 
-Global flags:
-
-- `--root <path>`
-- `--json`
-- `--plain`
-- `--text`
-- `--dry-run`
-- `--force`
-- `--help`
-- `--version`
-
-Commands:
-
-- `init`: create or reconcile the managed `.ahm` workflow state. Creates the
-  committed `.ahm/` layout when it is absent and rewrites only ahm-owned files
-  whose content drifted; an up-to-date repository is untouched. Refuses a
-  repository that still holds `.agents/ahm.json`.
-- `prime`: regenerate indexes and print the live repository briefing.
-- `status`: report workflow health.
-- `doctor`: report environment and workflow checks.
-- `index`: regenerate generated indexes.
-- `store`: report the home-store location and migrate task records between
-  layouts.
-- `adr`: manage ADR records.
-- `task`: manage tasks and dependencies.
-- `version`: print the binary version.
-
-The complete command and flag reference is maintained in
-[`docs/cli.md`](../cli.md). That reference documents output modes, aliases,
-supported task enum values, dry-run behavior, validation finding codes, and
-which commands write files.
+The CLI contract is owned by the CLI reference, starting at
+[`docs/cli.md`](../cli.md): [the global
+contract](cli/global-contract.md) owns the global flag set,
+[commands](cli/commands.md) owns the command inventory and aliases,
+and [task commands](cli/task-commands.md) owns the task family. Each
+page carries an inventory block that a test checks against the executable
+command tree. This specification does not repeat them, so a change to the
+command surface updates those pages instead.
 
 Exit codes:
 

@@ -18,6 +18,9 @@ command behavior.
 
 - Update `docs/cli.md` or the affected `docs/references/cli/` page in the
   same change unless the behavior is intentionally undocumented.
+- Update the matching `ahm-inventory` block when the change registers or
+  removes a command, a subcommand, an alias, or a global (root persistent)
+  flag, and run `just cli-parity`.
 - Search `docs/cli.md` and `docs/references/cli/` for the affected command or
   old behavior before handoff.
 - Run focused CLI tests first, then the repository verification expected by

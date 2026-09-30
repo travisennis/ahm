@@ -64,6 +64,21 @@ auto-detection for any of them.
 
 Global flags must appear before the command.
 
+The block below is the complete set, machine-checked against the Cobra tree by
+`just cli-parity`. It lists long flag names; the table gives each one's
+behavior.
+
+```text ahm-inventory global-flags
+--dry-run
+--force
+--help
+--json
+--plain
+--root
+--text
+--version
+```
+
 | Flag | Description |
 | ---- | ----------- |
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |

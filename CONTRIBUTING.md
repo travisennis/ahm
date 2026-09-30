@@ -55,6 +55,8 @@ just build          # build bin/ahm
 just install        # install ahm from this checkout
 just test           # go test ./...
                     # or: go test github.com/travisennis/ahm/internal/...
+just cli-parity     # check the documented CLI command, flag, and alias
+                    # inventories against the Cobra command tree
 just test-race      # go test -race -cover ./...
                     # or: go test -race -cover github.com/travisennis/ahm/internal/...
 just vet            # go vet ./...
@@ -125,6 +127,13 @@ behavior, setup, security, or compatibility.
 
 - CLI behavior changes usually require `docs/cli.md` and the affected
   `docs/references/cli/` page.
+- CLI wiring changes — a command, a subcommand, an alias, or a global (root
+  persistent) flag — must also update the matching `ahm-inventory` block on
+  those pages. Run
+  `just cli-parity` to check the blocks against the Cobra tree; it fails when a
+  registered command is undocumented or a documented one no longer exists.
+  Prose, examples, and per-command flag detail stay human-maintained, and
+  `ahm <command> --help` remains authoritative for flags.
 - Durable workflow semantics usually require
   `docs/references/workflow-spec.md` or `docs/guides/workflow-upgrades.md`.
 - Implementation moves require `ARCHITECTURE.md` updates when the module map or
