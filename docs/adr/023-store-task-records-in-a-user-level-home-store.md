@@ -179,7 +179,7 @@ is not marked superseded, because most of its decision still holds.
 ## More Information
 
 - Tracker task 267; delivery plan
-  `docs/exec-plans/active/267-home-store-for-task-records.md`.
+  `docs/exec-plans/completed/267-home-store-for-task-records.md`.
 - Related decisions: ADR 001 (atomic writes and concurrency), ADR 013
   (ref-backed storage, superseded), ADR 015 (committed `.ahm` storage),
   ADR 018 (scrubbing inherited Git repository-location environment).
