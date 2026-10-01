@@ -31,6 +31,7 @@ type app struct {
 	store      *storePaths    // resolved home store location, nil until first use
 	paths      *workflowPaths // resolved records layout, nil until first use
 	pathsErr   error          // resolution error for paths, nil when resolution succeeded
+	metaCache  *metadataCache // memoized .ahm/config.json reads, nil until first use
 	warnings   []string       // non-fatal errors accumulated during a command
 }
 
@@ -86,7 +87,7 @@ func (a *app) resolveWorkflowPaths() (workflowPaths, error) {
 	if a.paths != nil {
 		return *a.paths, a.pathsErr
 	}
-	meta, err := readMetadata(a.opts.root)
+	meta, err := a.readMetadataFor(a.opts.root)
 	configExists := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// A configuration that cannot be read names no location, so the
@@ -113,6 +114,30 @@ func (a *app) useWorkflowPaths(paths workflowPaths) {
 // getTasks re-reads from disk.
 func (a *app) invalidateTasks() {
 	a.tasksCache = nil
+}
+
+// ensureMetadataCache returns the command's metadata cache, creating it on
+// first use.
+func (a *app) ensureMetadataCache() *metadataCache {
+	if a.metaCache == nil {
+		a.metaCache = newMetadataCache()
+	}
+	return a.metaCache
+}
+
+// readMetadataFor reads the committed configuration for root through the
+// command's cache, so every reader in one run observes the same bytes at the
+// cost of one read per root.
+func (a *app) readMetadataFor(root string) (metadata, error) {
+	return a.ensureMetadataCache().read(root)
+}
+
+// invalidateMetadata drops root's cached configuration after a command writes
+// it, so a later read observes the write instead of the pre-write value.
+func (a *app) invalidateMetadata(root string) {
+	if a.metaCache != nil {
+		a.metaCache.invalidate(root)
+	}
 }
 
 // Main runs the CLI and returns a process exit code.

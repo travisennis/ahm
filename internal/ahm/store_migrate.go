@@ -305,7 +305,7 @@ func (a *app) migrateTaskRecords(from workflowPaths, to workflowPaths, force boo
 	// the one-step way to keep a new project's records in the project. A corrupt
 	// configuration counts as present, exactly as it does for layout resolution,
 	// so the failure it owes stays with planMigration.
-	_, metaErr := readMetadata(a.opts.root)
+	_, metaErr := a.readMetadataFor(a.opts.root)
 	configured := !errors.Is(metaErr, fs.ErrNotExist)
 	if len(files) == 0 && configured && a.workflowPaths().inStore() == to.inStore() {
 		return a.finishSourceCleanup(from, &report)
@@ -425,7 +425,7 @@ type migrationPlan struct {
 // state and registry it writes. A dry run writes neither, so it reads neither,
 // which keeps its effect on the machine to reading the records it previews.
 func (a *app) planMigration(from workflowPaths, to workflowPaths) (migrationPlan, error) {
-	meta, err := readMetadata(a.opts.root)
+	meta, err := a.readMetadataFor(a.opts.root)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return migrationPlan{}, fmt.Errorf("reading workflow metadata %s: %w", configMetadataRelPath, err)
 	}
@@ -718,7 +718,14 @@ func parsePorcelainPaths(out string) []string {
 // moves back to the project must keep the project layout even once a later
 // release defaults a configuration without the key to the store.
 func (a *app) writeMigratedConfig(to workflowPaths, config []byte, report *storeMigrateReport) error {
-	return a.writeMigratedFile(to, to.configPath(), config, report)
+	if err := a.writeMigratedFile(to, to.configPath(), config, report); err != nil {
+		return err
+	}
+	// The move owns the current configuration now. Drop the cached value so a
+	// later read in this command reflects the write instead of the value read
+	// before it.
+	a.invalidateMetadata(to.projectRoot)
+	return nil
 }
 
 // writeMigratedGitignores writes the managed .gitignore of every layout the

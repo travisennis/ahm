@@ -101,7 +101,7 @@ parent: 303
 	assertEquivalent := func(context string) {
 		t.Helper()
 		standalone, _ := validateWorkflowScopedForPaths(root, []string{CheckScopeWorkflow}, paths)
-		reused := validateWorkflowStateForPaths(root, paths, tasks, writes, nil)
+		reused := validateWorkflowStateForPaths(root, paths, tasks, writes, nil, nil)
 		if standalone.OK != reused.OK ||
 			!reflect.DeepEqual(standalone.Errors, reused.Errors) ||
 			!reflect.DeepEqual(standalone.Warnings, reused.Warnings) ||
@@ -502,7 +502,7 @@ func TestValidateTaskDuplicateIDsReportsErrorInReusedState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report := validateWorkflowStateForPaths(root, paths, tasks, writes, nil)
+	report := validateWorkflowStateForPaths(root, paths, tasks, writes, nil, nil)
 	if !hasFinding(report.Errors, "task_duplicate_id") {
 		t.Fatalf("expected task_duplicate_id error in reused state, got errors: %#v", report.Errors)
 	}

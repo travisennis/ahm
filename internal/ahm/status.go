@@ -13,7 +13,7 @@ func (a *app) status() error {
 	// project from the registry is itself the evidence it is installed.
 	installed := true
 	if !paths.isRecordsOnly() {
-		_, metaErr := readMetadata(a.opts.root)
+		_, metaErr := a.readMetadataFor(a.opts.root)
 		installed = metaErr == nil
 	}
 	var installedVersion any
@@ -50,7 +50,7 @@ func (a *app) doctor() error {
 	_, gitErr := exec.LookPath("git")
 	installed := true
 	if !paths.isRecordsOnly() {
-		_, metaErr := readMetadata(a.opts.root)
+		_, metaErr := a.readMetadataFor(a.opts.root)
 		installed = metaErr == nil
 	}
 	validation, _ := a.validateWorkflow(a.opts.check)

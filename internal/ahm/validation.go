@@ -23,6 +23,11 @@ type validationReport struct {
 	// hand in the cache their index generation filled; every other path gets a
 	// fresh one and reads everything from disk.
 	cache *recordCache
+
+	// meta carries the command's shared configuration cache, so every validator
+	// in this report observes one .ahm/config.json even if the file changes
+	// mid-run. A nil cache reads the configuration from disk on each call.
+	meta *metadataCache
 }
 
 // RenderText implements the textRenderer interface for validationReport.
@@ -103,19 +108,21 @@ func validCheckScopes() []string {
 }
 
 func (a *app) validateWorkflow(scopes []string) (validationReport, []Task) {
-	return validateWorkflowScopedForPaths(a.opts.root, scopes, a.workflowPaths())
+	return validateWorkflowScopedForPathsWithCache(a.opts.root, scopes, a.workflowPaths(), newRecordCache(), a.ensureMetadataCache())
 }
 
 func validateWorkflowScopedForPaths(root string, scopes []string, paths workflowPaths) (validationReport, []Task) {
-	return validateWorkflowScopedForPathsWithCache(root, scopes, paths, newRecordCache())
+	return validateWorkflowScopedForPathsWithCache(root, scopes, paths, newRecordCache(), nil)
 }
 
 // validateWorkflowScopedForPathsWithCache is the disk-reading validation path.
 // The cache only dedupes reads within this one run — status and doctor pass a
 // fresh cache, so they still see the current on-disk state and still report
-// out-of-band edits and stale indexes.
-func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths workflowPaths, cache *recordCache) (validationReport, []Task) {
-	report := newValidationReportWithCache(cache)
+// out-of-band edits and stale indexes. meta behaves the same way for the
+// committed configuration: nil reads it fresh on every call, while a shared
+// cache pins every validator to one observed configuration.
+func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths workflowPaths, cache *recordCache, meta *metadataCache) (validationReport, []Task) {
+	report := newValidationReport(cache, meta)
 
 	all := len(scopes) == 0
 	want := func(s string) bool { return all || containsScope(scopes, s) }
@@ -142,8 +149,15 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 	return report, tasks
 }
 
-func newValidationReportWithCache(cache *recordCache) validationReport {
-	return validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}, cache: cache}
+func newValidationReport(cache *recordCache, meta *metadataCache) validationReport {
+	return validationReport{OK: true, Errors: []validationFinding{}, Warnings: []validationFinding{}, Info: []validationFinding{}, cache: cache, meta: meta}
+}
+
+// readMetadata reads the committed configuration for root through the run's
+// shared cache, so every validator in this report observes the same bytes. A
+// nil cache reads through to disk.
+func (r *validationReport) readMetadata(root string) (metadata, error) {
+	return r.meta.read(root)
 }
 
 // validateWorkflowStateForPaths validates a complete, already-parsed task set
@@ -152,9 +166,11 @@ func newValidationReportWithCache(cache *recordCache) validationReport {
 // disk-reading path above.
 //
 // cache carries the records the caller's index generation already read, so this
-// pass reuses them instead of re-reading. Pass nil to read everything fresh.
-func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache) validationReport {
-	report := newValidationReportWithCache(cache)
+// pass reuses them instead of re-reading. meta carries the command's shared
+// configuration cache, so this pass observes the same .ahm/config.json as the
+// steps around it. Pass nil for either to read everything fresh.
+func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache, meta *metadataCache) validationReport {
+	report := newValidationReport(cache, meta)
 	if !paths.isRecordsOnly() {
 		_ = validateMetadata(root, &report)
 	}
@@ -202,9 +218,9 @@ func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, r
 	}
 	var report validationReport
 	if reuseState {
-		report = validateWorkflowStateForPaths(a.opts.root, a.workflowPaths(), tasks, writes, cache)
+		report = validateWorkflowStateForPaths(a.opts.root, a.workflowPaths(), tasks, writes, cache, a.ensureMetadataCache())
 	} else {
-		report, _ = validateWorkflowScopedForPathsWithCache(a.opts.root, []string{CheckScopeWorkflow}, a.workflowPaths(), cache)
+		report, _ = validateWorkflowScopedForPathsWithCache(a.opts.root, []string{CheckScopeWorkflow}, a.workflowPaths(), cache, a.ensureMetadataCache())
 	}
 	for _, finding := range report.Errors {
 		a.addWarning("%s", finding.Message)
@@ -215,7 +231,7 @@ func (a *app) emitPostMutationFindings(tasks []Task, writes map[string]string, r
 }
 
 func validateMetadata(root string, report *validationReport) error {
-	_, metaErr := readMetadata(root)
+	_, metaErr := report.readMetadata(root)
 	if metaErr != nil {
 		if errors.Is(metaErr, os.ErrNotExist) {
 			report.addError("metadata_missing", configMetadataRelPath, "workflow metadata is missing")
@@ -522,7 +538,7 @@ func validateGeneratedIndexMetadata(paths workflowPaths, report *validationRepor
 	if paths.isRecordsOnly() {
 		return true
 	}
-	if _, err := readMetadata(paths.projectRoot); err != nil {
+	if _, err := report.readMetadata(paths.projectRoot); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}
@@ -633,7 +649,7 @@ func walkMarkdownLinks(data []byte, visit func(lineNo int, target string)) {
 }
 
 func validateMarkdownLinks(root string, paths workflowPaths, report *validationReport) {
-	if _, err := readMetadata(root); err != nil {
+	if _, err := report.readMetadata(root); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}

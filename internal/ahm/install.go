@@ -142,6 +142,35 @@ func (m metadata) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// clone returns a deep copy of the metadata. The struct holds two maps, so a
+// shallow copy would alias them and a caller that mutates the result would also
+// mutate the original: Files maps to strings (itself unmodifiable, but the map
+// is not), and Extra maps to json.RawMessage, whose byte slices a caller could
+// edit in place. The metadata cache returns a clone so a writer such as install
+// cannot disturb what a later reader sees.
+func (m metadata) clone() metadata {
+	clone := m
+	if m.Files != nil {
+		clone.Files = make(map[string]string, len(m.Files))
+		for key, value := range m.Files {
+			clone.Files[key] = value
+		}
+	}
+	if m.Extra != nil {
+		clone.Extra = make(map[string]json.RawMessage, len(m.Extra))
+		for key, value := range m.Extra {
+			if value == nil {
+				clone.Extra[key] = nil
+				continue
+			}
+			raw := make([]byte, len(value))
+			copy(raw, value)
+			clone.Extra[key] = raw
+		}
+	}
+	return clone
+}
+
 // marshalMetadata renders metadata as the exact bytes ahm writes to
 // .ahm/config.json.
 func marshalMetadata(meta metadata) ([]byte, error) {
@@ -249,7 +278,7 @@ func (a *app) install() error {
 	defer a.emitWarnings()
 	root := a.opts.root
 
-	meta, err := readMetadata(root)
+	meta, err := a.readMetadataFor(root)
 	configExists := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("corrupt workflow metadata %s: %v", configMetadataRelPath, err)
@@ -294,6 +323,10 @@ func (a *app) install() error {
 	if err := a.reconcileFile(paths.configPath(), configMetadataRelPath, config, result); err != nil {
 		return err
 	}
+	// This run owns the current configuration now. Drop the cached value so a
+	// later read in the same command reflects the write instead of the value
+	// read before it.
+	a.invalidateMetadata(root)
 	if err := a.reconcileIndexes(result); err != nil {
 		return err
 	}

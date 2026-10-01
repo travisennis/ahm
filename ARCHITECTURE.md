@@ -50,7 +50,7 @@ location map; this section describes what each group does.
 | Entrypoint | `cmd/ahm/main.go` | Binary entrypoint. |
 | CLI wiring | `internal/ahm/cli.go` | Cobra root command, global flags, command registration. |
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
-| Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record read reuse, and Markdown heading-section lookup. |
+| Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `metadatacache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record and configuration read reuse, and Markdown heading-section lookup. |
 | Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, counter, and registry writes the move owes. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode, which a new project writes as `home`), the managed `.gitignore` of every layout the mode owns, the store observation a new project records, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
@@ -170,6 +170,12 @@ location map; this section describes what each group does.
   reads each record from disk, so standalone `status`/`doctor` keep detecting
   out-of-band edits and stale indexes. Any write made while a cache is live must
   be reported to it, or a later read in the same command sees pre-write bytes.
+- Committed configuration is memoized the same way, through a `metadataCache`
+  keyed by root on the `app` for one command, so every reader and validator in
+  one run observes a single `.ahm/config.json` even if the file changes
+  mid-run. A command that writes the configuration invalidates the entry, so a
+  later read in the same run observes the write rather than the value read
+  before it.
 - `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed
   file that `init` or `--force` can create, replace, or remove.
 - Validation is read-only. It reports workflow drift and structured-record

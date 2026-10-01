@@ -78,7 +78,7 @@ func (a *app) prime() error {
 	// A records-only selection has no checkout to prepare, so it skips the whole
 	// block and reports the store's records directly.
 	if !a.workflowPaths().isRecordsOnly() {
-		if _, err := readMetadata(a.opts.root); err == nil {
+		if _, err := a.readMetadataFor(a.opts.root); err == nil {
 			if !a.opts.dryRun {
 				if _, err := a.ensureWorkflowDirs(); err != nil {
 					return err
@@ -132,7 +132,7 @@ func (a *app) buildPrimeReport() primeReport {
 	// project from the registry is itself the evidence it is installed.
 	installed := true
 	if !paths.isRecordsOnly() {
-		_, metaErr := readMetadata(a.opts.root)
+		_, metaErr := a.readMetadataFor(a.opts.root)
 		installed = metaErr == nil
 		if metaErr != nil {
 			var err error
