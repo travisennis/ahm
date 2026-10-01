@@ -321,3 +321,25 @@ func writeTaskFileWithPriority(t *testing.T, path string, id string, title strin
 		t.Fatal(err)
 	}
 }
+
+// writeTaskFileWithBody writes a task whose Markdown body is caller-supplied,
+// so tests can exercise body-text search independently of the title.
+func writeTaskFileWithBody(t *testing.T, path string, id string, title string, status string, priority string, labels string, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\n" +
+		"id: " + id + "\n" +
+		"title: " + title + "\n" +
+		"status: " + status + "\n" +
+		"priority: " + priority + "\n" +
+		"effort: S\n" +
+		"labels: " + labels + "\n" +
+		"---\n" +
+		"# " + title + "\n\n" +
+		body + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

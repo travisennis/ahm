@@ -153,11 +153,12 @@ Examples:
 	var searchLabels []string
 	search := &cobra.Command{
 		Use:   "search <query>",
-		Short: "Search tasks by title",
-		Long: `Search tasks by case-insensitive substring match on the title.
+		Short: "Search tasks by title and body",
+		Long: `Search tasks by case-insensitive substring match on the title or body.
 
-Output matches task list: ID [Status] Priority Effort Title. Supports the
---status and --label filters to scope results.
+Title matches are listed before body-only matches. Line format matches task
+list: ID [Status] Priority Effort Title. Supports the --status and --label
+filters to scope results.
 
 Examples:
   ahm task search timeout

@@ -189,12 +189,19 @@ func (a *app) taskSearch(query string, statuses []string, labels []string) error
 	}
 	filtered := filterTasks(tasks, "all")
 	needle := strings.ToLower(query)
-	var matched []Task
+	// Title matches are the stronger signal, so they are listed before
+	// body-only matches. Within each group the existing order is preserved.
+	var matched, bodyMatches []Task
 	for _, task := range filtered {
 		if strings.Contains(strings.ToLower(task.Title), needle) {
 			matched = append(matched, task)
+			continue
+		}
+		if strings.Contains(strings.ToLower(task.Body), needle) {
+			bodyMatches = append(bodyMatches, task)
 		}
 	}
+	matched = append(matched, bodyMatches...)
 	filtered = matched
 	if len(statuses) > 0 {
 		allowed := make(map[string]bool, len(statuses))

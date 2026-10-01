@@ -298,9 +298,11 @@ file; with several IDs, each file follows the previous one, separated by `---`.
 
 ### `task search <query>`
 
-Searches tasks by case-insensitive substring match on the title. Supports the
-`--status` and `--label` filters to scope results. Output matches
-`task list`.
+Searches tasks by case-insensitive substring match on the title or body.
+Title matches are listed before body-only matches; within each group the
+result order is unchanged. Supports the `--status` and `--label` filters to
+scope results. Line format matches `task list`, and the text line does not mark
+which field matched, so `--json` consumers should read `body` to tell.
 
 ### `task labels`
 
