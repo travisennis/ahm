@@ -25,6 +25,7 @@ complete
 create
 dep
 edit
+import
 labels
 list
 next
@@ -439,3 +440,96 @@ compact JSON. The structural shape is the same in both modes.
   ahm --json task dep tree 002
   ahm --plain task dep tree 002
 ```
+
+## Bulk Import
+
+`ahm task import --from-file <path>` reads a JSON array of task objects. Use
+`--from-file -` for stdin. This command creates records offline and never
+fetches external issues or changes the store registry. An empty array succeeds
+without changing records, indexes, or counter state.
+
+```json
+[
+  {
+    "ref": "child",
+    "title": "Implement parser",
+    "status": "Pending",
+    "priority": "P1",
+    "effort": "M",
+    "labels": "type:feature, area:cli",
+    "parent": "@tracker",
+    "depends_on": ["@foundation", "012"],
+    "created": "2024-01-02T03:04:05Z",
+    "external_ref": "https://github.com/example/project/issues/42",
+    "body": "## Summary\n\nImplement the parser.\n\n## Comments\n\n**2024-01-03T03:04:05Z** — _Trav_: Reviewed."
+  },
+  {"ref": "tracker", "title": "Parser migration", "status": "Tracking"},
+  {"ref": "foundation", "title": "Build foundation", "status": "Pending"}
+]
+```
+
+`title` is required. `status`, `priority`, `effort`, and `labels` default to
+`Open`, `P2`, `S`, and `type:task, area:unknown` when omitted or empty. Enum
+values use the canonical spelling listed above. `body` is Markdown below the
+H1; a matching H1 is removed, CRLF is normalized, and outer whitespace is
+trimmed by the record renderer. An omitted body is empty. Include comments and
+cancellation reasons as Markdown body sections; they have no separate JSON
+fields. `created` accepts an RFC3339 timestamp and defaults to import time;
+`updated` is always import time. `external_ref` is optional and is never
+invented. `labels` is a comma-separated string, and `depends_on` is an array of
+strings. Objects and fields must not be JSON `null`. Titles, labels, and external
+references must have no newlines or outer whitespace. Unknown fields and
+duplicate field names are rejected. Duplicate detection is case-insensitive,
+matching the JSON decoder: `title` and `TITLE` in the same object are duplicates,
+including escaped spellings of the same name. `id`, `updated`, `path`, `bucket`, and
+unknown front matter (`extra`, including retired `exec_plan`) are generated or
+not importable.
+
+`ref` is an optional unique, case-sensitive name scoped to this document; it
+cannot contain whitespace or `@` and is not stored in the task. `@name` in
+`parent` or `depends_on` denotes a record in this batch, including a forward
+reference. Unprefixed numeric task IDs resolve against existing records using
+the normal ID resolution rules; they never denote IDs being allocated in this
+batch. Missing, ambiguous, and duplicate-existing-ID references are refused.
+A parent must be top-level. Top-level IDs are allocated in document order using
+the existing allocator; child IDs are then allocated in document order under
+their resolved parents, including forward parents. The 26-child limit applies.
+Dependencies are deduplicated and sorted. Completed dependencies are accepted
+for historical imports; active tasks cannot depend on cancelled tasks. Self
+references and cycles among active tasks are refused.
+
+The whole batch is validated before writing, and every semantic refusal is
+reported in one response (exit 1). Malformed JSON, unknown or duplicate fields,
+invalid field types, and an invalid document shape exit 2. An unreadable file or
+store exits 1.
+Unparseable existing task records prevent importing until repaired. Refusal
+creates no records or index/counter writes. A real import acquires the record
+lock once; home mode also holds the store-state lock across writes and recovery.
+Records go to the bucket matching their status, the counter advances past the
+allocated top-level IDs, and indexes are generated once. The command does not
+apply lifecycle transitions to existing dependents or tracker parents.
+
+Ordinary write failures restore affected records, indexes, and counter bytes.
+If restoration fails, the error names recovery paths. Process termination or
+power loss can leave a partial batch: individual file writes remain atomic,
+but there is no crash-atomic batch transaction. Inspect the planned paths,
+remove only records from the failed batch, and run `ahm index` before retrying;
+retain any raised counter after an interrupted run. A successful import is
+additive: repeating it creates another batch, even with the same external refs.
+
+`--dry-run` writes nothing and takes neither lock. It reports each allocated
+ID, record path, parent, dependency edge, and refusal. The preview is an
+observation; a concurrent command can change the IDs a later real run allocates.
+Relative Markdown links are preserved and remain the importer's responsibility;
+`ahm --check links status` reports missing targets after import. Completed
+records should include checked Acceptance Notes to avoid normal validation
+warnings. Import does not refuse body link or acceptance findings.
+
+Text, JSON, and plain output use the shared emitter. JSON is an object with
+`dry_run` and `records`; plain is the same object as one compact JSON line.
+Each record outcome has `ref`, `id`, `path`, `parent`, `depends_on`, `outcome`,
+and `errors`, in input order. Empty strings denote absent ref, parent, or an
+unallocatable ID/path; arrays remain present when empty. Outcomes are `planned`
+for a successful preview, `imported` for a successful write, `refused` for a
+record with semantic errors, and `not_imported` for another record in a refused
+batch. Runtime write failures print an error to stderr and no success report.

@@ -10,7 +10,7 @@ they need.
   global flags, output modes, and exit codes.
 - [Commands](references/cli/commands.md): non-task commands including ADR,
   init, status, doctor, index, and home-store commands.
-- [Task commands](references/cli/task-commands.md): task lifecycle,
+- [Task commands](references/cli/task-commands.md): bulk JSON import, task lifecycle,
   dependencies, completion, cancellation, and reopening.
 - [Task file and validation formats](references/cli/task-file-format.md): task
   Markdown format and validation finding codes.
@@ -51,3 +51,8 @@ For implementation boundaries and invariants, see
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state, store identity,
 and file-format semantics, see
 [the workflow specification](references/workflow-spec.md).
+
+`task import --from-file tasks.json` creates a batch from an offline JSON array.
+Use `--dry-run` to preview IDs, paths, parents, dependencies, and all refusals.
+The [bulk import contract](references/cli/task-commands.md#bulk-import) defines
+fields, `@ref` batch references, output, and failure recovery.

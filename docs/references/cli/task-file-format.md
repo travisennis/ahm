@@ -28,8 +28,8 @@ Optional front matter preserved by task rewrites:
 - `parent`
 - `external_ref`
 
-`parent` and `external_ref` are written only by `ahm task create` (`--parent`,
-`--external-ref`) and `ahm task edit <id>`. `task create --external-ref` sets
+`parent` and `external_ref` are written by `ahm task create` (`--parent`,
+`--external-ref`), `ahm task import`, and `ahm task edit <id>`. `task create --external-ref` sets
 it at creation; `task edit --external-ref ""` clears it.
 
 Retired front matter preserved as an unknown field:
@@ -47,6 +47,9 @@ rewrite front matter in `ahm`'s canonical order.
 ## Task Body Sections
 
 ### `## Comments`
+
+`task import` can preserve existing comments and cancellation reasons through
+the imported Markdown body.
 
 Comments may be appended to any task (active, completed, or cancelled) using
 `ahm task comment <id> <text>`. Each comment is a timestamped Markdown line

@@ -509,3 +509,24 @@ repository state, validation findings, and record counts, and `--json` and
 `--plain` expose the same structured report for integrations. General project
 documentation is not an ahm-managed scope; each project owns its own
 documentation guidance.
+
+### Bulk Task Import Writes
+
+`task import` uses the existing task record format and ID allocator. It resolves
+batch-local `@ref` names before rendering; names are not persisted. All record
+refusals are reported before writing. A successful batch holds the record lock
+once and regenerates indexes once. In home mode it also holds the store-state
+lock while writing and, if an ordinary write fails, restoring affected files.
+Rollback restores pre-import record/index/counter bytes; it never modifies the
+registry. A counter restoration can undo this transaction's unpublished IDs
+while the store-state lock excludes observations by other cooperating writers.
+The counter remains monotonic for successfully published records.
+
+Import adds restoration for ordinary write failures; the usual sequential
+index semantics still apply to other commands. Atomicity after power loss or
+process termination is per file, with no durable batch journal. Preserve raised
+counters when recovering an interrupted import and regenerate indexes after
+removing only records from the failed batch. See the
+[bulk import contract](cli/task-commands.md#bulk-import) and
+[ADR 025](../../docs/adr/025-import-task-batches-with-prevalidation-and-rollback.md).
+No workflow format migration is required.

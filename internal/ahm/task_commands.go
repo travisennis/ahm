@@ -69,6 +69,7 @@ Examples:
 	create.Flags().StringVar(&createArgs.dependsOn, "depends-on", "", "Comma-separated task IDs this task depends on")
 	task.AddCommand(create)
 
+	task.AddCommand(a.taskImportCommand())
 	task.AddCommand(a.taskEditCommand())
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.

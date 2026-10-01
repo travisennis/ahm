@@ -54,30 +54,39 @@ func readTaskIDCounter(paths workflowPaths) (int, error) {
 // write, because the state file sits in the store's project directory, which is
 // an owned root when the records live there.
 func writeTaskIDCounter(paths workflowPaths, next int) error {
-	path, ok := paths.taskIDCounterPath()
+	_, ok := paths.taskIDCounterPath()
 	if !ok || next < 1 {
 		return nil
 	}
 	return withStoreStateLock(paths.store, func() error {
-		state, err := readProjectState(paths.store)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		raised := higherTaskIDCounter(next, state.NextID)
-		if raised == state.NextID {
-			// The file already holds this ID or a higher one, so there is nothing to
-			// raise and nothing to write.
-			return nil
-		}
-		state.Version = storeFormatVersion
-		state.NextID = raised
-		data, err := marshalStoreJSON(state)
-		if err != nil {
-			return err
-		}
-		storeStateWriteHook(path)
-		return writeOwned(paths, path, data)
+		return writeTaskIDCounterLocked(paths, next)
 	})
+}
+
+// writeTaskIDCounterLocked requires the caller to hold the store-state lock.
+func writeTaskIDCounterLocked(paths workflowPaths, next int) error {
+	path, ok := paths.taskIDCounterPath()
+	if !ok || next < 1 {
+		return nil
+	}
+	state, err := readProjectState(paths.store)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	raised := higherTaskIDCounter(next, state.NextID)
+	if raised == state.NextID {
+		// The file already holds this ID or a higher one, so there is nothing to
+		// raise and nothing to write.
+		return nil
+	}
+	state.Version = storeFormatVersion
+	state.NextID = raised
+	data, err := marshalStoreJSON(state)
+	if err != nil {
+		return err
+	}
+	storeStateWriteHook(path)
+	return writeOwned(paths, path, data)
 }
 
 // higherTaskIDCounter returns the higher of two counter observations that meet

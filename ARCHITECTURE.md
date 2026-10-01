@@ -54,7 +54,7 @@ location map; this section describes what each group does.
 | Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, counter, and registry writes the move owes. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode, which a new project writes as `home`), the managed `.gitignore` of every layout the mode owns, the store observation a new project records, and generated index writes. |
 | Status, prime & validation | `internal/ahm/status.go`, `prime.go`, `validation.go` | `status`, `doctor`, the `prime` state report, and workflow/link/ADR/task validation. |
-| Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_edit.go`, `task_id_counter.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking, and the store's task ID counter. |
+| Tasks | `internal/ahm/tasks.go`, `task_commands.go`, `task_create.go`, `task_import.go`, `task_edit.go`, `task_id_counter.go`, `task_list.go`, `task_status.go`, `task_find.go`, `task_enum.go`, `task_comment.go`, `task_deps.go`, `task_acceptance.go` | Task model, parsing, rendering, all lifecycle commands, dependency management, acceptance checking, and the store's task ID counter. |
 | ADRs | `internal/ahm/adrs.go`, `adr_commands.go` | ADR model, parsing, lifecycle commands. |
 | Indexes | `internal/ahm/indexes.go` | Task and ADR generated index rendering. |
 | Version | `internal/version/version.go` | Binary version injected by release builds. |
@@ -194,3 +194,13 @@ location map; this section describes what each group does.
 - Task, ADR, and ExecPlan procedures: `docs/workflow/`; decision history:
   `docs/adr/`.
 - Contributor commands and handoff expectations: `CONTRIBUTING.md`.
+
+## Bulk Task Import
+
+`task_import.go` owns the offline JSON boundary, batch allocation and reference
+resolution, refusal report, and restoration of affected files on ordinary write
+failure. It reuses task allocators and rendering, holds the record lock once,
+and holds the store-state lock across home-mode writes and rollback. Import
+never modifies the registry or existing records. Individual writes remain
+atomic; abrupt termination can interrupt the batch. See
+[ADR 025](docs/adr/025-import-task-batches-with-prevalidation-and-rollback.md).
