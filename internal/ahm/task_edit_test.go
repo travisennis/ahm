@@ -35,6 +35,31 @@ func writeEditableTask(t *testing.T, root string, id string, title string, extra
 	return path
 }
 
+// writeVocabularyTask writes a spare task record whose only purpose is to put
+// the given labels into the corpus vocabulary, since `task edit --add-label`
+// accepts only labels some record already carries.
+func writeVocabularyTask(t *testing.T, root string, bucket string, id string, labels string) {
+	t.Helper()
+	path := filepath.Join(root, ".ahm", "tasks", bucket, id+".md")
+	content := "---\n" +
+		"id: " + id + "\n" +
+		"title: Vocabulary seed\n" +
+		"status: Pending\n" +
+		"priority: P2\n" +
+		"effort: S\n" +
+		"labels: " + labels + "\n" +
+		"depends_on: -\n" +
+		"---\n" +
+		"# Vocabulary seed\n\n" +
+		"## Summary\n\nSeed.\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // runTaskEdit runs `task edit` through Main so flag parsing, exit codes, and
 // output modes are all exercised the way a caller sees them.
 func runTaskEdit(t *testing.T, root string, args ...string) (string, string, int) {
@@ -150,6 +175,7 @@ func TestTaskEditParentAndClearParentConflict(t *testing.T) {
 
 func TestTaskEditLabelsAddAndRemoveWithoutClobbering(t *testing.T) {
 	root := projectRoot(t)
+	writeVocabularyTask(t, root, "active", "271", "area:docs")
 	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
 
 	stdout, stderr, code := runTaskEdit(t, root, "270", "--add-label", "area:docs", "--remove-label", "area:cli")
@@ -165,6 +191,7 @@ func TestTaskEditLabelsAddAndRemoveWithoutClobbering(t *testing.T) {
 
 func TestTaskEditLabelsAcceptCommaListsAndRepeats(t *testing.T) {
 	root := projectRoot(t)
+	writeVocabularyTask(t, root, "active", "271", "area:docs, risk:external, type:feature")
 	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
 
 	_, stderr, code := runTaskEdit(t, root, "270",
@@ -213,6 +240,105 @@ func TestTaskEditRejectsInvalidLabels(t *testing.T) {
 				t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
 			}
 		})
+	}
+}
+
+func TestTaskEditAddLabelRejectsLabelOutsideVocabulary(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
+	before := mustRead(t, path)
+
+	stdout, stderr, code := runTaskEdit(t, root, "270", "--add-label", "area:nope")
+	if code != 2 {
+		t.Fatalf("exit code = %d, stdout = %q, stderr = %q, want 2", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, "area:nope", "ahm task labels", "task create --labels")
+	if after := mustRead(t, path); after != before {
+		t.Errorf("record changed on the rejected path:\nbefore: %s\nafter: %s", before, after)
+	}
+}
+
+func TestTaskEditAddLabelAllowedWhenVocabularyIsEmpty(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Unlabelled", "", "## Summary\n\nTODO.\n")
+	// Strip the fixture's labels so the whole corpus carries none, which is the
+	// one case where there is no vocabulary to check an addition against.
+	content := mustRead(t, path)
+	content = strings.Replace(content, "labels: type:task, area:cli", "labels: -", 1)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--add-label", "area:docs")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q, want 0", code, stderr)
+	}
+	assertFileContainsAll(t, path, "area:docs")
+}
+
+func TestTaskEditAddLabelAcceptsLabelIntroducedByCreate(t *testing.T) {
+	root := projectRoot(t)
+	writeEditableTask(t, root, "270", "Target", "", "## Summary\n\nTODO.\n")
+
+	if _, stderr, code := runCLI(t, "--root", root, "task", "create", "Seeded", "--labels", "area:special"); code != 0 {
+		t.Fatalf("create exit code = %d, stderr = %q", code, stderr)
+	}
+	if _, stderr, code := runTaskEdit(t, root, "270", "--add-label", "area:special"); code != 0 {
+		t.Fatalf("edit exit code = %d, stderr = %q", code, stderr)
+	}
+}
+
+func TestTaskEditDryRunRejectsLabelOutsideVocabulary(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
+	before := mustRead(t, path)
+
+	_, stderr, code := runCLI(t, "--root", root, "--dry-run", "task", "edit", "270", "--add-label", "area:nope")
+	if code != 2 {
+		t.Fatalf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	if after := mustRead(t, path); after != before {
+		t.Errorf("record changed in dry run:\nbefore: %s\nafter: %s", before, after)
+	}
+}
+
+func TestTaskEditForceDoesNotBypassLabelVocabulary(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
+	before := mustRead(t, path)
+
+	_, stderr, code := runCLI(t, "--root", root, "--force", "task", "edit", "270", "--add-label", "area:nope")
+	if code != 2 {
+		t.Fatalf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	if after := mustRead(t, path); after != before {
+		t.Errorf("record changed on the rejected path:\nbefore: %s\nafter: %s", before, after)
+	}
+}
+
+func TestTaskEditAddLabelVocabularySpansAllBuckets(t *testing.T) {
+	root := projectRoot(t)
+	writeVocabularyTask(t, root, "completed", "900", "area:docs")
+	path := writeEditableTask(t, root, "270", "Target", "", "## Summary\n\nTODO.\n")
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--add-label", "area:docs")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q, want 0", code, stderr)
+	}
+	assertFileContainsAll(t, path, "area:docs")
+}
+
+func TestTaskEditRejectedLabelLeavesOtherFieldsUnwritten(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Labelled", "", "## Summary\n\nTODO.\n")
+	before := mustRead(t, path)
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--title", "Renamed", "--add-label", "area:nope")
+	if code != 2 {
+		t.Fatalf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	if after := mustRead(t, path); after != before {
+		t.Errorf("record changed despite a rejected label:\nbefore: %s\nafter: %s", before, after)
 	}
 }
 
@@ -453,6 +579,7 @@ func TestTaskEditDryRunPrintsPathAndDiffsWithoutWriting(t *testing.T) {
 
 func TestTaskEditJSONCarriesTaskAndChangedFields(t *testing.T) {
 	root := projectRoot(t)
+	writeVocabularyTask(t, root, "active", "271", "area:docs")
 	writeEditableTask(t, root, "270", "Structured", "", "## Summary\n\nTODO.\n")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "task", "edit", "270", "--priority", "P1", "--add-label", "area:docs")

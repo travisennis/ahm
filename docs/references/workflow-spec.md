@@ -397,7 +397,10 @@ Examples of the rendered representation:
 
 `ahm task create` rejects titles and labels with leading or trailing whitespace,
 newlines, or carriage returns. It also canonicalizes an empty `--labels` value
-to the `-` sentinel so that every accepted value round-trips.
+to the `-` sentinel so that every accepted value round-trips. `ahm task
+create --labels` sets the full label set and is the only path that introduces a
+label no record carries yet; `ahm task edit --add-label` accepts only labels the
+records already use, the vocabulary `ahm task labels` reports.
 
 Unsupported forms that produce a parse error:
 

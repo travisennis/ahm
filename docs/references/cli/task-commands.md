@@ -141,6 +141,9 @@ records root, so clones that share a home store serialize on the same lock.
   flag sets. A value containing a newline or carriage return is a usage error.
 - Title and `--labels` must not contain leading/trailing whitespace, newlines,
   or carriage returns. Empty labels canonicalize to `-`.
+- `--labels` sets the full label set and accepts labels no record has used yet,
+  so it is how a new label enters the vocabulary that `task edit --add-label`
+  then accepts.
 - `--depends-on <ids>` accepts a comma-separated list of task IDs. Each ID is
   resolved with the normal ID resolution rules, canonicalized to the
   zero-padded form, and written to the `depends_on` field sorted by ID. A
@@ -165,7 +168,7 @@ is reachable.
 | `-t, --title` | Replace the title. |
 | `-p, --priority` | Replace the priority. |
 | `--effort` | Replace the effort. |
-| `--add-label` | Add a label; comma-separated or repeatable. |
+| `--add-label` | Add a label the records already use; comma-separated or repeatable. |
 | `--remove-label` | Remove a label; comma-separated or repeatable. |
 | `--external-ref` | Replace the external reference; an empty value clears it. |
 | `--parent` | Replace the parent task ID. The parent must exist and be top-level. |
@@ -180,6 +183,13 @@ is reachable.
   never clobber labels the caller did not name. `--labels` remains create-only.
   Each accepts a comma-separated list and may be repeated. `-` and `[]` are the
   empty-list sentinels of the front-matter format, not labels, and are refused.
+- `--add-label` accepts only labels already in use by some record, which is the
+  vocabulary `ahm task labels` reports; an unknown label is a usage error that
+  names the label. A caller introducing a genuinely new label does so through
+  `task create --labels`, the only path that extends the vocabulary.
+  `--remove-label` is not checked: removing a label the record does not carry is
+  a no-op, so idempotent cleanup does not fail. A corpus that carries no labels
+  at all has an empty vocabulary, so an addition is accepted unchecked.
 - `--section <name>` replaces exactly that heading section, creating it at the
   end of the body when absent, and leaves every other section byte-identical.
   The heading is matched case-insensitively at `##` or `###`. The name must be
@@ -212,6 +222,10 @@ is reachable.
 - `--body` with `--body-file`, `--section` with neither, `--parent` with
   `--clear-parent`, an empty `--title`, a newline in `--title` or
   `--external-ref`, and an unsupported `--priority` or `--effort`.
+- `--add-label <label>` where no record carries `<label>`. The message names the
+  label and points at `ahm task labels` and `task create --labels`. `--force`
+  does not override this; it is a usage error, not a write guard, and it is
+  checked in `--dry-run` too.
 - `--section Comments` and `--section "Cancellation Reason"`. Those sections
   are owned by `task comment` and `task cancel` respectively, and the message
   names the owning command. `--force` does not override this.

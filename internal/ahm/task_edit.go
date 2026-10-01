@@ -118,9 +118,12 @@ func (a *app) taskEditCommand() *cobra.Command {
 		Long: `Edit an existing task's front matter and body sections.
 
 Flags replace a field when supplied and leave it alone when omitted. --add-label
-and --remove-label adjust the label set without clobbering it. Status and
-dependencies belong to task accept|start|complete|cancel|reopen and task dep
-add|remove, and this command refuses to write them.
+and --remove-label adjust the label set without clobbering it. --add-label
+accepts only labels already in use somewhere in the records, which is the
+vocabulary "ahm task labels" reports; introduce a new label through
+"task create --labels". Status and dependencies belong to task
+accept|start|complete|cancel|reopen and task dep add|remove, and this command
+refuses to write them.
 
 The ## Comments and ## Cancellation Reason sections are owned by task comment
 and task cancel. Use --section to rewrite any other section; a whole-body
@@ -145,7 +148,7 @@ Examples:
 	cmd.Flags().StringVarP(&args.title, "title", "t", "", "Replace the task title")
 	cmd.Flags().StringVarP(&args.priority, "priority", "p", "", "Replace the task priority")
 	cmd.Flags().StringVar(&args.effort, "effort", "", "Replace the task effort")
-	cmd.Flags().StringArrayVar(&args.addLabelValues, "add-label", nil, "Label to add to the set; comma-separated or repeatable")
+	cmd.Flags().StringArrayVar(&args.addLabelValues, "add-label", nil, "Label to add; must already be in use (see 'task labels'); comma-separated or repeatable")
 	cmd.Flags().StringArrayVar(&args.removeLabelValues, "remove-label", nil, "Label to remove from the set; comma-separated or repeatable")
 	cmd.Flags().StringVar(&args.externalRef, "external-ref", "", "Replace the external reference; an empty value clears it")
 	cmd.Flags().StringVar(&args.parent, "parent", "", "Replace the parent task ID")
@@ -224,6 +227,9 @@ func (a *app) taskEdit(args taskEditArgs) error {
 
 func (a *app) taskEditLocked(args taskEditArgs, task Task, body string, hasBody bool) error {
 	defer a.emitWarnings()
+	if err := a.validateTaskEditAddedLabels(args.addLabels); err != nil {
+		return err
+	}
 	paths := a.workflowPaths()
 
 	changes, updated, err := editTaskFields(task, args, body, hasBody, a.opts.force)
@@ -375,6 +381,52 @@ func validateTaskEditEnums(args taskEditArgs) error {
 	}
 	if args.set["effort"] && !validTaskEffort(args.effort) {
 		return usageError(enumError("effort", args.effort, effortOrder()))
+	}
+	return nil
+}
+
+// validateTaskEditAddedLabels rejects an --add-label value the task corpus has
+// never used. The vocabulary is the label set `ahm task labels` reports: every
+// label carried by every parsed record. An agent that mistypes a label would
+// otherwise write a label no other task shares and only find out later; a
+// caller with a genuinely new label introduces it through `task create
+// --labels`, which is the only path that extends the vocabulary.
+//
+// `--remove-label` is deliberately not validated. Removing a label the record
+// does not carry is already a no-op, so there is no misspelling to catch, and
+// rejecting an unknown removal would turn an idempotent cleanup into an error.
+//
+// A corpus that carries no labels at all has an empty vocabulary, so there is
+// nothing to check an addition against and the label is accepted; a default
+// `task create` writes `type:task, area:unknown`, so this is rare.
+func (a *app) validateTaskEditAddedLabels(add []string) error {
+	if len(add) == 0 {
+		return nil
+	}
+	tasks, err := a.getTasks()
+	if err != nil && len(tasks) == 0 {
+		// The corpus could not be read at all, so there is no vocabulary to
+		// check against; fail closed rather than accept an arbitrary label.
+		return err
+	}
+	// A record that failed to parse is skipped here the same way every other
+	// task command skips it, and resolveTaskForMutation already reported the
+	// skip for this command, so this adds no second warning.
+	vocabulary := map[string]bool{}
+	for _, task := range tasks {
+		for label := range taskLabelSet(task) {
+			vocabulary[label] = true
+		}
+	}
+	if len(vocabulary) == 0 {
+		return nil
+	}
+	for _, label := range add {
+		if !vocabulary[label] {
+			return usageError(fmt.Sprintf(
+				"task edit --add-label %q: label is not in use by any task; run `ahm task labels` to see the vocabulary, or introduce it with `task create --labels`",
+				label))
+		}
 	}
 	return nil
 }
