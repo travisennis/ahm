@@ -276,9 +276,12 @@ func writeTaskTable(b *strings.Builder, tasks []Task, from string) {
 }
 
 // escapeCell escapes characters that have special meaning in Markdown table
-// cells or could be interpreted as HTML. Currently handles pipes (|),
-// backticks (`), angle brackets (<, >), square brackets ([, ]), and newlines.
+// cells or could be interpreted as HTML. Currently handles backslashes (\),
+// pipes (|), backticks (`), angle brackets (<, >), square brackets ([, ]), and
+// newlines. The backslash is escaped first so the escape characters inserted
+// by the remaining replacements are not themselves escaped.
 func escapeCell(value string) string {
+	value = strings.ReplaceAll(value, "\\", "\\\\")
 	value = strings.ReplaceAll(value, "`", "\\`")
 	value = strings.ReplaceAll(value, "|", "\\|")
 	value = strings.ReplaceAll(value, "<", "&lt;")

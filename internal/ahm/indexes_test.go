@@ -21,6 +21,9 @@ func TestEscapeCell(t *testing.T) {
 		{"backtick", "a`b", "a\\`b"},
 		{"angle brackets", "a<b>c", "a&lt;b&gt;c"},
 		{"square brackets", "a[b]c", "a\\[b\\]c"},
+		{"bare backslash", `a\b`, `a\\b`},
+		{"backslash before pipe", `a\|b`, `a\\\|b`},
+		{"backslash before backtick", "a\\" + "`" + "b", `a\\\` + "`" + `b`},
 		{"all special chars", "a|b\nc`d<e>[f]g", "a\\|b c\\`d&lt;e&gt;\\[f\\]g"},
 	}
 	for _, tt := range tests {
@@ -121,19 +124,26 @@ func TestRenderRootIndexGolden(t *testing.T) {
 		{ID: "003", Title: "Blocked", Status: "Pending", Priority: "P2", Effort: "M", Labels: "type:task", Bucket: "active", DependsOn: []string{"004"}},
 		{ID: "004", Title: "Open Needs Triage", Status: "Open", Priority: "P3", Effort: "L", Labels: "type:task", Bucket: "active"},
 		{ID: "005", Title: "Escaped `<angle>` test", Status: "Pending", Priority: "P2", Effort: "S", Labels: "type:task", Bucket: "active"},
+		{ID: "006", Title: "Mixed " + `\ \| \` + "`" + " chars", Status: "Pending", Priority: "P2", Effort: "S", Labels: "type:task", Bucket: "active"},
 	})
+	// Title 006 holds a bare backslash, a backslash before a pipe, and a
+	// backslash before a backtick. Its escaped form must stay one well-formed
+	// cell: a literal backslash, then an escaped pipe, then an escaped backtick.
+	escapedTitle := "Mixed " + `\\ \\\| \\\` + "`" + " chars"
 	assertContainsAll(t, index,
 		"# Task Index",
 		"- Open: 1",
-		"- Pending: 3",
+		"- Pending: 4",
 		"- Completed: 1",
 		"1. [002](active/002.md) - Ready \\| Escape (P0, S; type:task)",
 		"2. [005](active/005.md) - Escaped \\`&lt;angle&gt;\\` test (P2, S; type:task)",
+		"3. [006](active/006.md) - "+escapedTitle+" (P2, S; type:task)",
 		"| [003](active/003.md) | Blocked | Pending | P2 | M | type:task | 004 |",
 		"| [004](active/004.md) | Open Needs Triage | Open | P3 | L | type:task | - |",
 		"| [002](active/002.md) | Ready \\| Escape | Pending | P0 | S | type:task | 001 |",
 		"| [001](completed/001.md) | Done | Completed | P1 | S | type:task | - |",
 		"| [005](active/005.md) | Escaped \\`&lt;angle&gt;\\` test | Pending | P2 | S | type:task | - |",
+		"| [006](active/006.md) | "+escapedTitle+" | Pending | P2 | S | type:task | - |",
 	)
 }
 
