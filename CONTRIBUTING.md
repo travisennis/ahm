@@ -42,11 +42,19 @@ needed.
 Cleanup after the work is merged or abandoned: `git worktree remove
 ../ahm-<slug>` and `git branch -d feat/<slug>`.
 
-Agents: the cake agent runtime cannot yet create sibling-directory worktrees
-through its shell sandbox (writes are restricted to the project directory),
-so agents do not create worktrees and instead work in the main checkout on
-`master`. Until cake is patched, the worktree flow above is for humans working
-in parallel; ahm does not rely on agent-created worktrees.
+Agents: the cake agent runtime can create sibling-directory worktrees. Its
+shell sandbox permits writes outside the project directory, so an agent can
+create the worktree, run `just ci` inside it, and commit on its branch. An
+earlier revision of this section claimed the sandbox forbade this; it does not.
+Hook resolution is unaffected, and a single `prek install` at the main checkout
+still covers agent-created worktrees.
+
+An agent coordinating several worktrees merges them back to `master`
+sequentially: rebase each branch on `master`, fast-forward `master` to it, then
+`git worktree remove` the worktree and `git branch -d` the branch. In home
+mode the task records are unaffected by the merge, because the store is shared
+across worktrees that resolve to the same project key; in project mode the
+records are branch-scoped and merge with the code.
 
 ## Command Catalog
 
