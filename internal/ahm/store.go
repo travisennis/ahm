@@ -54,6 +54,28 @@ func (s storePaths) statePath() string  { return filepath.Join(s.ProjectDir, sto
 func (s storePaths) recordsDir() string { return filepath.Join(s.ProjectDir, storeRecordsDirName) }
 func (s storePaths) dirName() string    { return filepath.Base(s.ProjectDir) }
 
+// lockDir is the directory that holds the store-state lock: the store root's
+// .lock directory, beside the registry the lock protects. It sits at the store
+// root rather than beside the records because the registry is machine-wide, so
+// one lock serializes every project's observation of it.
+func (s storePaths) lockDir() string { return filepath.Join(s.Root, lockDirName) }
+
+// displayPath renders a store path for user-facing output: a path inside the
+// store root is shown as store: followed by its store-relative path, and a path
+// outside the store is returned unchanged. Store-state lock errors render
+// through it, so a lock at the store root is never reported as a path relative
+// to the project.
+func (s storePaths) displayPath(path string) string {
+	if s.Root == "" || !pathWithin(s.Root, path) {
+		return path
+	}
+	rel, err := filepath.Rel(s.Root, path)
+	if err != nil {
+		return path
+	}
+	return "store:" + filepath.ToSlash(rel)
+}
+
 // storeRoot returns the user-level store root: the AHM_HOME value when it is
 // set, and ~/.ahm otherwise. A relative AHM_HOME is a usage error, because the
 // store must resolve the same way from every working directory, and a root that
@@ -256,52 +278,67 @@ func recordStoreMigration(s storePaths, from taskLocation) error {
 	})
 }
 
+// storeStateWriteHook runs inside the store-state critical section, with the
+// path of the store file the writer is about to write: after the reads that
+// write depends on and before the bytes reach disk. A writer that finds its
+// bytes unchanged skips the write after the hook returns, so a test can hold a
+// writer whose computed bytes are about to go stale. It is a no-op in
+// production; tests replace it to hold one store-state writer open and
+// interleave a second one deterministically, in the style of
+// workflowLockClaimHook.
+var storeStateWriteHook = func(string) {}
+
 // updateStoreProject reads the project's state file and registry entry, applies
 // mutate to the entry, and writes both back unless their bytes are unchanged.
-// An unresolved store location is refused rather than written: the registry
-// lives at the store root, and a zero storePaths would name the process's
-// working directory.
+// The whole read-modify-write holds the store-state lock, so two writers that
+// record observations concurrently both keep theirs. An unresolved store
+// location is refused rather than written: the registry lives at the store
+// root, and a zero storePaths would name the process's working directory.
 func updateStoreProject(s storePaths, mutate func(*projectEntry)) error {
 	if s.Root == "" || s.ProjectDir == "" {
 		return fmt.Errorf("recording a store project needs a resolved store location")
 	}
-	state, err := readProjectState(s)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	state.Version = storeFormatVersion
-	if err := writeProjectState(s, state); err != nil {
-		return err
-	}
+	return withStoreStateLock(s, func() error {
+		state, err := readProjectState(s)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		reg, err := loadRegistry(s.Root)
+		if err != nil {
+			return err
+		}
+		state.Version = storeFormatVersion
+		entry := reg.Projects[s.Key]
+		if entry.Key == "" {
+			entry.Key = s.Key
+			entry.Kind = s.Kind
+			entry.Dir = s.dirName()
+			entry.Created = time.Now().Format(time.RFC3339)
+		}
+		if entry.Kind == "" {
+			entry.Kind = s.Kind
+		}
+		if entry.Dir == "" {
+			entry.Dir = s.dirName()
+		}
+		entry.Remotes = appendUniqueString(entry.Remotes, redactRemote(s.rawRemote))
+		entry.Paths = appendUniqueString(entry.Paths, s.resolvedPath)
+		mutate(&entry)
+		reg.Projects[s.Key] = entry
 
-	reg, err := loadRegistry(s.Root)
-	if err != nil {
-		return err
-	}
-	entry := reg.Projects[s.Key]
-	if entry.Key == "" {
-		entry.Key = s.Key
-		entry.Kind = s.Kind
-		entry.Dir = s.dirName()
-		entry.Created = time.Now().Format(time.RFC3339)
-	}
-	if entry.Kind == "" {
-		entry.Kind = s.Kind
-	}
-	if entry.Dir == "" {
-		entry.Dir = s.dirName()
-	}
-	entry.Remotes = appendUniqueString(entry.Remotes, redactRemote(s.rawRemote))
-	entry.Paths = appendUniqueString(entry.Paths, s.resolvedPath)
-	mutate(&entry)
-	reg.Projects[s.Key] = entry
-	return writeRegistry(s.Root, reg)
+		if err := writeProjectState(s, state); err != nil {
+			return err
+		}
+		return writeRegistry(s.Root, reg)
+	})
 }
 
 // writeProjectState writes a project's state file unless it already holds
-// those exact bytes. It never lowers the persisted task ID counter: a state
-// write whose reader raced a task creation keeps the higher value already on
-// disk, because the counter's guarantee is that it only moves up.
+// those exact bytes. It never lowers the persisted task ID counter: the write
+// keeps the higher of the value it carries and the value on disk. The
+// store-state lock is what keeps a stale observation from reaching this write
+// between cooperating writers; the merge stays as defense in depth for a writer
+// that does not take the lock, such as a pre-lock ahm binary.
 func writeProjectState(s storePaths, state projectState) error {
 	if current, err := readProjectState(s); err == nil {
 		state.NextID = higherTaskIDCounter(state.NextID, current.NextID)
@@ -310,6 +347,7 @@ func writeProjectState(s storePaths, state projectState) error {
 	if err != nil {
 		return err
 	}
+	storeStateWriteHook(s.statePath())
 	return writeStoreFile(s.statePath(), data)
 }
 
@@ -321,7 +359,9 @@ func writeRegistry(root string, reg registry) error {
 	if err != nil {
 		return err
 	}
-	return writeStoreFile(filepath.Join(root, storeRegistryFileName), data)
+	path := filepath.Join(root, storeRegistryFileName)
+	storeStateWriteHook(path)
+	return writeStoreFile(path, data)
 }
 
 // marshalStoreJSON renders store state as the exact bytes ahm writes.

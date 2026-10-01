@@ -29,7 +29,8 @@ The pin is the sandbox; the guard is the tripwire. `TestMain` also installs
 layout for, and `storeRoot` (`internal/ahm/store.go`) calls with the store root
 it reads from the environment or the home directory. The guard fires on both
 roots rather than on each derived path, because every derived path — records,
-indexes, the lock, the store's project directory — comes from one of them.
+indexes, the record lock, the store-state lock, the store's project directory —
+comes from one of them.
 
 A resolved root outside the sandbox panics with the offending path and the
 temporary directory, and stops the run. A suite that continued past it would

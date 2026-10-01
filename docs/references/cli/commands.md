@@ -270,9 +270,11 @@ the repository currently keeps records in the project.
   different roots resolve to different keys and directories.
 - The command records the project in `<store>/registry.json`, and its state in
   `<store>/projects/<dir>/project.json`, unless `--dry-run` is given; both are
-  written only when their bytes change, so a repeated run writes nothing. An
-  unknown store format version is refused with exit code 1. No other path is
-  written.
+  written only when their bytes change, so a repeated run rewrites nothing. An
+  unknown store format version is refused with exit code 1. The only other path
+  the command touches is the store-state lock at `<store>/.lock/store-state`,
+  which it creates and releases, so the store root must be writable even when
+  no bytes change.
 - The project state file holds the store format version, and `next_id` once a
   counter has been recorded. The command records the value it read and never
   lowers it.

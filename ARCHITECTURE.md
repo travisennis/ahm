@@ -77,7 +77,10 @@ location map; this section describes what each group does.
   when the records live in the store. The
   task ID counter in that same state file is written by `task create`,
   `ahm init`, and `store migrate`, which do hold the resolved paths, so it goes
-  through `writeOwned`.
+  through `writeOwned`. The lock protocol also owns the lock directories it
+  creates: the record lock's directory beside the records root, and the
+  store-state lock's directory at the store root, beside the registry that lock
+  serializes.
 - Records move between the two layouts only through `store migrate`, and only in
   the direction `--to` names: the layout the configuration currently names is
   never the evidence for a direction. Each record is read, written atomically
@@ -137,19 +140,26 @@ location map; this section describes what each group does.
 - Home mode never reissues a top-level task ID while the store's state file
   survives: the store persists a `next_id` high-water mark in its project state
   file, beside the records, and allocation is the higher of one past the highest
-  record present and that counter. The counter only ever moves up: both writers,
-  `task create` under the record lock and the `store path` observation, re-read
-  the file and keep the higher value, so a stale observation cannot lower it by
-  itself. The residual holes are the two writers interleaving inside one
-  read-to-rename window, and the state file being lost, which leaves the records
-  present as the only evidence. `ahm init` records the mark the records present
-  imply. Project mode keeps the number scan and does return a hand-deleted
-  record's number to the pool: Git history is the evidence that the ID was
-  spent, not something ahm reads before allocating. Child IDs keep their own
-  letter scan in both layouts, so a deleted child's letter can be reissued.
+  record present and that counter. The counter only ever moves up: the
+  store-state lock serializes the two writers — `task create` under the record
+  lock and the `store path` observation — so neither can compute its write from
+  a counter the other has already raised, and both still re-read the file and
+  keep the higher value, which holds the line against a writer that does not
+  take the lock. The residual hole is the state file being lost, which leaves
+  the records present as the only evidence. `ahm init` records the mark the
+  records present imply. Project mode keeps the number scan and does return a
+  hand-deleted record's number to the pool: Git history is the evidence that the
+  ID was spent, not something ahm reads before allocating. Child IDs keep their
+  own letter scan in both layouts, so a deleted child's letter can be reissued.
 - Cross-process workflow mutations that require read-compute-write consistency
   use repository-local locks beside the records root (`.ahm/.lock/` in project
-  mode), so two clones that share a store serialize on one lock.
+  mode), so two clones that share a store serialize on one lock. The store's
+  registry and project state writes serialize on a second lock,
+  `<store>/.lock/store-state`, at the store root, because the registry is
+  machine-wide and a per-project lock cannot serialize it. The record lock is
+  always acquired first, and no command takes the record lock while holding the
+  store-state lock, so the two never deadlock. Read-only commands and
+  `--dry-run` take no lock, so a preview still creates no store.
 - Generated indexes are deterministic; sort output consistently and keep index
   generation centralized.
 - Post-mutation index generation and workflow validation may reuse a complete

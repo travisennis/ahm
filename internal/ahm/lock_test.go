@@ -233,7 +233,7 @@ func TestRemoveStaleWorkflowLock_DoesNotRemoveReplacement(t *testing.T) {
 			t.Fatalf("remove observed stale lock: %v", err)
 		}
 		var err error
-		replacementRelease, err = tryAcquireWorkflowLock(workflowPathsFor(dir), lockRoot, "test-replacement")
+		replacementRelease, err = tryAcquireNamedLock(workflowPathsFor(dir).displayPath, lockRoot, "test-replacement")
 		if err != nil {
 			t.Fatalf("acquire replacement lock: %v", err)
 		}
@@ -486,7 +486,7 @@ func TestAcquireWorkflowLock_TokenWriteFailureRemovesCreatedLock(t *testing.T) {
 	workflowLockTokenWriter = func(string) (string, error) { return "", tokenErr }
 	t.Cleanup(func() { workflowLockTokenWriter = orig })
 
-	_, err := tryAcquireWorkflowLock(workflowPathsFor(dir), lockRoot, "test-token-failure")
+	_, err := tryAcquireNamedLock(workflowPathsFor(dir).displayPath, lockRoot, "test-token-failure")
 	if !errors.Is(err, tokenErr) {
 		t.Fatalf("acquire error = %v, want injected token write failure", err)
 	}

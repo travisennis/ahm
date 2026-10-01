@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -525,4 +527,182 @@ func TestStorePathReportAbbreviatesHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertContainsAll(t, other.String(), "root:    "+elsewhere)
+}
+
+// testStoreProjectPaths returns a resolved store location for one project under
+// a shared store root, so a test can interleave two projects' observations of
+// one store.
+func testStoreProjectPaths(t *testing.T, storeRoot string, key string) storePaths {
+	t.Helper()
+	return storePaths{
+		Root:         storeRoot,
+		Key:          key,
+		Kind:         storeKindRemote,
+		ProjectDir:   filepath.Join(storeRoot, storeProjectsDirName, storeDirName(key)),
+		rawRemote:    "https://" + key + ".git",
+		resolvedPath: filepath.Join(t.TempDir(), "checkout"),
+	}
+}
+
+// holdStoreStateWrite installs storeStateWriteHook so the first writer that is
+// about to commit bytes to the named file is held until the returned release
+// function runs. The held channel closes when that writer is inside its
+// critical section.
+func holdStoreStateWrite(t *testing.T, fileName string) (held chan struct{}, release func()) {
+	t.Helper()
+	held = make(chan struct{})
+	released := make(chan struct{})
+	var (
+		mu   sync.Mutex
+		hold bool
+	)
+	storeStateWriteHook = func(path string) {
+		if filepath.Base(path) != fileName {
+			return
+		}
+		mu.Lock()
+		first := !hold
+		hold = true
+		mu.Unlock()
+		if first {
+			close(held)
+			<-released
+		}
+	}
+	t.Cleanup(func() { storeStateWriteHook = func(string) {} })
+	return held, func() { close(released) }
+}
+
+// interleaveStoreStateWriters holds the first writer open at the point where it
+// is about to commit bytes to the named store file and runs the second writer
+// while it is held, so the two interleave deterministically.
+func interleaveStoreStateWriters(t *testing.T, fileName string, first func() error, second func() error) {
+	t.Helper()
+	held, release := holdStoreStateWrite(t, fileName)
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- first() }()
+	select {
+	case <-held:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first store-state writer never reached its write")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() { secondDone <- second() }()
+	secondCommitted := false
+	select {
+	case err := <-secondDone:
+		secondCommitted = true
+		t.Errorf("the second writer committed while the first held the store-state lock: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+
+	if err := <-firstDone; err != nil {
+		t.Fatalf("the first store-state writer failed: %v", err)
+	}
+	if !secondCommitted {
+		if err := <-secondDone; err != nil {
+			t.Fatalf("the second store-state writer failed: %v", err)
+		}
+	}
+}
+
+// TestStoreStateLockSerializesRegistryObservations pins the store-state lock's
+// job on the registry: two projects that record an observation in one store
+// concurrently both keep theirs. The first observation is held with its registry
+// entry already computed while the second runs to completion, so a writer that
+// committed a stale registry would drop the other's entry.
+func TestStoreStateLockSerializesRegistryObservations(t *testing.T) {
+	storeRoot := t.TempDir()
+	first := testStoreProjectPaths(t, storeRoot, "example.com/owner/first")
+	second := testStoreProjectPaths(t, storeRoot, "example.com/owner/second")
+	interleaveStoreStateWriters(t, storeRegistryFileName,
+		func() error { return recordStoreProject(first) },
+		func() error { return recordStoreProject(second) },
+	)
+
+	reg, err := loadRegistry(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{first.Key, second.Key} {
+		if _, ok := reg.Projects[key]; !ok {
+			t.Errorf("the registry lost the observation for %s:\n%+v", key, reg.Projects)
+		}
+	}
+}
+
+// TestStoreStateLockSerializesObservationsOfOneProject covers the observation a
+// clone adds for a key another clone already recorded. The recorded paths and
+// remote spellings are the part of an observation that cannot be recomputed from
+// the key, so a lost one is lost for good.
+func TestStoreStateLockSerializesObservationsOfOneProject(t *testing.T) {
+	storeRoot := t.TempDir()
+	first := testStoreProjectPaths(t, storeRoot, "example.com/owner/repo")
+	second := first
+	second.resolvedPath = filepath.Join(t.TempDir(), "clone")
+	second.rawRemote = "git@example.com:owner/repo.git"
+	interleaveStoreStateWriters(t, storeRegistryFileName,
+		func() error { return recordStoreProject(first) },
+		func() error { return recordStoreProject(second) },
+	)
+
+	reg, err := loadRegistry(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, ok := reg.Projects[first.Key]
+	if !ok {
+		t.Fatalf("the registry has no entry for %s:\n%+v", first.Key, reg.Projects)
+	}
+	for _, want := range []string{first.resolvedPath, second.resolvedPath} {
+		if !slices.Contains(entry.Paths, want) {
+			t.Errorf("entry paths = %v, want the observed path %q", entry.Paths, want)
+		}
+	}
+	for _, want := range []string{first.rawRemote, second.rawRemote} {
+		if !slices.Contains(entry.Remotes, want) {
+			t.Errorf("entry remotes = %v, want the observed remote %q", entry.Remotes, want)
+		}
+	}
+}
+
+// TestStoreStateLockRefusesAnUnresolvedStore keeps the containment rule
+// structural: a zero store location would name the process's working directory
+// as the lock root, so serializing store state must refuse it.
+func TestStoreStateLockRefusesAnUnresolvedStore(t *testing.T) {
+	ran := false
+	err := withStoreStateLock(storePaths{}, func() error {
+		ran = true
+		return nil
+	})
+	if err == nil {
+		t.Error("withStoreStateLock with a zero store succeeded, want an error")
+	}
+	if ran {
+		t.Error("withStoreStateLock ran its function without a resolved store root")
+	}
+}
+
+// TestStoreStateLockLivesAtTheStoreRoot pins the lock's location and the way a
+// lock error names it: the lock sits beside the machine-wide registry, and its
+// path renders store-relative rather than as a path relative to the project.
+func TestStoreStateLockLivesAtTheStoreRoot(t *testing.T) {
+	store := testStoreProjectPaths(t, t.TempDir(), "example.com/owner/repo")
+
+	release, err := acquireStoreStateLock(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(store.lockDir(), storeStateLockName)
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Errorf("the store-state lock is not at %s: %v", lockPath, err)
+	}
+	if got, want := store.displayPath(lockPath), "store:"+lockDirName+"/"+storeStateLockName; got != want {
+		t.Errorf("the lock path renders as %q, want %q", got, want)
+	}
+	if err := release(); err != nil {
+		t.Fatal(err)
+	}
 }

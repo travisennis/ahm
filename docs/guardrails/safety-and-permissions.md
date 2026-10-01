@@ -41,7 +41,10 @@ atomic writes, and dry-run behavior.
   records directories a move emptied), the stale temp files `cleanupStaleTemps`
   reaps, the temp file an atomic write removes beside its target when a step
   fails, and the lock protocol's own directories — the quarantine a reclaimed
-  lock moves through and the lock a failed acquire rolls back. `store migrate`
+  lock moves through, the lock a failed acquire rolls back, and the lock
+  directories the protocol creates: the record lock's beside the records root,
+  and the store-state lock's at the store root, which every store write creates
+  even when the records live in the project. `store migrate`
   is the only command that removes records on purpose, and a removal is not a
   write, so it has no containment counterpart (see the migration invariant in
   `ARCHITECTURE.md`). A direct `os.WriteFile` is reserved for the lock protocol's

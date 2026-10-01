@@ -130,6 +130,17 @@ read-compute-write sequence for each command, including ID allocation, file
 writes, and index regeneration. `--dry-run` and read-only preview paths do not
 take the lock and do not write workflow state.
 
+The store's registry and project state writes serialize on a second lock, the
+store-state lock at `<store>/.lock/store-state`, because the registry is
+machine-wide and a per-project lock cannot serialize it. It is held across the
+whole read-modify-write of `<store>/registry.json` and of a project's
+`project.json`, so two projects that record an observation concurrently both
+keep theirs and no interleaving of `store path` and `task create` can lower the
+persisted `next_id`. The record lock is always acquired first, and no command
+takes the record lock while holding the store-state lock. The lock is taken
+only where a store write happens, so `--dry-run` still creates no store at all
+and read-only commands take no lock.
+
 When the `--parent <id>` flag is provided, `ahm task create` allocates the next
 available lettered child ID under that parent (`137a`, `137b`, ..., `137z`) and
 writes `parent: <id>` in the child task front matter. The parent must be a
@@ -142,12 +153,13 @@ serializes both top-level and child ID allocation.
 
 The store root is `~/.ahm` by default. `AHM_HOME` overrides it and must name
 an absolute path; a relative value is a usage error. The root holds
-`registry.json` and a `projects/` directory. Each project directory is named
+`registry.json`, a `projects/` directory, and the `.lock/` directory that holds
+the store-state lock. Each project directory is named
 `<slug>-<hash8>`, where the slug is the key's repository name for a remote key
 and `project` for a path key, and the hash keeps same-named projects apart. It
 contains the task records under `tasks/`,
 the store-managed `.gitignore`, the project state file `project.json`, and the
-`.lock/` directory.
+`.lock/` directory that holds the record lock.
 
 A project key is derived per command from the remote Git selects: `origin`
 when it exists, otherwise the only remote when the repository has exactly one.
@@ -165,7 +177,10 @@ rule and reads no Git.
 directory. It is derived data and is never the authority for record contents.
 Each project directory's `project.json` records store format version `1` and
 the non-decrementing `next_id` counter that prevents a deleted top-level task
-ID from being reissued. A store or project file with a format version newer
+ID from being reissued. Every read-modify-write of the registry and of a
+project's state file holds the store-state lock, and each writer keeps the
+higher counter it sees, so the counter only moves up even against a writer that
+does not take the lock. A store or project file with a format version newer
 than this version is refused rather than partially read. The registry may also
 record observed remote spellings with credentials removed and `migrated_from`.
 
@@ -180,7 +195,9 @@ directory, while the committed configuration and ADRs stay in the repository.
 Paths in validation findings, error messages, index listings, and lock errors
 render as `store:<path-relative-to-the-store-project-directory>` in home mode
 (for example, `store:tasks/active/001.md`) and repository-relative paths in
-project mode. The JSON `path` field of a task and the dry-run create, move, and
+project mode. A lock at the store root, where no project directory contains it,
+renders relative to the store root instead (`store:.lock/store-state`). The JSON
+`path` field of a task and the dry-run create, move, and
 unblock previews use the same store display while leaving project-mode payloads
 byte-identical. An operating-system error keeps its own text. `ahm store path`
 is the exception: it reports the absolute store root and records directory,
@@ -195,7 +212,9 @@ generated indexes; it does not scan general project documentation.
 
 Workflow record mutations take the lock beside the records root:
 `.ahm/.lock/` in project mode, or `<store>/projects/<dir>/.lock/` in home mode.
-Stale temporary-file cleanup scans the project's `.ahm/` state directory and,
+Store state writes take the store-state lock at `<store>/.lock/store-state`
+instead, because the registry is machine-wide. Stale temporary-file cleanup
+scans the project's `.ahm/` state directory and,
 in home mode, the store project's state directory; it never walks the whole
 repository or store root.
 
@@ -460,6 +479,15 @@ directory into a unique quarantine and verifies its owner token before
 deletion, so a replacement lock is not removed. Release performs the same
 owner-token check and reports an error when the acquired directory is missing
 or has been replaced.
+
+Store state writes share a second lock, the store-state lock at
+`<store>/.lock/store-state`. It serializes every read-modify-write of
+`registry.json` and of a project's `project.json`, across projects and
+processes, and uses the same protocol: owner token, heartbeat, and stale
+reclamation. It is acquired only where a store write happens — `store path`, a
+home-mode `init`, `store migrate`, and the `next_id` write of `task create` —
+and only after the record lock when a command holds both, so a store write from
+`task create` cannot deadlock with another project's `store path`.
 
 ### Generated Index Write Semantics
 

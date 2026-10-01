@@ -128,6 +128,10 @@ path is reserved for that future use.
 - Superseded in part by [ADR-010](010-task-create-id-allocation-lock.md),
   which adopts a narrow repository-local lock for `ahm task create` ID
   allocation while preserving this ADR's rejection of broad advisory locking.
+- Superseded in part by [ADR-024](024-serialize-store-state-writes-with-a-store-level-lock.md),
+  which serializes the home store's registry and project state writes with a
+  store-level lock, on the same concrete-race evidence ADR-010 required and
+  again preserving this ADR's rejection of broad advisory locking.
 
 ## References
 

@@ -48,40 +48,46 @@ func readTaskIDCounter(paths workflowPaths) (int, error) {
 // when the file already holds that ID or a higher one, because the counter
 // never decreases: an observation taken from a store that predates it must not
 // roll one back. A next below 1 is ignored, because `next_id` is omitted when it
-// is zero and a zero write would drop the field. The write is contained by
-// writeOwned like every other workflow write, because the state file sits in the
-// store's project directory, which is an owned root when the records live
-// there.
+// is zero and a zero write would drop the field. The read-modify-write holds the
+// store-state lock, so it cannot interleave with a `store path` observation of
+// the same file. The write is contained by writeOwned like every other workflow
+// write, because the state file sits in the store's project directory, which is
+// an owned root when the records live there.
 func writeTaskIDCounter(paths workflowPaths, next int) error {
 	path, ok := paths.taskIDCounterPath()
 	if !ok || next < 1 {
 		return nil
 	}
-	state, err := readProjectState(paths.store)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	next = higherTaskIDCounter(next, state.NextID)
-	if next == state.NextID {
-		// The file already holds this ID or a higher one, so there is nothing to
-		// raise and nothing to write.
-		return nil
-	}
-	state.Version = storeFormatVersion
-	state.NextID = next
-	data, err := marshalStoreJSON(state)
-	if err != nil {
-		return err
-	}
-	return writeOwned(paths, path, data)
+	return withStoreStateLock(paths.store, func() error {
+		state, err := readProjectState(paths.store)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		raised := higherTaskIDCounter(next, state.NextID)
+		if raised == state.NextID {
+			// The file already holds this ID or a higher one, so there is nothing to
+			// raise and nothing to write.
+			return nil
+		}
+		state.Version = storeFormatVersion
+		state.NextID = raised
+		data, err := marshalStoreJSON(state)
+		if err != nil {
+			return err
+		}
+		storeStateWriteHook(path)
+		return writeOwned(paths, path, data)
+	})
 }
 
 // higherTaskIDCounter returns the higher of two counter observations that meet
-// in the store state file. `ahm task create` writes the counter through
-// writeOwned inside the record lock, while `store path` records its observation
-// of the same file through writeFileAtomic with no lock, so both take the
-// higher value: the counter exists to remember the numbers a store has spent,
-// and no writer may move it down.
+// in the store state file. The store-state lock is what keeps a stale
+// observation out of the write between cooperating writers — `task create`
+// raises the counter under the record lock, and `store path` records its own
+// observation of the same file — so the merge is defense in depth: it holds the
+// line for a writer that does not take the lock, such as a pre-lock ahm binary.
+// The counter exists to remember the numbers a store has spent, and no writer
+// may move it down.
 func higherTaskIDCounter(carried int, persisted int) int {
 	return max(carried, persisted)
 }

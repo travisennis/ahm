@@ -39,8 +39,9 @@ directory.
 
 Task records in home mode are stored outside the repository under `~/.ahm`.
 Set `AHM_HOME` to override the store root with an absolute path; a relative
-value is a usage error. The store root contains `registry.json` and
-`projects/<slug>-<hash8>/` directories. `ahm store path` reports the resolved
+value is a usage error. The store root contains `registry.json`,
+`projects/<slug>-<hash8>/` directories, and the `.lock/` directory that holds
+the store-state lock. `ahm store path` reports the resolved
 root, project key, and records directory. Home-mode identity uses the remote
 Git selects: `origin` when present, otherwise the only remote when the
 repository has exactly one. A project whose root contains `.git` requires

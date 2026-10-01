@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -352,5 +353,43 @@ func TestHomeModeTaskCreateFailsOnAnUnreadableTaskIDCounter(t *testing.T) {
 			}
 			assertContainsAll(t, stderr, tc.want)
 		})
+	}
+}
+
+// TestStoreStateLockKeepsStorePathFromLoweringTheCounter is the interleaving the
+// store-state lock closes: a `store path` observation computes its state bytes
+// from a counter that a concurrent `task create` then raises. The observation
+// is held at the point where its bytes are about to become stale, so the
+// interleaving is deterministic: without the lock the observation writes its
+// stale counter over the raise, and with it the two writers serialize.
+func TestStoreStateLockKeepsStorePathFromLoweringTheCounter(t *testing.T) {
+	setStoreHome(t)
+	root := initHomeModeRepository(t)
+
+	var observeOut strings.Builder
+	observer := app{opts: options{root: root}, out: &observeOut}
+	var createOut strings.Builder
+	creator := app{opts: options{root: root}, out: &createOut}
+	interleaveStoreStateWriters(t, storeStateFileName,
+		observer.storePath,
+		func() error {
+			return creator.taskCreateParsed(taskCreateArgs{
+				title:    "Created While The Store Was Observed",
+				priority: "P2",
+				effort:   "S",
+				labels:   "type:task, area:unknown",
+				status:   "Open",
+			})
+		},
+	)
+
+	if got := storeTaskIDCounter(t, root); got != 2 {
+		t.Errorf("the persisted next_id = %d after the interleaving, want 2", got)
+	}
+	if got := strings.TrimSpace(createOut.String()); got != "001" {
+		t.Errorf("task create allocated %q, want 001", got)
+	}
+	if _, err := os.Stat(filepath.Join(storePathsOf(t, root).recordsDir(), "active", "001.md")); err != nil {
+		t.Errorf("the created record is not in the store: %v", err)
 	}
 }
