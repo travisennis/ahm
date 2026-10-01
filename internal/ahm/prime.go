@@ -74,20 +74,25 @@ func (a *app) prime() error {
 	// These preparations are skipped when no workflow is installed,
 	// which keeps prime usable for bare git checkouts without
 	// creating untracked files.
-	if _, err := readMetadata(a.opts.root); err == nil {
-		if !a.opts.dryRun {
-			if _, err := a.ensureWorkflowDirs(); err != nil {
-				return err
+	//
+	// A records-only selection has no checkout to prepare, so it skips the whole
+	// block and reports the store's records directly.
+	if !a.workflowPaths().isRecordsOnly() {
+		if _, err := readMetadata(a.opts.root); err == nil {
+			if !a.opts.dryRun {
+				if _, err := a.ensureWorkflowDirs(); err != nil {
+					return err
+				}
+				if err := a.ensureWorkflowGitignore(); err != nil {
+					return err
+				}
+				if err := a.regenerateIndexes(); err != nil {
+					return err
+				}
 			}
-			if err := a.ensureWorkflowGitignore(); err != nil {
-				return err
-			}
-			if err := a.regenerateIndexes(); err != nil {
-				return err
-			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			a.addWarning("unreadable workflow metadata: %v", err)
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		a.addWarning("unreadable workflow metadata: %v", err)
 	}
 
 	// Build and emit the report
@@ -121,35 +126,46 @@ func (a *app) regenerateIndexes() error {
 }
 
 func (a *app) buildPrimeReport() primeReport {
+	paths := a.workflowPaths()
 	validation, tasks := a.validateWorkflow(nil)
-	_, metaErr := readMetadata(a.opts.root)
-	if metaErr != nil {
-		var err error
-		tasks, err = a.getTasks()
-		if err != nil {
-			a.addWarning("some task files could not be parsed and were skipped")
-			if tasks == nil {
-				tasks = []Task{}
+	// A records-only selection has no project metadata to read; selecting the
+	// project from the registry is itself the evidence it is installed.
+	installed := true
+	if !paths.isRecordsOnly() {
+		_, metaErr := readMetadata(a.opts.root)
+		installed = metaErr == nil
+		if metaErr != nil {
+			var err error
+			tasks, err = a.getTasks()
+			if err != nil {
+				a.addWarning("some task files could not be parsed and were skipped")
+				if tasks == nil {
+					tasks = []Task{}
+				}
 			}
 		}
 	}
 	var installedVersion string
-	if metaErr == nil {
+	if installed {
 		installedVersion = version.Binary
 	}
 	taskInfo := a.primeTaskSummary(tasks)
-	gitInfo := readGitContext(a.opts.root)
+	// Git state describes a checkout; a records-only selection has none.
+	var gitInfo primeGit
+	if !paths.isRecordsOnly() {
+		gitInfo = readGitContext(a.opts.root)
+	}
 
 	// Like status, the briefing reports the store only for an installed project
 	// whose records live there.
 	var storeStatus map[string]string
-	if metaErr == nil {
-		storeStatus, _ = a.workflowPaths().recordsStatus()
+	if installed {
+		storeStatus, _ = paths.recordsStatus()
 	}
 	return primeReport{
 		Root: a.opts.root,
 		Workflow: primeWorkflow{
-			Installed:        metaErr == nil,
+			Installed:        installed,
 			InstalledVersion: installedVersion,
 			ValidationOK:     validation.OK && len(validation.Warnings) == 0,
 			Errors:           len(validation.Errors),

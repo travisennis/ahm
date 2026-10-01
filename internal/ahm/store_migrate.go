@@ -178,7 +178,7 @@ Examples:
   ahm store migrate --to project`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			location, err := parseTaskLocation(to)

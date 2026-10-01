@@ -31,6 +31,10 @@ type workflowPaths struct {
 	recordsRoot string
 	store       storePaths // zero value when the records live in the project
 	mode        taskLocation
+	// recordsOnly selects task records without a checkout: --project resolved the
+	// records from the home store and there is no project directory to read or
+	// write. Every project-scoped read and write is suppressed while it is set.
+	recordsOnly bool
 }
 
 // resolvedRootHook observes every root that resolves a workflow layout: the
@@ -65,6 +69,27 @@ func workflowPathsForStore(root string, store storePaths) workflowPaths {
 		store:       store,
 		mode:        locationHome,
 	}
+}
+
+// workflowPathsForSelection resolves the records-only layout of a --project
+// selection: the records and their indexes live in the selected store
+// directory, and there is no checkout, so projectRoot is display-only and every
+// project-scoped read and write is suppressed.
+func workflowPathsForSelection(projectRoot string, store storePaths) workflowPaths {
+	return workflowPaths{
+		projectRoot: projectRoot,
+		recordsRoot: store.recordsDir(),
+		store:       store,
+		mode:        locationHome,
+		recordsOnly: true,
+	}
+}
+
+// isRecordsOnly reports whether the layout selects task records without a
+// checkout. A records-only layout keeps every project-scoped operation away
+// from projectRoot, which names a project directory that must not be read.
+func (p workflowPaths) isRecordsOnly() bool {
+	return p.recordsOnly
 }
 
 // resolveWorkflowPaths resolves the layout of one repository root from its
@@ -135,6 +160,9 @@ func (p workflowPaths) taskFile(bucket string, id string) string {
 // in the store — the store's directory for this project. Every workflow write
 // is scoped by writeOwned to one of them.
 func (p workflowPaths) ownedRoots() []string {
+	if p.recordsOnly {
+		return []string{p.store.ProjectDir}
+	}
 	roots := []string{p.projectRoot}
 	if p.inStore() {
 		roots = append(roots, p.store.ProjectDir)
@@ -148,6 +176,9 @@ func (p workflowPaths) ownedRoots() []string {
 // directory for this project; a whole-root scan would reap unrelated .tmp
 // files the user owns.
 func (p workflowPaths) stateRoots() []string {
+	if p.recordsOnly {
+		return []string{p.store.ProjectDir}
+	}
 	roots := []string{filepath.Join(p.projectRoot, toolRecordsDirName)}
 	if p.inStore() {
 		roots = append(roots, p.store.ProjectDir)

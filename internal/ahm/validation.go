@@ -127,10 +127,15 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 		validateBlockedDepsComplete(paths, tasks, &report)
 		validateTrackingChildrenComplete(paths, tasks, &report)
 		validateTaskBuckets(paths, tasks, &report)
-		validateADRs(root, &report)
+		// A records-only layout has no checkout, so ADR and generated-index checks
+		// that read the project are skipped; the task records and their indexes are
+		// still validated.
+		if !paths.isRecordsOnly() {
+			validateADRs(root, &report)
+		}
 		validateGeneratedIndexes(root, paths, tasks, &report)
 	}
-	if want(CheckScopeLinks) {
+	if want(CheckScopeLinks) && !paths.isRecordsOnly() {
 		validateMarkdownLinks(root, paths, &report)
 	}
 	report.OK = len(report.Errors) == 0
@@ -150,7 +155,9 @@ func newValidationReportWithCache(cache *recordCache) validationReport {
 // pass reuses them instead of re-reading. Pass nil to read everything fresh.
 func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Task, writes map[string]string, cache *recordCache) validationReport {
 	report := newValidationReportWithCache(cache)
-	_ = validateMetadata(root, &report)
+	if !paths.isRecordsOnly() {
+		_ = validateMetadata(root, &report)
+	}
 	validateTaskDuplicateIDs(paths, tasks, &report)
 	for _, task := range tasks {
 		validateTaskFrontMatterMeta(task.meta, paths.displayPath(task.Path), &report)
@@ -160,8 +167,10 @@ func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Tas
 	validateBlockedDepsComplete(paths, tasks, &report)
 	validateTrackingChildrenComplete(paths, tasks, &report)
 	validateTaskBuckets(paths, tasks, &report)
-	validateADRs(root, &report)
-	if validateGeneratedIndexMetadata(root, &report) {
+	if !paths.isRecordsOnly() {
+		validateADRs(root, &report)
+	}
+	if validateGeneratedIndexMetadata(paths, &report) {
 		validateGeneratedIndexWrites(paths, writes, &report)
 	}
 	report.OK = len(report.Errors) == 0
@@ -218,8 +227,14 @@ func validateMetadata(root string, report *validationReport) error {
 }
 
 func validateManagedFiles(root string, paths workflowPaths, report *validationReport) []Task {
-	metaErr := validateMetadata(root, report)
-	validateRecordLocation(paths, metaErr, report)
+	// A records-only layout has no checkout to read metadata or records-in-project
+	// drift from, so it checks only the store directory that holds the records.
+	if paths.isRecordsOnly() {
+		validateStoreReadable(paths, report)
+	} else {
+		metaErr := validateMetadata(root, report)
+		validateRecordLocation(paths, metaErr, report)
+	}
 	tasks := validateTaskFiles(paths, report)
 	validateTaskDuplicateIDs(paths, tasks, report)
 	return tasks
@@ -484,7 +499,7 @@ func isUncheckedChecklistItem(line string) bool {
 }
 
 func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, report *validationReport) {
-	if !validateGeneratedIndexMetadata(root, report) {
+	if !validateGeneratedIndexMetadata(paths, report) {
 		return
 	}
 	writes, err := indexWritesForPaths(root, tasks, paths, report.cache)
@@ -499,8 +514,15 @@ func validateGeneratedIndexes(root string, paths workflowPaths, tasks []Task, re
 	validateGeneratedIndexWrites(paths, writes, report)
 }
 
-func validateGeneratedIndexMetadata(root string, report *validationReport) bool {
-	if _, err := readMetadata(root); err != nil {
+// validateGeneratedIndexMetadata reports whether generated indexes should be
+// checked: only when the workflow metadata that owns them is present. A
+// records-only layout has no project metadata to read, and its task indexes live
+// with the records, so they are always checked.
+func validateGeneratedIndexMetadata(paths workflowPaths, report *validationReport) bool {
+	if paths.isRecordsOnly() {
+		return true
+	}
+	if _, err := readMetadata(paths.projectRoot); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			report.addError("metadata_corrupt", configMetadataRelPath, fmt.Sprintf("workflow metadata is corrupt: %v", err))
 		}

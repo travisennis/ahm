@@ -60,7 +60,7 @@ Examples:
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			createArgs.title = strings.Join(args, " ")
@@ -85,7 +85,7 @@ Examples:
   ahm --json adr list`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			return a.adrList(listStatuses)
@@ -105,7 +105,7 @@ Examples:
   ahm --json adr show 009-madr-adr-management`,
 		Args: exactArgs(1, "adr show requires an id\n  ahm adr show <id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			return a.adrShow(args[0])
@@ -142,7 +142,7 @@ Examples:
 			Long:  spec.long,
 			Args:  exactArgs(1, "adr status command requires an id\n  ahm adr accept|reject|deprecate|propose <id>"),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if err := a.detectRoot(); err != nil {
+				if err := a.detectRootForCheckout(); err != nil {
 					return err
 				}
 				return a.adrSetStatus(args[0], status)
@@ -163,7 +163,7 @@ Examples:
   ahm adr supersede 009 --by 010`,
 		Args: exactArgs(1, "adr supersede requires an old id\n  ahm adr supersede <old-id> --by <new-id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			return a.adrSupersede(args[0], supersedeBy)

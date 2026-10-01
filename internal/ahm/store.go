@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -140,6 +141,84 @@ func resolveStore(projectRoot string) (storePaths, error) {
 		rawRemote:    rawRemote,
 		resolvedPath: resolvedPath,
 	}, nil
+}
+
+// resolveProjectSelection resolves a --project selector to a store location
+// using only the store registry: it reads no checkout and runs no Git. An exact
+// match on the project key wins. Otherwise a unique case-insensitive substring
+// of the key or of the registry directory name selects the project. An unknown
+// or ambiguous selector is a usage error that lists the candidate keys.
+//
+// The returned storePaths carries the registry's key-to-directory mapping, so a
+// change to the directory naming rule cannot hide a project, and it names the
+// recorded project path when the registry holds one so a caller can display it.
+func resolveProjectSelection(selector string) (storePaths, error) {
+	root, err := storeRoot()
+	if err != nil {
+		return storePaths{}, err
+	}
+	reg, err := loadRegistry(root)
+	if err != nil {
+		return storePaths{}, err
+	}
+	if len(reg.Projects) == 0 {
+		return storePaths{}, usageError(fmt.Sprintf("no project matches %q: the store has no registered projects", selector))
+	}
+	if entry, ok := reg.Projects[selector]; ok {
+		return storePathsForProjectEntry(root, selector, entry)
+	}
+	needle := strings.ToLower(selector)
+	matches := make([]string, 0, len(reg.Projects))
+	for key, entry := range reg.Projects {
+		if strings.Contains(strings.ToLower(key), needle) || strings.Contains(strings.ToLower(entry.Dir), needle) {
+			matches = append(matches, key)
+		}
+	}
+	sort.Strings(matches)
+	switch len(matches) {
+	case 0:
+		return storePaths{}, usageError(fmt.Sprintf("no project matches %q; known projects: %s", selector, strings.Join(registryKeys(reg), ", ")))
+	case 1:
+		return storePathsForProjectEntry(root, matches[0], reg.Projects[matches[0]])
+	default:
+		return storePaths{}, usageError(fmt.Sprintf("project selector %q matches multiple projects: %s; use an exact key", selector, strings.Join(matches, ", ")))
+	}
+}
+
+// storePathsForProjectEntry builds the resolved store location for one registry
+// entry, honoring the registry's directory name and validating it so a
+// hand-edited registry cannot point a project outside the store.
+func storePathsForProjectEntry(root string, key string, entry projectEntry) (storePaths, error) {
+	if !validStoreDirName(entry.Dir) {
+		return storePaths{}, fmt.Errorf("store registry entry for key %s names an unusable directory %q", key, entry.Dir)
+	}
+	// Paths is observation-ordered oldest to newest, so the last entry is the
+	// most recently seen project location for display.
+	var recordedPath string
+	if len(entry.Paths) > 0 {
+		recordedPath = entry.Paths[len(entry.Paths)-1]
+	}
+	// resolvedPath carries the project's recorded path for display. A
+	// records-only selection never reads it, so a stale or unreadable recorded
+	// path is harmless.
+	return storePaths{
+		Root:         root,
+		Key:          key,
+		Kind:         entry.Kind,
+		ProjectDir:   filepath.Join(root, storeProjectsDirName, entry.Dir),
+		resolvedPath: recordedPath,
+	}, nil
+}
+
+// registryKeys returns the registry's project keys, sorted, for an error that
+// lists the projects a user could select.
+func registryKeys(reg registry) []string {
+	keys := make([]string, 0, len(reg.Projects))
+	for key := range reg.Projects {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // validStoreDirName reports whether dir is a single path segment, so a

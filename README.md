@@ -46,6 +46,9 @@ Useful global flags:
 
 - `--root <path>`: target repository root. Defaults to the nearest git root or
   `.ahm/config.json` parent; `init` falls back to the current directory.
+- `--project <selector>`: target another project's task records through the home
+  store, by key or by a unique substring of its key or store directory name.
+  Reads no checkout and runs no Git; mutually exclusive with `--root`.
 - `--json`: print structured JSON.
 - `--plain`: print stable line-oriented output.
 - `--text`: print human-friendly text (the default).

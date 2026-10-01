@@ -33,6 +33,9 @@ func (e legacyLayoutError) Error() string {
 }
 
 func (a *app) detectRoot() error {
+	if a.opts.project != "" {
+		return a.selectProject()
+	}
 	if a.opts.root == "" {
 		root, err := detectManagedRoot()
 		if err != nil {
@@ -46,6 +49,51 @@ func (a *app) detectRoot() error {
 	// store fails before it touches anything.
 	_, err := a.resolveWorkflowPaths()
 	return err
+}
+
+// detectRootForCheckout is detectRoot for a command that reads or writes
+// project-owned files. Such a command has no meaning under --project, which
+// selects task records without a checkout, so it refuses the flag instead of
+// resolving a records-only layout it cannot use.
+func (a *app) detectRootForCheckout() error {
+	if err := a.refuseProjectFlag(); err != nil {
+		return err
+	}
+	return a.detectRoot()
+}
+
+// selectProject resolves a --project selection and caches its records-only
+// layout. The selection is read from the store registry, so no checkout is read
+// and no Git runs. The project's recorded path (or the working directory, when
+// the registry holds none) becomes the display root and is never read.
+func (a *app) selectProject() error {
+	if err := a.rejectRootProjectConflict(); err != nil {
+		return err
+	}
+	selection, err := resolveProjectSelection(a.opts.project)
+	if err != nil {
+		return err
+	}
+	projectRoot := selection.resolvedPath
+	if projectRoot == "" {
+		projectRoot, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+	}
+	a.opts.root = projectRoot
+	a.useWorkflowPaths(workflowPathsForSelection(projectRoot, selection))
+	return nil
+}
+
+// rejectRootProjectConflict refuses --project and --root together. The two name
+// different things — task records and a checkout — so combining them has no
+// defined meaning.
+func (a *app) rejectRootProjectConflict() error {
+	if a.opts.project != "" && a.opts.root != "" {
+		return usageError("--project and --root are mutually exclusive; use --project to select task records or --root to select a checkout")
+	}
+	return nil
 }
 
 // detectRootOrCWD is the lenient detection used by init: an unmanaged
@@ -70,6 +118,30 @@ func (a *app) detectRootOrCWD() error {
 	}
 	_, err := a.resolveWorkflowPaths()
 	return err
+}
+
+// detectRootOrCWDForCheckout is detectRootOrCWD for a command that operates on
+// a checkout, such as init. It refuses --project before falling back to the
+// working directory.
+func (a *app) detectRootOrCWDForCheckout() error {
+	if err := a.refuseProjectFlag(); err != nil {
+		return err
+	}
+	return a.detectRootOrCWD()
+}
+
+// refuseProjectFlag returns the usage error a checkout-relative command raises
+// when --project names a records-only selection: such a command has no checkout
+// to read or write. It also refuses --project together with --root, which name
+// different things.
+func (a *app) refuseProjectFlag() error {
+	if err := a.rejectRootProjectConflict(); err != nil {
+		return err
+	}
+	if a.opts.project != "" {
+		return usageError("--project selects task records only; this command needs a checkout (use --root or run it in the project)")
+	}
+	return nil
 }
 
 func detectManagedRoot() (string, error) {

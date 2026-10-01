@@ -109,17 +109,22 @@ func (a *app) indexWrites() (map[string]string, error) {
 // is nothing to hand off.
 func indexWritesForPaths(root string, tasks []Task, paths workflowPaths, cache *recordCache) (map[string]string, error) {
 	indexWritesForPathsHook()
-	adrs, adrErr := cache.adrList(root)
-	if adrErr != nil && len(adrs) == 0 {
-		return nil, adrErr
-	}
 	writes := map[string]string{
 		filepath.Join(paths.tasksBucketDir(""), "index.md"):          renderRootIndex(tasks),
 		filepath.Join(paths.tasksBucketDir("active"), "index.md"):    renderBucketIndex(tasks, "active"),
 		filepath.Join(paths.tasksBucketDir("completed"), "index.md"): renderBucketIndex(tasks, "completed"),
 		filepath.Join(paths.tasksBucketDir("cancelled"), "index.md"): renderBucketIndex(tasks, "cancelled"),
-		paths.adrIndexPath(): renderADRIndex(adrs),
 	}
+	// A records-only layout has no checkout, so it renders and validates only the
+	// task indexes that live with the records; the ADR index is project-owned.
+	if paths.isRecordsOnly() {
+		return writes, nil
+	}
+	adrs, adrErr := cache.adrList(root)
+	if adrErr != nil && len(adrs) == 0 {
+		return nil, adrErr
+	}
+	writes[paths.adrIndexPath()] = renderADRIndex(adrs)
 	if adrErr != nil {
 		return writes, fmt.Errorf("some ADR files could not be parsed and were skipped: %w", adrErr)
 	}

@@ -12,13 +12,14 @@ import (
 )
 
 type options struct {
-	root   string
-	json   bool
-	plain  bool
-	text   bool
-	dryRun bool
-	force  bool
-	check  []string
+	root    string
+	project string
+	json    bool
+	plain   bool
+	text    bool
+	dryRun  bool
+	force   bool
+	check   []string
 }
 
 type app struct {
@@ -189,6 +190,7 @@ Examples:
 		return usageError(err.Error())
 	})
 	root.PersistentFlags().StringVar(&a.opts.root, "root", "", "Target repository root")
+	root.PersistentFlags().StringVar(&a.opts.project, "project", "", "Select a project by home-store key or directory name")
 	root.PersistentFlags().BoolVar(&a.opts.json, "json", false, "Print JSON")
 	root.PersistentFlags().BoolVar(&a.opts.plain, "plain", false, "Print stable plain output")
 	root.PersistentFlags().BoolVar(&a.opts.text, "text", false, "Print human-friendly text (default)")
@@ -341,7 +343,7 @@ func (a *app) simpleCommand(use string, short string, long string, run func() er
 		Long:  long,
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRoot(); err != nil {
+			if err := a.detectRootForCheckout(); err != nil {
 				return err
 			}
 			return run()
@@ -356,7 +358,7 @@ func (a *app) lenientCommand(use string, short string, long string, run func() e
 		Long:  long,
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.detectRootOrCWD(); err != nil {
+			if err := a.detectRootOrCWDForCheckout(); err != nil {
 				return err
 			}
 			return run()
@@ -369,6 +371,9 @@ func (a *app) validateCheckScopes() error {
 		if !containsScope(validCheckScopes(), s) {
 			return usageError(fmt.Sprintf("unknown check scope %q (valid: %s)", s, strings.Join(validCheckScopes(), ", ")))
 		}
+	}
+	if containsScope(a.opts.check, CheckScopeLinks) && a.workflowPaths().isRecordsOnly() {
+		return usageError("--check links requires a checkout; --project selects task records only")
 	}
 	return nil
 }

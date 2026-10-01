@@ -123,7 +123,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		for _, finding := range findings {
 			a.addWarning("%s", finding.message(task.ID))
 		}
-		if len(findings) > 0 && !a.opts.force {
+		if len(findings) > 0 && !a.opts.force && !a.workflowPaths().isRecordsOnly() {
 			meta, err := readMetadata(a.opts.root)
 			switch {
 			case errors.Is(err, os.ErrNotExist):

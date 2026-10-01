@@ -29,6 +29,13 @@ add a `store` object with `root`, `key`, `kind`, and `location` when an
 installed project keeps task records in the home store; the field is absent in
 project mode.
 
+The global `--project <selector>` flag targets another project's task records
+through the home store, resolving the selector from the store registry without
+reading a checkout or running Git. It overrides task record resolution only and
+is mutually exclusive with `--root`; see the
+[global contract](references/cli/global-contract.md) for the accepted commands,
+the selector matching rules, and the exit codes.
+
 `task list`, `task ready`, and `task blocked` share configurable deterministic
 ordering through `--sort` and `--reverse`; the supported fields and rank rules
 are documented in the task command reference.

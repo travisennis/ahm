@@ -280,6 +280,10 @@ the repository currently keeps records in the project.
   lowers it.
 - `--json` and `--plain` emit `root`, `key`, `kind` (`remote` or `path`), and
   `records`; text output abbreviates the user's home directory to `~`.
+- With the global `--project <selector>`, the command reports the selected
+  project's store location instead of this checkout's, resolving it from the
+  registry alone; `--root` must not be set. See the
+  [global contract](global-contract.md) for the selector rules.
 
 ### `store migrate --to home|project`
 
