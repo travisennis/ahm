@@ -87,6 +87,12 @@ sandboxed agents), use the full module path from `go.mod`:
 **Final verification.** Prefer `just ci` (or its alias `just verify`) for the
 full read-only CI suite before handoff.
 
+**Test sandbox.** A test may only resolve workflow paths inside the temporary
+directory it runs in; the test binary pins the store root and fails the run
+when any root resolves outside it. See
+[docs/guides/testing.md](docs/guides/testing.md) before writing a test that
+reaches a store, a home directory, or a fixed repository root.
+
 **Task inspection.** Use `ahm task show <id>` to inspect a single task. For
 queue views, use `ahm task list --status <status>` with one or more of:
 `Open`, `Pending`, `In Progress`, `Blocked`, `Tracking`, `Completed`,

@@ -33,6 +33,15 @@ type workflowPaths struct {
 	mode        taskLocation
 }
 
+// resolvedRootHook observes every root that resolves a workflow layout: the
+// project root `resolveWorkflowPaths` resolves a layout for, and the
+// user-level store root `storeRoot` reads from the environment or the home
+// directory. The test binary installs a guard here that refuses a root outside
+// the test's temporary directory, which is what keeps a test from reaching a
+// developer's real workflow records; production leaves the hook empty, so a
+// resolution costs one call.
+var resolvedRootHook = func(string) {}
+
 // workflowPathsFor resolves the project-mode layout for one repository root.
 // Project mode is the layout every existing repository uses, so this is what
 // tests and callers that predate the home store resolve.
@@ -63,6 +72,7 @@ func workflowPathsForStore(root string, store storePaths) workflowPaths {
 // names home, so a project-mode repository never reads Git and never fails
 // because a store is unavailable.
 func resolveWorkflowPaths(root string, meta metadata, configExists bool) (workflowPaths, error) {
+	resolvedRootHook(root)
 	if resolveTaskLocation(meta, configExists) == locationProject {
 		return workflowPathsFor(root), nil
 	}

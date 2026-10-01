@@ -21,6 +21,8 @@ index.
   large or cross-cutting work.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): the v2 migration note
   and the legacy `.agents/ahm.json` migration path.
+- [Testing guide](guides/testing.md): the sandbox tests run in, and what to do
+  when a test resolves a path outside it.
 - [Release process](release.md): publishing binaries, installer scripts, and
   changelog preparation.
 - [Release notes](releases/README.md): the published body for each tagged
@@ -39,6 +41,7 @@ changes, or agent instructions), see the **Workflow Routing** section in
 | Look up a concept, type, or term | [glossary](references/glossary.md) |
 | Audit or update documentation | [documentation guardrail](guardrails/documentation.md) |
 | Change agent instructions or skills | [agent instructions guardrail](guardrails/agent-instructions.md) |
+| Add a test, or a test resolves a path outside its temp dir | [testing guide](guides/testing.md) |
 
 ## Structure
 

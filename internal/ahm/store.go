@@ -76,6 +76,7 @@ func storeRoot() (string, error) {
 	if stat, err := os.Stat(root); err == nil && !stat.IsDir() {
 		return "", fmt.Errorf("store root %s is not a directory", root)
 	}
+	resolvedRootHook(root)
 	return root, nil
 }
 

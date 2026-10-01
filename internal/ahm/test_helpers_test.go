@@ -1,6 +1,7 @@
 package ahm
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,12 +35,51 @@ func useTemporaryStoreHome(t *testing.T) {
 }
 
 // withinTempDir reports whether path is the system temporary directory or a
-// path under it. Tests only keep a store root they can prove is a scratch
-// directory.
+// path under it. Tests keep a store root, and accept a root ahm resolved, only
+// when they can prove it is a scratch directory. An empty path is never inside.
+// Both sides are canonicalized first, because one directory has more than one
+// spelling: macOS reaches the temporary directory as /var/... and
+// /private/var/..., and Windows resolves a current directory through an 8.3
+// short name. t.TempDir, os.Getwd, and EvalSymlinks do not agree on which
+// spelling they return, so comparing the literal paths would call a temporary
+// path external.
 func withinTempDir(path string) bool {
-	tmp := filepath.Clean(os.TempDir())
+	if path == "" {
+		return false
+	}
+	return pathWithin(canonicalPath(os.TempDir()), canonicalPath(path))
+}
+
+// canonicalPath resolves the symbolic links in path's existing prefix and
+// leaves the rest in place, so a path that does not exist yet — a store
+// directory a test is about to create — still compares by the directory it
+// would land in.
+func canonicalPath(path string) string {
 	clean := filepath.Clean(path)
-	return clean == tmp || strings.HasPrefix(clean, tmp+string(filepath.Separator))
+	if resolved, err := filepath.EvalSymlinks(clean); err == nil {
+		return resolved
+	}
+	parent := filepath.Dir(clean)
+	if parent == clean {
+		return clean
+	}
+	return filepath.Join(canonicalPath(parent), filepath.Base(clean))
+}
+
+// assertResolvedRootWithinTempDir is the guard the test binary installs on
+// resolvedRootHook. It fails the run when ahm resolves a root outside the
+// temporary directory the tests run in, because every workflow path ahm
+// derives comes from such a root: a resolved root outside the sandbox is a path
+// a mutating test could reach the developer's real workflow records through.
+// The panic names the offending path, and stopping the run is the point — a
+// suite that continues past it writes through a root the test does not own.
+func assertResolvedRootWithinTempDir(path string) {
+	if withinTempDir(path) {
+		return
+	}
+	panic(fmt.Sprintf(
+		"ahm resolved %s, which is outside the test temporary directory %s: build fixtures with t.TempDir (projectRoot, setupAhmRepo, newGitRepo), run commands through the helpers in test_helpers_test.go, and point the store at a scratch root with setStoreHome or a temporary AHM_HOME",
+		path, os.TempDir()))
 }
 
 // testStorePaths returns a resolved store location for a scratch store, so a
@@ -72,8 +112,9 @@ func runCLIFromDir(t *testing.T, dir string, args ...string) (string, string, in
 }
 
 // runCLIFromDirKeepingEnv runs the CLI in process from dir with exactly the
-// environment the test set, including AHM_HOME, and installs no scratch store
-// root. Tests that exercise an unusual AHM_HOME use it.
+// environment the test set, including AHM_HOME, and replaces no store root of
+// its own. Tests that exercise an unusual AHM_HOME use it; the scratch store
+// root the test binary pins at startup is what an unset one resolves to.
 func runCLIFromDirKeepingEnv(t *testing.T, dir string, args ...string) (string, string, int) {
 	t.Helper()
 	origDir, err := os.Getwd()

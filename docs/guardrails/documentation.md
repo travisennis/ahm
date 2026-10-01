@@ -25,6 +25,7 @@ workflow specs, upgrade docs, ADR docs, project workflow docs under
 - Contributor setup, commands, verification: `CONTRIBUTING.md`
 - Docs navigation: `docs/README.md`
 - Task, ADR, and ExecPlan procedures: `docs/workflow/`
+- Test sandbox and verification helpers: `docs/guides/testing.md`
 - Design plans for large work: `docs/exec-plans/`
 - Release notes for published versions: `docs/releases/`
 - CLI contracts: `docs/cli.md`
@@ -90,4 +91,5 @@ When a doc is no longer current:
 - `docs/references/workflow-spec.md`
 - `docs/references/glossary.md`
 - `docs/guides/workflow-upgrades.md`
+- `docs/guides/testing.md`
 - `docs/adr/index.md`

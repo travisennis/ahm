@@ -58,12 +58,22 @@ atomic writes, and dry-run behavior.
 - Re-read ADR 001 before changing atomic write behavior.
 - Re-read `docs/references/workflow-spec.md` before changing ownership
   boundaries or validation side effects.
+- Keep the test suite inside its temporary directory, and keep the guard that
+  enforces it: `resolveWorkflowPaths` and `storeRoot` report every root they
+  resolve to `resolvedRootHook`, which the test binary points at
+  `assertResolvedRootWithinTempDir`. A new root source — an environment-derived
+  store location, a second configuration file — must report through the same
+  hook, and a test whose subject is a real root uses the helper that keeps the
+  environment as set. See `docs/guides/testing.md`.
 - Run focused tests first, then the verification expected by `CONTRIBUTING.md`.
 
 ## Common Failure Modes
 
 - Writing during dry-run through shared helper state.
-- Following a path outside the target repository without explicit intent.
+- Following a path outside the target repository without explicit intent, in
+  the code or in a test: every path `ahm` resolves derives from a detected root,
+  so a test that resolves one outside its temporary directory can reach the
+  developer's real workflow records.
 - Inheriting `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
   `GIT_OBJECT_DIRECTORY`, or `GIT_COMMON_DIR` in a Git subprocess.
 - Making validation mutate files.
@@ -75,5 +85,6 @@ atomic writes, and dry-run behavior.
 - `docs/references/workflow-spec.md`
 - `docs/adr/001-atomic-writes-and-concurrency.md`
 - `docs/adr/018-scrub-inherited-git-repository-location-environment.md`
+- `docs/guides/testing.md`
 - `docs/cli.md`
 - `ARCHITECTURE.md`

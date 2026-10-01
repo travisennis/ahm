@@ -24,6 +24,23 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	// Every test resolves workflow paths inside the temporary directory: the
+	// store root is pinned to a scratch directory, so a test that never chooses
+	// one cannot reach the developer's real store, and resolvedRootHook refuses
+	// any root ahm resolves outside the sandbox. See docs/guides/testing.md.
+	storeHome, err := os.MkdirTemp("", "ahm-test-store-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create scratch store root: %v\n", err)
+		os.Exit(1)
+	}
+	if home := os.Getenv(storeHomeEnvVar); !withinTempDir(home) {
+		if err := os.Setenv(storeHomeEnvVar, storeHome); err != nil {
+			fmt.Fprintf(os.Stderr, "pin %s: %v\n", storeHomeEnvVar, err)
+			os.Exit(1)
+		}
+	}
+	resolvedRootHook = assertResolvedRootWithinTempDir
+
 	dir, err := os.MkdirTemp("", "ahm-cli-integration-*")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create integration temp dir: %v\n", err)
@@ -58,9 +75,11 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	if err := os.RemoveAll(dir); err != nil {
-		fmt.Fprintf(os.Stderr, "remove integration temp dir: %v\n", err)
-		code = 1
+	for _, scratch := range []string{dir, storeHome} {
+		if err := os.RemoveAll(scratch); err != nil {
+			fmt.Fprintf(os.Stderr, "remove %s: %v\n", scratch, err)
+			code = 1
+		}
 	}
 	os.Exit(code)
 }

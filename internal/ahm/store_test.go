@@ -23,6 +23,7 @@ func TestWithinTempDir(t *testing.T) {
 		{path: filepath.Join(tmp, "nested", "store"), want: true},
 		{path: filepath.Join(filepath.Dir(tmp), "outside"), want: false},
 		{path: filepath.Join(string(filepath.Separator), "usr", "local", "ahm"), want: false},
+		{path: "", want: false},
 	}
 	for _, tc := range cases {
 		if got := withinTempDir(tc.path); got != tc.want {
@@ -67,16 +68,21 @@ func TestStoreRootRejectsRelativeAHMHome(t *testing.T) {
 }
 
 func TestStoreRootDefaultsToUserHome(t *testing.T) {
+	// The default root is the user's home directory, so the test moves that home
+	// into its sandbox: the test guard rejects a store root outside the test's
+	// temporary directory, and a test that read the developer's real home would
+	// pass only on that machine. HOME is the variable unix reads and USERPROFILE
+	// the one Windows reads.
+	home := t.TempDir()
 	t.Setenv(storeHomeEnvVar, "")
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		t.Skipf("user home unavailable: %v", err)
-	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
 	got, err := storeRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(userHome, toolRecordsDirName); got != want {
+	if want := filepath.Join(home, toolRecordsDirName); got != want {
 		t.Errorf("storeRoot() = %q, want %q", got, want)
 	}
 }
