@@ -77,6 +77,18 @@ and a whole-body `task edit` that would drop either section is refused unless
 `--force` is passed. Every other `##` section is editable, and
 `--section <name>` rewrites one section without touching the rest of the body.
 
+## Cross-References
+
+A record names another record, or a project file, with either a relative
+Markdown link or an `ahm:` reference, for example `[ADR 023](ahm:adr/023)`,
+`[task 258](ahm:task/258)`, or `[the CLI reference](ahm:doc/docs/cli.md)`. An
+`ahm:` reference resolves by identity, so it survives a task record moving
+between lifecycle buckets and a home-store task that has no repository path;
+relative links keep their existing resolution and are not migrated. The
+[workflow specification](../workflow-spec.md) owns the scheme, its resolution
+rules, and the compatibility decision. Examples inside fenced code blocks and
+inline code spans are not treated as navigation.
+
 ## Validation Findings
 
 `status` and `doctor` can emit validation findings in three tiers:
@@ -122,5 +134,6 @@ Finding codes:
 | `generated_index_unreadable` | A generated workflow index could not be read. |
 | `generated_index_stale` | A generated workflow index differs from the output `ahm index` would write. |
 | `generated_index_check_failed` | `ahm` could not render expected generated indexes for validation. |
-| `markdown_link_missing` | A relative Markdown link inside a task, ADR, or their generated indexes points at a missing file. |
+| `markdown_link_missing` | A Markdown cross-reference inside a task, ADR, or their generated indexes names nothing: a relative link target that does not exist, or an `ahm:` reference that does not resolve. |
+| `markdown_link_invalid` | A Markdown link uses the `ahm:` reference scheme but is malformed or ambiguous: a missing or unknown kind, an empty target, a target that resolves to more than one record, or an `ahm:doc/` path that escapes the project root. |
 | `markdown_link_check_failed` | A structured-record Markdown link check could not be completed. |

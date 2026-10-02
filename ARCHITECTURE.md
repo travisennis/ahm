@@ -180,7 +180,10 @@ location map; this section describes what each group does.
 - `AGENTS.md` is project-owned. Never treat a project `AGENTS.md` as a managed
   file that `init` or `--force` can create, replace, or remove.
 - Validation is read-only. It reports workflow drift and structured-record
-  link-integrity findings without mutating files.
+  link-integrity findings without mutating files. Link integrity resolves both
+  the relative paths records have always used and the `ahm:` identity
+  references of ADR 027 (`ahm:task/<id>`, `ahm:adr/<ref>`,
+  `ahm:doc/<path>`).
 - Ahm-owned Git subprocesses use an explicit repository root and ignore
   inherited Git repository-location variables that could redirect metadata,
   the worktree, or the index. ADR 018 defines this boundary.

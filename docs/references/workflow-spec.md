@@ -221,8 +221,29 @@ A relative Markdown link in a task record resolves first against the record's
 own directory. If the target does not exist there, home mode retries against
 the record's logical in-project path (`<project>/.ahm/tasks/<bucket>/`), so
 links written before a migration keep working. Project mode uses the project
-layout directly. Link validation covers task records, ADR records, and their
-generated indexes; it does not scan general project documentation.
+layout directly.
+
+An `ahm:` reference resolves by identity instead of by path:
+
+- `ahm:task/<id>` names a task record in any bucket, resolved the way
+  `ahm task show` resolves its argument.
+- `ahm:adr/<ref>` names an ADR by the reference form `ahm adr show` accepts
+  (`9`, `009`, `009-slug`).
+- `ahm:doc/<path>` names a project file by its repository-relative path, with
+  forward slashes.
+
+The scheme and its kinds are matched case-insensitively; the canonical
+spelling is lower case. Both forms are supported: existing relative links are
+not migrated and are not reported as drift, and `ahm` keeps generating
+relative links for its indexes and for the supersession note `ahm adr
+supersede` writes. A reference that follows the scheme but names nothing is
+reported as `markdown_link_missing`; a malformed or ambiguous reference — a
+missing or unknown kind, an empty target, a target that resolves to more than
+one record, or an `ahm:doc/` path that escapes the project root — is reported
+as `markdown_link_invalid`. Link validation covers task records, ADR records,
+and their generated indexes; it does not scan general project documentation.
+See
+[ADR 027](../adr/027-use-ahm-identity-references-for-workflow-record-cross-links.md).
 
 Workflow record mutations take the lock beside the records root:
 `.ahm/.lock/` in project mode, or `<store>/projects/<dir>/.lock/` in home mode.
@@ -283,10 +304,10 @@ Workflow validation is read-only. `status` and `doctor` report missing or stale
 generated indexes, duplicate task IDs across task files, task status and bucket
 mismatches, broken task dependencies, tracking tasks with at least one child
 whose child tasks are all Completed or Cancelled, completed task
-acceptance-note drift, ADR record issues, and broken relative Markdown links
-within tasks, ADRs, and their generated indexes. They also report the home
-store's error-tier `task_records_in_project` finding when a task record remains
-under `.ahm/tasks/` while `tasks_location` is `home`, and
+acceptance-note drift, ADR record issues, and broken or malformed Markdown
+cross-references within tasks, ADRs, and their generated indexes. They also
+report the home store's error-tier `task_records_in_project` finding when a
+task record remains under `.ahm/tasks/` while `tasks_location` is `home`, and
 `store_dir_unreadable` when the resolved store records directory is missing or
 unreadable. Link discovery uses the current record root for tasks plus ADR
 source files and the generated ADR index under `docs/adr/`; it does not scan
@@ -309,8 +330,9 @@ Supported scopes:
 - `workflow` — workflow metadata, task front matter, dependency cycles, task
   bucket placement, ADR records, generated index freshness. This is the core
   workflow validation set.
-- `links` — relative Markdown link existence within task and ADR records and
-  their generated indexes. Link validation is independent
+- `links` — Markdown cross-reference resolution within task and ADR records
+  and their generated indexes: relative link existence and the `ahm:`
+  reference scheme. Link validation is independent
   of workflow state and can be run separately to focus on record-integrity
   drift. It does not scan README, CONTRIBUTING, ARCHITECTURE, general `docs/`,
   `AGENTS.md`, `CLAUDE.md`, project-owned skills, or records outside the
