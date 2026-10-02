@@ -21,41 +21,6 @@ prek install
 prek install --hook-type commit-msg
 ```
 
-### Worktree Setup
-
-Worktrees are the parallel-work mechanism, used only when multiple tasks are
-worked at the same time (for example, two agents, or a human and an agent,
-implementing different changes at once). For a single task, skip the worktree
-and commit to `master` in the main checkout; the worktree overhead buys nothing
-unless the work is genuinely parallel.
-
-Create a worktree for a task with `git worktree add -b feat/<slug>
-../ahm-<slug> master` from the repository root, then `cd ../ahm-<slug>` and
-run `ahm prime` before any work (prime regenerates the branch's indexes and
-prints the briefing).
-
-Linked worktrees share the main checkout's hooks directory (verify with
-`git rev-parse --git-path hooks` from the worktree), so one `prek install` at
-the main checkout covers all worktrees and no per-worktree hook install is
-needed.
-
-Cleanup after the work is merged or abandoned: `git worktree remove
-../ahm-<slug>` and `git branch -d feat/<slug>`.
-
-Agents: the cake agent runtime can create sibling-directory worktrees. Its
-shell sandbox permits writes outside the project directory, so an agent can
-create the worktree, run `just ci` inside it, and commit on its branch. An
-earlier revision of this section claimed the sandbox forbade this; it does not.
-Hook resolution is unaffected, and a single `prek install` at the main checkout
-still covers agent-created worktrees.
-
-An agent coordinating several worktrees merges them back to `master`
-sequentially: rebase each branch on `master`, fast-forward `master` to it, then
-`git worktree remove` the worktree and `git branch -d` the branch. In home
-mode the task records are unaffected by the merge, because the store is shared
-across worktrees that resolve to the same project key; in project mode the
-records are branch-scoped and merge with the code.
-
 ## Command Catalog
 
 ```bash
@@ -166,7 +131,7 @@ Work happens on `master`: commit directly to it. CI runs on every push, and
 the repository has a single maintainer, so a feature branch and a pull request
 add ceremony without adding a gate. Create a `feat/<slug>` branch, or a
 worktree, only when you want isolation for an experiment or when two streams of
-work run in parallel (see Worktree Setup above).
+work run in parallel.
 
 The standard sequence:
 
