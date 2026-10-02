@@ -1,0 +1,28 @@
+# Dependabot configuration for automated dependency updates.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "area:deps"
+    groups:
+      # Group the spf13 CLI dependencies (cobra, pflag) into one PR each week.
+      cobra-pflag:
+        patterns:
+          - "github.com/spf13/*"
+        update-types:
+          - "patch"
+      # Group the remaining (indirect) dependencies into one PR each week.
+      indirect:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"

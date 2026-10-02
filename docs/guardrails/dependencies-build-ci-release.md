@@ -31,6 +31,13 @@ The repository maintains one version number:
 - Run `just ci` before handoff for code, config, fixture, template, or
   dependency changes when available.
 
+## Dependency Updates
+
+Dependabot opens weekly dependency pull requests from
+`.github/dependabot.yml`; they are the repository's one automated PR source.
+Merge one with GitHub's rebase or squash so `master` stays linear, or apply the
+same bump locally with `just update-deps`.
+
 ## Common Failure Modes
 
 - Conflating `internal/version.Binary` with a workflow or template version;
@@ -45,5 +52,6 @@ The repository maintains one version number:
 - `CONTRIBUTING.md`
 - `docs/guides/workflow-upgrades.md`
 - `.github/workflows/`
+- `.github/dependabot.yml`
 - `.goreleaser.yaml`
 - `justfile`
