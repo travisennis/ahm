@@ -28,6 +28,8 @@ just build          # build bin/ahm
 just install        # install ahm from this checkout
 just branch <type>/<slug>
                     # create a task branch from up-to-date master
+just integrate <type>/<slug>
+                    # rebase a branch onto master and fast-forward
 just test           # go test ./...
                     # or: go test github.com/travisennis/ahm/internal/...
 just cli-parity     # check the documented CLI command, flag, and alias
@@ -144,7 +146,8 @@ The standard sequence:
 3. Implement, committing freely on the branch.
 4. Do not push, merge, or delete the branch unless explicitly asked. Hand off
    the fully committed branch for review; merging into `master`, pushing
-   `master`, and branch cleanup happen only with explicit permission.
+   `master`, and branch cleanup happen only with explicit permission (see
+   [Integrating A Branch](#integrating-a-branch)).
 5. Hand off with the branch name, the commit hashes, the worktree status, and
    any remaining modified, deleted, or untracked files.
 
@@ -171,6 +174,38 @@ Recommended scopes:
 After any commit, run `git status --short` and hand off with the branch name,
 the commit hashes, worktree cleanliness, and any remaining modified, deleted,
 or untracked files.
+
+## Integrating A Branch
+
+Integration is local; there is no pull request. From a clean `master`,
+`just integrate <type>/<slug>` rebases the branch onto `master` and
+fast-forwards, so `master` stays linear with no merge commits:
+
+```bash
+git switch master
+just integrate feat/task-timeouts
+just ci
+git push origin master           # push only with explicit permission
+git branch -d feat/task-timeouts  # delete only with explicit permission
+```
+
+Integrate one branch at a time. Each run rebases its branch onto the current
+`master`, so overlapping work surfaces as a conflict to resolve in that branch
+rather than a merge to untangle.
+
+The recipe preserves the branch's commits. To land a task as a single commit,
+tidy the branch first with `git switch <branch> && git rebase -i master`,
+squashing the work-in-progress commits, then run `just integrate`. Prefer this
+for agent branches, which commit freely while working.
+
+The recipe refuses to run unless you are on `master`, the worktree is clean,
+the branch exists, and the branch still has commits to integrate. It syncs
+`master` with `git pull --ff-only` before rebasing. A rebase conflict stops it
+mid-rebase on a detached HEAD: resolve each conflict, `git add` the files, run
+`git rebase --continue` (which returns you to the branch), then switch back to
+`master` and rerun `just integrate`. `git rebase --abort` backs the rebase out.
+
+Pushing `master` and deleting the branch are explicit-permission actions.
 
 ## Release Workflow
 
