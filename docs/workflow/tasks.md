@@ -106,10 +106,11 @@ design plan:
    knowledge may have changed. Record the documents checked and updated, or
    the reason no update was needed, in the Acceptance Notes.
    Do not require documentation changes for every task.
-7. Run `ahm task complete <id>` and provide the repository's required handoff.
-   The `ahm task complete` command must run before any git commit that includes
-   the task's implementation — committing an uncompleted task breaks the
-   lifecycle contract.
+7. Run `ahm task complete <id>` before the handoff commit that finalizes the
+   task, then provide the repository's required handoff. Work-in-progress
+   commits on the branch are expected; the lifecycle rule applies to the
+   handoff commit, not every WIP commit. In project mode, that commit carries
+   the record's move to `completed/`.
 
 ## Change Or Close A Task
 
