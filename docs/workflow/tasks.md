@@ -93,8 +93,10 @@ design plan:
    boundaries, migrations, breaking behavior, or major dependencies. See
    [ExecPlan workflow](exec-plans.md) for `L` and `XL` tasks, and for smaller
    work that is cross-cutting or substantially uncertain.
-4. Implement only the task's problem and acceptance scope. Preserve unrelated
-   worktree changes, and do not commit unless the user explicitly asks.
+4. Create the task branch before the first edit (`just branch <type>/<slug>`)
+   and implement only the task's problem and acceptance scope. Commit freely
+   on the branch. Preserve unrelated worktree changes. Do not push, merge, or
+   delete the branch unless the user explicitly asks.
 5. Run the repository's routed verification commands. Record material results
    and complete the task's Acceptance Notes so the record explains how the
    outcome was verified.

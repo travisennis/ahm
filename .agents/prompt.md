@@ -9,11 +9,13 @@ task indexes are local-only state that `ahm prime` and `ahm index` regenerate.
 `ahm` reads git freely but never commits, stages, touches the index or
 HEAD, mutates branches, opens PRs, or patches project source on its own.
 This boundary describes the tool. Your own commit and branch behavior is
-governed by `AGENTS.md`: work happens on `master`, and commits land there
-directly.
+governed by `AGENTS.md`: create a task branch with `just branch <type>/<slug>`
+before the first edit, and commit freely there.
 
 ## Working the task
 
+- Create the task branch (`just branch <type>/<slug>`) immediately before the
+  first edit; read-only work stays on the current branch.
 - Read the task record and its acceptance notes via `ahm task show <id>`
   before choosing implementation work.
 - Classify the implementation under `AGENTS.md` Workflow Routing and load

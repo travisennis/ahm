@@ -26,6 +26,8 @@ prek install --hook-type commit-msg
 ```bash
 just build          # build bin/ahm
 just install        # install ahm from this checkout
+just branch <type>/<slug>
+                    # create a task branch from up-to-date master
 just test           # go test ./...
                     # or: go test github.com/travisennis/ahm/internal/...
 just cli-parity     # check the documented CLI command, flag, and alias
@@ -127,23 +129,24 @@ own general project documentation.
 
 ## Commit Workflow
 
-Work happens on `master`: commit directly to it. CI runs on every push, and
-the repository has a single maintainer, so a feature branch and a pull request
-add ceremony without adding a gate. Create a `feat/<slug>` branch, or a
-worktree, only when you want isolation for an experiment or when two streams of
-work run in parallel.
+Work happens on a feature branch cut from an up-to-date `master`. One branch
+holds one task; read-only work (audits, research, backlog grooming) stays on
+the current branch. There is no pull-request flow: the maintainer merges the
+branch into `master` and pushes `master`. Release prep is the exception and
+runs on `master` (see [Release Workflow](#release-workflow)).
 
 The standard sequence:
 
-1. Sync `master`: `git pull --ff-only`.
+1. Create the branch: `just branch <type>/<slug>`, which syncs `master` first.
+   Use a linked worktree instead when two streams of work run in parallel.
 2. Run `ahm prime` before any work and after any checkout; it regenerates the
    resolved workflow indexes and prints the briefing.
-3. Implement, then commit on `master`. Do not commit or push unless explicitly
-   asked.
-4. Push with `git push origin master`. CI runs on the push; check it with
-   `gh run list --limit 5` rather than waiting on a merge gate.
-5. Hand off with the commit hash, the branch, the worktree status, and any
-   remaining modified, deleted, or untracked files.
+3. Implement, committing freely on the branch.
+4. Do not push, merge, or delete the branch unless explicitly asked. Hand off
+   the fully committed branch for review; merging into `master`, pushing
+   `master`, and branch cleanup happen only with explicit permission.
+5. Hand off with the branch name, the commit hashes, the worktree status, and
+   any remaining modified, deleted, or untracked files.
 
 Commit messages must use Conventional Commits:
 
@@ -165,8 +168,9 @@ Recommended scopes:
 | `docs` | Human-facing docs under `docs/` |
 | `release` | Build, release, and versioning changes |
 
-After any commit, run `git status --short` and hand off with the commit hash,
-worktree cleanliness, and any remaining modified, deleted, or untracked files.
+After any commit, run `git status --short` and hand off with the branch name,
+the commit hashes, worktree cleanliness, and any remaining modified, deleted,
+or untracked files.
 
 ## Release Workflow
 

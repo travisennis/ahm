@@ -6,8 +6,8 @@ description: Run a focused review-readiness pass on a nearly finished change bef
 # Preflight
 
 Use this skill after a change is functionally correct and before commit or
-handoff. The PR, commit text, task notes, and final response should describe
-already-preflighted code.
+handoff. The branch handoff, commit text, task notes, and final response should
+describe already-preflighted code.
 
 ## Goals
 
@@ -208,7 +208,7 @@ design-doc surface.
 6. Rerun the narrowest affected validation, then the repo's documented
    final validation command when the finished work changed code, config, or
    dependencies.
-7. Update task notes, ExecPlan notes, commit text, and PR/final response to
+7. Update task notes, ExecPlan notes, commit text, and the branch handoff to
    describe the post-preflight state.
 
 ## Stop rules

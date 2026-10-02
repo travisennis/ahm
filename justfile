@@ -2,6 +2,35 @@ golangci_lint_version := "v2.12.2"
 goreleaser_version := "v2.16.0"
 govulncheck_version := "v1.3.0"
 
+# Reject branch names outside the <type>/<slug> convention.
+# just interpolates a recipe argument into shell source, so an otherwise legal
+# Git ref such as `feat/x$(...)` would execute before Git ever saw it. This
+# check keeps the accepted character set narrow enough that quoting it has
+# nothing to defend.
+_check-branch-name name:
+    @name={{ quote(name) }}; \
+    case "$name" in \
+        -*|/*|*/|*..*|*.lock|*/.*|*.|*[!A-Za-z0-9._/-]*) \
+            echo "ERROR: branch name may use only letters, digits, dot, underscore, hyphen, and /, and may not start with '-' or '/', end with '/', or contain '..'" >&2; \
+            exit 1 ;; \
+    esac; \
+    case "${name%%/*}" in \
+        feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert) ;; \
+        *) echo "ERROR: branch name must start with a commit type, for example feat/task-timeouts" >&2; exit 1 ;; \
+    esac; \
+    case "$name" in \
+        */*) ;; \
+        *) echo "ERROR: branch name must be <type>/<slug>, for example feat/task-timeouts" >&2; exit 1 ;; \
+    esac
+
+# Local master is the base because it may carry unpushed commits that cutting
+# from origin/master would drop.
+# Start a task branch cut from an up-to-date master.
+branch name: (_check-branch-name name)
+    @git switch master
+    @git pull --ff-only
+    @git switch --create {{ quote(name) }} --no-track
+
 install:
     go install -trimpath ./cmd/ahm
 

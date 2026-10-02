@@ -7,8 +7,8 @@ usage() {
 }
 
 # Releases are cut from master only. Guard before the svu/git-cliff tool
-# checks so a feature branch fails fast with this message. Master takes direct
-# commits, so the changelog commit below lands on master like any other.
+# checks so a feature branch fails fast with this message. Release prep is the
+# one workflow that commits to master directly.
 current_branch="$(git branch --show-current)"
 if [[ -z "$current_branch" ]]; then
 	echo "prepare-release: cannot determine current branch" >&2

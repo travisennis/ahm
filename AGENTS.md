@@ -26,15 +26,20 @@ commits.
    project document are read directly.
 3. Select the route below, load only its documents, and state both before
    editing.
-4. Read the smallest relevant code and tests.
-5. Preserve compatibility unless the task explicitly changes it.
-6. If work is managed, start and complete it through `ahm`.
-7. Make surgical edits and run risk-proportionate checks.
-8. After implementation edits, run a review in a subagent and address findings
+4. Decide whether the work edits repository files. Read-only work — audits,
+   research, recommendations, and backlog grooming — stays on the current
+   branch with no branch or commit. If edits are needed, create the branch
+   immediately before the first edit: `just branch <type>/<slug>`, or a linked
+   worktree beside another agent for parallel work.
+5. Read the smallest relevant code and tests.
+6. Preserve compatibility unless the task explicitly changes it.
+7. If work is managed, start and complete it through `ahm`.
+8. Make surgical edits and run risk-proportionate checks.
+9. After implementation edits, run a review in a subagent and address findings
    until none remain, then perform preflight. If a third round reports findings
    of the same class, stop patching: report the finding class and the suspected
    design flaw, and escalate to a design decision.
-9. Hand off per [Handoff](#handoff).
+10. Hand off per [Handoff](#handoff).
 
 Large or cross-cutting work requires a design plan under `docs/exec-plans/`,
 written per [the ExecPlan workflow](docs/workflow/exec-plans.md).
@@ -137,16 +142,12 @@ Never hand-edit indexes; use source records plus the appropriate `ahm task`,
 
 ## Repository Rules
 
-- Work happens on `master`. Commit directly to it, including development
-  work, planning records, and release prep. CI runs on every push, and the
-  repository has one maintainer, so a branch and a pull request add ceremony
-  without adding a gate. Reach for a `feat/<slug>` branch, or a worktree, only
-  when you want isolation for an experiment or when several streams of work
-  run in parallel.
-- Do not commit or push unless explicitly asked. An instruction to fix, build,
-  commit, or ship authorizes the commits and the push it needs; say so in the
-  handoff. After finishing, hand off with the commit hashes, the branch, and
-  the worktree status.
+- Work happens on a feature branch: one branch per task, cut from an up-to-date
+  `master`, with commits made freely on the branch; hand off the fully
+  committed branch for review. Read-only work stays on the current branch.
+  Release prep is the exception and runs on `master`. See
+  [Commit Workflow](CONTRIBUTING.md#commit-workflow).
+- Do not push, merge, or delete a branch unless explicitly asked.
 - Assume uncommitted changes belong to the user; do not revert or clean files
   you did not intentionally change.
 - Inspect `git status --short` before broad edits.
@@ -157,5 +158,6 @@ Never hand-edit indexes; use source records plus the appropriate `ahm task`,
 ## Handoff
 
 End with the selected route, routed docs loaded, changes, exact checks, risks
-or skipped checks, and next steps. For commits, include the hash, worktree
-status, and leftover modified, deleted, or untracked files.
+or skipped checks, and next steps. For commits, include the branch name and
+whether it is fully committed, the commit hashes, the worktree status, and any
+leftover modified, deleted, or untracked files.
