@@ -27,7 +27,10 @@ Structured `init` summaries have a stable set of array-valued keys:
 an empty array when a reconcile pass changed nothing. `status` and `prime`
 add a `store` object with `root`, `key`, `kind`, and `location` when an
 installed project keeps task records in the home store; the field is absent in
-project mode.
+project mode. `status` and `doctor` also report the resolved `records_mode`
+(`project` or `home`) and the effective `strict_acceptance` boolean; both are
+`none`/`null` when the project is not installed, and `strict_acceptance` is
+also unknown when the committed configuration was not read.
 
 The global `--project <selector>` flag targets another project's task records
 through the home store, resolving the selector from the store registry without

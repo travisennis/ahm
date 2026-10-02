@@ -2,6 +2,7 @@ package ahm
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1392,5 +1393,173 @@ func TestIsUncheckedChecklistItem(t *testing.T) {
 				t.Errorf("isUncheckedChecklistItem() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// runStatusReport runs status (doctor when doctor is true) against root in the
+// requested output mode ("" for text, "json", or "plain") and returns the
+// emitted report. status and doctor emit their report before returning
+// errValidationFailed, so that error is tolerated; any other error fails.
+func runStatusReport(t *testing.T, doctor bool, root string, mode string) string {
+	t.Helper()
+	var out strings.Builder
+	opts := options{root: root}
+	switch mode {
+	case "json":
+		opts.json = true
+	case "plain":
+		opts.plain = true
+	}
+	a := app{opts: opts, out: &out}
+	run := a.status
+	if doctor {
+		run = a.doctor
+	}
+	if err := run(); err != nil && !errors.Is(err, errValidationFailed) {
+		t.Fatalf("report error: %v", err)
+	}
+	return out.String()
+}
+
+// TestStatusAndDoctorReportEffectiveStrictAcceptance covers an installed
+// project whose committed configuration sets strict_acceptance false and true:
+// both reports surface the effective value in text, JSON, and plain output.
+func TestStatusAndDoctorReportEffectiveStrictAcceptance(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		strict bool
+	}{
+		{name: "false", strict: false},
+		{name: "true", strict: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := projectRoot(t)
+			var installOut strings.Builder
+			installer := app{opts: options{root: root}, out: &installOut}
+			if err := installer.install(); err != nil {
+				t.Fatal(err)
+			}
+			if tc.strict {
+				meta, err := readMetadata(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				meta.StrictAcceptance = true
+				writeMetadataFile(t, root, meta)
+			}
+
+			value := "false"
+			if tc.strict {
+				value = "true"
+			}
+			for _, doctor := range []bool{false, true} {
+				assertContainsAll(t, runStatusReport(t, doctor, root, ""), "strict_acceptance: "+value, "records_mode: project")
+				assertContainsAll(t, runStatusReport(t, doctor, root, "json"), `"strict_acceptance": `+value, `"records_mode": "project"`)
+				assertContainsAll(t, runStatusReport(t, doctor, root, "plain"), `"strict_acceptance":`+value, `"records_mode":"project"`)
+			}
+		})
+	}
+}
+
+// TestStatusAndDoctorReportStrictAcceptanceUnknownWhenUninstalled covers a
+// project with no committed configuration: the value is unknown, so it renders
+// as none/null rather than defaulting to false.
+func TestStatusAndDoctorReportStrictAcceptanceUnknownWhenUninstalled(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, doctor := range []bool{false, true} {
+		assertContainsAll(t, runStatusReport(t, doctor, root, ""), "strict_acceptance: none", "records_mode: none")
+		jsonOut := runStatusReport(t, doctor, root, "json")
+		assertContainsAll(t, jsonOut, `"strict_acceptance": null`, `"records_mode": null`)
+		assertNotContains(t, jsonOut, `"strict_acceptance": false`, `"records_mode": "project"`)
+		assertContainsAll(t, runStatusReport(t, doctor, root, "plain"), `"strict_acceptance":null`, `"records_mode":null`)
+	}
+}
+
+// TestStatusAndDoctorReportStrictAcceptanceUnknownWhenMetadataCorrupt covers a
+// project whose committed configuration cannot be parsed: both values are
+// unknown, and the report still carries the corrupt-metadata finding.
+func TestStatusAndDoctorReportStrictAcceptanceUnknownWhenMetadataCorrupt(t *testing.T) {
+	root := projectRoot(t)
+	writeFile(t, filepath.Join(root, ".ahm", "config.json"), "{not json\n")
+
+	for _, doctor := range []bool{false, true} {
+		assertContainsAll(t, runStatusReport(t, doctor, root, ""), "strict_acceptance: none", "records_mode: none")
+		jsonOut := runStatusReport(t, doctor, root, "json")
+		assertContainsAll(t, jsonOut, `"strict_acceptance": null`, `"records_mode": null`, `"code": "metadata_corrupt"`)
+	}
+}
+
+// TestStatusAndDoctorRecordsOnlyReportStrictAcceptanceUnknown covers a
+// --project selection: the committed configuration is deliberately not read,
+// so the value is unknown even though the project's configuration sets it.
+func TestStatusAndDoctorRecordsOnlyReportStrictAcceptanceUnknown(t *testing.T) {
+	setStoreHome(t)
+	root := t.TempDir()
+	writeHomeModeConfig(t, root)
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init: %s", stderr)
+	}
+	meta, err := readMetadata(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta.StrictAcceptance = true
+	writeMetadataFile(t, root, meta)
+	if _, stderr, code := runCLI(t, "--root", root, "index"); code != 0 {
+		t.Fatalf("index: %s", stderr)
+	}
+	store, err := resolveStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, doctor := range []bool{false, true} {
+		for _, mode := range []struct {
+			name string
+			opts options
+			want string
+		}{
+			{name: "text", want: "strict_acceptance: none"},
+			{name: "json", opts: options{json: true}, want: `"strict_acceptance": null`},
+			{name: "plain", opts: options{plain: true}, want: `"strict_acceptance":null`},
+		} {
+			t.Run(fmt.Sprintf("doctor=%v/%s", doctor, mode.name), func(t *testing.T) {
+				opts := mode.opts
+				opts.project = store.Key
+				var out strings.Builder
+				a := app{opts: opts, out: &out}
+				if err := a.detectRoot(); err != nil {
+					t.Fatal(err)
+				}
+				run := a.status
+				if doctor {
+					run = a.doctor
+				}
+				if err := run(); err != nil {
+					t.Fatalf("report error: %v\n%s", err, out.String())
+				}
+				// The selection resolves records into the store, and selecting the
+				// project from the registry is itself the evidence it is installed.
+				installedWant := map[string]string{
+					"text":  "installed: true",
+					"json":  `"installed": true`,
+					"plain": `"installed":true`,
+				}[mode.name]
+				modeWant := map[string]string{
+					"text":  "records_mode: home",
+					"json":  `"records_mode": "home"`,
+					"plain": `"records_mode":"home"`,
+				}[mode.name]
+				if doctor {
+					installedWant = strings.Replace(installedWant, "installed", "workflow_installed", 1)
+				}
+				assertContainsAll(t, out.String(), mode.want, modeWant, installedWant)
+				assertNotContains(t, out.String(), "strict_acceptance: true", `"strict_acceptance": true`)
+			})
+		}
 	}
 }

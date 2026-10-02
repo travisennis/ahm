@@ -75,10 +75,30 @@ remain in the project root. `store migrate` is the only command that moves task
 records between the two records roots.
 
 `ahm` writes `.ahm/config.json` with repository-scoped workflow settings. The
-`files` map holds ownership hashes inherited from older releases; this version
-records no new hashes and validates none, and `ahm init` deletes the entries
-for the retired managed files and generated-index paths it knows about, while
-preserving every other entry.
+file is hand-edited: `ahm` deliberately has no `config` command, and
+[ADR 026](../adr/026-keep-workflow-configuration-hand-edited-rather-than-adding-a-config-command.md)
+keeps hand-editing as the supported write path. The recognized keys split into
+one user-mutable setting and three `ahm`-owned keys:
+
+- `strict_acceptance` — the only user-mutable, behavior-bearing key. It is an
+  optional boolean that defaults to `false`. When it is `true`,
+  `ahm task complete <id>` fails if the task acceptance section is missing,
+  still contains the seeded `- [ ] TODO` placeholder, or contains unchecked
+  checklist items. The global `--force` flag overrides this strict completion
+  gate for a single command while still printing warnings.
+- `version` — the obsolete template-version field, preserved only so existing
+  files round-trip. `ahm` re-emits it verbatim but never interprets or sets it.
+- `tasks_location` — the records layout. It changes only through
+  `ahm store migrate --to home|project`.
+- `files` — the managed-file ownership hash map. `ahm init` reconciles it,
+  deleting the entries for the retired managed files and generated-index paths
+  it knows about while preserving every other entry; this version records no
+  new hashes and validates none.
+
+`version`, `tasks_location`, and `files` are `ahm`-owned; hand-editing them is
+unsupported. Unknown top-level keys are project-owned and preserved on every
+`ahm` write. A missing `.ahm/config.json` means uninstalled, and `ahm init`
+creates it; a corrupt file fails loudly and is never silently reset.
 
 Example:
 
@@ -89,12 +109,6 @@ Example:
   "files": {}
 }
 ```
-
-The optional `strict_acceptance` boolean defaults to `false`. When it is `true`,
-`ahm task complete <id>` fails if the task acceptance section is missing, still
-contains the seeded `- [ ] TODO` placeholder, or contains unchecked checklist
-items. The global `--force` flag overrides this strict completion gate for a
-single command while still printing warnings.
 
 `ahm task cancel <id>` requires `--reason <text>`. The reason is trimmed and
 must be non-empty; `--force` does not bypass this requirement. Cancellation

@@ -151,45 +151,54 @@ In the default text mode, structured commands such as `status` and `doctor`
 print human-friendly key-value output:
 
 ```text
-root: /path/to/repo
 installed: true
 installed_version: 1.0.0
+records_mode: home
+root: /path/to/repo
 store:
-  root: /Users/you/.ahm
   key: github.com/owner/repo
   kind: remote
   location: home
+  root: /Users/you/.ahm
+strict_acceptance: true
 tasks:
-  total: 5
-  pending: 2
-  in_progress: 1
   completed: 2
+  in_progress: 1
+  pending: 2
+  total: 5
 validation:
-  ok: true
   errors: 0
+  ok: true
   warnings: 0
 ```
 
 The `store` block is present in `status` and `prime` only for an installed
 project whose records live in the home store. It is absent in project mode and
-for an uninstalled repository; JSON and plain output carry the same
-`root`, `key`, `kind`, and `location` fields. `ahm store path` is the
-deliberate exception: it reports absolute store paths, and text output
-abbreviates the user's home directory to `~`.
+for an uninstalled repository; JSON and plain output carry the same `root`,
+`key`, `kind`, and `location` fields. `status` and `doctor` also report the
+resolved `records_mode` (`project` or `home`) and the effective
+`strict_acceptance` boolean from the committed configuration; both print as
+`none` in text and `null` in JSON/plain when the project is not installed, and
+`strict_acceptance` is also unknown when the configuration was not read by a
+records-only `--project` selection. `ahm store path` is the deliberate
+exception: it reports absolute store paths, and text output abbreviates the
+user's home directory to `~`.
 
-When the workflow metadata is missing (not yet installed), `installed_version`
-shows as `none` in text mode and `null` in JSON/plain mode, and the
-validation report includes the metadata error:
+When the workflow metadata is missing (not yet installed), `installed_version`,
+`records_mode`, and `strict_acceptance` show as `none` in text mode and `null`
+in JSON/plain mode, and the validation report includes the metadata error:
 
 ```text
-root: /path/to/repo
 installed: false
 installed_version: none
+records_mode: none
+root: /path/to/repo
+strict_acceptance: none
 tasks:
-  total: 0
-  pending: 0
-  in_progress: 0
   completed: 0
+  in_progress: 0
+  pending: 0
+  total: 0
 validation:
 {
     "ok": false,

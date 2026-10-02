@@ -8,6 +8,12 @@ commands](task-commands.md).
 Exhaustive flag details live in `ahm <command> --help`. This page documents
 only compatibility guarantees that generated help cannot express.
 
+Repository-scoped workflow settings live in the committed `.ahm/config.json`,
+which is hand-edited: there is no `ahm config` command, by design (see [ADR
+026](../../adr/026-keep-workflow-configuration-hand-edited-rather-than-adding-a-config-command.md)).
+`ahm status` and `ahm doctor` validate that file and report the effective
+`strict_acceptance` setting and the resolved records mode.
+
 ## Command Inventory
 
 The blocks below are machine-checked against the Cobra command tree by
@@ -168,6 +174,12 @@ validation scopes by default.
 - For an installed home-mode project, text and structured output include the
   same `store` object as `prime`; the block is absent in project mode and for
   an uninstalled repository.
+- Reports the effective `strict_acceptance` boolean and the resolved
+  `records_mode` (`project` or `home`). `strict_acceptance` is `none` in text
+  and `null` in JSON/plain when the committed configuration was not read — an
+  uninstalled or corrupt-metadata project, or a records-only `--project`
+  selection. `records_mode` is `none`/`null` only when the project is not
+  installed.
 - See `docs/references/workflow-spec.md` for validation scopes and finding codes.
 - See `task-file-format.md` for the full validation finding code catalog.
 
@@ -182,6 +194,12 @@ state.
 - Shares validation infrastructure with `status`; it does not add a separate
   `store` block. A home-mode store failure appears in its validation findings
   as `store_dir_unreadable`.
+- Reports the effective `strict_acceptance` boolean and the resolved
+  `records_mode` (`project` or `home`). `strict_acceptance` is `none` in text
+  and `null` in JSON/plain when the committed configuration was not read — an
+  uninstalled or corrupt-metadata project, or a records-only `--project`
+  selection. `records_mode` is `none`/`null` only when the project is not
+  installed.
 
 ### `init`
 
