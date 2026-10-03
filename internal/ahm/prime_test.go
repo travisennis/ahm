@@ -45,7 +45,7 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"root: "+root,
+		"root: "+reportedRoot(t, root),
 		"workflow: installed dev",
 		"validation: ok",
 		"## In Progress",
@@ -83,7 +83,7 @@ func TestPrimeJSONOutput(t *testing.T) {
 	}
 	// The emitted JSON escapes path separators (backslashes on Windows), so
 	// the expectation must use the same encoding as json.MarshalIndent.
-	rootJSON, err := json.Marshal(root)
+	rootJSON, err := json.Marshal(reportedRoot(t, root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestPrimePlainOutput(t *testing.T) {
 	}
 	// Compact JSON escapes path separators (backslashes on Windows), so the
 	// expectation must use the same encoding as json.Marshal.
-	rootJSON, err := json.Marshal(root)
+	rootJSON, err := json.Marshal(reportedRoot(t, root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +408,7 @@ func TestPrimeInCommittedModeShowsTaskBriefing(t *testing.T) {
 		t.Fatalf("prime exit code = %d, stderr = %s", code, stderr)
 	}
 	assertContainsAll(t, stdout,
-		"root: "+root,
+		"root: "+reportedRoot(t, root),
 		"workflow: installed",
 		"validation: ok",
 		"## Ready",
@@ -486,7 +486,7 @@ func TestPrimeInCommittedModeDryRunDoesNotWrite(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("prime --dry-run exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "root: "+root, "## Ready")
+	assertContainsAll(t, stdout, "root: "+reportedRoot(t, root), "## Ready")
 	assertFileContainsAll(t, taskIndex, "Stale Index")
 }
 

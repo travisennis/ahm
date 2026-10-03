@@ -121,7 +121,7 @@ behavior.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. |
+| `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. On Windows the root is canonicalized before use (an 8.3 short name such as `RUNNER~1`, a junction, or a differently-cased spelling resolves to the on-disk long form), so reported output and record locations agree; other platforms keep the detected or given spelling. |
 | `--project <selector>` | Targets another project's task records by resolving the selector against the home-store registry, so no checkout is read and no Git runs. Exact key match wins; otherwise a unique substring of the key or of the registry directory name selects the project. Unknown or ambiguous selectors exit 2 and list the candidates. Mutually exclusive with `--root`; accepted by `task`, `status`, `doctor`, `prime`, and `store path` only. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |

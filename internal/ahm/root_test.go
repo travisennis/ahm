@@ -3,6 +3,7 @@ package ahm
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -296,6 +297,124 @@ func TestInitIsIdempotentOutsideManagedRepository(t *testing.T) {
 		t.Errorf("second init reported work on an up-to-date repository:\n%s", stdout)
 	}
 	assertTreeUnchanged(t, root, before)
+}
+
+func TestCanonicalizeRootLeavesPathsUnchangedOutsideWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows canonicalizes the root to its long form")
+	}
+	root := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	// Neither a symlinked path nor a path whose spelling differs from its
+	// resolved form (macOS /var versus /private/var) is rewritten.
+	for _, path := range []string{root, link} {
+		if got := canonicalizeRoot(path); got != path {
+			t.Errorf("canonicalizeRoot(%q) = %q, want the path unchanged", path, got)
+		}
+	}
+}
+
+func TestResolveRootSymlinksResolvesThePath(t *testing.T) {
+	root := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveRootSymlinks(link); got != want {
+		t.Errorf("resolveRootSymlinks(%q) = %q, want %q", link, got, want)
+	}
+}
+
+func TestResolveRootSymlinksFallsBackOnFailure(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	if got := resolveRootSymlinks(missing); got != missing {
+		t.Errorf("resolveRootSymlinks(%q) = %q, want the raw path", missing, got)
+	}
+}
+
+// TestRootFlagOutputIsNotCanonicalizedOutsideWindows pins that an explicit
+// --root is echoed in the spelling the caller gave on every platform except
+// Windows: resolving it there would rewrite macOS /var paths to /private/var.
+func TestRootFlagOutputIsNotCanonicalizedOutsideWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows canonicalizes an explicit --root to its long form")
+	}
+	root := newGitRepo(t)
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, stderr, code := runCLI(t, "--root", link, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	stdout, stderr, code := runCLI(t, "--root", link, "status")
+	if code != 0 {
+		t.Fatalf("status exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "root: "+link) {
+		t.Errorf("status should report the --root spelling %q unchanged:\n%s", link, stdout)
+	}
+}
+
+// TestRootFlagOutputIsCanonicalizedOnWindows covers the intake boundary
+// without depending on symlink privileges: Windows paths are case-insensitive,
+// so an upper-cased spelling still names the repository while the canonical
+// form carries the on-disk case and expands an 8.3 short name when the
+// temporary directory is reached through one. An 8.3 spelling cannot be
+// constructed on demand, so this exercises the same canonicalization with the
+// spelling it can force.
+func TestRootFlagOutputIsCanonicalizedOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows canonicalizes an explicit --root")
+	}
+	root := newGitRepo(t)
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spelling := strings.ToUpper(root)
+	if _, stderr, code := runCLI(t, "--root", spelling, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	stdout, stderr, code := runCLI(t, "--root", spelling, "status")
+	if code != 0 {
+		t.Fatalf("status exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "root: "+want) {
+		t.Errorf("status should report the canonical root %q for --root %q:\n%s", want, spelling, stdout)
+	}
+}
+
+// TestDetectManagedRootCanonicalizesOnWindows covers the detection boundary:
+// the working directory reached through a differently-cased spelling is
+// reported in its on-disk long form.
+func TestDetectManagedRootCanonicalizesOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows canonicalizes the detected root")
+	}
+	root := newGitRepo(t)
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spelling := strings.ToUpper(root)
+	if _, stderr, code := runCLIFromDir(t, spelling, "init"); code != 0 {
+		t.Fatalf("init exit code = %d, stderr = %s", code, stderr)
+	}
+	stdout, stderr, code := runCLIFromDir(t, spelling, "status")
+	if code != 0 {
+		t.Fatalf("status exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "root: "+want) {
+		t.Errorf("status should report the canonical root %q from cwd %q:\n%s", want, spelling, stdout)
+	}
 }
 
 func TestStatusSucceedsAfterInitInCleanDir(t *testing.T) {

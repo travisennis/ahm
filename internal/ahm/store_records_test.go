@@ -352,7 +352,7 @@ func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 	// separator before the home store, so the expectation is the JSON encoding
 	// of the native path - strconv.Quote is what carries a Windows separator
 	// through JSON's own escaping, where a ToSlash expectation would not.
-	record := filepath.Join(root, ".ahm", "tasks", "active", "001.md")
+	record := filepath.Join(reportedRoot(t, root), ".ahm", "tasks", "active", "001.md")
 	wantPath := `"path": ` + strconv.Quote(record)
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "task", "list")
 	if code != 0 {
@@ -370,7 +370,7 @@ func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("dry-run complete: stdout=%q stderr=%q", stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "move: "+filepath.ToSlash(filepath.Join(root, ".ahm", "tasks", "completed", "001.md")))
+	assertContainsAll(t, stdout, "move: "+filepath.ToSlash(filepath.Join(reportedRoot(t, root), ".ahm", "tasks", "completed", "001.md")))
 }
 
 // TestUninstalledRepositoryReportsNoStoreState covers the state a new project

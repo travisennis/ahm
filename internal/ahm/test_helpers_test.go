@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -188,6 +189,25 @@ func writeFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// reportedRoot returns the root spelling ahm reports for an explicit --root
+// argument: Windows canonicalizes it to the long form, resolving an 8.3 short
+// name such as RUNNER~1, while other platforms echo the argument unchanged.
+// Tests that assert a root-bearing payload use it so the expectation matches
+// on both CI legs. It re-derives the platform rule instead of calling
+// canonicalizeRoot, so the expectation stays independent of the
+// implementation.
+func reportedRoot(t *testing.T, root string) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return root
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("canonicalize --root %q: %v", root, err)
+	}
+	return resolved
 }
 
 // projectRoot returns a temporary directory prepared as a repository that

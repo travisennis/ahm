@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // finalV1Release is the last release that reads the legacy .agents/ahm.json
@@ -42,8 +43,11 @@ func (a *app) detectRoot() error {
 			return err
 		}
 		a.opts.root = root
-	} else if err := rejectLegacyLayout(a.opts.root); err != nil {
-		return err
+	} else {
+		a.opts.root = canonicalizeRoot(a.opts.root)
+		if err := rejectLegacyLayout(a.opts.root); err != nil {
+			return err
+		}
 	}
 	// Resolve the records layout with the root, so a command that needs the
 	// store fails before it touches anything.
@@ -111,10 +115,14 @@ func (a *app) detectRootOrCWD() error {
 			if err != nil {
 				return err
 			}
+			root = canonicalizeRoot(root)
 		}
 		a.opts.root = root
-	} else if err := rejectLegacyLayout(a.opts.root); err != nil {
-		return err
+	} else {
+		a.opts.root = canonicalizeRoot(a.opts.root)
+		if err := rejectLegacyLayout(a.opts.root); err != nil {
+			return err
+		}
 	}
 	_, err := a.resolveWorkflowPaths()
 	return err
@@ -155,10 +163,10 @@ func detectManagedRoot() (string, error) {
 			return "", err
 		}
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return dir, nil
+			return canonicalizeRoot(dir), nil
 		}
 		if stat, err := os.Stat(filepath.Join(dir, ".ahm", "config.json")); err == nil && !stat.IsDir() {
-			return dir, nil
+			return canonicalizeRoot(dir), nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -166,6 +174,31 @@ func detectManagedRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// canonicalizeRoot returns root in the canonical long form on Windows, where
+// the current directory or an explicit --root can arrive as an 8.3 short name
+// (RUNNER~1) and would otherwise be echoed back in user-visible output and
+// error messages. On other platforms the path is returned unchanged:
+// EvalSymlinks there would also resolve symlinks (/var → /private/var on
+// macOS), which is a behavior change no caller asked for.
+func canonicalizeRoot(root string) string {
+	if runtime.GOOS != "windows" {
+		return root
+	}
+	return resolveRootSymlinks(root)
+}
+
+// resolveRootSymlinks returns the canonical form EvalSymlinks reports for
+// root, falling back to the raw path when resolution fails. Root detection is
+// best-effort: a path that cannot be resolved is still usable, so this never
+// turns detection into an error.
+func resolveRootSymlinks(root string) string {
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return root
+	}
+	return resolved
 }
 
 // rejectLegacyLayout fails when root holds the retired `.agents/ahm.json`
