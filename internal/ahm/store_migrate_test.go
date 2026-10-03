@@ -592,7 +592,7 @@ func TestStoreMigrateRefusesAStoreOfAnotherKey(t *testing.T) {
 		t.Fatalf("migrate into another key's store: code = %d, want 1 (stdout=%q stderr=%q)", code, stdout, stderr)
 	}
 	assertContainsAll(t, stderr,
-		"refusing to move task records for "+root,
+		"refusing to move task records for "+reportedRoot(t, root),
 		"into "+store.ProjectDir,
 		otherKey,
 		store.Key,

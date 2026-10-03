@@ -106,7 +106,7 @@ func TestTaskImportDryRunGoldenAndNoLocks(t *testing.T) {
 	file := importFile(t, `[{"ref":"first","title":"First","depends_on":["@second"]},{"ref":"second","title":"Second"}]`)
 	before := snapshotTree(t, root)
 	golden := `{"dry_run":true,"records":[{"ref":"first","id":"001","path":".ahm/tasks/active/001.md","parent":"","depends_on":["002"],"outcome":"planned","errors":[]},{"ref":"second","id":"002","path":".ahm/tasks/active/002.md","parent":"","depends_on":[],"outcome":"planned","errors":[]}]}` + "\n"
-	golden = strings.ReplaceAll(golden, `"path":".ahm/`, `"path":"`+filepath.ToSlash(root)+`/.ahm/`)
+	golden = strings.ReplaceAll(golden, `"path":".ahm/`, `"path":"`+filepath.ToSlash(reportedRoot(t, root))+`/.ahm/`)
 	for _, flag := range []string{"--plain", "--json"} {
 		out, errout, code := runImport(t, root, file, "--dry-run", flag)
 		if code != 0 || errout != "" {

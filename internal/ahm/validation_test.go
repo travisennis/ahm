@@ -1028,7 +1028,10 @@ func TestRetiredRecordFamiliesChangeNothing(t *testing.T) {
 
 	reads := map[string]int{}
 	original := readWorkflowFileHook
-	readWorkflowFileHook = func(path string) { reads[relPath(root, path)]++ }
+	// Canonicalize both sides: the runCLI commands resolve their root while the
+	// direct validator calls use the raw spelling, and on Windows those can
+	// differ (an 8.3 short name against the long form).
+	readWorkflowFileHook = func(path string) { reads[relPath(canonicalPath(root), canonicalPath(path))]++ }
 	t.Cleanup(func() { readWorkflowFileHook = original })
 
 	// Exercise the read-write commands twice: once with the retired trees in

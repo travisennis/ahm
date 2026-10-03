@@ -29,7 +29,11 @@ func countWorkflowReads(t *testing.T, root string, fn func()) map[string]int {
 	counts := map[string]int{}
 	original := readWorkflowFileHook
 	t.Cleanup(func() { readWorkflowFileHook = original })
-	readWorkflowFileHook = func(path string) { counts[relPath(root, path)]++ }
+	// Both sides are canonicalized: a command resolves its root, and on Windows
+	// the root and the file it reads can carry different spellings (an 8.3
+	// short name against the long form), which would make Rel return an
+	// unrelated path.
+	readWorkflowFileHook = func(path string) { counts[relPath(canonicalPath(root), canonicalPath(path))]++ }
 	fn()
 	readWorkflowFileHook = original
 	return counts
