@@ -205,6 +205,27 @@ func TestTaskImportExistingReferencesAndMarkdownLinks(t *testing.T) {
 	}
 }
 
+// TestTaskImportRaisesChildSuffixMarks covers the bulk allocator: an imported
+// child's letter is a spent letter, so a later create under the same parent
+// does not reuse it after the record is deleted.
+func TestTaskImportRaisesChildSuffixMarks(t *testing.T) {
+	setStoreHome(t)
+	root := initHomeModeRepository(t)
+	file := importFile(t, `[{"ref":"parent","title":"Parent"},{"ref":"child","title":"Child","parent":"@parent"}]`)
+	if _, stderr, code := runImport(t, root, file, "--json"); code != 0 {
+		t.Fatalf("import: %s", stderr)
+	}
+	if got := storeChildSuffixMark(t, root, "001"); got != "a" {
+		t.Fatalf("imported child suffix mark = %q, want \"a\"", got)
+	}
+	if err := os.Remove(storeTaskFile(t, root, "active", "001a")); err != nil {
+		t.Fatal(err)
+	}
+	if got := createTask(t, root, "Second Child", "--parent", "001"); got != "001b" {
+		t.Errorf("child create after the imported child was deleted = %q, want 001b", got)
+	}
+}
+
 func TestTaskImportRollbackRestoresFiles(t *testing.T) {
 	for _, failure := range []string{"record", "index", "counter"} {
 		t.Run(failure, func(t *testing.T) {

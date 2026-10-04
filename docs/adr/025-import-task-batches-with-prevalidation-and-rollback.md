@@ -14,7 +14,7 @@ Repeated task creation cannot validate a whole batch or recover a failed batch.
 
 - Preserve the existing task allocator, record format, and store identity.
 - Report all record refusals before any write and acquire the record lock once.
-- Keep dry runs read-only, including lock and counter state.
+- Keep dry runs read-only, including lock and task ID mark state.
 
 ## Considered Options
 
@@ -40,10 +40,10 @@ Malformed JSON or an invalid document shape exits 2. Semantic record refusals
 exit 1 with all errors and the complete allocation plan. Relative Markdown links
 remain the importer's responsibility and are checked by status's link scope.
 A valid batch is written under one record lock and regenerates indexes once.
-The importer snapshots affected index files and store counter state and restores
-records, indexes, and counter on a reported write failure. Counter restoration
-holds the store-state lock throughout the transaction to avoid rolling back
-another command's observation. Registry state is never changed.
+The importer snapshots affected index files and store state and restores
+records, indexes, and task ID marks on a reported write failure. State
+restoration holds the store-state lock throughout the transaction to avoid
+rolling back another command's observation. Registry state is never changed.
 
 ### Consequences
 

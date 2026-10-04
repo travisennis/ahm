@@ -54,7 +54,7 @@ or creating the store.
 After the move, inspect the resolved store and exercise the workflow surface.
 If the store already contained records for this project, run `ahm init` once
 before deleting any remaining project records; `init` seeds or raises the
-store's `next_id` counter from the records present.
+store's `next_id` counter and child suffix marks from the records present.
 
 ```bash
 ahm store path

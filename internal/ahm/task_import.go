@@ -439,7 +439,7 @@ func (a *app) writeTaskImportLocked(tasks, existing []Task) (result error) {
 			return err
 		}
 	}
-	if path, ok := paths.taskIDCounterPath(); ok {
+	if path, ok := paths.storeStatePath(); ok {
 		if err := snapshot(path, false); err != nil {
 			return err
 		}
@@ -492,13 +492,18 @@ func (a *app) writeTaskImportLocked(tasks, existing []Task) (result error) {
 			return err
 		}
 	}
-	if path, ok := paths.taskIDCounterPath(); ok {
+	if path, ok := paths.storeStatePath(); ok {
 		if err := taskImportWriteHook(path); err != nil {
 			return err
 		}
 		touched[path] = true
-		next := highestTaskNumber(combined, paths) + 1
-		if err := writeTaskIDCounterLocked(paths, next); err != nil {
+		marks := childSuffixMarksFromRecords(combined, paths)
+		if err := mutateProjectStateLocked(paths, func(state *projectState) {
+			state.NextID = higherTaskIDCounter(highestTaskNumber(combined, paths)+1, state.NextID)
+			for parent, suffix := range marks {
+				raiseChildSuffixMark(state, parent, suffix)
+			}
+		}); err != nil {
 			return err
 		}
 	}

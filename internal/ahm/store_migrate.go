@@ -158,7 +158,7 @@ Each record is read, written atomically into the destination, and then removed
 from the source, never renamed across filesystems. Indexes are regenerated on
 the destination side, the ADR index stays under the project root, the committed
 tasks_location key and the managed .gitignore are rewritten for the new mode,
-and the store's task ID counter is initialized from the records present.
+and the store's task ID marks are initialized from the records present.
 
 The command refuses to move records out of the project when they have
 uncommitted changes, because Git history is then the only record of what they
@@ -362,10 +362,10 @@ func (a *app) migrateTaskRecords(from workflowPaths, to workflowPaths, force boo
 	a.invalidateTasks()
 
 	// The store's state file and registry are store-local bookkeeping, and a
-	// preview creates no store at all. The task ID counter is initialized from
+	// preview creates no store at all. The task ID marks are initialized from
 	// the records that arrive, so neither path can hand out an ID already in use.
 	if !a.opts.dryRun {
-		if err := a.initializeTaskIDCounter(to); err != nil {
+		if err := a.initializeTaskIDMarks(to); err != nil {
 			return err
 		}
 		if plan.record {

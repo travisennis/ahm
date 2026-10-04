@@ -213,8 +213,9 @@ is present.
   `tasks_location: home` into the configuration it creates and prepares the
   store: the record directories, the generated task indexes, and the store's
   managed `.gitignore` under the store's directory for the project, plus the
-  store's `project.json` state file, which records the next top-level task ID
-  the records present imply, and its identity in `<store>/registry.json`.
+  store's `project.json` state file, which records the task ID marks the records
+  present imply — the next top-level task ID and each parent's highest child
+  letter — and its identity in `<store>/registry.json`.
   Neither store file is listed in the result, because they are store state
   rather than reconciled workflow files.
 - A new project whose root holds `.git` needs Git to read that repository: an
@@ -293,9 +294,10 @@ the repository currently keeps records in the project.
   the command touches is the store-state lock at `<store>/.lock/store-state`,
   which it creates and releases, so the store root must be writable even when
   no bytes change.
-- The project state file holds the store format version, and `next_id` once a
-  counter has been recorded. The command records the value it read and never
-  lowers it.
+- The project state file holds the store format version, and the task ID marks
+  once recorded: `next_id` for the top-level numbers and `child_suffix_marks`
+  for the child letters. The command records the values it read and never lowers
+  them.
 - `--json` and `--plain` emit `root`, `key`, `kind` (`remote` or `path`), and
   `records`; text output abbreviates the user's home directory to `~`.
 - With the global `--project <selector>`, the command reports the selected
@@ -357,8 +359,8 @@ store. It is the only command that moves a record between the two layouts;
   and the empty records tree they leave are removed with the records. Those
   removals happen before the committed `.gitignore` stops ignoring them; a run
   that finds nothing to move but such leftovers still removes them.
-- The store's task ID counter is initialized from the records present, so a
-  record deleted after the move cannot have its number reissued.
+- The store's task ID marks are initialized from the records present, so a
+  record deleted after the move cannot have its number or letter reissued.
 - The move is recorded in the store registry entry as `migrated_from`, naming
   the layout the records came from. A move out of a store this machine has no
   state file for — a fresh clone, say — records nothing: it creates no registry

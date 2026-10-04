@@ -32,19 +32,19 @@ atomic writes, and dry-run behavior.
   home-mode `ahm init` write, which they build from a resolved `storePaths`:
   the store's own `registry.json`, which always sits at the store root, and
   `project.json`, which is inside an owned root in `home` mode and outside one
-  in `project` mode. The task ID counter in that same `project.json` is written
-  by `task create`, `ahm init`, and `ahm store migrate`, which do hold the
-  resolved paths, so it goes through `writeOwned`. A direct `os.Remove` is
-  reserved for ahm-owned scratch and derived paths, never a path that came from
-  user input: paths under a resolved records root built from that layout's own
-  accessors (the task scan's record paths, its generated index paths, and the
-  records directories a move emptied), the stale temp files `cleanupStaleTemps`
-  reaps, the temp file an atomic write removes beside its target when a step
-  fails, and the lock protocol's own directories — the quarantine a reclaimed
-  lock moves through, the lock a failed acquire rolls back, and the lock
-  directories the protocol creates: the record lock's beside the records root,
-  and the store-state lock's at the store root, which every store write creates
-  even when the records live in the project. `store migrate`
+  in `project` mode. The task ID marks in that same `project.json` are written
+  by `task create`, `task import`, `ahm init`, and `ahm store migrate`, which
+  do hold the resolved paths, so they go through `writeOwned`. A direct
+  `os.Remove` is reserved for ahm-owned scratch and derived paths, never a path
+  that came from user input: paths under a resolved records root built from that
+  layout's own accessors (the task scan's record paths, its generated index
+  paths, and the records directories a move emptied), the stale temp files
+  `cleanupStaleTemps` reaps, the temp file an atomic write removes beside its
+  target when a step fails, and the lock protocol's own directories — the
+  quarantine a reclaimed lock moves through, the lock a failed acquire rolls
+  back, and the lock directories the protocol creates: the record lock's beside
+  the records root, and the store-state lock's at the store root, which every
+  store write creates even when the records live in the project. `store migrate`
   is the only command that removes records on purpose, and a removal is not a
   write, so it has no containment counterpart (see the migration invariant in
   `ARCHITECTURE.md`). A direct `os.WriteFile` is reserved for the lock protocol's

@@ -125,7 +125,11 @@ project, Git history is the evidence that a deleted ID was used.
 **Subtask (child) ID allocation:** When `--parent <id>` is provided, next
 available lettered child ID under that parent (`137a`, `137b`, ...). At most
 26 children per parent. Scans across `active/`, `completed/`, `cancelled/`
-buckets to avoid collisions.
+buckets to avoid collisions. In the store the parent's child suffix mark never
+decreases, so a child record deleted by hand does not return its letter to the
+pool, and `ahm init` records the marks the children present imply; in a project,
+allocation keeps the letter scan and Git history is the evidence that a letter
+was spent.
 
 Concurrent creates are serialized with the workflow record lock beside the
 records root, so clones that share a home store serialize on the same lock.
@@ -446,7 +450,7 @@ compact JSON. The structural shape is the same in both modes.
 `ahm task import --from-file <path>` reads a JSON array of task objects. Use
 `--from-file -` for stdin. This command creates records offline and never
 fetches external issues or changes the store registry. An empty array succeeds
-without changing records, indexes, or counter state.
+without changing records, indexes, or task ID mark state.
 
 ```json
 [
@@ -503,18 +507,19 @@ reported in one response (exit 1). Malformed JSON, unknown or duplicate fields,
 invalid field types, and an invalid document shape exit 2. An unreadable file or
 store exits 1.
 Unparseable existing task records prevent importing until repaired. Refusal
-creates no records or index/counter writes. A real import acquires the record
+creates no records or index/state writes. A real import acquires the record
 lock once; home mode also holds the store-state lock across writes and recovery.
-Records go to the bucket matching their status, the counter advances past the
-allocated top-level IDs, and indexes are generated once. The command does not
-apply lifecycle transitions to existing dependents or tracker parents.
+Records go to the bucket matching their status, the task ID marks advance past
+the allocated top-level IDs and child letters, and indexes are generated once.
+The command does not apply lifecycle transitions to existing dependents or
+tracker parents.
 
-Ordinary write failures restore affected records, indexes, and counter bytes.
+Ordinary write failures restore affected records, indexes, and state bytes.
 If restoration fails, the error names recovery paths. Process termination or
 power loss can leave a partial batch: individual file writes remain atomic,
 but there is no crash-atomic batch transaction. Inspect the planned paths,
 remove only records from the failed batch, and run `ahm index` before retrying;
-retain any raised counter after an interrupted run. A successful import is
+retain any raised mark after an interrupted run. A successful import is
 additive: repeating it creates another batch, even with the same external refs.
 
 `--dry-run` writes nothing and takes neither lock. It reports each allocated

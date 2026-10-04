@@ -153,11 +153,11 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	if err := writeOwned(paths, path, []byte(content)); err != nil {
 		return err
 	}
-	// The record is what proves the ID was used, so the counter moves only once
-	// the record exists. A failure between the two writes leaves the counter
-	// behind, which the next allocation repairs from the records on disk; the
-	// reverse order would burn an ID for a create that never happened.
-	if err := persistTaskIDCounter(paths, id); err != nil {
+	// The record is what proves the ID was used, so the marks move only once
+	// the record exists. A failure between the two writes leaves a mark behind,
+	// which the next allocation repairs from the records on disk; the reverse
+	// order would burn an ID for a create that never happened.
+	if err := persistTaskIDAllocation(paths, id); err != nil {
 		return err
 	}
 	if err := a.writeIndexes(); err != nil {
@@ -334,49 +334,50 @@ func nextTaskIDForPaths(tasks []Task, paths workflowPaths) (string, error) {
 	return fmt.Sprintf("%03d", max(counter, highestTaskNumber(tasks, paths)+1)), nil
 }
 
+// nextChildTaskIDForPaths returns the next child ID under the parent. Project
+// mode keeps the letter scan: Git history there is the evidence that a deleted
+// child's letter was spent, not something ahm reads before allocating, so the
+// first free letter is the answer. A store has no history, so it follows the
+// parent's persisted suffix mark, self-healed from the highest child letter
+// present; a letter at or below the mark is spent even when its record is gone.
 func nextChildTaskIDForPaths(tasks []Task, paths workflowPaths, parentID string) (string, error) {
 	parentNum, _, ok := splitTaskID(parentID)
 	if !ok {
 		return "", fmt.Errorf("invalid parent task ID %q", parentID)
 	}
+	prefix := fmt.Sprintf("%03d", parentNum)
 
 	used := map[string]bool{}
-
-	// Check parsed tasks (including active, completed, cancelled).
-	for _, task := range tasks {
-		n, suffix, ok := splitTaskID(task.ID)
-		if ok && n == parentNum && suffix != "" {
-			used[suffix] = true
+	highest := ""
+	forEachRecordID(tasks, paths, func(id string) {
+		n, suffix, ok := splitTaskID(id)
+		if !ok || n != parentNum || suffix == "" {
+			return
 		}
-	}
+		used[suffix] = true
+		highest = higherChildSuffix(highest, suffix)
+	})
 
-	// Also scan the filesystem for unparsed files that may have been skipped.
-	for _, bucket := range []string{"active", "completed", "cancelled"} {
-		dir := paths.tasksBucketDir(bucket)
-		entries, err := os.ReadDir(dir)
+	if paths.inStore() {
+		mark, err := readChildSuffixMark(paths, prefix)
 		if err != nil {
-			continue
+			return "", err
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "index.md" {
-				continue
-			}
-			n, suffix, ok := splitTaskID(strings.TrimSuffix(entry.Name(), ".md"))
-			if ok && n == parentNum && suffix != "" {
-				used[suffix] = true
-			}
+		// Allocation always takes the first free letter, so the letters a
+		// store has spent form a prefix a..highest: the letter after the
+		// higher of the mark and the records present is both the next free
+		// letter and one no record can claim.
+		next := childSuffixAfter(higherChildSuffix(mark, highest))
+		if next == "" {
+			return "", fmt.Errorf("all 26 child task slots used for parent %q", parentID)
 		}
+		return prefix + next, nil
 	}
 
-	// Find the first unused letter a-z. The store's ID counter is deliberately
-	// not consulted here: a child ID carries its parent's number, and the
-	// counter's guarantee is about the numbers a store has promised, not about
-	// the letters under one of them. A deleted child's letter can therefore be
-	// reused, exactly as it could when the records were committed.
+	// Find the first unused letter a-z.
 	for ch := 'a'; ch <= 'z'; ch++ {
 		suffix := string(ch)
 		if !used[suffix] {
-			prefix := fmt.Sprintf("%03d", parentNum)
 			return prefix + suffix, nil
 		}
 	}

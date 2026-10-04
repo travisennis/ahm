@@ -310,6 +310,13 @@ type projectState struct {
 	// counter has been recorded yet, which an existing store self-heals from the
 	// records present. The value only ever increases.
 	NextID int `json:"next_id,omitempty"`
+
+	// ChildSuffixMarks maps a parent task's canonical ID to the highest child
+	// letter allocated under it, so that a letter whose record was deleted is
+	// never handed out again. A parent with no entry has had no child allocated
+	// under it yet, which an existing store self-heals from the children
+	// present. A value only ever increases.
+	ChildSuffixMarks map[string]string `json:"child_suffix_marks,omitempty"`
 }
 
 // readProjectState reads a project's store state file. A missing file reports
@@ -413,14 +420,16 @@ func updateStoreProject(s storePaths, mutate func(*projectEntry)) error {
 }
 
 // writeProjectState writes a project's state file unless it already holds
-// those exact bytes. It never lowers the persisted task ID counter: the write
-// keeps the higher of the value it carries and the value on disk. The
-// store-state lock is what keeps a stale observation from reaching this write
-// between cooperating writers; the merge stays as defense in depth for a writer
-// that does not take the lock, such as a pre-lock ahm binary.
+// those exact bytes. It never lowers the persisted task ID marks: the write
+// keeps the higher of the counter and of each child suffix mark it carries and
+// the values on disk. The store-state lock is what keeps a stale observation
+// from reaching this write between cooperating writers; the merge stays as
+// defense in depth for a writer that does not take the lock, such as a pre-mark
+// ahm binary.
 func writeProjectState(s storePaths, state projectState) error {
 	if current, err := readProjectState(s); err == nil {
 		state.NextID = higherTaskIDCounter(state.NextID, current.NextID)
+		state.ChildSuffixMarks = higherChildSuffixMarks(state.ChildSuffixMarks, current.ChildSuffixMarks)
 	}
 	data, err := marshalStoreJSON(state)
 	if err != nil {

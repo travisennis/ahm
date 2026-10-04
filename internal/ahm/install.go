@@ -330,7 +330,7 @@ func (a *app) install() error {
 	if err := a.reconcileIndexes(result); err != nil {
 		return err
 	}
-	if err := a.initializeTaskIDCounter(paths); err != nil {
+	if err := a.initializeTaskIDMarks(paths); err != nil {
 		return err
 	}
 	if err := a.recordStoreInstall(paths); err != nil {
@@ -369,28 +369,35 @@ func (a *app) recordStoreInstall(paths workflowPaths) error {
 	return recordStoreProject(paths.store)
 }
 
-// initializeTaskIDCounter records the store's task ID counter from the records
-// present, and does nothing when the records live in the project, where Git
-// history already proves which numbers were spent. Recording the high-water
-// mark at install time is what makes a later deletion of the newest record safe
-// - including one deleted before the next create, which the allocation scan
-// would no longer see. A partial task set is enough: the counter only ever
-// moves up, and any record that did not parse is reported by the index
-// reconciliation above.
-func (a *app) initializeTaskIDCounter(paths workflowPaths) error {
+// initializeTaskIDMarks records the store's task ID high-water marks from the
+// records present, and does nothing when the records live in the project, where
+// Git history already proves which IDs were spent. Recording the marks at
+// install time is what makes a later deletion of the newest record safe -
+// including one deleted before the next create, which the allocation scan would
+// no longer see. A partial task set is enough: the marks only ever move up, and
+// any record that did not parse is reported by the index reconciliation above.
+func (a *app) initializeTaskIDMarks(paths workflowPaths) error {
 	if a.opts.dryRun {
 		return nil
 	}
-	if _, ok := paths.taskIDCounterPath(); !ok {
-		// Project mode has no counter file, and needs none: Git history proves
-		// which numbers were spent. Nothing is read, either.
+	if _, ok := paths.storeStatePath(); !ok {
+		// Project mode has no state file, and needs none: Git history proves
+		// which IDs were spent. Nothing is read, either.
 		return nil
 	}
 	tasks, err := a.getTasks()
 	if err != nil && tasks == nil {
 		return err
 	}
-	return writeTaskIDCounter(paths, highestTaskNumber(tasks, paths)+1)
+	marks := childSuffixMarksFromRecords(tasks, paths)
+	return withStoreStateLock(paths.store, func() error {
+		return mutateProjectStateLocked(paths, func(state *projectState) {
+			state.NextID = higherTaskIDCounter(highestTaskNumber(tasks, paths)+1, state.NextID)
+			for parent, suffix := range marks {
+				raiseChildSuffixMark(state, parent, suffix)
+			}
+		})
+	})
 }
 
 // reconcileIndexes reports the generated indexes that are missing or stale and

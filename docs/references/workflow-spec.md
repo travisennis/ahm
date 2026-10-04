@@ -161,7 +161,11 @@ writes `parent: <id>` in the child task front matter. The parent must be a
 top-level task (no letter suffix); child tasks cannot be parents. The allocation
 scans parsed tasks and filesystem entries across all three task buckets to avoid
 collisions. At most 26 children are allowed per parent. The workflow lock
-serializes both top-level and child ID allocation.
+serializes both top-level and child ID allocation. In the store, allocation
+follows the parent's persisted child suffix mark, self-healed from the highest
+child letter present, so a deleted child's letter is never reissued; in a
+project it takes the first free letter, because Git history there is the
+evidence that a letter was spent.
 
 ### Task Records And The Home Store
 
@@ -190,13 +194,15 @@ rule and reads no Git.
 `registry.json` is the machine-level mapping from project key to store
 directory. It is derived data and is never the authority for record contents.
 Each project directory's `project.json` records store format version `1` and
-the non-decrementing `next_id` counter that prevents a deleted top-level task
-ID from being reissued. Every read-modify-write of the registry and of a
-project's state file holds the store-state lock, and each writer keeps the
-higher counter it sees, so the counter only moves up even against a writer that
-does not take the lock. A store or project file with a format version newer
-than this version is refused rather than partially read. The registry may also
-record observed remote spellings with credentials removed and `migrated_from`.
+the non-decrementing task ID marks that prevent a deleted task ID from being
+reissued: `next_id` for the top-level numbers, and `child_suffix_marks`, one
+highest allocated letter per parent, for the child letters. Every
+read-modify-write of the registry and of a project's state file holds the
+store-state lock, and each writer keeps the higher mark it sees, so a mark only
+moves up even against a writer that does not take the lock. A store or project
+file with a format version newer than this version is refused rather than
+partially read. The registry may also record observed remote spellings with
+credentials removed and `migrated_from`.
 
 The committed `.ahm/config.json` selects the layout with `tasks_location`:
 `project` keeps records in the project, `home` resolves the store, and a
@@ -553,15 +559,15 @@ batch-local `@ref` names before rendering; names are not persisted. All record
 refusals are reported before writing. A successful batch holds the record lock
 once and regenerates indexes once. In home mode it also holds the store-state
 lock while writing and, if an ordinary write fails, restoring affected files.
-Rollback restores pre-import record/index/counter bytes; it never modifies the
-registry. A counter restoration can undo this transaction's unpublished IDs
+Rollback restores pre-import record/index/state bytes; it never modifies the
+registry. A mark restoration can undo this transaction's unpublished IDs
 while the store-state lock excludes observations by other cooperating writers.
-The counter remains monotonic for successfully published records.
+The marks remain monotonic for successfully published records.
 
 Import adds restoration for ordinary write failures; the usual sequential
 index semantics still apply to other commands. Atomicity after power loss or
 process termination is per file, with no durable batch journal. Preserve raised
-counters when recovering an interrupted import and regenerate indexes after
+marks when recovering an interrupted import and regenerate indexes after
 removing only records from the failed batch. See the
 [bulk import contract](cli/task-commands.md#bulk-import) and
 [ADR 025](../../docs/adr/025-import-task-batches-with-prevalidation-and-rollback.md).
