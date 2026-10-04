@@ -118,13 +118,29 @@ updating that section when it already exists and appending it otherwise.
 warns, but does not fail, when acceptance notes still contain the seeded
 `- [ ] TODO` placeholder.
 
+`ahm task block <id> --reason <text> [--ref <text>]` records the reason, and an
+optional external reference, in the task front-matter fields `blocked_reason`
+and `blocked_ref`, and sets the status to `Blocked`. Blocking replaces any
+previously recorded reason and reference. `--reason` is required and
+must be non-empty, and neither `--reason` nor `--ref` may contain a newline or
+carriage return, since both are single-line front-matter scalars. Any
+non-terminal status (`Open`, `Pending`, `In Progress`,
+or `Blocked`) can be blocked; a `Completed` or `Cancelled` task is refused as a
+usage error. `ahm task unblock <id>` returns a `Blocked` task to `Pending` and
+clears both fields; a task that is not `Blocked` is refused. The fields are
+present only while the status is `Blocked`: every other status transition
+clears them, and a `Blocked` task whose `blocked_reason` is empty is reported as
+the warning-tier finding `task_blocked_missing_reason`.
+
 When `ahm task complete <id>` completes a task, it also scans active `Blocked`
 tasks that directly depend on that completed ID. Dependents whose full
 `depends_on` list is now satisfied are moved to `Pending` with an `updated`
-timestamp before indexes are regenerated. Dependents with remaining incomplete
-dependencies, and blocked tasks that do not depend on the completed task, are
-left unchanged. `--dry-run` reports the completion move and dependent unblock
-changes without writing task files or indexes.
+timestamp, and their `blocked_reason` and `blocked_ref` are cleared, before
+indexes are regenerated; the automatic path writes no reason of its own.
+Dependents with remaining incomplete dependencies, and blocked tasks that do
+not depend on the completed task, are left unchanged. `--dry-run` reports the
+completion move and dependent unblock changes without writing task files or
+indexes.
 
 `ahm` reads workflow metadata from committed `.ahm/config.json`. `ahm init`
 creates it when it is missing and reconciles it when it is present.
@@ -389,11 +405,14 @@ produces, is:
 10. `updated` (optional, omitted when empty)
 11. `parent` (optional, omitted when empty)
 12. `external_ref` (optional, omitted when empty)
-13. Extra/unknown fields (sorted by key)
+13. `blocked_reason` (optional, omitted when empty)
+14. `blocked_ref` (optional, omitted when empty)
+15. Extra/unknown fields (sorted by key)
 
-Optional fields (`created`, `updated`, `parent`, `external_ref`) are emitted
-only when non-empty. Extra fields not recognized as standard task fields are
-emitted in alphabetical order after all standard fields.
+Optional fields (`created`, `updated`, `parent`, `external_ref`,
+`blocked_reason`, `blocked_ref`) are emitted only when non-empty. Extra fields
+not recognized as standard task fields are emitted in alphabetical order after
+all standard fields.
 
 `exec_plan` is retired: `ahm` neither reads nor validates it, and no command
 writes one. A value an older release wrote survives as an unknown field and is

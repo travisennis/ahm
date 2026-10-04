@@ -27,10 +27,19 @@ Optional front matter preserved by task rewrites:
 - `updated`
 - `parent`
 - `external_ref`
+- `blocked_reason`
+- `blocked_ref`
 
 `parent` and `external_ref` are written by `ahm task create` (`--parent`,
 `--external-ref`), `ahm task import`, and `ahm task edit <id>`. `task create --external-ref` sets
 it at creation; `task edit --external-ref ""` clears it.
+
+`blocked_reason` and `blocked_ref` describe why a task is `Blocked`. They are
+written by `ahm task block <id> --reason <text> [--ref <text>]` and are present
+only while `status` is `Blocked`: `ahm task unblock`, the automatic unblock `ahm
+task complete` performs for satisfied dependents, and any other status
+transition clear both fields. `blocked_reason` is required for a Blocked task;
+`blocked_ref` is an optional external reference.
 
 Retired front matter preserved as an unknown field:
 
@@ -120,6 +129,7 @@ Finding codes:
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
 | `task_dependency_cancelled` | A non-completed task depends on a cancelled task, which can never be satisfied. |
 | `task_blocked_deps_complete` | A Blocked task has all its dependencies Completed, so it can be unblocked. This is a warning-tier finding. |
+| `task_blocked_missing_reason` | A Blocked task has no `blocked_reason`, so why it is blocked is not recorded. This is a warning-tier finding. |
 | `task_tracking_children_complete` | A Tracking task has at least one child and every child task is Completed or Cancelled, so only the tracker remains to be closed. This is a warning-tier finding. |
 | `task_acceptance_missing` | A completed task is missing an acceptance section. |
 | `task_acceptance_placeholder` | A completed task acceptance section still contains the seeded `- [ ] TODO` placeholder. |

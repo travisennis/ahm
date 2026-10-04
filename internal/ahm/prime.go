@@ -47,11 +47,12 @@ type primeGit struct {
 }
 
 type primeTasks struct {
-	InProgress []taskSummary `json:"in_progress"`
-	Ready      []taskSummary `json:"ready"`
-	ReadyTotal int           `json:"ready_total"`
-	Blocked    int           `json:"blocked"`
-	Open       int           `json:"open"`
+	InProgress   []taskSummary `json:"in_progress"`
+	Ready        []taskSummary `json:"ready"`
+	ReadyTotal   int           `json:"ready_total"`
+	Blocked      int           `json:"blocked"`
+	BlockedTasks []taskSummary `json:"blocked_tasks"`
+	Open         int           `json:"open"`
 }
 
 type taskSummary struct {
@@ -61,6 +62,7 @@ type taskSummary struct {
 	Priority string `json:"priority"`
 	Effort   string `json:"effort"`
 	Path     string `json:"path"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func (a *app) prime() error {
@@ -192,11 +194,12 @@ func (a *app) primeTaskSummary(tasks []Task) primeTasks {
 	counts := taskCounts(tasks)
 
 	return primeTasks{
-		InProgress: taskSummaries(inProgress, 5, a.workflowPaths()),
-		Ready:      taskSummaries(ready, 5, a.workflowPaths()),
-		ReadyTotal: len(ready),
-		Blocked:    len(blocked),
-		Open:       counts["Open"],
+		InProgress:   taskSummaries(inProgress, 5, a.workflowPaths()),
+		Ready:        taskSummaries(ready, 5, a.workflowPaths()),
+		ReadyTotal:   len(ready),
+		Blocked:      len(blocked),
+		BlockedTasks: taskBlockedSummaries(tasks, a.workflowPaths(), 5),
+		Open:         counts["Open"],
 	}
 }
 
@@ -242,6 +245,26 @@ func taskSummaryFor(task Task, paths workflowPaths) taskSummary {
 		Effort:   task.Effort,
 		Path:     paths.displayPath(task.Path),
 	}
+}
+
+// taskBlockedSummaries renders up to limit entries from the blocked queue with
+// a human-readable reason. The blocked queue holds tasks whose status is
+// Blocked and Pending tasks with an incomplete dependency; an explicit Blocked
+// task carries its recorded reason, while a dependency-blocked Pending task is
+// described by the dependencies still unmet.
+func taskBlockedSummaries(tasks []Task, paths workflowPaths, limit int) []taskSummary {
+	blocked := filterTasks(tasks, "blocked")
+	completed := completedTaskIDs(tasks)
+	if len(blocked) > limit {
+		blocked = blocked[:limit]
+	}
+	summaries := make([]taskSummary, 0, len(blocked))
+	for _, task := range blocked {
+		summary := taskSummaryFor(task, paths)
+		summary.Reason = taskBlockedReason(task, completed)
+		summaries = append(summaries, summary)
+	}
+	return summaries
 }
 
 // readGitContext reports the repository's branch and dirty state, if Git is
@@ -341,9 +364,21 @@ func (r primeReport) RenderText(w io.Writer) error {
 		}
 	}
 
-	// Section 5: Blocked and Open counts
+	// Section 5: Blocked tasks named with their reasons, then the Open count.
+	if len(r.Tasks.BlockedTasks) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Blocked")
+		for _, task := range r.Tasks.BlockedTasks {
+			fmt.Fprintf(w, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
+			if task.Reason != "" {
+				fmt.Fprintf(w, "  reason: %s\n", task.Reason)
+			}
+		}
+		if overflow := r.Tasks.Blocked - len(r.Tasks.BlockedTasks); overflow > 0 {
+			fmt.Fprintf(w, "%d more blocked\n", overflow)
+		}
+	}
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "Blocked: %d\n", r.Tasks.Blocked)
 	fmt.Fprintf(w, "Open: %d\n", r.Tasks.Open)
 
 	return nil

@@ -13,6 +13,13 @@ type taskStatusArgs struct {
 	ids    []string
 	status string
 	reason string
+	// blockReason and blockRef are carried only by the block verb. A block
+	// operation is recognized by its status, and requires a non-empty reason.
+	blockReason string
+	blockRef    string
+	// requireBlocked marks the unblock verb, which applies only to a task whose
+	// current status is Blocked.
+	requireBlocked bool
 }
 
 // bucketForStatus returns the expected bucket directory for a task status.
@@ -49,6 +56,18 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 	if parsed.status == "Cancelled" && cancelReason == "" {
 		return usageError("task cancel requires --reason\n  ahm task cancel <id> --reason <text>")
 	}
+	parsed.blockReason = strings.TrimSpace(parsed.blockReason)
+	parsed.blockRef = strings.TrimSpace(parsed.blockRef)
+	if parsed.status == "Blocked" {
+		if parsed.blockReason == "" {
+			return usageError("task block requires --reason\n  ahm task block <id> --reason <text>")
+		}
+		// Both values are single-line front-matter scalars; a newline would be
+		// silently collapsed on write, so refuse it as task create does.
+		if strings.ContainsAny(parsed.blockReason, "\n\r") || strings.ContainsAny(parsed.blockRef, "\n\r") {
+			return usageError("task block --reason and --ref must not contain a newline")
+		}
+	}
 
 	taskStatusPreLockHook()
 
@@ -69,10 +88,17 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 	defer a.emitWarnings()
 	status := parsed.status
 
-	// True no-op: status and bucket both match. Cancellation still rewrites the
-	// task so the required reason can be inserted or replaced.
+	if parsed.requireBlocked && task.Status != "Blocked" {
+		return usageError(fmt.Sprintf("cannot unblock task %s: status is %s, not Blocked", task.ID, task.Status))
+	}
+	if parsed.status == "Blocked" && (task.Status == "Completed" || task.Status == "Cancelled") {
+		return usageError(fmt.Sprintf("cannot block task %s: status is %s", task.ID, task.Status))
+	}
+
+	// True no-op: status and bucket both match. Cancellation and blocking still
+	// rewrite the task so the required reason can be inserted or corrected.
 	expectedBucket := bucketForStatus(parsed.status)
-	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" {
+	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" && parsed.status != "Blocked" {
 		fmt.Fprintf(a.out, "%s already %s\n", task.ID, parsed.status)
 		return nil
 	}
@@ -140,6 +166,16 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		a.warnCancellationAcceptancePlaceholder(task)
 		task.Body = upsertCancellationReason(task.Body, cancelReason)
 	}
+	// The block reason is present only while the task is Blocked. Blocking
+	// records it; every other transition clears it so a stale reason cannot
+	// survive behind a different status.
+	if status == "Blocked" {
+		task.BlockedReason = parsed.blockReason
+		task.BlockedRef = parsed.blockRef
+	} else {
+		task.BlockedReason = ""
+		task.BlockedRef = ""
+	}
 
 	now := time.Now().Format(time.RFC3339)
 	task.Status = status
@@ -168,6 +204,12 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelR
 		preview := map[string]any{"move": paths.payloadPath(target), "status": status}
 		if status == "Cancelled" {
 			preview["reason"] = cancelReason
+		}
+		if status == "Blocked" {
+			preview["reason"] = parsed.blockReason
+			if parsed.blockRef != "" {
+				preview["ref"] = parsed.blockRef
+			}
 		}
 		if len(unblocked) > 0 {
 			preview["unblocked"] = taskUnblockPreview(unblocked, paths)
@@ -249,6 +291,8 @@ func (a *app) taskUnblockDependents(tasks []Task, completedID string, updated st
 		}
 		task.Status = "Pending"
 		task.Updated = updated
+		task.BlockedReason = ""
+		task.BlockedRef = ""
 		unblocked = append(unblocked, task)
 	}
 	return unblocked

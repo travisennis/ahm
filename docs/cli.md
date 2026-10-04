@@ -11,7 +11,7 @@ they need.
 - [Commands](references/cli/commands.md): non-task commands including ADR,
   init, status, doctor, index, and home-store commands.
 - [Task commands](references/cli/task-commands.md): bulk JSON import, task lifecycle,
-  dependencies, completion, cancellation, and reopening.
+  dependencies, completion, blocking, cancellation, and reopening.
 - [Task file and validation formats](references/cli/task-file-format.md): task
   Markdown format and validation finding codes.
 

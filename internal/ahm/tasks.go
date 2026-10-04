@@ -74,23 +74,25 @@ func taskFilePathsFor(paths workflowPaths) ([]taskFileInfo, error) {
 
 // Task is the parsed representation of a workflow task file.
 type Task struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Status      string            `json:"status"`
-	Priority    string            `json:"priority"`
-	Effort      string            `json:"effort"`
-	Labels      string            `json:"labels"`
-	DependsOn   []string          `json:"depends_on"`
-	Created     string            `json:"created"`
-	Updated     string            `json:"updated"`
-	Parent      string            `json:"parent"`
-	ExternalRef string            `json:"external_ref"`
-	Extra       map[string]string `json:"extra"` // unknown front matter fields preserved from the original file
-	Path        string            `json:"path"`
-	Bucket      string            `json:"bucket"`
-	Body        string            `json:"body"`
-	meta        map[string]string
-	sourceHash  string
+	ID            string            `json:"id"`
+	Title         string            `json:"title"`
+	Status        string            `json:"status"`
+	Priority      string            `json:"priority"`
+	Effort        string            `json:"effort"`
+	Labels        string            `json:"labels"`
+	DependsOn     []string          `json:"depends_on"`
+	Created       string            `json:"created"`
+	Updated       string            `json:"updated"`
+	Parent        string            `json:"parent"`
+	ExternalRef   string            `json:"external_ref"`
+	BlockedReason string            `json:"blocked_reason"`
+	BlockedRef    string            `json:"blocked_ref"`
+	Extra         map[string]string `json:"extra"` // unknown front matter fields preserved from the original file
+	Path          string            `json:"path"`
+	Bucket        string            `json:"bucket"`
+	Body          string            `json:"body"`
+	meta          map[string]string
+	sourceHash    string
 }
 
 // taskParseHook supports instrumented tests that count filesystem-backed task
@@ -147,23 +149,25 @@ func parseTaskFromData(data []byte, path string, bucket string) (Task, error) {
 	}
 	body = stripHeading(body, title)
 	task := Task{
-		ID:          id,
-		Title:       title,
-		Status:      defaultDash(meta["status"]),
-		Priority:    defaultDash(meta["priority"]),
-		Effort:      defaultDash(meta["effort"]),
-		Labels:      defaultDash(meta["labels"]),
-		DependsOn:   parseList(meta["depends_on"]),
-		Created:     meta["created"],
-		Updated:     meta["updated"],
-		Parent:      meta["parent"],
-		ExternalRef: meta["external_ref"],
-		Extra:       metaExtra(meta),
-		Path:        path,
-		Bucket:      bucket,
-		Body:        body,
-		meta:        meta,
-		sourceHash:  hashBytes(data),
+		ID:            id,
+		Title:         title,
+		Status:        defaultDash(meta["status"]),
+		Priority:      defaultDash(meta["priority"]),
+		Effort:        defaultDash(meta["effort"]),
+		Labels:        defaultDash(meta["labels"]),
+		DependsOn:     parseList(meta["depends_on"]),
+		Created:       meta["created"],
+		Updated:       meta["updated"],
+		Parent:        meta["parent"],
+		ExternalRef:   meta["external_ref"],
+		BlockedReason: meta["blocked_reason"],
+		BlockedRef:    meta["blocked_ref"],
+		Extra:         metaExtra(meta),
+		Path:          path,
+		Bucket:        bucket,
+		Body:          body,
+		meta:          meta,
+		sourceHash:    hashBytes(data),
 	}
 	if err := validateTaskEnums(task, path); err != nil {
 		return Task{}, err
@@ -344,7 +348,7 @@ func metaExtra(meta map[string]string) map[string]string {
 		switch k {
 		case "id", "title", "status", "priority", "effort", "labels",
 			"depends_on", "created", "updated",
-			"parent", "external_ref":
+			"parent", "external_ref", "blocked_reason", "blocked_ref":
 			// known field, skip
 		default:
 			extra[k] = v
@@ -520,6 +524,12 @@ func renderTask(task Task) string {
 	}
 	if task.ExternalRef != "" {
 		fmt.Fprintf(&b, "external_ref: %s\n", renderFrontMatterScalar(task.ExternalRef))
+	}
+	if task.BlockedReason != "" {
+		fmt.Fprintf(&b, "blocked_reason: %s\n", renderFrontMatterScalar(task.BlockedReason))
+	}
+	if task.BlockedRef != "" {
+		fmt.Fprintf(&b, "blocked_ref: %s\n", renderFrontMatterScalar(task.BlockedRef))
 	}
 	for _, k := range sortedKeys(task.Extra) {
 		if k == retiredExecPlanField {

@@ -36,6 +36,7 @@ func validateWorkflowScopedForPathsWithCache(root string, scopes []string, paths
 		tasks = validateManagedFiles(root, paths, &report)
 		validateTaskDependencies(paths, tasks, &report)
 		validateBlockedDepsComplete(paths, tasks, &report)
+		validateBlockedReason(paths, tasks, &report)
 		validateTrackingChildrenComplete(paths, tasks, &report)
 		validateTaskBuckets(paths, tasks, &report)
 		// A records-only layout has no checkout, so ADR and generated-index checks
@@ -74,6 +75,7 @@ func validateWorkflowStateForPaths(root string, paths workflowPaths, tasks []Tas
 	}
 	validateTaskDependencies(paths, tasks, &report)
 	validateBlockedDepsComplete(paths, tasks, &report)
+	validateBlockedReason(paths, tasks, &report)
 	validateTrackingChildrenComplete(paths, tasks, &report)
 	validateTaskBuckets(paths, tasks, &report)
 	if !paths.isRecordsOnly() {

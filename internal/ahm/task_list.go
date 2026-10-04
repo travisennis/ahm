@@ -80,8 +80,15 @@ func (a *app) taskListSorted(mode string, statuses []string, labels []string, pr
 	if a.opts.json {
 		return a.emit(a.tasksForOutput(filtered))
 	}
+	isBlocked := mode == "blocked"
+	completed := completedTaskIDs(tasks)
 	for _, task := range filtered {
 		a.printTaskLine(task)
+		if isBlocked {
+			if reason := taskBlockedReason(task, completed); reason != "" {
+				fmt.Fprintf(a.out, "  reason: %s\n", reason)
+			}
+		}
 	}
 	return nil
 }
@@ -344,13 +351,48 @@ func (a *app) tasksForOutput(tasks []Task) []Task {
 	return rendered
 }
 
-func filterTasks(tasks []Task, mode string) []Task {
+// completedTaskIDs returns the set of task IDs whose status is Completed.
+func completedTaskIDs(tasks []Task) map[string]bool {
 	completed := map[string]bool{}
 	for _, task := range tasks {
 		if task.Status == "Completed" {
 			completed[task.ID] = true
 		}
 	}
+	return completed
+}
+
+// taskBlockedReason explains why a task is in the blocked queue. An explicit
+// Blocked task reports its recorded blocked_reason (and reference); a Pending
+// task reports the dependencies that are still incomplete.
+func taskBlockedReason(task Task, completed map[string]bool) string {
+	if task.Status == "Blocked" {
+		reason := strings.TrimSpace(task.BlockedReason)
+		switch {
+		case reason != "" && task.BlockedRef != "":
+			return reason + " (" + task.BlockedRef + ")"
+		case reason != "":
+			return reason
+		case task.BlockedRef != "":
+			return task.BlockedRef
+		default:
+			return "no reason recorded"
+		}
+	}
+	var missing []string
+	for _, dep := range task.DependsOn {
+		if !completed[dep] {
+			missing = append(missing, dep)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return "waiting on " + strings.Join(missing, ", ")
+}
+
+func filterTasks(tasks []Task, mode string) []Task {
+	completed := completedTaskIDs(tasks)
 	var out []Task
 	for _, task := range tasks {
 		switch mode {

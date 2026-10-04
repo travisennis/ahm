@@ -52,7 +52,6 @@ func TestPrimePrintsSessionBriefing(t *testing.T) {
 		"001 [In Progress] P2 S Current Work",
 		"## Ready",
 		"002 [Pending] P2 S Ready Work",
-		"Blocked: 0",
 		"Open: 0",
 	)
 	// Task 264c: prime is pure state. It reports counts and findings and
@@ -93,6 +92,7 @@ func TestPrimeJSONOutput(t *testing.T) {
 		`"ready":`,
 		`"ready_total":`,
 		`"blocked":`,
+		`"blocked_tasks":`,
 		`"open":`,
 	)
 	assertNotContains(t, stdout, `"instructions"`)

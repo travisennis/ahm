@@ -155,7 +155,12 @@ live repository briefing. The entry point for agent sessions.
 **Guarantees:**
 
 - Fast, offline-tolerant, idempotent.
-- Prints validation findings, task counts, and the backlog.
+- Prints validation findings, task counts, and the backlog: `in_progress`,
+  `ready` (capped at five with an overflow count), and the blocked queue. Each
+  blocked task is named with a reason in text and in `blocked_tasks`: an
+  explicit `Blocked` task reports its `blocked_reason` (and `blocked_ref`),
+  while a `Pending` task with an unmet dependency reports the dependencies it
+  is waiting on. `blocked` carries the total count.
 - For an installed home-mode project, text and structured output include
   `store.root`, `store.key`, `store.kind` (`remote` or `path`), and
   `store.location` (`home`). The block is absent in project mode and for an

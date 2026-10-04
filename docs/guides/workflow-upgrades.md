@@ -28,6 +28,21 @@ from what ahm owns, so an up-to-date repository is left completely untouched.
 See [the workflow specification](../references/workflow-spec.md) for the
 complete file ownership boundary.
 
+## Blocked Task Reasons
+
+The optional task front-matter fields `blocked_reason` and `blocked_ref`
+record why a task is `Blocked`. They are additive: a record that does not carry
+them parses and round-trips unchanged, so no migration is required. `ahm task
+block <id> --reason <text> [--ref <text>]` writes them, and `ahm task unblock
+<id>`, the automatic unblock `ahm task complete` performs for satisfied
+dependents, and every other status transition clear them.
+
+`ahm status`, `ahm doctor`, and `ahm prime` now report a `Blocked` task whose
+`blocked_reason` is empty as the warning-tier finding
+`task_blocked_missing_reason`. Records that reached `Blocked` before this
+release — including any hand-edited ones — warn until a reason is recorded,
+by hand or with `ahm task block`.
+
 ## Moving Task Records To The Home Store
 
 Existing repositories keep task records in the project until they opt in to

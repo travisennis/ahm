@@ -124,6 +124,8 @@ ahm task comment <id> <text>
 ahm task complete <id>
 ahm task cancel <id> --reason <text>
 ahm task reopen <id>
+ahm task block <id> --reason <text>
+ahm task unblock <id>
 ```
 
 Edit the task body directly when adding or revising durable working context.
@@ -138,6 +140,14 @@ command moves the task, updates eligible dependents, and regenerates indexes.
 
 Cancellation requires a reason. `ahm task cancel` records it, moves the task,
 and regenerates indexes.
+
+Blocking a task on something other than another task's completion uses
+`ahm task block <id> --reason <text>`, which records the reason in the
+`blocked_reason` front-matter field (and an optional `--ref`). Do not reach
+`Blocked` by hand-editing front matter, and do not fake a `depends_on` entry
+for a non-task blocker. `ahm task unblock <id>` returns the task to `Pending`
+and clears the reason; completing a dependency still unblocks dependents
+automatically.
 
 ## Storage And Manual Fallback
 

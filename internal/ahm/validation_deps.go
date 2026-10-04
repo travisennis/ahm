@@ -58,6 +58,21 @@ func validateBlockedDepsComplete(paths workflowPaths, tasks []Task, report *vali
 	}
 }
 
+// validateBlockedReason warns when a task is Blocked without a recorded
+// blocked_reason. Blocking a task requires a reason at the command layer, so a
+// Blocked task with none is a record written by hand or by a release that
+// predates the field.
+func validateBlockedReason(paths workflowPaths, tasks []Task, report *validationReport) {
+	for _, task := range tasks {
+		if task.Status != "Blocked" {
+			continue
+		}
+		if strings.TrimSpace(task.BlockedReason) == "" {
+			report.addWarning("task_blocked_missing_reason", paths.displayPath(task.Path), fmt.Sprintf("task %s is Blocked with no blocked_reason", task.ID))
+		}
+	}
+}
+
 // validateTrackingChildrenComplete warns when an active Tracking task has at
 // least one child, every child task is Completed or Cancelled, and the
 // tracker's own dependencies are satisfied — leaving only the tracker itself

@@ -184,12 +184,14 @@ Examples:
 	task.AddCommand(search)
 
 	for _, spec := range []struct {
-		use        string
-		aliases    []string
-		short      string
-		long       string
-		status     string
-		withReason bool
+		use            string
+		aliases        []string
+		short          string
+		long           string
+		status         string
+		withReason     bool
+		withBlock      bool
+		requireBlocked bool
 	}{
 		{use: "accept <id>", short: "Accept a task into the ready queue", long: `Accept an Open task into the ready backlog as Pending.
 
@@ -217,28 +219,56 @@ Examples:
 Examples:
   ahm task reopen 001
   ahm --dry-run task reopen 001`, status: "Pending"},
+		{use: "block <id>", short: "Block a task with a reason", long: `Mark a task Blocked and record why, in the front-matter fields blocked_reason and blocked_ref.
+
+--reason is required; --ref records an optional external reference such as an
+issue URL. Any non-terminal status can be blocked. Release the task with
+'ahm task unblock'.
+
+Examples:
+  ahm task block 042 --reason "Waiting on the storage decision"
+  ahm task block 042 --reason "Upstream bug" --ref https://github.com/owner/repo/issues/1
+  ahm --dry-run task block 042 --reason "Waiting on ADR"`, status: "Blocked", withBlock: true},
+		{use: "unblock <id>", short: "Release a blocked task", long: `Return a Blocked task to Pending and clear its recorded block reason.
+
+The task must currently be Blocked. This is distinct from the automatic
+unblock that happens when a task's dependencies complete.
+
+Examples:
+  ahm task unblock 042
+  ahm --dry-run task unblock 042`, status: "Pending", requireBlocked: true},
 	} {
 		status := spec.status
 		reason := ""
+		blockReason := ""
+		blockRef := ""
+		requireBlocked := spec.requireBlocked
 		cmd := &cobra.Command{
 			Use:     spec.use,
 			Aliases: spec.aliases,
 			Short:   spec.short,
 			Long:    spec.long,
-			Args:    exactArgs(1, "task status command requires an id\n  ahm task accept|start|complete|cancel|reopen <id>"),
+			Args:    exactArgs(1, "task status command requires an id\n  ahm task accept|start|complete|cancel|reopen|block|unblock <id>"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := a.detectRoot(); err != nil {
 					return err
 				}
 				return a.taskStatusWithArgs(taskStatusArgs{
-					ids:    args,
-					status: status,
-					reason: reason,
+					ids:            args,
+					status:         status,
+					reason:         reason,
+					blockReason:    blockReason,
+					blockRef:       blockRef,
+					requireBlocked: requireBlocked,
 				})
 			},
 		}
 		if spec.withReason {
 			cmd.Flags().StringVar(&reason, "reason", "", "Reason for cancelling the task")
+		}
+		if spec.withBlock {
+			cmd.Flags().StringVar(&blockReason, "reason", "", "Reason the task is blocked (required)")
+			cmd.Flags().StringVar(&blockRef, "ref", "", "Optional external reference for the block")
 		}
 		task.AddCommand(cmd)
 	}

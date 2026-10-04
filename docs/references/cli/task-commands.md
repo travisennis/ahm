@@ -1,6 +1,6 @@
 # ahm Task Commands
 
-This reference covers task lifecycle, dependency, completion,
+This reference covers task lifecycle, dependency, completion, blocking,
 cancellation, and reopening commands. For task file grammar and validation
 finding codes, see [task file and validation formats](task-file-format.md).
 
@@ -18,6 +18,7 @@ aliases are one inventory for the whole tree, so they are documented on the
 
 ```text ahm-inventory task-subcommands
 accept
+block
 blocked
 cancel
 comment
@@ -34,6 +35,7 @@ reopen
 search
 show
 start
+unblock
 ```
 
 ```text ahm-inventory dep-subcommands
@@ -98,7 +100,8 @@ next available ID, scanning both parsed tasks and task files on disk to avoid
 collisions.
 
 Task resolution commands (`task show`, `task edit`, `task start`,
-`task complete`, `task cancel`, `task accept`, `task reopen`, `task comment`,
+`task complete`, `task cancel`, `task accept`, `task reopen`, `task block`,
+`task unblock`, `task comment`,
 `task dep add`, `task dep remove`) skip malformed files during ID resolution.
 A malformed task cannot be resolved and produces a `task not found` error.
 
@@ -207,7 +210,7 @@ is reachable.
   not refused; the guard protects existing provenance, it does not police the
   headings a caller writes.
 - `edit` never moves a record between buckets and never rewrites `status` or
-  `depends_on`; `task accept|start|complete|cancel|reopen` and
+  `depends_on`; `task accept|start|complete|cancel|reopen|block|unblock` and
   `task dep add|remove` remain the only writers of those fields and keep their
   guards.
 - `edit` has no `--status` and no `--depends-on` flag.
@@ -299,11 +302,18 @@ work), sorted by priority.
 
 ### `task blocked`
 
-Lists Blocked tasks sorted by priority.
+Lists the blocked queue sorted by priority: tasks whose status is `Blocked`,
+plus `Pending` tasks with an incomplete dependency.
 
 **Guarantees:**
 
 - Same presentation flags as `task list`.
+- In text output each task is followed by a `reason:` line. A `Blocked` task
+  reports its `blocked_reason` (with `blocked_ref` when present, or `no reason
+  recorded` when the field is empty); a `Pending` task reports the dependency it
+  is waiting on.
+- `--json` emits the parsed task structs, which carry `blocked_reason` and
+  `blocked_ref` directly.
 
 ### `task next`
 
@@ -350,7 +360,9 @@ Sets task status to `Completed`.
   dependency fails with `cannot complete task <id>: incomplete dependencies:
   ...`.
 - Moves active `Blocked` tasks that depend on the completed ID to `Pending`
-  when that completion satisfies their whole `depends_on` list.
+  when that completion satisfies their whole `depends_on` list, clearing their
+  `blocked_reason` and `blocked_ref`; the auto-unblock writes no reason of its
+  own.
 - Prints `<id> -> Completed` or `<id> already Completed`.
 
 ### `task cancel <id> --reason <text>`
@@ -368,6 +380,42 @@ Sets task status to `Cancelled`.
 ### `task reopen <id>`
 
 Returns a `Completed` or `Cancelled` task to `Pending`.
+
+### `task block <id> --reason <text> [--ref <text>]`
+
+Sets task status to `Blocked` and records why in front matter: the required
+`blocked_reason` and the optional `blocked_ref`.
+
+**Guarantees:**
+
+- `--reason` is required and must be non-empty after trimming; `--force` does
+  not bypass it, matching `task cancel`.
+- The task may be in any non-terminal status (`Open`, `Pending`, `In Progress`,
+  or already `Blocked`); a `Completed` or `Cancelled` task is refused as a
+  usage error (exit 2). Blocking an already-blocked task rewrites the record so
+  the reason can be corrected.
+- `--ref` records an external reference, such as an issue URL or a person,
+  beside the reason. It is not a substitute for `--reason`. Blocking a task
+  replaces both fields, so re-blocking to correct the reason clears a
+  previously recorded `--ref` unless it is supplied again.
+- `--reason` and `--ref` must not contain a newline or carriage return; both
+  are single-line front-matter scalars.
+- `blocked_reason` and `blocked_ref` are present only while a task is
+  `Blocked`; every status transition away from `Blocked` clears them.
+- `--dry-run` prints the pending move, `status: Blocked`, and the reason (and
+  the ref when given) without writing.
+
+### `task unblock <id>`
+
+Returns a `Blocked` task to `Pending` and clears its recorded block reason.
+
+**Guarantees:**
+
+- The task must currently be `Blocked`; any other status is a usage error
+  (exit 2) naming the current status.
+- This is distinct from the automatic unblock that `task complete` performs
+  when a task's dependencies are satisfied. Either path clears `blocked_reason`
+  and `blocked_ref`.
 
 ### `task accept <id>`
 
@@ -487,7 +535,9 @@ duplicate field names are rejected. Duplicate detection is case-insensitive,
 matching the JSON decoder: `title` and `TITLE` in the same object are duplicates,
 including escaped spellings of the same name. `id`, `updated`, `path`, `bucket`, and
 unknown front matter (`extra`, including retired `exec_plan`) are generated or
-not importable.
+not importable. `blocked_reason` and `blocked_ref` are not importable either:
+an imported `Blocked` record carries no reason and warns under `task_blocked_missing_reason`
+until one is recorded with `ahm task block`.
 
 `ref` is an optional unique, case-sensitive name scoped to this document; it
 cannot contain whitespace or `@` and is not stored in the task. `@name` in
