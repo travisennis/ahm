@@ -227,7 +227,7 @@ func TestTaskImportRaisesChildSuffixMarks(t *testing.T) {
 }
 
 func TestTaskImportRollbackRestoresFiles(t *testing.T) {
-	for _, failure := range []string{"record", "index", "counter"} {
+	for _, failure := range []string{"record", "index", "state"} {
 		t.Run(failure, func(t *testing.T) {
 			home := setStoreHome(t)
 			root := initHomeModeRepository(t)
@@ -239,7 +239,7 @@ func TestTaskImportRollbackRestoresFiles(t *testing.T) {
 			calls := 0
 			taskImportWriteHook = func(path string) error {
 				calls++
-				if (failure == "record" && calls == 2) || (failure == "index" && strings.HasSuffix(path, "index.md")) || (failure == "counter" && path == store.statePath()) {
+				if (failure == "record" && calls == 2) || (failure == "index" && strings.HasSuffix(path, "index.md")) || (failure == "state" && path == store.statePath()) {
 					return fmt.Errorf("injected %s failure", failure)
 				}
 				// Every write runs under both locks. No nested record lock can be taken.

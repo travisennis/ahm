@@ -117,10 +117,10 @@ managed root when it holds `.git` or `.ahm/config.json`.
 
 ADRs and `docs/adr/index.md` stay committed project files. Generated task
 indexes move with the task records into the store. The workflow record lock,
-stale-temp cleanup, write containment, and the persisted task ID counter all
-live in the store, next to the records they protect. The task ID counter is
-persisted and never decremented, because Git history no longer proves that a
-deleted ID was once used.
+stale-temp cleanup, write containment, and the persisted task ID marks all
+live in the store, next to the records they protect. The marks are persisted
+and never decremented, because Git history no longer proves that a deleted ID
+was once used.
 
 Relationships between records stay inside one project: `depends_on` keeps bare
 IDs and there is no cross-project reference syntax and no cross-project task

@@ -313,21 +313,28 @@ func TestStoreMigrateRoundTripRestoresTheProjectLayout(t *testing.T) {
 	}
 }
 
-// TestStoreMigrateSeedsTheTaskIDCounter covers the requirement that a migration
-// initializes the store's counter from the records present: a record deleted by
-// hand from the store after the move must never have its number reissued.
-func TestStoreMigrateSeedsTheTaskIDCounter(t *testing.T) {
+// TestStoreMigrateSeedsTheTaskIDMarks covers the requirement that a migration
+// initializes the store's task ID marks from the records present: a record
+// deleted by hand from the store after the move must never have its number or
+// child letter reissued.
+func TestStoreMigrateSeedsTheTaskIDMarks(t *testing.T) {
 	setStoreHome(t)
 	root := migratedProject(t)
 	if _, stderr, code := runCLI(t, "--root", root, "task", "create", "Second"); code != 0 {
 		t.Fatalf("task create: %s", stderr)
 	}
+	if _, stderr, code := runCLI(t, "--root", root, "task", "create", "Child", "--parent", "001"); code != 0 {
+		t.Fatalf("child task create: %s", stderr)
+	}
 	commitEverything(t, root, "second task")
 	if _, stderr, code := runCLI(t, "--root", root, "store", "migrate", "--to", "home"); code != 0 {
 		t.Fatalf("migrate: %s", stderr)
 	}
+	if got := storeChildSuffixMark(t, root, "001"); got != "a" {
+		t.Fatalf("migration recorded child suffix mark %q, want \"a\"", got)
+	}
 
-	// Deleting the newest record by hand is the case the counter exists for: in
+	// Deleting the newest record by hand is the case the marks exist for: in
 	// the store no Git history proves the ID was used.
 	if err := os.Remove(storeTaskFile(t, root, "active", "002")); err != nil {
 		t.Fatal(err)
@@ -338,6 +345,19 @@ func TestStoreMigrateSeedsTheTaskIDCounter(t *testing.T) {
 	}
 	if got := strings.TrimSpace(stdout); got != "003" {
 		t.Errorf("the store reissued an ID after the move: got %q, want 003", got)
+	}
+
+	// A child deleted by hand is the letter's case: the mark the migration
+	// seeded keeps the letter from returning to the pool.
+	if err := os.Remove(storeTaskFile(t, root, "active", "001a")); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "create", "Second Child", "--parent", "001")
+	if code != 0 {
+		t.Fatalf("child task create: stdout=%q stderr=%q", stdout, stderr)
+	}
+	if got := strings.TrimSpace(stdout); got != "001b" {
+		t.Errorf("the store reissued a child letter after the move: got %q, want 001b", got)
 	}
 }
 

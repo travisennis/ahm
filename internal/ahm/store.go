@@ -424,7 +424,7 @@ func updateStoreProject(s storePaths, mutate func(*projectEntry)) error {
 // keeps the higher of the counter and of each child suffix mark it carries and
 // the values on disk. The store-state lock is what keeps a stale observation
 // from reaching this write between cooperating writers; the merge stays as
-// defense in depth for a writer that does not take the lock, such as a pre-mark
+// defense in depth for a writer that does not take the lock, such as a pre-lock
 // ahm binary.
 func writeProjectState(s storePaths, state projectState) error {
 	if current, err := readProjectState(s); err == nil {

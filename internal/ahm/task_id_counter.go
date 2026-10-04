@@ -19,7 +19,10 @@ import (
 // pool, and every record that already references it — a note, another task, an
 // ADR — would silently come to mean a different task. The marks are therefore
 // the store's durable record of what it has spent, persisted beside the records
-// in the store's project state file.
+// in the store's project state file. A state write from a binary that predates
+// the marks drops them, because it marshals a state struct that has no field
+// for them; allocation then self-heals from the records present, and `ahm init`
+// re-records the marks the records imply.
 
 // storeStatePath is the state file that holds the store's task ID marks. It
 // reports false when the records live in the project, where no state file is
@@ -115,7 +118,7 @@ func writeChildSuffixMark(paths workflowPaths, parentID string, suffix string) e
 // store-state lock. Every field the file holds is a high-water mark, so mutate
 // may only raise values; writeProjectState merges the higher of a carried and a
 // persisted value as defense in depth for a writer that does not take the lock,
-// such as a pre-mark ahm binary.
+// such as a pre-lock ahm binary.
 func mutateProjectStateLocked(paths workflowPaths, mutate func(*projectState)) error {
 	path, ok := paths.storeStatePath()
 	if !ok {
