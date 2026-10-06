@@ -114,7 +114,6 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 			return err
 		}
 	}
-	a.warnDuplicateTitle(tasks, id, parsed.title)
 	path := paths.taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
@@ -138,6 +137,9 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 		}
 		task.DependsOn = deps
 	}
+	// Warn only once the create is going to proceed: a refusal below would
+	// otherwise report a duplicate for a task that is never written.
+	a.warnDuplicateTitle(tasks, id, parsed.title)
 	content := renderTask(task)
 	if a.opts.dryRun {
 		payload := map[string]any{"create": paths.payloadPath(path), "id": id}
