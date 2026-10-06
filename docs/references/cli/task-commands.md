@@ -158,6 +158,13 @@ records root, so clones that share a home store serialize on the same lock.
   missing, ambiguous, Completed, or Cancelled dependency is rejected; a
   dependency on the ID that `task create` is about to allocate is rejected as
   a self-cycle. `--depends-on` combines with `--parent`.
+- A title that matches an existing **active** task — any status except
+  `Completed` and `Cancelled` — case-insensitively prints a warning to stderr
+  naming the colliding task's ID, status, and title. The task is still created:
+  a duplicate is a prompt to comment on the existing record or make the title
+  distinct, not a refusal. Matching is exact, not fuzzy, and `Completed` and
+  `Cancelled` records are not compared, because recurring work reuses their
+  titles. A collision is reported in `--dry-run` too, and nothing is written.
 - `--dry-run` prints the target path and ID without creating, plus the planned
   `depends_on` when `--depends-on` is set. Dependency validation still runs in
   dry-run mode.

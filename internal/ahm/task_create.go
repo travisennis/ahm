@@ -114,6 +114,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 			return err
 		}
 	}
+	a.warnDuplicateTitle(tasks, id, parsed.title)
 	path := paths.taskFile("active", id)
 	now := time.Now().Format(time.RFC3339)
 	task := Task{
@@ -165,6 +166,31 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	}
 	fmt.Fprintln(a.out, id)
 	return nil
+}
+
+// warnDuplicateTitle reports each active task that already carries the title
+// about to be created. Titles are the human handle for a task and the only
+// field `task search` matches, so a duplicate splits one piece of work across
+// two records a reader cannot tell apart.
+//
+// The comparison is exact and case-insensitive. Exact matching has no false
+// positives and catches the failure that occurs, which is a title reproduced
+// verbatim; a normalized-token similarity would need a threshold and a way to
+// explain a near miss, which is a separate change. Completed and Cancelled
+// records are skipped, because a recurring task legitimately reuses its title
+// and reporting those matches would drown the useful case. Creation is never
+// refused: a duplicate title is strong evidence of a mistake but is
+// occasionally legitimate, so the warning names the colliding task and leaves
+// the decision to the caller.
+func (a *app) warnDuplicateTitle(tasks []Task, newID string, title string) {
+	for _, task := range tasks {
+		if task.Status == "Completed" || task.Status == "Cancelled" {
+			continue
+		}
+		if strings.EqualFold(task.Title, title) {
+			a.addWarning("task %s duplicates the title of active task %s [%s]: %q; comment on that task instead or make this title distinct", newID, task.ID, task.Status, task.Title)
+		}
+	}
 }
 
 // parseTaskDependsOn parses the --depends-on flag value into task IDs. An
