@@ -65,6 +65,17 @@ Working records whose outcomes matter may produce or update project docs or
 ADRs. Ahm manages the structured records, while each project owns the form and
 policy of its general documentation.
 
+## The store command family
+
+Where a project keeps its records — committed in the project or in the
+user-level home store — is ahm-owned state, so `ahm store` owns the store's
+location, its registry mapping, and movement of records between the two
+layouts. It owns no record *contents*: no store command exports, imports,
+snapshots, or deletes a backlog, and the only change a store command makes to
+records is relocating them between the two layouts. Adding a content operation
+is a separate product question that needs its own decision. ADR 029 records the
+boundary, and the `store` help text states it.
+
 ## The git-safety boundary
 
 Stated once, canonically. `ahm` may:

@@ -536,16 +536,21 @@ func abbreviateHome(path string) string {
 func (a *app) storeCommand() *cobra.Command {
 	store := &cobra.Command{
 		Use:   "store",
-		Short: "Inspect and migrate the user-level home store",
-		Long: `Inspect where this project's records live in the user-level store, and move
-them into or out of it.
+		Short: "Manage the home store's location, registry, and layout",
+		Long: `Manage where this project's records live in the user-level store, its
+registry mapping, and the records layout.
 
 The store is ~/.ahm, or AHM_HOME when it names an absolute path. Records live
 per project under a key derived from the project's identity. A repository
 whose configuration predates the store keeps its records in the project until
 it opts in with 'store migrate --to home', while a repository with no
-configuration is a new project that 'ahm init' starts in the store. This
-group inspects the store location and performs a move explicitly.
+configuration is a new project that 'ahm init' starts in the store.
+
+This group manages the store's location, its registry mapping, and the records
+layout. It does not manage record contents: no command here exports, imports,
+snapshots, or deletes records, and the only change this group makes to records
+is moving them between the two layouts. Moving a backlog between machines, or
+taking a backup, is a separate product question and is not part of this group.
 
 Examples:
   ahm store path

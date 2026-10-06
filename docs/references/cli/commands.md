@@ -262,6 +262,25 @@ is present.
 - `--dry-run` previews every write without touching the filesystem, the store
   directory included.
 
+### `store`
+
+Manages the user-level store's location, registry, and records layout; it does
+not manage record contents. See
+[ADR 029](../../adr/029-scope-ahm-store-to-mapping-and-layout-not-record-contents.md).
+
+**Scope:**
+
+- In scope: observing and recording a project's store location (`store path`),
+  moving records between the project and store layouts (`store migrate`),
+  read-only store inspection, and registry maintenance that never touches
+  records. A read-only store listing (task 277) and a store-scoped check are
+  accepted in principle; neither is implemented yet.
+- Out of scope: `export`, `import`, `purge`, and anything else whose primary
+  effect is on record contents. Moving or backing up a backlog between machines
+  is a separate product question (task 256).
+- No store command creates, removes, or transforms record content; the only
+  change one makes to records is relocating them between the two layouts.
+
 ### `store path`
 
 Prints the resolved home-store location for this project: the store root, the
