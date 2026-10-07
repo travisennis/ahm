@@ -212,10 +212,12 @@ is reachable.
   name is spliced into a `## <name>` heading.
   A `--section` replacement builds the whole resulting body and passes it
   through the same audit-trail guard as a whole-body replacement, so replacing a
-  section that contains a nested protected heading cannot delete it. Supplying
-  text that introduces a `## Comments` or `## Cancellation Reason` heading is
-  not refused; the guard protects existing provenance, it does not police the
-  headings a caller writes.
+  section that contains a nested protected heading cannot delete it. Text that
+  introduces a `## Comments` or `## Cancellation Reason` heading is allowed when
+  the new heading lands after the record's existing ones; a heading placed ahead
+  of an existing protected section is refused, because `task comment` and
+  `task cancel` write to the first such heading and it would capture their
+  writes.
 - `edit` never moves a record between buckets and never rewrites `status` or
   `depends_on`; `task accept|start|complete|cancel|reopen|block|unblock` and
   `task dep add|remove` remain the only writers of those fields and keep their
@@ -246,17 +248,17 @@ is reachable.
   names the owning command. `--force` does not override this.
 - A `--body`, `--body-file`, or `--section` replacement that does not carry over
   the content of a `## Comments` or `## Cancellation Reason` section the record
-  already has is refused unless `--force` is passed. The rule is: some section of
-  the same name at the same heading depth in the resulting body must contain the
-  current section's text, compared with whitespace runs collapsed. A missing
-  heading, an emptied heading, rewritten or truncated text, and a `###`
-  demotion all count as a drop. Re-wrapping, re-indenting, or moving a preserved
-  section within the body is allowed. A record that has no content in a
-  protected section is not constrained at all.
-  Known limit of this check, which needs a whole-body rewrite to reach: it does
-  not require the carrying section to be the *first* one of that name, so a
-  forged section placed ahead of the real log is accepted; and it compares by
-  substring, so text that merely contains the original passes.
+  already has is refused unless `--force` is passed. The rule pairs by position:
+  the *n*-th protected section of the current body must be carried by the *n*-th
+  protected section of the resulting body, at the same heading depth, with
+  whitespace runs collapsed. A missing or emptied heading, rewritten or
+  truncated text, a `###` demotion or promotion, and a section merged into
+  another all count as a drop. Re-wrapping, re-indenting, or moving a preserved
+  section within the body is allowed, and the result may add protected sections
+  after the ones it carries. A record that has no content in a protected section
+  is not constrained at all.
+  Known limit of this check, which needs a whole-body rewrite to reach: it
+  compares by substring, so text that merely contains the original passes.
 - A `--body` whose value equals the current body, and a `--section` whose
   content already matches, are no-ops: they report `unchanged` and write
   nothing.

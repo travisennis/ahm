@@ -637,31 +637,33 @@ func editTaskLabels(labels []string, remove []string, add []string) []string {
 // droppedProtectedSections returns the protected sections whose existing
 // content the replacement body fails to carry over.
 //
-// The rule is one sentence: a whole-body replacement must carry every protected
-// section's current content forward, at the same heading depth, modulo
-// whitespace. Anything else — a missing heading, an emptied heading, rewritten
-// text, a `###` demotion, or content stranded under a second copy of a
-// repeated heading — is a drop, because `task comment` and `task cancel` only
-// ever write a level-2 heading and would open a second section beside whatever
-// the replacement left behind.
+// The rule is one sentence: the n-th protected section of the current body must
+// be carried by the n-th protected section of the result, at the same heading
+// depth, modulo whitespace. Pairing by position rather than searching the whole
+// result is what makes the rule about the section a command will write to:
+// `task comment` appends to the first `## Comments` heading it finds, so a
+// result that leaves a second copy ahead of the real log would capture every
+// later comment even though the log itself survives. It also refuses a result
+// that merges two existing sections into one, because the second has nothing to
+// pair with.
 //
-// Every non-empty current section is checked, not just the first: a record with
-// two `## Comments` headings has two logs, and protecting only the first would
-// leave the second unguarded.
+// Anything else — a missing heading, an emptied heading, rewritten text, a
+// `###` demotion or promotion, or content stranded under a second copy of a
+// repeated heading — is a drop.
+//
+// A result may add protected sections after the ones it carries: an added
+// section is not a drop, and the guard protects provenance rather than policing
+// what a caller writes.
 func droppedProtectedSections(current string, replacement string) []string {
 	var dropped []string
-	replacementSections := map[string][]markdownHeadingSection{}
 	for _, section := range protectedTaskSections {
-		existing := nonEmptySections(locateTaskSections(current, section.Name))
-		if len(existing) == 0 {
+		existing := locateTaskSections(current, section.Name)
+		if len(nonEmptySections(existing)) == 0 {
 			// The record has no content in this section, so there is nothing to
 			// lose and the replacement is free to omit or add the heading.
 			continue
 		}
-		if _, ok := replacementSections[section.Name]; !ok {
-			replacementSections[section.Name] = locateTaskSections(replacement, section.Name)
-		}
-		if allCarried(existing, replacementSections[section.Name]) {
+		if allCarried(existing, locateTaskSections(replacement, section.Name)) {
 			continue
 		}
 		dropped = append(dropped, "## "+section.Name)
@@ -669,18 +671,19 @@ func droppedProtectedSections(current string, replacement string) []string {
 	return dropped
 }
 
-// allCarried reports whether every existing section's content appears in some
-// replacement section at the same heading depth.
+// allCarried reports whether each existing section is carried by the
+// replacement section at the same position and heading depth. Every section is
+// paired, not just the first: a record with two `## Comments` headings has two
+// logs, and pairing the later ones by position is what refuses a result that
+// merges or reorders them.
 func allCarried(existing []markdownHeadingSection, replacement []markdownHeadingSection) bool {
-	for _, want := range existing {
-		carried := false
-		for _, got := range replacement {
-			if got.Level == want.Level && strings.Contains(normalizeSectionText(got.Content), normalizeSectionText(want.Content)) {
-				carried = true
-				break
-			}
+	for i, want := range existing {
+		if i >= len(replacement) {
+			return false
 		}
-		if !carried {
+		got := replacement[i]
+		if got.Level != want.Level ||
+			!strings.Contains(normalizeSectionText(got.Content), normalizeSectionText(want.Content)) {
 			return false
 		}
 	}

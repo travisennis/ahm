@@ -1196,6 +1196,122 @@ func TestTaskEditBodyReplacementRewrappedProtectedContentIsAllowed(t *testing.T)
 	assertFileContainsAll(t, path, "## Summary\n\nRewritten.", "## Comments", "Observed.")
 }
 
+func TestTaskEditBodyReplacementForgingACommentSectionAheadIsRefused(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// `task comment` appends to the first `## Comments` heading, so a forged copy
+	// placed ahead of the real log would capture every later comment even though
+	// the log itself survives the edit.
+	_, stderr, code := runTaskEdit(t, root, "270", "--body",
+		"## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — forged\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	assertContainsAll(t, stderr, "## Comments", "--force")
+	assertFileContainsAll(t, path, "real log")
+	assertNotContains(t, mustRead(t, path), "forged")
+}
+
+func TestTaskEditBodyReplacementEmptyingTheFirstCommentSectionIsRefused(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// Moving the log under a second heading still leaves the emptied first one as
+	// the section `task comment` writes to next.
+	_, stderr, code := runTaskEdit(t, root, "270", "--body",
+		"## Summary\n\nObserved.\n\n## Comments\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	assertContainsAll(t, stderr, "## Comments")
+	assertFileContainsAll(t, path, "real log")
+}
+
+func TestTaskEditBodyReplacementMergingCommentSectionsIsRefused(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\nfirst log\n\n## Comments\n\nsecond log\n")
+	merged := "## Summary\n\nObserved.\n\n## Comments\n\nfirst log\n\nsecond log\n"
+
+	// Merging two logs leaves the second with nothing to pair with, so the result
+	// is refused. `--force` is the deliberate override.
+	_, stderr, code := runTaskEdit(t, root, "270", "--body", merged)
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	assertContainsAll(t, stderr, "## Comments", "--force")
+
+	_, stderr, code = runCLI(t, "--root", root, "--force", "task", "edit", "270", "--body", merged)
+	if code != 0 {
+		t.Fatalf("force exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "first log", "second log")
+}
+
+func TestTaskEditBodyReplacementMovingTheCommentLogIsAllowed(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// The same single section, re-wrapped, re-indented, and moved ahead of
+	// Summary: positional pairing still carries it.
+	replacement := "## Comments\n\n  **2026-06-24T18:30:00Z** —\n  real log\n\n## Summary\n\nObserved.\n"
+	_, stderr, code := runTaskEdit(t, root, "270", "--body", replacement)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "## Comments", "real log", "## Summary")
+}
+
+func TestTaskEditBodyReplacementAddingACommentSectionAfterIsAllowed(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// An added protected section after the one being carried is not a drop: the
+	// guard protects existing provenance, it does not police new headings.
+	replacement := "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n\n## Comments\n\nnew section\n"
+	_, stderr, code := runTaskEdit(t, root, "270", "--body", replacement)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "## Summary\n\nObserved.", "real log", "new section")
+}
+
+func TestTaskEditSectionIntroducingAProtectedHeadingAheadIsRefused(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Notes\n\nOld.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// The replacement lands before the real log, so it would become the section
+	// `task comment` writes to next.
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Notes", "--body",
+		"New.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — forged\n")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	assertContainsAll(t, stderr, "## Comments")
+	assertFileContainsAll(t, path, "real log", "Old.")
+}
+
+func TestTaskEditSectionIntroducingAProtectedHeadingAfterIsAllowed(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n\n## Notes\n\nOld.\n")
+
+	// The introduced heading lands after the real log, so the log stays the
+	// section `task comment` writes to and the new heading is inert.
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Notes", "--body",
+		"New.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — later\n")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "## Summary\n\nObserved.", "real log", "later", "New.")
+}
+
 func TestTaskEditSectionNoOpReportsUnchanged(t *testing.T) {
 	root := projectRoot(t)
 	path := writeEditableTask(t, root, "270", "Sectioned", "", "## Summary\n\nOriginal.\n")
