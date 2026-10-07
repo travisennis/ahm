@@ -1230,6 +1230,36 @@ func TestTaskEditBodyReplacementEmptyingTheFirstCommentSectionIsRefused(t *testi
 	assertFileContainsAll(t, path, "real log")
 }
 
+func TestTaskEditBodyReplacementFillingAnEmptyCommentHeadingIsRefused(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// The empty heading keeps its position, so filling it would move the write
+	// target `task comment` appends to away from the real log.
+	_, stderr, code := runTaskEdit(t, root, "270", "--body",
+		"## Summary\n\nObserved.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — forged\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+	if code != 2 {
+		t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+	}
+	assertContainsAll(t, stderr, "## Comments", "--force")
+	assertNotContains(t, mustRead(t, path), "forged")
+}
+
+func TestTaskEditBodyReplacementBesideAnEmptyCommentHeadingIsAllowed(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nObserved.\n\n## Comments\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// Leaving the protected sections exactly as they are keeps the pairing
+	// intact, so an unrelated section replacement is allowed.
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Summary", "--body", "Now fixed.")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "## Summary\n\nNow fixed.", "real log")
+}
+
 func TestTaskEditBodyReplacementMergingCommentSectionsIsRefused(t *testing.T) {
 	root := projectRoot(t)
 	path := writeEditableTask(t, root, "270", "Commented",

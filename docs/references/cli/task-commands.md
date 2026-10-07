@@ -212,12 +212,10 @@ is reachable.
   name is spliced into a `## <name>` heading.
   A `--section` replacement builds the whole resulting body and passes it
   through the same audit-trail guard as a whole-body replacement, so replacing a
-  section that contains a nested protected heading cannot delete it. Text that
-  introduces a `## Comments` or `## Cancellation Reason` heading is allowed when
-  the new heading lands after the record's existing ones; a heading placed ahead
-  of an existing protected section is refused, because `task comment` and
-  `task cancel` write to the first such heading and it would capture their
-  writes.
+  section that contains a nested protected heading cannot delete it. Introducing
+  a protected heading is judged by the same rule: a new same-named heading placed
+  ahead of the record's existing ones is refused, and one placed after them is
+  allowed.
 - `edit` never moves a record between buckets and never rewrites `status` or
   `depends_on`; `task accept|start|complete|cancel|reopen|block|unblock` and
   `task dep add|remove` remain the only writers of those fields and keep their
@@ -249,16 +247,19 @@ is reachable.
 - A `--body`, `--body-file`, or `--section` replacement that does not carry over
   the content of a `## Comments` or `## Cancellation Reason` section the record
   already has is refused unless `--force` is passed. The rule pairs by position:
-  the *n*-th protected section of the current body must be carried by the *n*-th
-  protected section of the resulting body, at the same heading depth, with
-  whitespace runs collapsed. A missing or emptied heading, rewritten or
-  truncated text, a `###` demotion or promotion, and a section merged into
-  another all count as a drop. Re-wrapping, re-indenting, or moving a preserved
-  section within the body is allowed, and the result may add protected sections
-  after the ones it carries. A record that has no content in a protected section
-  is not constrained at all.
-  Known limit of this check, which needs a whole-body rewrite to reach: it
-  compares by substring, so text that merely contains the original passes.
+  the result's protected sections, in document order, must carry the current
+  body's one for one, at the same heading depth, with whitespace runs collapsed.
+  An empty heading carries nothing, and only an empty heading carries it, so a
+  result cannot fill one with new text while the record has content elsewhere in
+  that section. A missing heading, an emptied heading, rewritten or truncated
+  text, a `###` demotion or promotion, and a section merged into another all
+  count as a drop. Re-wrapping and re-indenting are allowed, and a preserved
+  section may move as long as the same-named sections keep their relative order
+  and depth. The result may add protected sections after the same-named ones it
+  carries. A record with no content anywhere in a protected section is not
+  constrained at all.
+  Known limit of this check: it compares by substring, so text that merely
+  contains the original passes.
 - A `--body` whose value equals the current body, and a `--section` whose
   content already matches, are no-ops: they report `unchanged` and write
   nothing.

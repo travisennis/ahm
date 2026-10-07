@@ -637,15 +637,14 @@ func editTaskLabels(labels []string, remove []string, add []string) []string {
 // droppedProtectedSections returns the protected sections whose existing
 // content the replacement body fails to carry over.
 //
-// The rule is one sentence: the n-th protected section of the current body must
-// be carried by the n-th protected section of the result, at the same heading
-// depth, modulo whitespace. Pairing by position rather than searching the whole
-// result is what makes the rule about the section a command will write to:
-// `task comment` appends to the first `## Comments` heading it finds, so a
-// result that leaves a second copy ahead of the real log would capture every
-// later comment even though the log itself survives. It also refuses a result
-// that merges two existing sections into one, because the second has nothing to
-// pair with.
+// The rule is one sentence: the result's protected sections, in document order,
+// must carry the current body's one for one, at the same heading depth, modulo
+// whitespace. Pairing by position rather than searching the whole result is what
+// aims the rule at the section a command will write to: `task comment` appends
+// to the first `## Comments` heading it finds, so the first one in the result,
+// not any matching copy, is the one that must carry the log. It also refuses a
+// result that merges two existing sections into one, because the second has
+// nothing to pair with.
 //
 // Anything else — a missing heading, an emptied heading, rewritten text, a
 // `###` demotion or promotion, or content stranded under a second copy of a
@@ -659,8 +658,9 @@ func droppedProtectedSections(current string, replacement string) []string {
 	for _, section := range protectedTaskSections {
 		existing := locateTaskSections(current, section.Name)
 		if len(nonEmptySections(existing)) == 0 {
-			// The record has no content in this section, so there is nothing to
-			// lose and the replacement is free to omit or add the heading.
+			// The record has no content anywhere in this section, so there is
+			// nothing to lose and the replacement is free to omit or add the
+			// heading.
 			continue
 		}
 		if allCarried(existing, locateTaskSections(replacement, section.Name)) {
@@ -671,19 +671,30 @@ func droppedProtectedSections(current string, replacement string) []string {
 	return dropped
 }
 
-// allCarried reports whether each existing section is carried by the
-// replacement section at the same position and heading depth. Every section is
-// paired, not just the first: a record with two `## Comments` headings has two
-// logs, and pairing the later ones by position is what refuses a result that
-// merges or reorders them.
+// allCarried reports whether the replacement carries each existing section at
+// the same position and heading depth. Every section is paired, not just the
+// first: a record with two `## Comments` headings has two logs, and pairing the
+// later ones by position is what refuses a result that merges or reorders them.
+// An empty section carries nothing, and only an empty section carries it, so a
+// result cannot satisfy the pair by filling the heading with new text.
 func allCarried(existing []markdownHeadingSection, replacement []markdownHeadingSection) bool {
 	for i, want := range existing {
 		if i >= len(replacement) {
 			return false
 		}
 		got := replacement[i]
-		if got.Level != want.Level ||
-			!strings.Contains(normalizeSectionText(got.Content), normalizeSectionText(want.Content)) {
+		if got.Level != want.Level {
+			return false
+		}
+		wantText := normalizeSectionText(want.Content)
+		gotText := normalizeSectionText(got.Content)
+		if wantText == "" {
+			if gotText != "" {
+				return false
+			}
+			continue
+		}
+		if !strings.Contains(gotText, wantText) {
 			return false
 		}
 	}
