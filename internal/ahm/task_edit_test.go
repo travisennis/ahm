@@ -1196,6 +1196,65 @@ func TestTaskEditBodyReplacementRewrappedProtectedContentIsAllowed(t *testing.T)
 	assertFileContainsAll(t, path, "## Summary\n\nRewritten.", "## Comments", "Observed.")
 }
 
+func TestTaskEditBodyReplacementInvertingProtectedTokenIsRefused(t *testing.T) {
+	// `Obsolete` is a substring of `Not Obsolete`, so a substring check accepts
+	// the exact inversion of the recorded reason. The same shape negates a
+	// comment token, or appends to it with no whitespace boundary.
+	cases := map[string]struct {
+		body        string
+		replacement string
+		kept        string
+		unwanted    string
+	}{
+		"negated cancellation reason": {
+			body:        "## Summary\n\nTODO.\n\n## Cancellation Reason\n\nObsolete\n",
+			replacement: "## Summary\n\nNew.\n\n## Cancellation Reason\n\nNot Obsolete: superseded by 170\n",
+			kept:        "Obsolete",
+			unwanted:    "Not Obsolete",
+		},
+		"comment token with a suffix appended": {
+			body:        "## Summary\n\nTODO.\n\n## Comments\n\nObserved.\n",
+			replacement: "## Summary\n\nNew.\n\n## Comments\n\nObserved.REVERTED, do not ship\n",
+			kept:        "Observed.",
+			unwanted:    "REVERTED",
+		},
+		"negated comment token": {
+			body:        "## Summary\n\nTODO.\n\n## Comments\n\nLGTM\n",
+			replacement: "## Summary\n\nNew.\n\n## Comments\n\nNot LGTM\n",
+			kept:        "LGTM",
+			unwanted:    "Not LGTM",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := projectRoot(t)
+			path := writeEditableTask(t, root, "270", "Protected", "", tc.body)
+			_, stderr, code := runTaskEdit(t, root, "270", "--body", tc.replacement)
+			if code != 2 {
+				t.Errorf("exit code = %d, stderr = %q, want 2", code, stderr)
+			}
+			assertContainsAll(t, stderr, "--force")
+			assertFileContainsAll(t, path, tc.kept)
+			assertNotContains(t, mustRead(t, path), tc.unwanted)
+		})
+	}
+}
+
+func TestTaskEditBodyReplacementAppendingToProtectedLogIsAllowed(t *testing.T) {
+	root := projectRoot(t)
+	path := writeEditableTask(t, root, "270", "Commented",
+		"", "## Summary\n\nTODO.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n")
+
+	// Appending a new entry after the preserved log leaves the existing entries
+	// intact on their token boundaries, so the guard allows it.
+	replacement := "## Summary\n\nRewritten.\n\n## Comments\n\n**2026-06-24T18:30:00Z** — real log\n\n**2026-06-25T09:00:00Z** — another\n"
+	_, stderr, code := runTaskEdit(t, root, "270", "--body", replacement)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	assertFileContainsAll(t, path, "## Summary\n\nRewritten.", "real log", "another")
+}
+
 func TestTaskEditBodyReplacementForgingACommentSectionAheadIsRefused(t *testing.T) {
 	root := projectRoot(t)
 	path := writeEditableTask(t, root, "270", "Commented",

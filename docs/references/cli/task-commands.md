@@ -248,7 +248,9 @@ is reachable.
   the content of a `## Comments` or `## Cancellation Reason` section the record
   already has is refused unless `--force` is passed. The rule pairs by position:
   the result's protected sections, in document order, must carry the current
-  body's one for one, at the same heading depth, with whitespace runs collapsed.
+  body's one for one, at the same heading depth, as the section's leading run of
+  whole tokens, with whitespace runs collapsed. A replacement may append to a
+  preserved run or re-wrap it, but prepending to the run counts as a drop.
   An empty heading carries nothing, and only an empty heading carries it, so a
   result cannot fill one with new text while the record has content elsewhere in
   that section. A missing heading, an emptied heading, rewritten or truncated
@@ -258,8 +260,12 @@ is reachable.
   and depth. The result may add protected sections after the same-named ones it
   carries. A record with no content anywhere in a protected section is not
   constrained at all.
-  Known limit of this check: it compares by substring, so text that merely
-  contains the original passes.
+  Known limit of this check: it is a preservation rule, not an integrity
+  check, and the leading boundary is what it enforces. A run that merely sits
+  inside a larger one no longer passes — `Obsolete` is not carried by
+  `Not Obsolete`, and `Observed.` is not carried by `Observed.REVERTED` — but
+  text appended after a preserved run still passes, because appending is how
+  `task comment` grows a log. `--force` remains the deliberate override.
 - A `--body` whose value equals the current body, and a `--section` whose
   content already matches, are no-ops: they report `unchanged` and write
   nothing.

@@ -638,13 +638,13 @@ func editTaskLabels(labels []string, remove []string, add []string) []string {
 // content the replacement body fails to carry over.
 //
 // The rule is one sentence: the result's protected sections, in document order,
-// must carry the current body's one for one, at the same heading depth, modulo
-// whitespace. Pairing by position rather than searching the whole result is what
-// aims the rule at the section a command will write to: `task comment` appends
-// to the first `## Comments` heading it finds, so the first one in the result,
-// not any matching copy, is the one that must carry the log. It also refuses a
-// result that merges two existing sections into one, because the second has
-// nothing to pair with.
+// must carry the current body's one for one, at the same heading depth, as the
+// section's leading run of whole tokens. Pairing by position rather than
+// searching the whole result is what aims the rule at the section a command will
+// write to: `task comment` appends to the first `## Comments` heading it finds,
+// so the first one in the result, not any matching copy, is the one that must
+// carry the log. It also refuses a result that merges two existing sections into
+// one, because the second has nothing to pair with.
 //
 // Anything else — a missing heading, an emptied heading, rewritten text, a
 // `###` demotion or promotion, or content stranded under a second copy of a
@@ -672,7 +672,9 @@ func droppedProtectedSections(current string, replacement string) []string {
 }
 
 // allCarried reports whether the replacement carries each existing section at
-// the same position and heading depth. Every section is paired, not just the
+// the same position and heading depth. Each section's content must survive as
+// its leading run of whole tokens, so a replacement may append to the run or
+// re-wrap it but may not prepend to it. Every section is paired, not just the
 // first: a record with two `## Comments` headings has two logs, and pairing the
 // later ones by position is what refuses a result that merges or reorders them.
 // An empty section carries nothing, and only an empty section carries it, so a
@@ -694,7 +696,7 @@ func allCarried(existing []markdownHeadingSection, replacement []markdownHeading
 			}
 			continue
 		}
-		if !strings.Contains(gotText, wantText) {
+		if !carriesLeadingRun(wantText, gotText) {
 			return false
 		}
 	}
@@ -718,6 +720,24 @@ func nonEmptySections(sections []markdownHeadingSection) []markdownHeadingSectio
 // content, while a changed, truncated, or replaced section does not.
 func normalizeSectionText(text string) string {
 	return strings.Join(strings.Fields(text), " ")
+}
+
+// carriesLeadingRun reports whether got carries want as the leading run of whole
+// tokens in its section. Both are normalized section texts, so one space after
+// want is exactly a token boundary, and re-wrapping or re-indenting a preserved
+// run still matches because normalizeSectionText has already collapsed their
+// whitespace to single spaces.
+//
+// Requiring the run to lead is what refuses the demonstrated inversion. A
+// negating or qualifying word prepended to the run — `Not Obsolete` for
+// `Obsolete`, `Not LGTM` for `LGTM` — leaves the original tokens intact, so a
+// bare containment check accepts it and records the opposite of the original
+// meaning. Only additions after the run are allowed, which is how `task
+// comment` grows a log. The guard refuses an accidental rewrite of provenance,
+// not tampering with it: a caller can still append text after a preserved run,
+// and `--force` remains the deliberate override.
+func carriesLeadingRun(want string, got string) bool {
+	return got == want || strings.HasPrefix(got, want+" ")
 }
 
 // locateTaskSections resolves the named heading section in body and returns
