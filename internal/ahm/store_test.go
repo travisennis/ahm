@@ -428,6 +428,94 @@ func TestStorePathCommandRequiresAManagedRoot(t *testing.T) {
 	assertContainsAll(t, stderr, "not in a managed repository")
 }
 
+// TestStorePathCommandRefusesAnUnmanagedRoot covers the phantom-entry fix from
+// ADR 029: --root bypasses root detection, so a recording store command must
+// refuse a directory that is not a managed project instead of deriving a path
+// key for it and registering an entry nothing clears. The refusal names the
+// directory and the remediation, and writes no store state.
+func TestStorePathCommandRefusesAnUnmanagedRoot(t *testing.T) {
+	storeHome := filepath.Join(t.TempDir(), "store")
+	t.Setenv(storeHomeEnvVar, storeHome)
+	root := t.TempDir()
+
+	stdout, stderr, code := runCLI(t, "--root", root, "store", "path")
+	if code != 1 {
+		t.Fatalf("ahm --root <unmanaged> store path exited %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, reportedRoot(t, root), "not a managed project", "ahm init")
+	if _, err := os.Stat(storeHome); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the refusal created the store root %s", storeHome)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ahm")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the refusal wrote workflow state into %s", filepath.Join(root, ".ahm"))
+	}
+}
+
+// TestStorePathCommandDryRunRefusesAnUnmanagedRoot keeps --dry-run reporting the
+// same refusal: the command is refused before either mode reaches the store, so
+// the preview writes nothing.
+func TestStorePathCommandDryRunRefusesAnUnmanagedRoot(t *testing.T) {
+	storeHome := filepath.Join(t.TempDir(), "store")
+	t.Setenv(storeHomeEnvVar, storeHome)
+	root := t.TempDir()
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--dry-run", "store", "path")
+	if code != 1 {
+		t.Fatalf("ahm --dry-run store path exited %d for an unmanaged root, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stderr, reportedRoot(t, root), "not a managed project")
+	if _, err := os.Stat(storeHome); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("--dry-run created the store root %s", storeHome)
+	}
+}
+
+// TestStorePathCommandRecordsAGitCheckoutWithoutConfig keeps a Git checkout that
+// 'ahm init' has not touched a valid recording root: it holds .git, so root
+// detection's managed-root rule accepts it and the command must not refuse it.
+func TestStorePathCommandRecordsAGitCheckoutWithoutConfig(t *testing.T) {
+	storeHome := setStoreHome(t)
+	root := newGitRepo(t)
+
+	stdout, stderr, code := runCLIFromDir(t, root, "store", "path")
+	if code != 0 {
+		t.Fatalf("ahm store path in a checkout with no config exited %d: %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "records:")
+	assertRegistryHasPathKey(t, storeHome, root)
+}
+
+// TestStorePathCommandRecordsAConfigOnlyRoot keeps a directory managed by
+// .ahm/config.json alone a valid recording root: it holds no .git, but root
+// detection's managed-root rule still accepts it.
+func TestStorePathCommandRecordsAConfigOnlyRoot(t *testing.T) {
+	storeHome := setStoreHome(t)
+	root := projectRoot(t)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "store", "path")
+	if code != 0 {
+		t.Fatalf("ahm --root <config-only> store path exited %d: %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "records:")
+	assertRegistryHasPathKey(t, storeHome, root)
+}
+
+// assertRegistryHasPathKey fails unless the store registry holds an entry for
+// root's path-derived key, which proves a recording command registered the root.
+func assertRegistryHasPathKey(t *testing.T, storeHome string, root string) {
+	t.Helper()
+	key, err := canonicalPathKey(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := loadRegistry(storeHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reg.Projects[key]; !ok {
+		t.Fatalf("registry has no entry for the path key %s:\n%+v", key, reg.Projects)
+	}
+}
+
 func TestStoreCommandRequiresASubcommand(t *testing.T) {
 	root := newGitRepo(t)
 	for _, args := range [][]string{{"store"}, {"store", "bogus"}} {

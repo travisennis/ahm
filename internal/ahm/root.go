@@ -162,10 +162,7 @@ func detectManagedRoot() (string, error) {
 		if err := rejectLegacyLayout(dir); err != nil {
 			return "", err
 		}
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return canonicalizeRoot(dir), nil
-		}
-		if stat, err := os.Stat(filepath.Join(dir, ".ahm", "config.json")); err == nil && !stat.IsDir() {
+		if isManagedRoot(dir) {
 			return canonicalizeRoot(dir), nil
 		}
 		parent := filepath.Dir(dir)
@@ -174,6 +171,20 @@ func detectManagedRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// isManagedRoot reports whether dir itself is a managed project root: it holds
+// .git or .ahm/config.json. It is the rule detectManagedRoot walks upward with,
+// factored out so a command that already holds a root can apply the same notion
+// of "project" instead of inventing a second one.
+func isManagedRoot(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		return true
+	}
+	if stat, err := os.Stat(filepath.Join(dir, filepath.FromSlash(configMetadataRelPath))); err == nil && !stat.IsDir() {
+		return true
+	}
+	return false
 }
 
 // canonicalizeRoot returns root in the canonical long form on Windows, where

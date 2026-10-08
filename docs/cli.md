@@ -42,8 +42,12 @@ the selector matching rules, and the exit codes.
 The `store` family manages the store's location, registry, and records layout.
 `ahm store list` is its read-only inventory: it reports every registered project
 with its store directory, recorded paths, and record count, works from any
-directory without writing, and refuses `--project`. See the
-[commands reference](references/cli/commands.md) for its output and guarantees.
+directory without writing, and refuses `--project`. `ahm store path` is the
+recording counterpart: it observes a managed project and refuses a root that
+holds neither `.git` nor `.ahm/config.json`, so it cannot register a phantom
+entry for a directory that is not a project. See the
+[commands reference](references/cli/commands.md) for their output and
+guarantees.
 
 `task list`, `task ready`, and `task blocked` share configurable deterministic
 ordering through `--sort` and `--reverse`; the supported fields and rank rules

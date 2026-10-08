@@ -346,10 +346,20 @@ the repository currently keeps records in the project.
   `origin`, a remote that names no URL, a `file://` remote, a local-path remote,
   and no remote at all fall back to the SHA-256 of the symlink-resolved project
   root. Credentials are never included in the key or persisted.
-- Identity uses the project root's own `.git`. A root whose own directory
-  holds no `.git` — a directory managed by `.ahm/config.json` alone, a `--root`
-  pointing into a repository subdirectory, or a bare repository — always uses
-  the path rule, so it never inherits the remote of an enclosing repository.
+- Identity uses the project root's own `.git`. An accepted root whose own
+  directory holds no `.git` — a directory managed by `.ahm/config.json` alone,
+  for example — always uses the path rule, so it never inherits the remote of
+  an enclosing repository.
+- A root that holds neither `.git` nor `.ahm/config.json` exits 1 with an error
+  naming the directory and the remediation (`ahm init`), instead of deriving a
+  path key and registering a phantom entry and store directory that nothing
+  clears. `store path` observes a managed project, so a `--root` at a bare
+  repository, or at a subdirectory that holds neither, is refused rather than
+  path-keyed. A Git checkout not yet initialized by `ahm init` (a root
+  with `.git` but no `.ahm/config.json`) and a directory managed by
+  `.ahm/config.json` alone both record normally, and `--dry-run` reports the
+  same refusal without writing. Under `--project`, the command reports a
+  registered project from the registry and applies no such guard.
 - A root that holds `.git` but that Git cannot read (git is missing, or the
   repository is broken or unreadable) exits 1 instead of falling back to the
   path rule, because a silent fallback would resolve a different key.

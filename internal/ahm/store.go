@@ -582,7 +582,10 @@ symlink-resolved project root. A root that holds .git but that Git cannot read
 fails instead of falling back, so identity never changes silently.
 
 The command records the project in the store registry and its state file, and
-writes nothing else.
+writes nothing else. It observes a managed project, so a root that holds
+neither .git nor .ahm/config.json is refused with the directory named and the
+remediation ('ahm init'), instead of registering a phantom entry: run it inside
+a project. A Git checkout not yet initialized by 'ahm init' still records.
 
 Supports --json, --plain, and --text output.
 
@@ -594,10 +597,36 @@ Examples:
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
+			if err := a.refuseUnmanagedStoreRoot(); err != nil {
+				return err
+			}
 			return a.storePath()
 		},
 	})
 	return store
+}
+
+// refuseUnmanagedStoreRoot refuses a recording store command whose root is not
+// a managed project. `--root` bypasses root detection, so without this guard
+// `store path` would derive a path key for any directory and register a phantom
+// entry and store directory that nothing clears. The test is root detection's
+// own managed-root rule (a directory holding .git or .ahm/config.json), reused
+// through isManagedRoot rather than a second notion of "project": a managed
+// project, or a Git checkout not yet initialized by 'ahm init', records
+// normally, and only a directory that is neither is refused.
+//
+// The guard belongs to the recording path alone, so the read-only store
+// commands never call it. It also skips a --project selection, which resolves a
+// registered project from the registry rather than observing a checkout, so the
+// selected project's recorded path has no bearing on whether the command runs.
+func (a *app) refuseUnmanagedStoreRoot() error {
+	if a.opts.project != "" || isManagedRoot(a.opts.root) {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s is not a managed project (no .git or %s); run this command inside a project, or run 'ahm init' to create one",
+		a.opts.root, configMetadataRelPath,
+	)
 }
 
 // storePath resolves and reports the project's store location. It records the
