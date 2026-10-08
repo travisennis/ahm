@@ -50,7 +50,9 @@ only commands that operate on records or the store accept it: every `task`
 command, `status`, `doctor`, `prime`, `store path`, and `store unregister`.
 Commands that read or write project-owned files — `init`, `index`, every `adr`
 command, and `store migrate` — refuse `--project` with a usage error and keep
-requiring `--root` or a detected checkout. `--project` and `--root` are mutually
+requiring `--root` or a detected checkout. `store list` refuses it too: it
+reports the whole store rather than one project's records, so a selector has no
+meaning. `--project` and `--root` are mutually
 exclusive; combining them is a usage error.
 
 With `--project`, `status` and `prime` report the selected project's recorded
@@ -97,7 +99,9 @@ the command with the resolver's error instead of reporting. Outside a managed
 repository, with neither `.git` nor `.ahm/config.json` above the working
 directory, `status`, `prime`, `doctor`, and the `task`, `adr`, and `store`
 commands all fail with remediation instructions; `--root` bypasses
-auto-detection for any of them.
+auto-detection for any of them. `store list` is the exception: it reads only the
+store, so it runs from any directory and accepts neither `--root` nor
+`--project`.
 
 ## Global Flags
 
@@ -122,7 +126,7 @@ behavior.
 | Flag | Description |
 | ---- | ----------- |
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. On Windows the root is canonicalized before use (an 8.3 short name such as `RUNNER~1`, a junction, or a differently-cased spelling resolves to the on-disk long form), so reported output and record locations agree; other platforms keep the detected or given spelling. |
-| `--project <selector>` | Targets another project's task records by resolving the selector against the home-store registry, so no checkout is read and no Git runs. Exact key match wins; otherwise a unique substring of the key or of the registry directory name selects the project. Unknown or ambiguous selectors exit 2 and list the candidates. Mutually exclusive with `--root`; accepted by `task`, `status`, `doctor`, `prime`, `store path`, and `store unregister` only. |
+| `--project <selector>` | Targets another project's task records by resolving the selector against the home-store registry, so no checkout is read and no Git runs. Exact key match wins; otherwise a unique substring of the key or of the registry directory name selects the project. Unknown or ambiguous selectors exit 2 and list the candidates. Mutually exclusive with `--root`; accepted by `task`, `status`, `doctor`, `prime`, `store path`, and `store unregister` only. `store list` refuses it because it reports the whole store. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
@@ -180,9 +184,9 @@ resolved `records_mode` (`project` or `home`) and the effective
 `strict_acceptance` boolean from the committed configuration; both print as
 `none` in text and `null` in JSON/plain when the project is not installed, and
 `strict_acceptance` is also unknown when the configuration was not read by a
-records-only `--project` selection. `ahm store path` is the deliberate
-exception: it reports absolute store paths, and text output abbreviates the
-user's home directory to `~`.
+records-only `--project` selection. `ahm store path` and `ahm store list` are
+the deliberate exceptions: they report absolute store paths, and text output
+abbreviates the user's home directory to `~`.
 
 When the workflow metadata is missing (not yet installed), `installed_version`,
 `records_mode`, and `strict_acceptance` show as `none` in text mode and `null`

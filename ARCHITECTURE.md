@@ -34,8 +34,8 @@ rather than half-adopted.
   behavior and the retired-file ownership boundary.
 - Atomic write guarantees and stale temp-file cleanup.
 - Home-store resolution: the `tasks_location` mode, the derived project key and
-  registry mapping, the `store path`, `store unregister`, and `store migrate`
-  command surface with its exit codes and refusals, and the
+  registry mapping, the `store path`, `store list`, `store unregister`, and
+  `store migrate` command surface with its exit codes and refusals, and the
   `store:<path-relative-to-store-project-directory>` display convention (for
   example, `store:tasks/active/001.md`).
 - Go module version, local tool versions, CI, and release packaging.
@@ -53,6 +53,7 @@ location map; this section describes what each group does.
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `metadatacache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record and configuration read reuse, and Markdown heading-section lookup. |
 | Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, task ID mark, and registry writes the move owes. |
 | Store registry | `internal/ahm/store_unregister.go` | `store unregister`: the whole-entry and single-path registry removals, the read-modify-write under the store-state lock, and the report the change prints. It edits the registry mapping only, never a record or a store directory. |
+| Store listing | `internal/ahm/store_list.go` | `store list`: the read-only registry inventory — each project's store directory, recorded paths with existence marks, and record counts read from its buckets — and the text, JSON, and plain report it prints. It takes no lock, writes nothing, and needs no project root. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode, which a new project writes as `home`), the managed `.gitignore` of every layout the mode owns, the store observation a new project records, and generated index writes. |
 | Status & prime | `internal/ahm/status.go`, `prime.go` | `status`, `doctor`, and the `prime` state report. |
 | Validation | `internal/ahm/validation.go`, `validation_report.go`, `validation_storage.go`, `validation_tasks.go`, `validation_buckets.go`, `validation_deps.go`, `validation_adrs.go`, `validation_indexes.go`, `validation_links.go` | Workflow validation: the check scopes and entry points, the shared report type and findings rendering, and the per-concern validators for storage and metadata, task records, buckets and duplicate IDs, dependencies, ADRs, generated indexes, and Markdown links. |

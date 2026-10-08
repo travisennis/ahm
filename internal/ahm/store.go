@@ -553,6 +553,7 @@ is moving them between the two layouts. Moving a backlog between machines, or
 taking a backup, is a separate product question and is not part of this group.
 
 Examples:
+  ahm store list
   ahm store path
   ahm store unregister
   ahm store migrate --to home`,
@@ -563,6 +564,7 @@ Examples:
 			return usageError("store requires a subcommand\n  ahm store <subcommand>")
 		},
 	}
+	store.AddCommand(a.storeListCommand())
 	store.AddCommand(a.storeMigrateCommand())
 	store.AddCommand(a.storeUnregisterCommand())
 	store.AddCommand(&cobra.Command{

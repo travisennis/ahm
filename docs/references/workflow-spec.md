@@ -238,9 +238,9 @@ project mode. A lock at the store root, where no project directory contains it,
 renders relative to the store root instead (`store:.lock/store-state`). The JSON
 `path` field of a task and the dry-run create, move, and
 unblock previews use the same store display while leaving project-mode payloads
-byte-identical. An operating-system error keeps its own text. `ahm store path`
-is the exception: it reports the absolute store root and records directory,
-with `~` abbreviation in text output.
+byte-identical. An operating-system error keeps its own text. The store's
+reporting commands, `ahm store path` and `ahm store list`, are the exceptions:
+they report absolute store paths, with `~` abbreviation in text output.
 
 A relative Markdown link in a task record resolves first against the record's
 own directory. If the target does not exist there, home mode retries against

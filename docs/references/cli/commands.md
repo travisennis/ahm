@@ -50,6 +50,7 @@ supersede
 ```
 
 ```text ahm-inventory store-subcommands
+list
 migrate
 path
 unregister
@@ -274,14 +275,56 @@ not manage record contents. See
 - In scope: observing and recording a project's store location (`store path`),
   moving records between the project and store layouts (`store migrate`),
   removing a registry entry or a recorded path (`store unregister`), read-only
-  store inspection, and registry maintenance that never touches records. A
-  read-only store listing (task 277) and a store-scoped check are accepted in
-  principle; neither is implemented yet.
+  store inspection (`store list`), and registry maintenance that never touches
+  records. A store-scoped check is accepted in principle; it is not implemented
+  yet.
 - Out of scope: `export`, `import`, `purge`, and anything else whose primary
   effect is on record contents. Moving or backing up a backlog between machines
   is a separate product question (task 256).
 - No store command creates, removes, or transforms record content; the only
   change one makes to records is relocating them between the two layouts.
+
+### `store list`
+
+Lists every project the store holds. It is read-only and root-optional: it reads
+the store root and its registry and writes nothing, so it needs no project and
+runs from any directory. This is the deliberate contrast with `store path`:
+`path` observes and records the current project, `list` reports what is already
+registered.
+
+**Guarantees:**
+
+- The store root is `~/.ahm`, or `AHM_HOME` when it names an absolute path; the
+  listing names the root it read. A relative `AHM_HOME` is a usage error (exit
+  code 2), and an `AHM_HOME` that exists and is not a directory exits 1.
+- Every registry entry is reported by key, sorted: its `kind` (`remote` or
+  `path`), the store directory that holds its records, the recorded paths, its
+  `created` time (when recorded), and `migrated_from` when a `store migrate`
+  recorded one.
+- Each recorded path is marked `exists` or `missing`, and an entry whose store
+  directory is gone is marked the same way, because a stale mapping is the
+  failure the command exists to surface. `store unregister` is the remedy.
+- Each entry reports the number of task records in its store directory. The
+  count is read from the project's buckets on every invocation; an entry with a
+  missing or empty store directory reports zero. There is no flag and no cache.
+- Paths under the user's home are abbreviated to `~` in text output, matching
+  `store path`. Remote spellings are printed in the same credential-free form
+  `store path` persists, so a hand-edited registry entry cannot leak a
+  credential either.
+- The command creates no store, registry, state file, or store directory, and
+  takes no store-state lock. A registry with no entry, or a store root that does
+  not exist, is an empty listing.
+- A registry entry that names an unusable store directory (an empty or `..`
+  segment) is refused with an error rather than read, matching how the store
+  resolves a project's directory.
+- `--root` and `--project` are both refused with a usage error (exit code 2):
+  the command reports the whole store from any directory, so a checkout root and
+  a single-project selector have no meaning here rather than being ignored.
+- `--json` and `--plain` emit `root` and an `entries` array; each entry carries
+  `key`, `kind`, `dir`, `dir_exists`, `remotes` (when recorded), `paths` (each
+  `path` with `exists`), `created` (when recorded), `migrated_from` (when set),
+  and `records`. Absolute paths are emitted verbatim; text output abbreviates
+  the home prefix.
 
 ### `store path`
 
