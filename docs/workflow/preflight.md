@@ -72,11 +72,10 @@ across passes.
 ### Pass 2: Correctness and source of truth
 
 This pass is about project-native correctness at the changed surface.
-Before reviewing, infer the project's language, framework, runtime, data
-modeling style, and validation tools from the changed files plus nearby
-manifests and scripts. Prefer explicit repo instructions in `AGENTS.md`,
-package manifests, lockfiles, CI config, `Makefile`, `justfile`, and
-existing tests over generic language advice.
+Read the changed files with nearby context, then prefer explicit repo
+instructions in `AGENTS.md`, [`CONTRIBUTING.md`](../../CONTRIBUTING.md),
+`justfile`, `.github/workflows/`, `go.mod`, and existing tests over generic
+advice.
 
 Focus questions:
 
@@ -109,25 +108,19 @@ Focus questions:
 
 ## Between-pass hygiene
 
-Ground each pass in narrow local evidence. Use the smallest check that fits
-the change:
+Ground each pass in narrow local evidence; [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
+is the canonical command catalog. Use the smallest check that fits the change:
 
 - `git diff --stat` and `git diff -- <paths>` to keep review anchored
-- formatters when formatting is affected, chosen from repo tooling
-  (`gofmt`, `prettier`, `ruff format`, language-native formatters, or a
-  documented script)
-- focused tests in the changed area using the repo's normal runner
-  (`go test`, `pytest`, `npm test`, `cargo test`, `bundle exec`, `make`,
-  `just`, or the relevant framework command)
-- type checks, linters, schema checks, migrations, generated-code checks, or
-  build steps when public types, shared code, config, API contracts, database
-  shape, or dependency behavior changed
-- the repo's final validation command after code/config/dependency changes
-  are complete, when one is documented in `AGENTS.md`, CI config, `Makefile`,
-  `justfile`, package scripts, or project docs
+- `just fmt` when formatting is affected
+- focused tests in the changed area with `go test` or `just test`
+- `go vet`, `golangci-lint`, or `just cli-parity` when public types, shared
+  code, config, or command wiring changed
+- `just ci`, the repository's final validation command, after code, config, or
+  dependency changes are complete
 
-For docs-only edits, verify rendered Markdown and links by inspection or
-`rg --files`; full CI is not required.
+For docs-only edits, run `just docs-md-lint` and verify links by inspection or
+`rg --files`; the full CI suite is not required.
 
 ## Synthesis
 
