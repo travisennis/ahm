@@ -263,6 +263,15 @@ func (a *app) taskEditLocked(args taskEditArgs, task Task, body string, hasBody 
 	if len(changes) == 0 {
 		return a.emit(report)
 	}
+	if args.set["title"] && !strings.EqualFold(updated.Title, task.Title) {
+		// A rename is the same duplicate-title hazard as a create and is
+		// reported the same way; warnDuplicateTitle skips this record's own ID.
+		// The EqualFold guard reports only a collision the rename introduces:
+		// a case-only change matches the same records its old title did, so any
+		// collision there predates this edit and is not this command's finding.
+		tasks, _ := a.getTasks()
+		a.warnDuplicateTitle(tasks, task.ID, updated.Title)
+	}
 	if a.opts.dryRun {
 		return a.emit(report)
 	}

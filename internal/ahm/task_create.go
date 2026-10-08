@@ -171,21 +171,25 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 }
 
 // warnDuplicateTitle reports each active task that already carries the title
-// about to be created. Titles are the human handle for a task and the only
-// field `task search` matches, so a duplicate splits one piece of work across
-// two records a reader cannot tell apart.
+// about to be written by newID. Titles are the human handle for a task and the
+// only field `task search` matches, so a duplicate splits one piece of work
+// across two records a reader cannot tell apart.
 //
 // The comparison is exact and case-insensitive. Exact matching has no false
 // positives and catches the failure that occurs, which is a title reproduced
 // verbatim; a normalized-token similarity would need a threshold and a way to
 // explain a near miss, which is a separate change. Completed and Cancelled
 // records are skipped, because a recurring task legitimately reuses its title
-// and reporting those matches would drown the useful case. Creation is never
-// refused: a duplicate title is strong evidence of a mistake but is
-// occasionally legitimate, so the warning names the colliding task and leaves
-// the decision to the caller.
+// and reporting those matches would drown the useful case. The record being
+// written is skipped by ID, so `task edit --title` does not report a rename
+// against itself. The write is never refused: a duplicate title is strong
+// evidence of a mistake but is occasionally legitimate, so the warning names
+// the colliding task and leaves the decision to the caller.
 func (a *app) warnDuplicateTitle(tasks []Task, newID string, title string) {
 	for _, task := range tasks {
+		if task.ID == newID {
+			continue
+		}
 		if task.Status == "Completed" || task.Status == "Cancelled" {
 			continue
 		}

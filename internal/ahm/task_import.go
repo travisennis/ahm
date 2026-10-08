@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -84,6 +85,7 @@ func (a *app) taskImport(source string) error {
 		return err
 	}
 	return a.withWorkflowRecordLock(!a.opts.dryRun, func() error {
+		defer a.emitWarnings()
 		a.invalidateTasks()
 		existing, err := a.getTasks()
 		if err != nil {
@@ -119,8 +121,26 @@ func (a *app) taskImport(source string) error {
 				report.Records[i].Outcome = "imported"
 			}
 		}
+		// Report title collisions only for a batch that lands (or, in dry-run,
+		// would land); a refused batch introduces no record, so there is nothing
+		// to flag. A warning never changes the report or the outcome.
+		a.warnImportDuplicateTitles(existing, tasks)
 		return a.emit(report)
 	})
+}
+
+// warnImportDuplicateTitles reports each imported record whose title collides,
+// case-insensitively, with an active pre-existing record or with an earlier
+// record in the same batch. The batch is bulk input, so a per-record stderr
+// warning matches the `task create` rule rather than inventing an aggregate
+// one, and the structured report is left untouched. Completed and Cancelled
+// records are skipped on both sides, exactly as warnDuplicateTitle does.
+func (a *app) warnImportDuplicateTitles(existing []Task, tasks []Task) {
+	active := slices.Clone(existing)
+	for _, task := range tasks {
+		a.warnDuplicateTitle(active, task.ID, task.Title)
+		active = append(active, task)
+	}
 }
 
 // Decode the document shape separately so JSON null cannot silently become a

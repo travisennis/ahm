@@ -223,6 +223,12 @@ is reachable.
 - `edit` has no `--status` and no `--depends-on` flag.
 - A mutation flag whose value already matches the record prints
   `<id> unchanged`, writes nothing, and exits 0.
+- A `--title` rename that gives the task the exact, case-insensitive title of
+  an active task prints the same stderr warning `task create` emits and still
+  writes. `Completed` and `Cancelled` records are not compared, renaming a task
+  to its own title does not warn, and only a collision the rename introduces is
+  reported, so a duplicate pair that predates the edit stays silent. The warning
+  is printed in `--dry-run` too, and nothing is written.
 - A write regenerates the task indexes. `edit` re-resolves its target inside the
   workflow record lock, so a concurrent update that lands before the lock is
   acquired is preserved.
@@ -587,6 +593,14 @@ but there is no crash-atomic batch transaction. Inspect the planned paths,
 remove only records from the failed batch, and run `ahm index` before retrying;
 retain any raised mark after an interrupted run. A successful import is
 additive: repeating it creates another batch, even with the same external refs.
+
+A title that matches, case-insensitively, the title of an active pre-existing
+record or of an earlier record in the same batch prints the same stderr warning
+`task create` emits, naming the colliding task's ID, status, and title; the
+record is still imported. `Completed` and `Cancelled` records are not compared.
+The warning goes to stderr only: it never appears in the `--json`/`--plain`
+report, and a refused batch warns nothing because it introduces no record. The
+warning is printed in `--dry-run` too, where nothing is written.
 
 `--dry-run` writes nothing and takes neither lock. It reports each allocated
 ID, record path, parent, dependency edge, and refusal. The preview is an
