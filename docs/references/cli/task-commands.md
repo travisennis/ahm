@@ -84,7 +84,7 @@ Priority sort order: `P0` → `P4`. Effort: `XS` → `XL`. Status: `Open` →
 alphabetical order. Missing or invalid timestamps sort before valid ones.
 Every field except `id` uses the task ID as its deterministic tie-breaker.
 
-The selected order is the same in text, plain, and JSON output.
+The selected order is the same in text and JSON output.
 
 `task next` always selects the highest-priority ready task without sort flags.
 
@@ -308,7 +308,9 @@ Lists parsed tasks.
 - `--priority`, `--effort`: filter by enum value.
 - `--sort <field>`, `--reverse`: see shared sorting above.
 - `--json`: emits parsed task structs with lowercase snake_case keys.
-- `--plain`: compact JSON.
+- `--plain`: ignored. `task list` has custom text output, so the task lines
+  print unchanged; `--json` is the machine-readable mode (see the
+  [global contract](global-contract.md#output-modes)).
 
 ### `task ready`
 
@@ -319,8 +321,8 @@ work), sorted by priority.
 
 **Guarantees:**
 
-- Same `--label`, `--sort`, `--reverse`, `--json`, and `--plain` flags as
-  `task list`.
+- Same `--label`, `--sort`, `--reverse`, and `--json` flags as `task list`;
+  `--plain` is ignored here too.
 
 ### `task blocked`
 
@@ -329,7 +331,8 @@ plus `Pending` tasks with an incomplete dependency.
 
 **Guarantees:**
 
-- Same presentation flags as `task list`.
+- Same `--label`, `--sort`, `--reverse`, and `--json` flags as `task list`;
+  `--plain` is ignored here too.
 - In text output each task is followed by a `reason:` line. A `Blocked` task
   reports its `blocked_reason` (with `blocked_ref` when present, or `no reason
   recorded` when the field is empty); a `Pending` task reports the dependency it
