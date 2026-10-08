@@ -1,11 +1,6 @@
----
-name: preflight
-description: Run a focused review-readiness pass on a nearly finished change before commit. Scales the review to change size (XS/S = one pass, M = two passes, L/XL = three sequential passes covering rules conformance, correctness/source-of-truth, and overengineering). Then synthesize and apply the worthwhile fixes.
----
-
 # Preflight
 
-Use this skill after a change is functionally correct and before commit or
+Use this procedure after a change is functionally correct and before commit or
 handoff. The branch handoff, commit text, task notes, and final response should
 describe already-preflighted code.
 
@@ -29,11 +24,11 @@ Include untracked new files from `git status --short` (or
 into new files can look deceptively small in `git diff --stat` until those
 files are staged.
 
-- **XS** (docs/skill/config only, ≤2 files): Root `AGENTS.md` if relevant;
+- **XS** (docs/config only, ≤2 files): Root `AGENTS.md` if relevant;
   one combined pass; one-line compliance note.
 - **S** (single module, ≤~50 LOC, no public API): Root and nearest nested
   `AGENTS.md`; one combined pass; one-line compliance note.
-- **M** (multi-file, ≤~200 LOC, no cross-module): Add the active task file and
+- **M** (multi-file, ≤~200 LOC, no cross-module): Add the task record and
   ExecPlan if one exists; run Pass 1 and Pass 2; use a short compliance block.
 - **L/XL** (cross-module, public API, agent loop, persistence, concurrency,
   external integrations, or security boundaries): Add relevant design docs
@@ -41,19 +36,19 @@ files are staged.
 
 Only read context items that are relevant to the changed surface. Discover
 them with targeted commands, e.g. `rg --files -g AGENTS.md`,
-`rg --files docs/design-docs docs/adr`, `git diff -- <paths>`.
+`rg --files docs/adr docs/exec-plans`, `git diff -- <paths>`.
 
 Required context items, in priority order:
 
 - repo root `AGENTS.md`
 - nested `AGENTS.md` files for the changed areas
-- the [task workflow](../../../docs/workflow/tasks.md) and `ahm task show <id>` output when
-  the work came from a task; open the source task record under `.ahm/tasks/`
-  only when `ahm` is unavailable or when reviewing manual edits to the task
-  file itself
+- the [task workflow](tasks.md) and `ahm task show <id>` output when
+  the work came from a task; open the source task record under the records
+  root only when `ahm` is unavailable or when reviewing manual edits to the
+  task file itself
 - the relevant active plan under `docs/exec-plans/active/` when one exists for
   the current work
-- the [ExecPlan workflow](../../../docs/workflow/exec-plans.md) for L/XL changes
+- the [ExecPlan workflow](exec-plans.md) for L/XL changes
 - any design doc or ADR directly relevant to the changed area
 - the changed files and enough nearby context to review them
 
@@ -131,8 +126,8 @@ the change:
   are complete, when one is documented in `AGENTS.md`, CI config, `Makefile`,
   `justfile`, package scripts, or project docs
 
-For docs-only or skill-only edits, verify rendered Markdown and links by
-inspection or `rg --files`; full CI is not required.
+For docs-only edits, verify rendered Markdown and links by inspection or
+`rg --files`; full CI is not required.
 
 ## Synthesis
 
@@ -172,7 +167,7 @@ Make the chosen context auditable. Length scales with change size.
 
 ```markdown
 ### Preflight compliance
-- XS docs-only change to one skill file. Root AGENTS.md skim only; no
+- XS docs-only change to one workflow doc. Root AGENTS.md skim only; no
   nested AGENTS.md under the changed path; no CI required.
 ```
 

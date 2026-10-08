@@ -13,7 +13,7 @@ workflow specs, upgrade docs, ADR docs, project workflow docs under
 - `CONTRIBUTING.md` command catalog, verification, and commit workflow.
 - `docs/cli.md` command contract.
 - `docs/references/workflow-spec.md` workflow semantics and file formats.
-- `docs/workflow/` project-owned task, ADR, and ExecPlan procedures.
+- `docs/workflow/` project-owned task, ADR, ExecPlan, and preflight procedures.
 - `docs/exec-plans/` project-owned design plans.
 - `docs/releases/` one published release-notes file per tagged version.
 - Generated `docs/adr/index.md`.
@@ -24,7 +24,7 @@ workflow specs, upgrade docs, ADR docs, project workflow docs under
 - Codemap, boundaries, invariants: `ARCHITECTURE.md`
 - Contributor setup, commands, verification: `CONTRIBUTING.md`
 - Docs navigation: `docs/README.md`
-- Task, ADR, and ExecPlan procedures: `docs/workflow/`
+- Task, ADR, ExecPlan, and preflight procedures: `docs/workflow/`
 - Test sandbox and verification helpers: `docs/guides/testing.md`
 - Design plans for large work: `docs/exec-plans/`
 - Release notes for published versions: `docs/releases/`

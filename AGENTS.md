@@ -36,9 +36,10 @@ commits.
 7. If work is managed, start and complete it through `ahm`.
 8. Make surgical edits and run risk-proportionate checks.
 9. After implementation edits, run a review in a subagent and address findings
-   until none remain, then perform preflight. If a third round reports findings
-   of the same class, stop patching: report the finding class and the suspected
-   design flaw, and escalate to a design decision.
+   until none remain, then perform [preflight](docs/workflow/preflight.md). If a
+   third round reports findings of the same class, stop patching: report the
+   finding class and the suspected design flaw, and escalate to a design
+   decision.
 10. Hand off per [Handoff](#handoff).
 
 Large or cross-cutting work requires a design plan under `docs/exec-plans/`,
@@ -114,8 +115,9 @@ project workflow guidance, load:
 - [Documentation](docs/guardrails/documentation.md), for which surfaces require
   which doc updates and where each one lives.
 - [Task workflow](docs/workflow/tasks.md), [ADR workflow](docs/workflow/adrs.md),
-  and [ExecPlan workflow](docs/workflow/exec-plans.md), for the project-owned
-  procedures `ahm` no longer prints.
+  [ExecPlan workflow](docs/workflow/exec-plans.md), and [preflight
+  procedure](docs/workflow/preflight.md), for the project-owned procedures
+  `ahm` no longer prints.
 
 ### Agent Instructions And Skills
 

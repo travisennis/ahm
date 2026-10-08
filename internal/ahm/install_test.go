@@ -403,7 +403,7 @@ func TestInitDropsObsoleteKeysAndPreservesUnknownMetadata(t *testing.T) {
     "enabled": true
   },
   "files": {
-    ".agents/skills/preflight/SKILL.md": "abc"
+    ".agents/TASKS.md": "abc"
   }
 }`)
 

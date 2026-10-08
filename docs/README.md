@@ -16,7 +16,8 @@ index.
 - [Glossary](references/glossary.md): concept definitions mapped to implementing
   types and authoritative docs.
 - [Workflow procedures](workflow/tasks.md): the project-owned [task](workflow/tasks.md),
-  [ADR](workflow/adrs.md), and [ExecPlan](workflow/exec-plans.md) procedures.
+  [ADR](workflow/adrs.md), [ExecPlan](workflow/exec-plans.md), and
+  [preflight](workflow/preflight.md) procedures.
 - [Design plans](exec-plans/README.md): in-progress and completed plans for
   large or cross-cutting work.
 - [Workflow upgrade guide](guides/workflow-upgrades.md): the v2 migration note
@@ -48,7 +49,7 @@ changes, or agent instructions), see the **Workflow Routing** section in
 - `guardrails/`: concise, operational rules for risky change surfaces.
 - `guides/`: repeatable workflows and procedures.
 - `references/`: stable contracts, schemas, formats, and lookup material.
-- `workflow/`: project-owned task, ADR, and ExecPlan procedures.
+- `workflow/`: project-owned task, ADR, ExecPlan, and preflight procedures.
 - `exec-plans/`: design plans for large or cross-cutting work.
 - `releases/`: one release-notes file per tagged version, published as the
   GitHub Release body.
