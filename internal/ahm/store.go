@@ -554,6 +554,7 @@ taking a backup, is a separate product question and is not part of this group.
 
 Examples:
   ahm store path
+  ahm store unregister
   ahm store migrate --to home`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -563,6 +564,7 @@ Examples:
 		},
 	}
 	store.AddCommand(a.storeMigrateCommand())
+	store.AddCommand(a.storeUnregisterCommand())
 	store.AddCommand(&cobra.Command{
 		Use:   "path",
 		Short: "Print the store root, project key, and records directory",

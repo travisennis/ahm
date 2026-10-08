@@ -34,8 +34,8 @@ rather than half-adopted.
   behavior and the retired-file ownership boundary.
 - Atomic write guarantees and stale temp-file cleanup.
 - Home-store resolution: the `tasks_location` mode, the derived project key and
-  registry mapping, the `store path` and `store migrate` command surface with
-  its exit codes and refusals, and the
+  registry mapping, the `store path`, `store unregister`, and `store migrate`
+  command surface with its exit codes and refusals, and the
   `store:<path-relative-to-store-project-directory>` display convention (for
   example, `store:tasks/active/001.md`).
 - Go module version, local tool versions, CI, and release packaging.
@@ -52,6 +52,7 @@ location map; this section describes what each group does.
 | Root detection | `internal/ahm/root.go` | Repository root discovery from `.git` or `.ahm/config.json`, and refusal of the retired `.agents/ahm.json` layout. |
 | Infrastructure | `internal/ahm/lock.go`, `write.go`, `fsync_unix.go`, `fsync_windows.go`, `git.go`, `identity.go`, `store.go`, `path.go`, `output.go`, `workflow_paths.go`, `recordcache.go`, `metadatacache.go`, `markdown_sections.go` | Atomic writes, write containment, and their directory sync, repo-local locks, Git environment isolation and remote reads, project identity derivation and home-store resolution, path helpers, shared output emitters, resolution of the project and records roots, per-command record and configuration read reuse, and Markdown heading-section lookup. |
 | Store migration | `internal/ahm/store_migrate.go` | `store migrate`, the one command that moves task records between the project and the store: the resumable read-write-remove move, the precondition reads that precede it, the destination-key, divergent-record, and uncommitted-change refusals, and the configuration, `.gitignore`, index, task ID mark, and registry writes the move owes. |
+| Store registry | `internal/ahm/store_unregister.go` | `store unregister`: the whole-entry and single-path registry removals, the read-modify-write under the store-state lock, and the report the change prints. It edits the registry mapping only, never a record or a store directory. |
 | Install | `internal/ahm/install.go` | `init` create-or-reconcile, metadata (including the `tasks_location` mode, which a new project writes as `home`), the managed `.gitignore` of every layout the mode owns, the store observation a new project records, and generated index writes. |
 | Status & prime | `internal/ahm/status.go`, `prime.go` | `status`, `doctor`, and the `prime` state report. |
 | Validation | `internal/ahm/validation.go`, `validation_report.go`, `validation_storage.go`, `validation_tasks.go`, `validation_buckets.go`, `validation_deps.go`, `validation_adrs.go`, `validation_indexes.go`, `validation_links.go` | Workflow validation: the check scopes and entry points, the shared report type and findings rendering, and the per-concern validators for storage and metadata, task records, buckets and duplicate IDs, dependencies, ADRs, generated indexes, and Markdown links. |
@@ -71,13 +72,14 @@ location map; this section describes what each group does.
   `writeFileAtomic` guarantees atomicity only; containment lives in
   `writeOwned`. Two writers stay outside it by design: the lock protocol writes
   its owner token inside the lock it just created, and `store path`,
-  `store migrate`, and a home-mode `ahm init` write the store's registry — and
-  their own observation of `project.json` — directly, because the registry
-  always sits at the store root, outside every owned root, and a resolved
-  `storePaths` is what names it. The state file is inside an owned root only
-  when the records live in the store. The task ID marks in that same state file
-  are written by `task create`, `task import`, `ahm init`, and `store migrate`,
-  which do hold the resolved paths, so they go through `writeOwned`. The lock
+  `store unregister`, `store migrate`, and a home-mode `ahm init` write the
+  store's registry directly — all but `store unregister` also record their own
+  observation of `project.json` — because the registry always sits at the store
+  root, outside every owned root, and a resolved `storePaths` is what names it.
+  The state file is inside an owned root only when the records live in the
+  store. The task ID marks in that same state file are written by
+  `task create`, `task import`, `ahm init`, and `store migrate`, which do hold
+  the resolved paths, so they go through `writeOwned`. The lock
   protocol also owns the lock directories it creates: the record lock's
   directory beside the records root, and the store-state lock's directory at
   the store root, beside the registry that lock serializes.

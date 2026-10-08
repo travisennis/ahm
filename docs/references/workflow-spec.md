@@ -218,7 +218,10 @@ store-state lock, and each writer keeps the higher mark it sees, so a mark only
 moves up even against a writer that does not take the lock. A store or project
 file with a format version newer than this version is refused rather than
 partially read. The registry may also record observed remote spellings with
-credentials removed and `migrated_from`.
+credentials removed and `migrated_from`. `store unregister` removes one recorded
+path from an entry, or the entry itself; the store directory and the project's
+state file, including the task ID marks it holds, are left in place, so
+unregistering loses no record and a later `store path` re-registers the entry.
 
 The committed `.ahm/config.json` selects the layout with `tasks_location`:
 `project` keeps records in the project, `home` resolves the store, and a
@@ -549,9 +552,10 @@ Store state writes share a second lock, the store-state lock at
 `registry.json` and of a project's `project.json`, across projects and
 processes, and uses the same protocol: owner token, heartbeat, and stale
 reclamation. It is acquired only where a store write happens — `store path`, a
-home-mode `init`, `store migrate`, and the `next_id` write of `task create` —
-and only after the record lock when a command holds both, so a store write from
-`task create` cannot deadlock with another project's `store path`.
+home-mode `init`, `store migrate`, `store unregister`, and the `next_id` write of
+`task create` — and only after the record lock when a command holds both, so a
+store write from `task create` cannot deadlock with another project's
+`store path`.
 
 ### Generated Index Write Semantics
 

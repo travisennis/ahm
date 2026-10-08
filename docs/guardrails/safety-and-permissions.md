@@ -28,13 +28,14 @@ atomic writes, and dry-run behavior.
   owned repository or workflow directory. Route every workflow record, index,
   and configuration write through `writeOwned`, which refuses a target outside
   an owned root and then writes atomically. A direct `writeFileAtomic` call is
-  reserved for the store state that `ahm store path`, `ahm store migrate`, and a
-  home-mode `ahm init` write, which they build from a resolved `storePaths`:
-  the store's own `registry.json`, which always sits at the store root, and
-  `project.json`, which is inside an owned root in `home` mode and outside one
-  in `project` mode. The task ID marks in that same `project.json` are written
-  by `task create`, `task import`, `ahm init`, and `ahm store migrate`, which
-  do hold the resolved paths, so they go through `writeOwned`. A direct
+  reserved for the store state that `ahm store path`, `ahm store migrate`,
+  `ahm store unregister`, and a home-mode `ahm init` write, which they build
+  from a resolved `storePaths`: the store's own `registry.json`, which always
+  sits at the store root, and `project.json`, which is inside an owned root in
+  `home` mode and outside one in `project` mode (`store unregister` writes only
+  the registry). The task ID marks in that same `project.json` are written by
+  `task create`, `task import`, `ahm init`, and `ahm store migrate`, which do
+  hold the resolved paths, so they go through `writeOwned`. A direct
   `os.Remove` is reserved for ahm-owned scratch and derived paths, never a path
   that came from user input: paths under a resolved records root built from that
   layout's own accessors (the task scan's record paths, its generated index

@@ -47,11 +47,11 @@ candidates.
 
 `--project` overrides *task record* resolution only. It selects no checkout, so
 only commands that operate on records or the store accept it: every `task`
-command, `status`, `doctor`, `prime`, and `store path`. Commands that read or
-write project-owned files — `init`, `index`, every `adr` command, and `store
-migrate` — refuse `--project` with a usage error and keep requiring `--root` or
-a detected checkout. `--project` and `--root` are mutually exclusive; combining
-them is a usage error.
+command, `status`, `doctor`, `prime`, `store path`, and `store unregister`.
+Commands that read or write project-owned files — `init`, `index`, every `adr`
+command, and `store migrate` — refuse `--project` with a usage error and keep
+requiring `--root` or a detected checkout. `--project` and `--root` are mutually
+exclusive; combining them is a usage error.
 
 With `--project`, `status` and `prime` report the selected project's recorded
 path as `root` and identify the project through the `store` block; the path is
@@ -122,11 +122,11 @@ behavior.
 | Flag | Description |
 | ---- | ----------- |
 | `--root <path>` | Sets the target repository root. Defaults to the nearest git root or `.ahm/config.json` parent. Outside a managed repository, strict commands fail with remediation instructions; use `--root` to bypass auto-detection. On Windows the root is canonicalized before use (an 8.3 short name such as `RUNNER~1`, a junction, or a differently-cased spelling resolves to the on-disk long form), so reported output and record locations agree; other platforms keep the detected or given spelling. |
-| `--project <selector>` | Targets another project's task records by resolving the selector against the home-store registry, so no checkout is read and no Git runs. Exact key match wins; otherwise a unique substring of the key or of the registry directory name selects the project. Unknown or ambiguous selectors exit 2 and list the candidates. Mutually exclusive with `--root`; accepted by `task`, `status`, `doctor`, `prime`, and `store path` only. |
+| `--project <selector>` | Targets another project's task records by resolving the selector against the home-store registry, so no checkout is read and no Git runs. Exact key match wins; otherwise a unique substring of the key or of the registry directory name selects the project. Unknown or ambiguous selectors exit 2 and list the candidates. Mutually exclusive with `--root`; accepted by `task`, `status`, `doctor`, `prime`, `store path`, and `store unregister` only. |
 | `--json` | Emits structured JSON for commands that use the shared emitter. For task list/show commands, this returns parsed task structs with lowercase snake_case keys (`id`, `title`, `status`, `priority`, etc.). Takes precedence over `--plain` and `--text`. |
 | `--plain` | Emits stable line-oriented output for shared-emitter responses by printing compact JSON on one line. Ignored by commands with custom text output. Takes precedence over `--text`. |
 | `--text` | Emits human-friendly text output. This is the default mode. The flag exists for explicit clarity in scripts but does not override `--json` or `--plain`. |
-| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task import`, `task edit`, task status transitions, task dependency add/remove, `store path`, and `store migrate`. |
+| `--dry-run` | Previews supported write operations without writing files. Supported by `init`, `index`, `adr create`, ADR lifecycle commands, `task create`, `task import`, `task edit`, task status transitions, task dependency add/remove, `store path`, `store unregister`, and `store migrate`. |
 | `--force` | Overrides strict acceptance checks during `task complete`, a whole-body `task edit` that would drop a `## Comments` or `## Cancellation Reason` section, the refusal of `store migrate --to home` when the project's records have uncommitted changes, and the refusal of a `store migrate` whose destination record differs from the record arriving. It never creates, overwrites, or removes `AGENTS.md`. |
 | `--help`, `-h` | Prints command help. |
 | `--version` | Prints the ahm binary version. |

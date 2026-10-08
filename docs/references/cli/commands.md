@@ -52,6 +52,7 @@ supersede
 ```text ahm-inventory store-subcommands
 migrate
 path
+unregister
 ```
 
 Each alias line reads `<alias path> = <canonical path>`, and the block covers
@@ -74,8 +75,8 @@ documented nor inventoried, because a user cannot reach it from help.
 All non-task commands share these guarantees unless stated otherwise:
 
 - **`--dry-run`**: previews the operation without writing files. Supported by
-  `init`, `index`, `adr create`, ADR lifecycle commands, `store path`, and
-  `store migrate`.
+  `init`, `index`, `adr create`, ADR lifecycle commands, `store path`,
+  `store unregister`, and `store migrate`.
 - **`--json` / `--plain`**: structured output mode. Unsupported commands print
   text regardless of the flag.
 
@@ -272,9 +273,10 @@ not manage record contents. See
 
 - In scope: observing and recording a project's store location (`store path`),
   moving records between the project and store layouts (`store migrate`),
-  read-only store inspection, and registry maintenance that never touches
-  records. A read-only store listing (task 277) and a store-scoped check are
-  accepted in principle; neither is implemented yet.
+  removing a registry entry or a recorded path (`store unregister`), read-only
+  store inspection, and registry maintenance that never touches records. A
+  read-only store listing (task 277) and a store-scoped check are accepted in
+  principle; neither is implemented yet.
 - Out of scope: `export`, `import`, `purge`, and anything else whose primary
   effect is on record contents. Moving or backing up a backlog between machines
   is a separate product question (task 256).
@@ -328,6 +330,38 @@ the repository currently keeps records in the project.
   project's store location instead of this checkout's, resolving it from the
   registry alone; `--root` must not be set. See the
   [global contract](global-contract.md) for the selector rules.
+
+### `store unregister`
+
+Removes the current project's entry from the store registry, or one recorded
+path from its entry. It edits the registry mapping only.
+
+**Guarantees:**
+
+- By default it removes the whole entry for the current project; `--path <path>`
+  removes one recorded path from the entry and leaves the entry and its other
+  paths in place. The two are separate modes, because removing a path must not
+  drop the project's mapping and removing an entry must not depend on a path.
+- `<path>` is matched against the entry's recorded paths, which are absolute and
+  symlink-resolved; a trailing separator or a redundant `.` does not hide a
+  match.
+- The registry is derived data, so removing an entry is recoverable: a later
+  `store path` in the same project re-registers the same key and directory.
+- The command never deletes a task or ADR record, and never deletes a store
+  directory; an orphaned project directory is left for separate cleanup.
+- Unregistering a project that is not registered, or a path the entry does not
+  record, exits 1 and names it rather than reporting a silent success.
+- The registry write holds the same store-state lock as every other store write.
+- `--dry-run` reports the entry and paths that would be removed and writes
+  nothing; it takes no lock.
+- `--json` and `--plain` emit `key`, `kind`, `entry_removed`, `paths_removed`,
+  and, for a single-path removal, `remaining_paths`; `dry_run` is set on a
+  preview. Text output prints the same removal and abbreviates a path under the
+  user's home to `~`. No remote spelling or credential is printed.
+- With the global `--project <selector>`, the command unregisters the selected
+  project instead of this checkout's, resolving it from the registry alone, so a
+  stale entry whose checkout is gone can still be cleared; `--root` must not be
+  set. See the [global contract](global-contract.md) for the selector rules.
 
 ### `store migrate --to home|project`
 
