@@ -342,6 +342,16 @@ func writeTaskFileWithPriority(t *testing.T, path string, id string, title strin
 	}
 }
 
+// hasFinding reports whether any finding carries the given code.
+func hasFinding(findings []validationFinding, code string) bool {
+	for _, finding := range findings {
+		if finding.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
 // writeTaskFileWithBody writes a task whose Markdown body is caller-supplied,
 // so tests can exercise body-text search independently of the title.
 func writeTaskFileWithBody(t *testing.T, path string, id string, title string, status string, priority string, labels string, body string) {
