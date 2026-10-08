@@ -41,7 +41,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	// Run task status (which reads and parses the task).
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"098"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "098", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1082,7 +1082,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1120,7 +1120,7 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1166,7 +1166,7 @@ func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 			var out strings.Builder
 			a := app{opts: options{root: root}, out: &out}
 			err := a.taskStatusWithArgs(taskStatusArgs{
-				ids:    []string{"001"},
+				id:     "001",
 				status: tt.target,
 				reason: tt.reason,
 			})
@@ -1237,7 +1237,7 @@ func TestTaskStatusNoOp(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "In Progress"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "In Progress"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1263,7 +1263,7 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1290,7 +1290,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{ids: []string{"001"}, status: "Cancelled", reason: "No longer needed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Cancelled", reason: "No longer needed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1316,7 +1316,7 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1343,7 +1343,7 @@ func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1384,7 +1384,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("single status", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"completed"}, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("all", []string{"completed"}, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1395,7 +1395,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("multiple statuses", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"pending", "cancelled"}, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("all", []string{"pending", "cancelled"}, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1406,7 +1406,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("normalization applies per entry", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"PENDING", "CANCELLED"}, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("all", []string{"PENDING", "CANCELLED"}, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1417,7 +1417,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("duplicate statuses are deduplicated", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"pending", "Pending"}, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("all", []string{"pending", "Pending"}, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1428,7 +1428,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 	t.Run("invalid status returns error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", []string{"pending", "bogus"}, nil, nil, nil)
+		err := a.taskListSorted("all", []string{"pending", "bogus"}, nil, nil, nil, "", false)
 		if err == nil {
 			t.Error("expected error for invalid status")
 		}
@@ -1441,7 +1441,7 @@ func TestTaskListFiltersStatus(t *testing.T) {
 		// Simulate what happens when --status pending, is used (trailing comma)
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", []string{"pending", ""}, nil, nil, nil)
+		err := a.taskListSorted("all", []string{"pending", ""}, nil, nil, nil, "", false)
 		if err == nil {
 			t.Error("expected error for empty status")
 		}
@@ -1460,7 +1460,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 	t.Run("matches all labels", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, []string{"type:feature", "area:cli"}, nil, nil); err != nil {
+		if err := a.taskListSorted("all", nil, []string{"type:feature", "area:cli"}, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1471,7 +1471,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 	t.Run("splits comma-separated labels", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, []string{"type:feature, area:docs"}, nil, nil); err != nil {
+		if err := a.taskListSorted("all", nil, []string{"type:feature, area:docs"}, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1482,7 +1482,7 @@ func TestTaskListFiltersLabels(t *testing.T) {
 	t.Run("empty label returns usage error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", nil, []string{"type:feature,"}, nil, nil)
+		err := a.taskListSorted("all", nil, []string{"type:feature,"}, nil, nil, "", false)
 		if err == nil {
 			t.Error("expected error for empty label")
 		}
@@ -1587,7 +1587,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 	t.Run("single priority filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, []string{"P0"}, nil); err != nil {
+		if err := a.taskListSorted("all", nil, nil, []string{"P0"}, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1598,7 +1598,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 	t.Run("multiple priority filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, []string{"P0", "P1"}, nil); err != nil {
+		if err := a.taskListSorted("all", nil, nil, []string{"P0", "P1"}, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1609,7 +1609,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 	t.Run("priority normalization applies", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, []string{"p0", "p1"}, nil); err != nil {
+		if err := a.taskListSorted("all", nil, nil, []string{"p0", "p1"}, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1620,7 +1620,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 	t.Run("invalid priority returns error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", nil, nil, []string{"P5"}, nil)
+		err := a.taskListSorted("all", nil, nil, []string{"P5"}, nil, "", false)
 		if err == nil {
 			t.Error("expected error for invalid priority")
 		}
@@ -1632,7 +1632,7 @@ func TestTaskListFiltersPriority(t *testing.T) {
 	t.Run("priority composes with status", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"Pending"}, nil, []string{"P1"}, nil); err != nil {
+		if err := a.taskListSorted("all", []string{"Pending"}, nil, []string{"P1"}, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1651,7 +1651,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 	t.Run("single effort filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, nil, []string{"M"}); err != nil {
+		if err := a.taskListSorted("all", nil, nil, nil, []string{"M"}, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1662,7 +1662,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 	t.Run("multiple effort filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, nil, []string{"XS", "S"}); err != nil {
+		if err := a.taskListSorted("all", nil, nil, nil, []string{"XS", "S"}, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1673,7 +1673,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 	t.Run("effort normalization applies", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", nil, nil, nil, []string{"xs", "m"}); err != nil {
+		if err := a.taskListSorted("all", nil, nil, nil, []string{"xs", "m"}, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1684,7 +1684,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 	t.Run("invalid effort returns error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskList("all", nil, nil, nil, []string{"XXL"})
+		err := a.taskListSorted("all", nil, nil, nil, []string{"XXL"}, "", false)
 		if err == nil {
 			t.Error("expected error for invalid effort")
 		}
@@ -1696,7 +1696,7 @@ func TestTaskListFiltersEffort(t *testing.T) {
 	t.Run("effort composes with status and label", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskList("all", []string{"Pending"}, nil, nil, []string{"M"}); err != nil {
+		if err := a.taskListSorted("all", []string{"Pending"}, nil, nil, []string{"M"}, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1887,7 +1887,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task list skips malformed task with warning", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("all", nil, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("all", nil, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1905,7 +1905,7 @@ func TestTaskCommandsResilientToMalformedTasks(t *testing.T) {
 	t.Run("task ready skips malformed task", func(t *testing.T) {
 		var out, errBuf strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &errBuf}
-		if err := a.taskList("ready", nil, nil, nil, nil); err != nil {
+		if err := a.taskListSorted("ready", nil, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -2171,7 +2171,7 @@ func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	err := a.taskStatus([]string{"002"}, "Completed")
+	err := a.taskStatusWithArgs(taskStatusArgs{id: "002", status: "Completed"})
 	if err == nil {
 		t.Error("expected error from completing task with incomplete dependency")
 	}
@@ -2191,7 +2191,7 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"002"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "002", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
@@ -2265,7 +2265,7 @@ func TestTaskMutationRefusesDuplicateIDs(t *testing.T) {
 	t.Run("status transition fails", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &strings.Builder{}}
-		err := a.taskStatus([]string{"042"}, "Completed")
+		err := a.taskStatusWithArgs(taskStatusArgs{id: "042", status: "Completed"})
 		if err == nil {
 			t.Fatal("expected error for duplicate task ID, got nil")
 		}
@@ -2314,7 +2314,7 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
@@ -2330,7 +2330,7 @@ func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2347,7 +2347,7 @@ func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) 
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2364,7 +2364,7 @@ func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatus([]string{"001"}, "Completed"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2707,7 +2707,7 @@ func TestTaskAcceptFromBlocked(t *testing.T) {
 	// Create a Blocked task directly.
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
 
-	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Pending"}); err != nil {
 		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 -> Pending")
@@ -2720,7 +2720,7 @@ func TestTaskAcceptNoOp(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
 
-	if err := a.taskStatus([]string{"001"}, "Pending"); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Pending"}); err != nil {
 		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 already Pending")
@@ -2759,7 +2759,7 @@ func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
 			defer wg.Done()
 			var out strings.Builder
 			a := app{opts: options{root: root}, out: &out}
-			if err := a.taskStatus([]string{id}, "Completed"); err != nil {
+			if err := a.taskStatusWithArgs(taskStatusArgs{id: id, status: "Completed"}); err != nil {
 				errc <- err
 			}
 		}()
@@ -2815,7 +2815,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	var out strings.Builder
 	go func() {
 		a := app{opts: options{root: root}, out: &out}
-		done <- a.taskStatus([]string{"001"}, "Completed")
+		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
 	}()
 
 	select {
@@ -2865,7 +2865,7 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	var out strings.Builder
 	go func() {
 		a := app{opts: options{root: root, force: true}, out: &out}
-		done <- a.taskStatus([]string{"001"}, "Completed")
+		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
 	}()
 
 	select {
@@ -2933,7 +2933,7 @@ func TestTaskCommentAndCompleteSerialized(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			a := app{opts: options{root: root, force: true}, out: io.Discard}
-			errc <- a.taskStatus([]string{"001"}, "Completed")
+			errc <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
 		}()
 
 		wg.Add(1)

@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-func (a *app) taskList(mode string, statuses []string, labels []string, priorities []string, efforts []string) error {
-	return a.taskListSorted(mode, statuses, labels, priorities, efforts, "", false)
-}
-
 func (a *app) taskListSorted(mode string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool) error {
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()

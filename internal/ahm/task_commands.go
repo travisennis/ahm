@@ -254,7 +254,7 @@ Examples:
 					return err
 				}
 				return a.taskStatusWithArgs(taskStatusArgs{
-					ids:            args,
+					id:             args[0],
 					status:         status,
 					reason:         reason,
 					blockReason:    blockReason,

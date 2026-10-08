@@ -10,7 +10,7 @@ import (
 )
 
 type taskStatusArgs struct {
-	ids    []string
+	id     string
 	status string
 	reason string
 	// blockReason and blockRef are carried only by the block verb. A block
@@ -40,16 +40,12 @@ func bucketForStatus(status string) string {
 // tests to establish a deterministic ordering with concurrent updates.
 var taskStatusPreLockHook = func() {}
 
-func (a *app) taskStatus(argv []string, status string) error {
-	return a.taskStatusWithArgs(taskStatusArgs{ids: argv, status: status})
-}
-
 func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 	// Resolve the task early so we can report "not found" before trying to
 	// acquire the mutation lock. Parse warnings are deferred to the fresh
 	// resolution under the lock so they are emitted only once.
 	tasks, _ := a.getTasks()
-	if _, err := resolveTaskFromTasks(parsed.ids[0], tasks); err != nil {
+	if _, err := resolveTaskFromTasks(parsed.id, tasks); err != nil {
 		return err
 	}
 	cancelReason := strings.TrimSpace(parsed.reason)
@@ -76,7 +72,7 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		// that any concurrent updates that landed before lock acquisition are
 		// preserved instead of overwritten by a pre-lock Task value.
 		a.invalidateTasks()
-		task, err := a.resolveTaskForMutation(parsed.ids[0])
+		task, err := a.resolveTaskForMutation(parsed.id)
 		if err != nil {
 			return err
 		}
