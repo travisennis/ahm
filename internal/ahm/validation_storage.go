@@ -60,10 +60,26 @@ func validateRecordsNotInProject(paths workflowPaths, report *validationReport) 
 	records := 0
 	for _, bucket := range []string{"active", "completed", "cancelled"} {
 		dir := project.tasksBucketDir(bucket)
-		entries, err := os.ReadDir(dir)
+		// Stat before the read so a bucket path that exists but is not a
+		// directory is reported the same way on every platform. os.ReadDir
+		// cannot carry that distinction on Windows: syscall.ENOTDIR is
+		// ERROR_PATH_NOT_FOUND there, and Errno.Is accepts it as
+		// os.ErrNotExist, so a regular file at the bucket's path would read as
+		// absent and be skipped. adrFilePaths and taskFilePathsFor carry the
+		// same guard for the same reason.
+		info, err := os.Stat(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
+		if err != nil {
+			report.addError("task_records_in_project", project.displayPath(dir), fmt.Sprintf("could not read %s while tasks_location is home: %v", project.displayPath(dir), err))
+			continue
+		}
+		if !info.IsDir() {
+			report.addError("task_records_in_project", project.displayPath(dir), fmt.Sprintf("%s is not a directory while tasks_location is home", project.displayPath(dir)))
+			continue
+		}
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			report.addError("task_records_in_project", project.displayPath(dir), fmt.Sprintf("could not read %s while tasks_location is home: %v", project.displayPath(dir), err))
 			continue

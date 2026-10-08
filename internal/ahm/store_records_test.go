@@ -515,6 +515,32 @@ func TestDoctorReportsTaskRecordsLeftInTheProject(t *testing.T) {
 	assertNotContains(t, stdout, "task_records_in_project")
 }
 
+// TestDoctorReportsANonDirectoryTaskBucket covers a bucket path that exists but
+// is not a directory while the mode is home. os.ReadDir cannot tell such a path
+// from an absent one on Windows, so the validator stats first and reports the
+// non-directory rather than skipping it as absent.
+func TestDoctorReportsANonDirectoryTaskBucket(t *testing.T) {
+	setStoreHome(t)
+	root := t.TempDir()
+	writeHomeModeConfig(t, root)
+	if _, stderr, code := runCLI(t, "--root", root, "init"); code != 0 {
+		t.Fatalf("init failed: %s", stderr)
+	}
+
+	// A regular file where the active bucket directory belongs.
+	writeFile(t, filepath.Join(root, ".ahm", "tasks", "active"), "not a directory\n")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "--json", "doctor")
+	if code != 1 {
+		t.Fatalf("doctor code = %d, want 1: stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout,
+		`"ok": false`,
+		`"code": "task_records_in_project"`,
+		".ahm/tasks/active is not a directory while tasks_location is home",
+	)
+}
+
 // TestHomeModeFindingsRenderStorePaths covers the labels and messages that
 // describe a record directory: they name the store's location, never an
 // absolute machine path.
