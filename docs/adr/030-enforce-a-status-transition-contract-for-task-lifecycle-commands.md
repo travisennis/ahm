@@ -81,11 +81,14 @@ block it again.
   `Completed`) still succeeds.
 - Good, because the help text and the command reference can state one contract
   the code enforces.
-- Bad, because three previously tolerated or unguarded invocations now exit 2:
+- Bad, because four previously tolerated or unguarded invocations now exit 2:
   `accept` on a non-Open task, `start` on a non-Pending task (including
-  restarting a `Completed` task), and `cancel` on a `Completed` task.
+  restarting a `Completed` task), `cancel` on a `Completed` task, and `block`
+  on an `In Progress` task.
 - Bad, because `reopen` no longer returns a `Completed` task to the ready queue
-  in one step, and re-blocking no longer corrects a recorded reason.
+  in one step, re-blocking no longer corrects a recorded reason, and cancelling
+  an already `Cancelled` task discards a newly supplied reason instead of
+  rewriting it.
 
 ## More Information
 
@@ -95,5 +98,6 @@ block it again.
   `docs/references/cli/task-commands.md`.
 - Partially supersedes ADR 028: `task block` accepts only `Open` and `Pending`
   tasks and no longer rewrites a recorded reason, replacing that ADR's "any
-  non-terminal status" clause. The `task unblock` contract is unchanged.
+  non-terminal status" clause. `task unblock` still accepts only a `Blocked`
+  task, but invoking it on a `Pending` task is now a no-op rather than an error.
 - Related: ADR 007 (task cancellation reasons).

@@ -138,4 +138,5 @@ like a fix.
   `Pending` tasks, and blocking an already-blocked task is a no-op rather than
   a reason rewrite, replacing the "any non-terminal status" clause and the
   "rewrites the record so the reason can be corrected" clause in `Command
-  surface` above. The `task unblock` contract is unchanged.
+  surface` above. `task unblock` still requires a `Blocked` task, but a
+  `Pending` task is now a no-op rather than an error.

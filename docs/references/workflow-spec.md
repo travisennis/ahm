@@ -127,7 +127,8 @@ the recorded reason and reference in place, so correcting a reason requires
 must be non-empty, and neither `--reason` nor `--ref` may contain a newline or
 carriage return, since both are single-line front-matter scalars. `ahm task
 unblock <id>` returns a `Blocked` task to `Pending` and
-clears both fields; a task that is not `Blocked` is refused. The fields are
+clears both fields; a `Pending` task is a no-op and any other status is a usage
+error. The fields are
 present only while the status is `Blocked`: every other status transition
 clears them, and a `Blocked` task whose `blocked_reason` is empty is reported as
 the warning-tier finding `task_blocked_missing_reason`.

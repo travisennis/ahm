@@ -18,9 +18,9 @@ type taskStatusContract struct {
 }
 
 // taskStatusContracts is the single source of truth for the lifecycle verb
-// contract. task_commands.go wires the subcommands from taskStatusVerbSpecs,
-// and TestTaskStatusVerbSpecsMatchContracts holds the two in step so the
-// executable contract and the wiring cannot drift.
+// contract enforced by taskStatusWithArgsLocked. task_commands.go wires the
+// subcommands from a spec slice, and TestTaskStatusContracts holds the two in
+// step so the executable contract and the wiring cannot drift.
 var taskStatusContracts = map[string]taskStatusContract{
 	"accept":   {target: "Pending", from: []string{"Open"}},
 	"start":    {target: "In Progress", from: []string{"Pending"}},
