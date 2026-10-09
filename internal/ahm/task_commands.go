@@ -184,65 +184,83 @@ Examples:
 	task.AddCommand(search)
 
 	for _, spec := range []struct {
-		use            string
-		aliases        []string
-		short          string
-		long           string
-		status         string
-		withReason     bool
-		withBlock      bool
-		requireBlocked bool
+		use        string
+		aliases    []string
+		short      string
+		long       string
+		verb       string
+		withReason bool
+		withBlock  bool
 	}{
-		{use: "accept <id>", short: "Accept a task into the ready queue", long: `Accept an Open task into the ready backlog as Pending.
+		{use: "accept <id>", short: "Accept a task into the ready queue", verb: "accept", long: `Accept an Open task into the ready backlog as Pending.
+
+Accepting a task that is already Pending reports that it is already Pending;
+any other status is a usage error.
 
 Examples:
   ahm task accept 001
-  ahm --dry-run task accept 001`, status: "Pending"},
-		{use: "start <id>", short: "Mark a task in progress", long: `Mark a task as In Progress.
+  ahm --dry-run task accept 001`},
+		{use: "start <id>", short: "Mark a task in progress", verb: "start", long: `Mark a Pending task In Progress.
+
+Starting a task that is already In Progress reports that it is already In
+Progress; any other status is a usage error.
 
 Examples:
   ahm task start 001
-  ahm --dry-run task start 001`, status: "In Progress"},
-		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", long: `Mark a task as Completed and regenerate indexes.
+  ahm --dry-run task start 001`},
+		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", verb: "complete", long: `Mark a task as Completed and regenerate indexes.
+
+Applies to an Open, Pending, In Progress, or Blocked task. Completing an
+already Completed task reports that it is already Completed; a Cancelled task
+is a usage error.
 
 Examples:
   ahm task complete 001
   ahm task close 001
-  ahm --dry-run task complete 001`, status: "Completed"},
-		{use: "cancel <id>", short: "Mark a task cancelled", long: `Mark a task as Cancelled with a required reason.
+  ahm --dry-run task complete 001`},
+		{use: "cancel <id>", short: "Mark a task cancelled", verb: "cancel", long: `Mark a task as Cancelled with a required reason.
+
+Applies to an Open, Pending, In Progress, or Blocked task. Cancelling an
+already Cancelled task reports that it is already Cancelled; a Completed task
+is a usage error. --reason is required whether or not the transition happens.
 
 Examples:
   ahm task cancel 001 --reason "Superseded by 002"
-  ahm --dry-run task cancel 001 --reason "Duplicate"`, status: "Cancelled", withReason: true},
-		{use: "reopen <id>", short: "Reopen a task", long: `Reopen a completed or cancelled task back to Pending.
+  ahm --dry-run task cancel 001 --reason "Duplicate"`, withReason: true},
+		{use: "reopen <id>", short: "Reopen a task", verb: "reopen", long: `Reopen a Completed, Cancelled, or Pending task to Open.
+
+Reopening returns the task to the untriaged Open queue, so 'ahm task accept' is
+required to queue it again. Reopening an Open task reports that it is already
+Open; any other status is a usage error.
 
 Examples:
   ahm task reopen 001
-  ahm --dry-run task reopen 001`, status: "Pending"},
-		{use: "block <id>", short: "Block a task with a reason", long: `Mark a task Blocked and record why, in the front-matter fields blocked_reason and blocked_ref.
+  ahm --dry-run task reopen 001`},
+		{use: "block <id>", short: "Block a task with a reason", verb: "block", long: `Mark a task Blocked and record why, in the front-matter fields blocked_reason and blocked_ref.
 
 --reason is required; --ref records an optional external reference such as an
-issue URL. Any non-terminal status can be blocked. Release the task with
-'ahm task unblock'.
+issue URL. Applies to an Open or Pending task. Blocking an already Blocked task
+reports that it is already Blocked; release it with 'ahm task unblock' and block
+again to correct the reason. Any other status is a usage error.
 
 Examples:
   ahm task block 042 --reason "Waiting on the storage decision"
   ahm task block 042 --reason "Upstream bug" --ref https://github.com/owner/repo/issues/1
-  ahm --dry-run task block 042 --reason "Waiting on ADR"`, status: "Blocked", withBlock: true},
-		{use: "unblock <id>", short: "Release a blocked task", long: `Return a Blocked task to Pending and clear its recorded block reason.
+  ahm --dry-run task block 042 --reason "Waiting on ADR"`, withBlock: true},
+		{use: "unblock <id>", short: "Release a blocked task", verb: "unblock", long: `Return a Blocked task to Pending and clear its recorded block reason.
 
-The task must currently be Blocked. This is distinct from the automatic
-unblock that happens when a task's dependencies complete.
+The task must currently be Blocked; a Pending task reports that it is already
+Pending, and any other status is a usage error. This is distinct from the
+automatic unblock that happens when a task's dependencies complete.
 
 Examples:
   ahm task unblock 042
-  ahm --dry-run task unblock 042`, status: "Pending", requireBlocked: true},
+  ahm --dry-run task unblock 042`},
 	} {
-		status := spec.status
+		verb := spec.verb
 		reason := ""
 		blockReason := ""
 		blockRef := ""
-		requireBlocked := spec.requireBlocked
 		cmd := &cobra.Command{
 			Use:     spec.use,
 			Aliases: spec.aliases,
@@ -254,12 +272,11 @@ Examples:
 					return err
 				}
 				return a.taskStatusWithArgs(taskStatusArgs{
-					id:             args[0],
-					status:         status,
-					reason:         reason,
-					blockReason:    blockReason,
-					blockRef:       blockRef,
-					requireBlocked: requireBlocked,
+					id:          args[0],
+					verb:        verb,
+					reason:      reason,
+					blockReason: blockReason,
+					blockRef:    blockRef,
 				})
 			},
 		}

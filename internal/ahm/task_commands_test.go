@@ -41,7 +41,7 @@ func TestTaskStatusAndCompleteRoundTripWithCRLF(t *testing.T) {
 	// Run task status (which reads and parses the task).
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "098", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "098", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1082,7 +1082,7 @@ func TestTaskStatusPreservesOptionalFrontMatter(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1120,7 +1120,7 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1144,18 +1144,19 @@ func TestTaskStatusPreservesUnknownFrontMatter(t *testing.T) {
 func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 	tests := []struct {
 		name          string
+		verb          string
 		initial       string
 		target        string
 		initialBucket string
 		targetBucket  string
 		reason        string
 	}{
-		{name: "accept", initial: "Open", target: "Pending", initialBucket: "active", targetBucket: "active"},
-		{name: "start", initial: "Pending", target: "In Progress", initialBucket: "active", targetBucket: "active"},
-		{name: "complete", initial: "In Progress", target: "Completed", initialBucket: "active", targetBucket: "completed"},
-		{name: "cancel", initial: "Pending", target: "Cancelled", initialBucket: "active", targetBucket: "cancelled", reason: "No longer needed"},
-		{name: "reopen completed", initial: "Completed", target: "Pending", initialBucket: "completed", targetBucket: "active"},
-		{name: "reopen cancelled", initial: "Cancelled", target: "Pending", initialBucket: "cancelled", targetBucket: "active"},
+		{name: "accept", verb: "accept", initial: "Open", target: "Pending", initialBucket: "active", targetBucket: "active"},
+		{name: "start", verb: "start", initial: "Pending", target: "In Progress", initialBucket: "active", targetBucket: "active"},
+		{name: "complete", verb: "complete", initial: "In Progress", target: "Completed", initialBucket: "active", targetBucket: "completed"},
+		{name: "cancel", verb: "cancel", initial: "Pending", target: "Cancelled", initialBucket: "active", targetBucket: "cancelled", reason: "No longer needed"},
+		{name: "reopen completed", verb: "reopen", initial: "Completed", target: "Open", initialBucket: "completed", targetBucket: "active"},
+		{name: "reopen cancelled", verb: "reopen", initial: "Cancelled", target: "Open", initialBucket: "cancelled", targetBucket: "active"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1167,7 +1168,7 @@ func TestTaskStatusTransitionsDoNotDuplicateFormattedTitleH1(t *testing.T) {
 			a := app{opts: options{root: root}, out: &out}
 			err := a.taskStatusWithArgs(taskStatusArgs{
 				id:     "001",
-				status: tt.target,
+				verb:   tt.verb,
 				reason: tt.reason,
 			})
 			if err != nil {
@@ -1237,7 +1238,7 @@ func TestTaskStatusNoOp(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "In Progress"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "start"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1263,7 +1264,7 @@ func TestTaskCompleteRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1290,7 +1291,7 @@ func TestTaskCancelRepairsBucketWhenStatusAlreadyMatches(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Cancelled", reason: "No longer needed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "cancel", reason: "No longer needed"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1316,7 +1317,7 @@ func TestTaskCompleteDryRunOnBucketMismatch(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root, dryRun: true}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -1343,7 +1344,7 @@ func TestTaskStatusNoOpWhenBucketAndStatusMatch(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2127,8 +2128,16 @@ func TestMainTaskLifecycleAndDependencyIntegration(t *testing.T) {
 	if code != 0 {
 		t.Errorf("reopen exit code = %d, stderr = %s", code, stderr)
 	}
+	assertContainsAll(t, stdout, "001 -> Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
+
+	// Reopening re-enters triage, so accept the task again to restore the ready
+	// queue before the remaining lifecycle steps.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "accept", "001")
+	if code != 0 {
+		t.Errorf("accept after reopen exit code = %d, stderr = %s", code, stderr)
+	}
 	assertContainsAll(t, stdout, "001 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "dep", "tree", "002")
 	if code != 0 {
@@ -2171,7 +2180,7 @@ func TestTaskCompleteRefusesIncompleteDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	err := a.taskStatusWithArgs(taskStatusArgs{id: "002", status: "Completed"})
+	err := a.taskStatusWithArgs(taskStatusArgs{id: "002", verb: "complete"})
 	if err == nil {
 		t.Error("expected error from completing task with incomplete dependency")
 	}
@@ -2191,7 +2200,7 @@ func TestTaskCompleteSucceedsWithCompletedDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "002", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "002", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
@@ -2265,7 +2274,7 @@ func TestTaskMutationRefusesDuplicateIDs(t *testing.T) {
 	t.Run("status transition fails", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out, err: &strings.Builder{}}
-		err := a.taskStatusWithArgs(taskStatusArgs{id: "042", status: "Completed"})
+		err := a.taskStatusWithArgs(taskStatusArgs{id: "042", verb: "complete"})
 		if err == nil {
 			t.Fatal("expected error for duplicate task ID, got nil")
 		}
@@ -2314,7 +2323,7 @@ func TestTaskCompleteSucceedsWithNoDependencies(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 	// Task should have been moved to completed.
@@ -2330,7 +2339,7 @@ func TestTaskCompleteUnblocksDirectDependents(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2347,7 +2356,7 @@ func TestTaskCompleteLeavesMultiDependencyBlockedUntilAllComplete(t *testing.T) 
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2364,7 +2373,7 @@ func TestTaskCompleteDoesNotUnblockUnrelatedBlockedTasks(t *testing.T) {
 
 	var out strings.Builder
 	a := app{opts: options{root: root}, out: &out}
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"}); err != nil {
 		t.Error(err)
 	}
 
@@ -2700,18 +2709,16 @@ func TestTaskAcceptDryRunPreviews(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Open")
 }
 
-func TestTaskAcceptFromBlocked(t *testing.T) {
+func TestTaskAcceptRefusesNonOpenStatus(t *testing.T) {
 	root := projectRoot(t)
-	var out strings.Builder
-	a := app{opts: options{root: root}, out: &out}
-	// Create a Blocked task directly.
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Task", "Blocked", "")
 
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Pending"}); err != nil {
-		t.Error(err)
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "accept", "001")
+	if code != 2 {
+		t.Fatalf("accept blocked exit code = %d, want 2, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, out.String(), "001 -> Pending")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
+	assertContainsAll(t, stderr, "cannot accept task 001", "status is Blocked", "applies only to Open")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Blocked")
 }
 
 func TestTaskAcceptNoOp(t *testing.T) {
@@ -2720,7 +2727,7 @@ func TestTaskAcceptNoOp(t *testing.T) {
 	a := app{opts: options{root: root}, out: &out}
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Already Pending", "Pending", "")
 
-	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Pending"}); err != nil {
+	if err := a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "accept"}); err != nil {
 		t.Error(err)
 	}
 	assertContainsAll(t, out.String(), "001 already Pending")
@@ -2759,7 +2766,7 @@ func TestTaskCompleteParallelUnblocksDependents(t *testing.T) {
 			defer wg.Done()
 			var out strings.Builder
 			a := app{opts: options{root: root}, out: &out}
-			if err := a.taskStatusWithArgs(taskStatusArgs{id: id, status: "Completed"}); err != nil {
+			if err := a.taskStatusWithArgs(taskStatusArgs{id: id, verb: "complete"}); err != nil {
 				errc <- err
 			}
 		}()
@@ -2815,7 +2822,7 @@ func TestTaskCompleteWaitsForStatusLock(t *testing.T) {
 	var out strings.Builder
 	go func() {
 		a := app{opts: options{root: root}, out: &out}
-		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
+		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"})
 	}()
 
 	select {
@@ -2865,7 +2872,7 @@ func TestTaskStatusReResolvesTargetUnderLock(t *testing.T) {
 	var out strings.Builder
 	go func() {
 		a := app{opts: options{root: root, force: true}, out: &out}
-		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
+		done <- a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"})
 	}()
 
 	select {
@@ -2933,7 +2940,7 @@ func TestTaskCommentAndCompleteSerialized(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			a := app{opts: options{root: root, force: true}, out: io.Discard}
-			errc <- a.taskStatusWithArgs(taskStatusArgs{id: "001", status: "Completed"})
+			errc <- a.taskStatusWithArgs(taskStatusArgs{id: "001", verb: "complete"})
 		}()
 
 		wg.Add(1)

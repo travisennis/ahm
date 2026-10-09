@@ -134,3 +134,8 @@ like a fix.
   preserves it and additionally clears the reason fields.
 - `task cancel --reason` (ADR 007) is the precedent for a required reason, but
   its reason lives in the body because it is provenance, not queryable state.
+- Partially superseded by ADR 030: `task block` now accepts only `Open` and
+  `Pending` tasks, and blocking an already-blocked task is a no-op rather than
+  a reason rewrite, replacing the "any non-terminal status" clause and the
+  "rewrites the record so the reason can be corrected" clause in `Command
+  surface` above. The `task unblock` contract is unchanged.

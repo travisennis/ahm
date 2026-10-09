@@ -64,6 +64,28 @@ Task priorities: `P0` – `P4`.
 
 Task efforts: `XS`, `S`, `M`, `L`, `XL`.
 
+## Status Transitions
+
+The lifecycle verbs apply only from the statuses their contract accepts, and
+each moves the task to a fixed target. A verb invoked when the task already
+holds its target status reports `<id> already <status>`, exits 0, and writes
+nothing; from any other unaccepted status the command is a usage error (exit 2)
+that names the current status and the accepted ones.
+
+| Verb | Accepts from | Target |
+| ---- | ------------ | ------ |
+| `task accept` | Open | Pending |
+| `task start` | Pending | In Progress |
+| `task complete` | Open, Pending, In Progress, Blocked | Completed |
+| `task cancel` | Open, Pending, In Progress, Blocked | Cancelled |
+| `task reopen` | Completed, Cancelled, Pending | Open |
+| `task block` | Open, Pending | Blocked |
+| `task unblock` | Blocked | Pending |
+
+Reopening targets `Open`, not `Pending`: a reopened task re-enters triage, so
+`task accept` is required to queue it again. A task already in its verb's target
+status in the wrong bucket is repaired by the same command.
+
 ## ID Resolution
 
 Task IDs are resolved by exact string match first. If no exact match is found,
@@ -365,20 +387,25 @@ Lists all unique labels across all tasks with per-label counts.
 ### `task start <id>`
 
 Sets task status to `In Progress` and moves the file to the `active/` bucket.
+Applies only to a `Pending` task.
 
 **Guarantees:**
 
-- Prints `<id> already In Progress` and writes nothing when status and bucket
-  already match.
-- No transition guard: starting a `Completed` or `Cancelled` task moves it
-  back to `active/`. Use `task reopen` to return it to `Pending` instead.
+- Prints `<id> already In Progress` and writes nothing when the task already
+  holds `In Progress`.
+- Any status other than `Pending` is a usage error (exit 2); starting a
+  `Completed` or `Cancelled` task no longer moves it back to `active/`. Use
+  `task reopen` to return a terminal task to `Open`.
 
 ### `task complete <id>`
 
-Sets task status to `Completed`.
+Sets task status to `Completed`. Applies to an `Open`, `Pending`,
+`In Progress`, or `Blocked` task.
 
 **Guarantees:**
 
+- Completing an already `Completed` task prints `<id> already Completed` and
+  writes nothing; a `Cancelled` task is a usage error (exit 2).
 - Strict acceptance (when enabled): fails if acceptance section missing,
   contains `- [ ] TODO`, or has unchecked items. Override with `--force`.
 - Requires every `depends_on` entry to be `Completed`; an incomplete
@@ -392,19 +419,28 @@ Sets task status to `Completed`.
 
 ### `task cancel <id> --reason <text>`
 
-Sets task status to `Cancelled`.
+Sets task status to `Cancelled`. Applies to an `Open`, `Pending`,
+`In Progress`, or `Blocked` task.
 
 **Guarantees:**
 
-- `--reason` is required and must be non-empty; `--force` does not bypass it.
-  The reason is stored in the body under `## Cancellation Reason`.
-- Moves the file to the `cancelled/` bucket. There is no transition guard, so
-  a `Completed` task can be cancelled this way.
+- `--reason` is required and must be non-empty; `--force` does not bypass it,
+  and it is required whether or not the transition happens. The reason is
+  stored in the body under `## Cancellation Reason`.
+- Cancelling an already `Cancelled` task prints `<id> already Cancelled` and
+  writes nothing; a `Completed` task is a usage error (exit 2).
+- Moves the file to the `cancelled/` bucket.
 - Leaves dependents untouched; only `task complete` unblocks them.
 
 ### `task reopen <id>`
 
-Returns a `Completed` or `Cancelled` task to `Pending`.
+Returns a `Completed`, `Cancelled`, or `Pending` task to `Open`. Reopening
+re-enters triage, so `task accept` is required to queue the task again.
+
+**Guarantees:**
+
+- An `Open` task is a no-op (`<id> already Open`); any other status is a usage
+  error (exit 2).
 
 ### `task block <id> --reason <text> [--ref <text>]`
 
@@ -415,14 +451,12 @@ Sets task status to `Blocked` and records why in front matter: the required
 
 - `--reason` is required and must be non-empty after trimming; `--force` does
   not bypass it, matching `task cancel`.
-- The task may be in any non-terminal status (`Open`, `Pending`, `In Progress`,
-  or already `Blocked`); a `Completed` or `Cancelled` task is refused as a
-  usage error (exit 2). Blocking an already-blocked task rewrites the record so
-  the reason can be corrected.
+- Applies to an `Open` or `Pending` task; any other status is a usage error
+  (exit 2). Blocking an already `Blocked` task prints `<id> already Blocked`
+  and writes nothing, so a recorded reason cannot be corrected in place: run
+  `task unblock` and block again.
 - `--ref` records an external reference, such as an issue URL or a person,
-  beside the reason. It is not a substitute for `--reason`. Blocking a task
-  replaces both fields, so re-blocking to correct the reason clears a
-  previously recorded `--ref` unless it is supplied again.
+  beside the reason. It is not a substitute for `--reason`.
 - `--reason` and `--ref` must not contain a newline or carriage return; both
   are single-line front-matter scalars.
 - `blocked_reason` and `blocked_ref` are present only while a task is
@@ -436,8 +470,9 @@ Returns a `Blocked` task to `Pending` and clears its recorded block reason.
 
 **Guarantees:**
 
-- The task must currently be `Blocked`; any other status is a usage error
-  (exit 2) naming the current status.
+- Applies to a `Blocked` task; a `Pending` task prints `<id> already Pending`
+  and writes nothing, and any other status is a usage error (exit 2) naming the
+  current status.
 - This is distinct from the automatic unblock that `task complete` performs
   when a task's dependencies are satisfied. Either path clears `blocked_reason`
   and `blocked_ref`.
@@ -446,6 +481,11 @@ Returns a `Blocked` task to `Pending` and clears its recorded block reason.
 
 Accepts an `Open` task into the ready queue by setting its status to
 `Pending`.
+
+**Guarantees:**
+
+- An already `Pending` task is a no-op (`<id> already Pending`); any other
+  status is a usage error (exit 2).
 
 ### `task comment <id> <text>`
 

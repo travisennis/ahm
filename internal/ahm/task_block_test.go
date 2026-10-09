@@ -71,7 +71,7 @@ func TestTaskBlockRefusesTerminalStatus(t *testing.T) {
 	assertContainsAll(t, stderr, "cannot block task 001")
 }
 
-func TestTaskBlockRewritesReasonWhenAlreadyBlocked(t *testing.T) {
+func TestTaskBlockOnAlreadyBlockedIsNoOp(t *testing.T) {
 	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Work", "Blocked", "blocked_reason: Old reason\n")
 
@@ -79,13 +79,8 @@ func TestTaskBlockRewritesReasonWhenAlreadyBlocked(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("re-block exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "001 -> Blocked")
-	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertContainsAll(t, string(data), "blocked_reason: New reason")
-	assertNotContains(t, string(data), "Old reason")
+	assertContainsAll(t, stdout, "001 already Blocked")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "blocked_reason: Old reason")
 }
 
 func TestTaskBlockRefusesNewlineInReason(t *testing.T) {
@@ -112,17 +107,16 @@ func TestTaskBlockRefusesNewlineInRef(t *testing.T) {
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: Pending")
 }
 
-func TestTaskBlockFromInProgress(t *testing.T) {
+func TestTaskBlockRefusesInProgress(t *testing.T) {
 	root := projectRoot(t)
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "WIP", "In Progress", "")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "block", "001", "--reason", "Paused for a decision")
-	if code != 0 {
-		t.Fatalf("block exit code = %d, stderr = %s", code, stderr)
+	if code != 2 {
+		t.Fatalf("block in progress exit code = %d, want 2, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stdout, "001 -> Blocked")
-	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"),
-		"status: Blocked", "blocked_reason: Paused for a decision")
+	assertContainsAll(t, stderr, "cannot block task 001", "status is In Progress", "applies only to Open or Pending")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: In Progress")
 }
 
 func TestTaskBlockedListShowsReason(t *testing.T) {
@@ -202,13 +196,13 @@ func TestTaskUnblockClearsReason(t *testing.T) {
 
 func TestTaskUnblockRequiresBlocked(t *testing.T) {
 	root := projectRoot(t)
-	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Pending Work", "Pending", "")
+	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Open Work", "Open", "")
 
 	stdout, stderr, code := runCLI(t, "--root", root, "task", "unblock", "001")
 	if code != 2 {
-		t.Fatalf("unblock pending exit code = %d, want 2, stdout = %s, stderr = %s", code, stdout, stderr)
+		t.Fatalf("unblock open exit code = %d, want 2, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, "cannot unblock task 001", "not Blocked")
+	assertContainsAll(t, stderr, "cannot unblock task 001", "status is Open", "applies only to Blocked")
 }
 
 func TestStatusTransitionFromBlockedClearsReason(t *testing.T) {
@@ -216,16 +210,16 @@ func TestStatusTransitionFromBlockedClearsReason(t *testing.T) {
 	writeTaskFile(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "001", "Blocked Work", "Blocked",
 		"blocked_reason: Waiting\n")
 
-	stdout, stderr, code := runCLI(t, "--root", root, "task", "accept", "001")
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "cancel", "001", "--reason", "Superseded")
 	if code != 0 {
-		t.Fatalf("accept exit code = %d, stderr = %s", code, stderr)
+		t.Fatalf("cancel exit code = %d, stderr = %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "001 -> Pending")
-	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "active", "001.md"))
+	assertContainsAll(t, stdout, "001 -> Cancelled")
+	data, err := os.ReadFile(filepath.Join(root, ".ahm", "tasks", "cancelled", "001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertContainsAll(t, string(data), "status: Pending")
+	assertContainsAll(t, string(data), "status: Cancelled")
 	assertNotContains(t, string(data), "blocked_reason")
 }
 

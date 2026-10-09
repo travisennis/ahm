@@ -5,21 +5,42 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
 
+// taskStatusContract is a lifecycle verb's transition contract (ADR 030): the
+// status the verb sets and the statuses it accepts.
+type taskStatusContract struct {
+	target string
+	from   []string
+}
+
+// taskStatusContracts is the single source of truth for the lifecycle verb
+// contract. task_commands.go wires the subcommands from taskStatusVerbSpecs,
+// and TestTaskStatusVerbSpecsMatchContracts holds the two in step so the
+// executable contract and the wiring cannot drift.
+var taskStatusContracts = map[string]taskStatusContract{
+	"accept":   {target: "Pending", from: []string{"Open"}},
+	"start":    {target: "In Progress", from: []string{"Pending"}},
+	"complete": {target: "Completed", from: []string{"Open", "Pending", "In Progress", "Blocked"}},
+	"cancel":   {target: "Cancelled", from: []string{"Open", "Pending", "In Progress", "Blocked"}},
+	"reopen":   {target: "Open", from: []string{"Completed", "Cancelled", "Pending"}},
+	"block":    {target: "Blocked", from: []string{"Open", "Pending"}},
+	"unblock":  {target: "Pending", from: []string{"Blocked"}},
+}
+
 type taskStatusArgs struct {
-	id     string
-	status string
+	id string
+	// verb selects the transition contract in taskStatusContracts.
+	verb string
+	// reason carries the cancellation reason for the cancel verb.
 	reason string
-	// blockReason and blockRef are carried only by the block verb. A block
-	// operation is recognized by its status, and requires a non-empty reason.
+	// blockReason and blockRef are carried only by block, which requires a
+	// non-empty reason.
 	blockReason string
 	blockRef    string
-	// requireBlocked marks the unblock verb, which applies only to a task whose
-	// current status is Blocked.
-	requireBlocked bool
 }
 
 // bucketForStatus returns the expected bucket directory for a task status.
@@ -41,6 +62,10 @@ func bucketForStatus(status string) string {
 var taskStatusPreLockHook = func() {}
 
 func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
+	contract, ok := taskStatusContracts[parsed.verb]
+	if !ok {
+		return fmt.Errorf("unknown task status verb %q", parsed.verb)
+	}
 	// Resolve the task early so we can report "not found" before trying to
 	// acquire the mutation lock. Parse warnings are deferred to the fresh
 	// resolution under the lock so they are emitted only once.
@@ -49,12 +74,12 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		return err
 	}
 	cancelReason := strings.TrimSpace(parsed.reason)
-	if parsed.status == "Cancelled" && cancelReason == "" {
+	if contract.target == "Cancelled" && cancelReason == "" {
 		return usageError("task cancel requires --reason\n  ahm task cancel <id> --reason <text>")
 	}
 	parsed.blockReason = strings.TrimSpace(parsed.blockReason)
 	parsed.blockRef = strings.TrimSpace(parsed.blockRef)
-	if parsed.status == "Blocked" {
+	if contract.target == "Blocked" {
 		if parsed.blockReason == "" {
 			return usageError("task block requires --reason\n  ahm task block <id> --reason <text>")
 		}
@@ -76,27 +101,42 @@ func (a *app) taskStatusWithArgs(parsed taskStatusArgs) error {
 		if err != nil {
 			return err
 		}
-		return a.taskStatusWithArgsLocked(parsed, task, cancelReason)
+		return a.taskStatusWithArgsLocked(parsed, contract, task, cancelReason)
 	})
 }
 
-func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, task Task, cancelReason string) error {
+// humanStatusList renders a status set for a usage message: "Open",
+// "Open or Pending", or "Open, Pending, or In Progress".
+func humanStatusList(statuses []string) string {
+	switch len(statuses) {
+	case 0:
+		return ""
+	case 1:
+		return statuses[0]
+	case 2:
+		return statuses[0] + " or " + statuses[1]
+	default:
+		return strings.Join(statuses[:len(statuses)-1], ", ") + ", or " + statuses[len(statuses)-1]
+	}
+}
+
+func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, contract taskStatusContract, task Task, cancelReason string) error {
 	defer a.emitWarnings()
-	status := parsed.status
+	status := contract.target
 
-	if parsed.requireBlocked && task.Status != "Blocked" {
-		return usageError(fmt.Sprintf("cannot unblock task %s: status is %s, not Blocked", task.ID, task.Status))
-	}
-	if parsed.status == "Blocked" && (task.Status == "Completed" || task.Status == "Cancelled") {
-		return usageError(fmt.Sprintf("cannot block task %s: status is %s", task.ID, task.Status))
-	}
-
-	// True no-op: status and bucket both match. Cancellation and blocking still
-	// rewrite the task so the required reason can be inserted or corrected.
-	expectedBucket := bucketForStatus(parsed.status)
-	if task.Status == parsed.status && task.Bucket == expectedBucket && parsed.status != "Cancelled" && parsed.status != "Blocked" {
-		fmt.Fprintf(a.out, "%s already %s\n", task.ID, parsed.status)
+	// ADR 030: a verb applies only from the statuses it accepts and moves the
+	// task to its target. A task that already holds the target status in its
+	// expected bucket is an idempotent no-op; the same status in the wrong
+	// bucket falls through so the rewrite repairs the placement; any other
+	// start state is a usage error.
+	expectedBucket := bucketForStatus(status)
+	if task.Status == status && task.Bucket == expectedBucket {
+		fmt.Fprintf(a.out, "%s already %s\n", task.ID, status)
 		return nil
+	}
+	if task.Status != status && !slices.Contains(contract.from, task.Status) {
+		return usageError(fmt.Sprintf("cannot %s task %s: status is %s; %s applies only to %s tasks",
+			parsed.verb, task.ID, task.Status, parsed.verb, humanStatusList(contract.from)))
 	}
 
 	var allTasks []Task

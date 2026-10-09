@@ -120,13 +120,13 @@ warns, but does not fail, when acceptance notes still contain the seeded
 
 `ahm task block <id> --reason <text> [--ref <text>]` records the reason, and an
 optional external reference, in the task front-matter fields `blocked_reason`
-and `blocked_ref`, and sets the status to `Blocked`. Blocking replaces any
-previously recorded reason and reference. `--reason` is required and
+and `blocked_ref`, and sets the status to `Blocked`. Only an `Open` or `Pending`
+task can be blocked; blocking an already `Blocked` task is a no-op that leaves
+the recorded reason and reference in place, so correcting a reason requires
+`task unblock` followed by another block. `--reason` is required and
 must be non-empty, and neither `--reason` nor `--ref` may contain a newline or
-carriage return, since both are single-line front-matter scalars. Any
-non-terminal status (`Open`, `Pending`, `In Progress`,
-or `Blocked`) can be blocked; a `Completed` or `Cancelled` task is refused as a
-usage error. `ahm task unblock <id>` returns a `Blocked` task to `Pending` and
+carriage return, since both are single-line front-matter scalars. `ahm task
+unblock <id>` returns a `Blocked` task to `Pending` and
 clears both fields; a task that is not `Blocked` is refused. The fields are
 present only while the status is `Blocked`: every other status transition
 clears them, and a `Blocked` task whose `blocked_reason` is empty is reported as

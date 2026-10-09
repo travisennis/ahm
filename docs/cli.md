@@ -60,6 +60,14 @@ own, and it never writes `status` or `depends_on`. `--add-label` accepts only
 labels some record already carries (see `task labels`); a new label enters
 through `task create --labels`.
 
+The lifecycle verbs (`task accept`, `task start`, `task complete`,
+`task cancel`, `task reopen`, `task block`, `task unblock`) apply only from the
+statuses their contract accepts. A verb invoked when the task already holds its
+target status is a no-op (exit 0); any other unaccepted status is a usage error
+(exit 2). Reopening targets `Open`, not `Pending`, so a reopened task must be
+accepted again. See the
+[task command reference](references/cli/task-commands.md#status-transitions).
+
 `task create`, `task edit --title`, and each record `task import` writes warn on
 stderr when a title matches an existing active task case-insensitively (import
 also compares against earlier records in the same batch); the command proceeds,
