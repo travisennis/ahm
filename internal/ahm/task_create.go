@@ -142,7 +142,7 @@ func (a *app) taskCreateParsedLocked(parsed taskCreateArgs, body string) error {
 	a.warnDuplicateTitle(tasks, id, parsed.title)
 	content := renderTask(task)
 	if a.opts.dryRun {
-		payload := map[string]any{"create": paths.payloadPath(path), "id": id}
+		payload := map[string]any{"create": paths.recordPath(path), "id": id}
 		if len(task.DependsOn) > 0 {
 			payload["depends_on"] = task.DependsOn
 		}

@@ -183,3 +183,6 @@ is not marked superseded, because most of its decision still holds.
 - Related decisions: ADR 001 (atomic writes and concurrency), ADR 013
   (ref-backed storage, superseded), ADR 015 (committed `.ahm` storage),
   ADR 018 (scrubbing inherited Git repository-location environment).
+- ADR 031 (canonicalize the task JSON path field with forward slashes)
+  partially supersedes this decision's statement that project-mode command
+  output is byte-identical: that field is now canonicalized on every platform.

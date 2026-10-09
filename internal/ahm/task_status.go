@@ -237,7 +237,7 @@ func (a *app) taskStatusWithArgsLocked(parsed taskStatusArgs, contract taskStatu
 		unblocked = a.taskUnblockDependents(allTasks, task.ID, now)
 	}
 	if a.opts.dryRun {
-		preview := map[string]any{"move": paths.payloadPath(target), "status": status}
+		preview := map[string]any{"move": paths.recordPath(target), "status": status}
 		if status == "Cancelled" {
 			preview["reason"] = cancelReason
 		}
@@ -348,7 +348,7 @@ func taskUnblockPreview(tasks []Task, paths workflowPaths) []map[string]any {
 	for _, task := range tasks {
 		preview = append(preview, map[string]any{
 			"id":     task.ID,
-			"path":   paths.payloadPath(task.Path),
+			"path":   paths.recordPath(task.Path),
 			"status": "Pending",
 		})
 	}

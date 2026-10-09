@@ -1545,38 +1545,27 @@ func TestTaskEditJSONUnchangedPathCarriesTheRecord(t *testing.T) {
 	}
 }
 
-func TestTaskEditReportRendersThePreviewPathInDryRun(t *testing.T) {
-	// The structured `path` keeps the record-path rendering while the dry-run
-	// text line uses the slash-normalized preview one. On POSIX the two are
-	// equal, so this pins the distinction directly.
+func TestTaskEditReportRendersTheRecordPathInDryRun(t *testing.T) {
+	// The dry-run text line prints the structured `path` field, which recordPath
+	// already canonicalizes with forward slashes, so there is no separate preview
+	// rendering to keep in step.
 	var out strings.Builder
 	report := taskEditReport{
-		ID:          "270",
-		Path:        `C:\repo\.ahm\tasks\active\270.md`,
-		DryRun:      true,
-		previewPath: "C:/repo/.ahm/tasks/active/270.md",
-		Changed:     []string{"priority"},
-		Changes:     []taskEditChange{{Field: "priority", From: "P2", To: "P1"}},
+		ID:      "270",
+		Path:    "C:/repo/.ahm/tasks/active/270.md",
+		DryRun:  true,
+		Changed: []string{"priority"},
+		Changes: []taskEditChange{{Field: "priority", From: "P2", To: "P1"}},
 	}
 	if err := report.RenderText(&out); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
 	if !strings.Contains(text, "270 edit: C:/repo/.ahm/tasks/active/270.md") {
-		t.Errorf("dry-run text = %q, want the preview path", text)
+		t.Errorf("dry-run text = %q, want the record path", text)
 	}
 	if !strings.Contains(text, "270 priority: P2 -> P1") {
 		t.Errorf("dry-run text = %q, want the field diff", text)
-	}
-
-	// A dry-run report with no preview path falls back to the structured one.
-	out.Reset()
-	report.previewPath = ""
-	if err := report.RenderText(&out); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), `270 edit: C:\repo\.ahm\tasks\active\270.md`) {
-		t.Errorf("fallback text = %q, want the structured path", out.String())
 	}
 }
 

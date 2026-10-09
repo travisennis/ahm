@@ -387,7 +387,7 @@ func (a *app) planTaskImport(records []taskImportRecord, existing []Task) ([]Tas
 		}
 		report.Records[i].ID = tasks[i].ID
 		if tasks[i].Path != "" {
-			report.Records[i].Path = paths.payloadPath(tasks[i].Path)
+			report.Records[i].Path = paths.recordPath(tasks[i].Path)
 		}
 		report.Records[i].Parent = tasks[i].Parent
 		report.Records[i].DependsOn = append(report.Records[i].DependsOn, tasks[i].DependsOn...)

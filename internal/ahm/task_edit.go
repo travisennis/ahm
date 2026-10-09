@@ -66,12 +66,6 @@ type taskEditReport struct {
 	Changed []string         `json:"changed"`
 	Changes []taskEditChange `json:"changes,omitempty"`
 	Task    *Task            `json:"task,omitempty"`
-
-	// previewPath is the dry-run text rendering of the record path. It is not a
-	// structured field: `Path` stays a recordPath rendering so a store record is
-	// never printed as an absolute machine path, while the dry-run line uses
-	// the slash-normalized form every other preview uses.
-	previewPath string
 }
 
 // RenderText implements the textRenderer interface for taskEditReport. A real
@@ -87,11 +81,7 @@ func (r taskEditReport) RenderText(w io.Writer) error {
 		return write("%s unchanged", r.ID)
 	}
 	if r.DryRun {
-		preview := r.previewPath
-		if preview == "" {
-			preview = r.Path
-		}
-		if err := write("%s edit: %s", r.ID, preview); err != nil {
+		if err := write("%s edit: %s", r.ID, r.Path); err != nil {
 			return err
 		}
 		for _, change := range r.Changes {
@@ -243,9 +233,6 @@ func (a *app) taskEditLocked(args taskEditArgs, task Task, body string, hasBody 
 		Updated: len(changes) > 0 && !a.opts.dryRun,
 		Changed: []string{},
 		Changes: changes,
-	}
-	if a.opts.dryRun {
-		report.previewPath = paths.payloadPath(task.Path)
 	}
 	if !a.opts.dryRun && len(changes) > 0 {
 		// Stamp before the reported record is rendered, so the payload's

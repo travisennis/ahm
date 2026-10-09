@@ -113,30 +113,24 @@ func TestWorkflowPathsHomeModeAccessors(t *testing.T) {
 	}
 }
 
-// TestWorkflowPathsRecordAndPreviewPaths pins the two output rules that differ
-// from displayPath, and why they differ from each other. A structured payload
-// carries the record's own absolute path rather than a repository-relative one,
-// and a store record renders as store:<store-relative>.
-//
-// The project case splits by call site. Before the home store, each dry-run
-// preview site applied filepath.ToSlash, and nothing touched the JSON `path`
-// field, so that field carried the platform's own separator. ADR 023 keeps
-// project-mode payloads byte-identical, so recordPath reproduces the field and
-// payloadPath reproduces the previews rather than unifying them.
+// TestWorkflowPathsRecordPath pins the two output rules for a structured `path`
+// field, which the dry-run previews share. A structured payload carries the
+// record's own absolute path separated with forward slashes rather than a
+// repository-relative one, and a store record renders as store:<store-relative>.
+// ADR 023 records this field as the one project-mode payload that is
+// canonicalized rather than byte-identical to the output before the home store,
+// so a single payload never mixes separators.
 //
 // The separator choice is only observable on Windows, where ToSlash is not the
-// identity: on a slash-separated platform both assertions below hold for any
+// identity: on a slash-separated platform every assertion below holds for any
 // implementation. The windows-latest leg of CI is what discriminates.
-func TestWorkflowPathsRecordAndPreviewPaths(t *testing.T) {
+func TestWorkflowPathsRecordPath(t *testing.T) {
 	root := t.TempDir()
 	project := workflowPathsFor(root)
 	native := project.taskFile("active", "001")
 
-	if got := project.recordPath(native); got != native {
-		t.Errorf("recordPath(project record) = %q, want the record's own path %q", got, native)
-	}
-	if got, want := project.payloadPath(native), filepath.ToSlash(native); got != want {
-		t.Errorf("payloadPath(project record) = %q, want %q", got, want)
+	if got, want := project.recordPath(native), filepath.ToSlash(native); got != want {
+		t.Errorf("recordPath(project record) = %q, want %q", got, want)
 	}
 
 	home := workflowPathsForStore(root, testStorePaths(t))
@@ -144,16 +138,9 @@ func TestWorkflowPathsRecordAndPreviewPaths(t *testing.T) {
 	if got, want := home.recordPath(storeRecord), "store:tasks/active/267.md"; got != want {
 		t.Errorf("recordPath(store record) = %q, want %q", got, want)
 	}
-	if got, want := home.payloadPath(storeRecord), "store:tasks/active/267.md"; got != want {
-		t.Errorf("payloadPath(store record) = %q, want %q", got, want)
-	}
-	// A project path stays an absolute project path even when the records live
-	// in the store.
-	if got := home.recordPath(project.adrIndexPath()); got != project.adrIndexPath() {
-		t.Errorf("recordPath(project path in store mode) = %q, want %q", got, project.adrIndexPath())
-	}
-	if got, want := home.payloadPath(project.adrIndexPath()), filepath.ToSlash(project.adrIndexPath()); got != want {
-		t.Errorf("payloadPath(project path in store mode) = %q, want %q", got, want)
+	// A project path is canonicalized even when the records live in the store.
+	if got, want := home.recordPath(project.adrIndexPath()), filepath.ToSlash(project.adrIndexPath()); got != want {
+		t.Errorf("recordPath(project path in store mode) = %q, want %q", got, want)
 	}
 }
 

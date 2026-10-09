@@ -136,10 +136,12 @@ location map; this section describes what each group does.
   and lock errors render through `displayPath`
   (`store:<path-relative-to-store-project-directory>` in home mode, such as
   `store:tasks/active/001.md`, and repository-relative in project mode). The
-  JSON record path and the dry-run previews render through `payloadPath`: the
-  same store-relative display in home mode and the record's own path in project
-  mode, so those payloads stay byte-identical for existing repositories. An
-  operating-system message keeps its own text.
+  JSON record path and the dry-run previews render through `recordPath`: the
+  same store-relative display in home mode, and the record's own absolute path
+  with forward slashes in project mode on every platform, so one payload never
+  mixes separators. This is the one project-mode payload canonicalized rather
+  than byte-identical for existing repositories (ADR 031). An operating-system
+  message keeps its own text.
 - Home mode never reissues a task ID while the store's state file survives:
   the store persists high-water marks in its project state file, beside the
   records — `next_id` for the top-level numbers, and `child_suffix_marks`, one

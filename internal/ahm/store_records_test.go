@@ -321,8 +321,8 @@ func TestHomeModeStatusReportsTheStore(t *testing.T) {
 
 // TestProjectModeOutputHasNoStoreField keeps the guard from ADR 023: a
 // repository whose configuration has no tasks_location key reports no store,
-// because its output must stay byte-identical to the output before the home
-// store existed.
+// because its output stays byte-identical to the output before the home store
+// existed, except for the canonicalized `path` field (ADR 031).
 func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 	setStoreHome(t)
 	root := t.TempDir()
@@ -348,12 +348,12 @@ func TestProjectModeOutputHasNoStoreField(t *testing.T) {
 
 	// Structured payloads keep the record's own absolute path in project mode,
 	// which is what keeps project-mode output byte-identical: displayPath would
-	// have made them repository-relative. That field kept the platform's own
-	// separator before the home store, so the expectation is the JSON encoding
-	// of the native path - strconv.Quote is what carries a Windows separator
-	// through JSON's own escaping, where a ToSlash expectation would not.
+	// have made them repository-relative. The field is canonicalized with
+	// forward slashes on every platform (ADR 031), so the expectation is the
+	// JSON encoding of the slash-separated path; ToSlash is the identity on
+	// POSIX and only the windows-latest leg discriminates.
 	record := filepath.Join(reportedRoot(t, root), ".ahm", "tasks", "active", "001.md")
-	wantPath := `"path": ` + strconv.Quote(record)
+	wantPath := `"path": ` + strconv.Quote(filepath.ToSlash(record))
 	stdout, stderr, code := runCLI(t, "--root", root, "--json", "task", "list")
 	if code != 0 {
 		t.Fatalf("task list --json: stdout=%q stderr=%q", stdout, stderr)

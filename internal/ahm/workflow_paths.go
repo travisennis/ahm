@@ -199,28 +199,20 @@ func (p workflowPaths) displayPath(path string) string {
 	return relPath(p.projectRoot, path)
 }
 
-// recordPath renders the `path` field of a task in a structured payload. A
-// store path is displayed the same way displayPath displays it, so a store
-// record is never printed as an absolute machine path. A project path is
-// returned unchanged: this field carried the record's own absolute path in the
-// platform's own separator before the home store, and ADR 023 keeps
-// project-mode payloads byte-identical, so canonicalizing it here would change
-// Windows output rather than preserve it.
+// recordPath renders the `path` field of a task in a structured payload and
+// the record path in a dry-run create, move, or unblock preview. A store path
+// is displayed the same way displayPath displays it, so a store record is
+// never printed as an absolute machine path. A project path keeps the record's
+// own absolute path separated with forward slashes, so one payload never mixes
+// separators: the field matches the previews, the generated index links, and
+// the `store:` rendering on every platform. ADR 023 records this field as the
+// one project-mode payload that is canonicalized rather than byte-identical to
+// the output before the home store.
 func (p workflowPaths) recordPath(path string) string {
 	if p.inStore() && pathWithin(p.store.ProjectDir, path) {
 		return p.displayPath(path)
 	}
-	return path
-}
-
-// payloadPath renders a record path for a dry-run create, move, or unblock
-// preview. It shares recordPath's store display and then separates the
-// project case with slashes, which is what every preview emitted before the
-// home store: the previews were built with filepath.ToSlash at each site,
-// while the JSON `path` field was not. The two are kept apart because one
-// return value cannot be byte-identical to both.
-func (p workflowPaths) payloadPath(path string) string {
-	return filepath.ToSlash(p.recordPath(path))
+	return filepath.ToSlash(path)
 }
 
 // inProjectRecordPath maps a store record path to the in-project path the
