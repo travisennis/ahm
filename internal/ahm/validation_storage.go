@@ -30,6 +30,7 @@ func validateManagedFiles(root string, paths workflowPaths, report *validationRe
 	}
 	tasks := validateTaskFiles(paths, report)
 	validateTaskDuplicateIDs(paths, tasks, report)
+	validateTaskDuplicateTitles(paths, tasks, report)
 	return tasks
 }
 

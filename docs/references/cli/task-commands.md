@@ -189,6 +189,9 @@ records root, so clones that share a home store serialize on the same lock.
   distinct, not a refusal. Matching is exact, not fuzzy, and `Completed` and
   `Cancelled` records are not compared, because recurring work reuses their
   titles. A collision is reported in `--dry-run` too, and nothing is written.
+  A pair that already exists on disk is not this warning's concern: `status`,
+  `doctor`, and `prime` report it as the warning-tier `task_duplicate_title`
+  finding instead.
 - `--dry-run` prints the target path and ID without creating, plus the planned
   `depends_on` when `--depends-on` is set. Dependency validation still runs in
   dry-run mode.
@@ -252,7 +255,9 @@ is reachable.
   writes. `Completed` and `Cancelled` records are not compared, renaming a task
   to its own title does not warn, and only a collision the rename introduces is
   reported, so a duplicate pair that predates the edit stays silent. The warning
-  is printed in `--dry-run` too, and nothing is written.
+  is printed in `--dry-run` too, and nothing is written. A pre-existing pair
+  stays silent here and surfaces instead as the warning-tier
+  `task_duplicate_title` finding from `status`, `doctor`, and `prime`.
 - A write regenerates the task indexes. `edit` re-resolves its target inside the
   workflow record lock, so a concurrent update that lands before the lock is
   acquired is preserved.
@@ -647,7 +652,9 @@ record or of an earlier record in the same batch prints the same stderr warning
 record is still imported. `Completed` and `Cancelled` records are not compared.
 The warning goes to stderr only: it never appears in the `--json`/`--plain`
 report, and a refused batch warns nothing because it introduces no record. The
-warning is printed in `--dry-run` too, where nothing is written.
+warning is printed in `--dry-run` too, where nothing is written. A pair that
+already exists on disk is reported by `status`, `doctor`, and `prime` as the
+warning-tier `task_duplicate_title` finding, not here.
 
 `--dry-run` writes nothing and takes neither lock. It reports each allocated
 ID, record path, parent, dependency edge, and refusal. The preview is an

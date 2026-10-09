@@ -73,7 +73,9 @@ stderr when a title matches an existing active task case-insensitively (import
 also compares against earlier records in the same batch); the command proceeds,
 writing the record or, in `--dry-run`, writing nothing. The warning names the
 colliding task's ID, status, and title; `Completed` and `Cancelled` records are
-not compared. The match is exact, not fuzzy.
+not compared. The match is exact, not fuzzy. A duplicate pair that already
+exists on disk is reported by `status`, `doctor`, and `prime` as the
+warning-tier `task_duplicate_title` finding.
 
 For implementation boundaries and invariants, see
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). For workflow state, store identity,

@@ -327,7 +327,9 @@ project root remains the only place `ahm` writes committed workflow state
 (`.ahm/config.json`, the committed `.ahm/.gitignore`, and ADRs).
 
 Workflow validation is read-only. `status` and `doctor` report missing or stale
-generated indexes, duplicate task IDs across task files, task status and bucket
+generated indexes, duplicate task IDs across task files, duplicate active-task
+titles (a warning-tier finding that compares titles case-insensitively and
+skips `Completed` and `Cancelled` records), task status and bucket
 mismatches, broken task dependencies, tracking tasks with at least one child
 whose child tasks are all Completed or Cancelled, completed task
 acceptance-note drift, ADR record issues, and broken or malformed Markdown

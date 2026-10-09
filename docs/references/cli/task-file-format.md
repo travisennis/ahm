@@ -124,6 +124,7 @@ Finding codes:
 | `task_missing_field` | Task front matter is missing a required field. |
 | `task_malformed` | A task could not be parsed or has unsupported enum values. |
 | `task_duplicate_id` | The same task ID appears in more than one bucket file. This error names both files and the manual recovery action. |
+| `task_duplicate_title` | More than one active task shares a title, compared case-insensitively. This warning-tier finding lists every active record carrying the title; `Completed` and `Cancelled` records are not compared, because recurring work reuses their titles. |
 | `task_bucket_mismatch` | A task status does not match its active, completed, or cancelled bucket. |
 | `task_dependency_missing` | A task depends on an ID that does not exist. |
 | `task_dependency_cycle` | Non-completed, non-cancelled tasks contain a dependency cycle. |
