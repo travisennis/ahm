@@ -115,7 +115,7 @@ func TestTaskBlockRefusesInProgress(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("block in progress exit code = %d, want 2, stdout = %s, stderr = %s", code, stdout, stderr)
 	}
-	assertContainsAll(t, stderr, "cannot block task 001", "status is In Progress", "applies only to Open or Pending")
+	assertContainsAll(t, stderr, "cannot block task 001", "status is In Progress", "applies only to Open, Pending, or Tracking")
 	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "active", "001.md"), "status: In Progress")
 }
 

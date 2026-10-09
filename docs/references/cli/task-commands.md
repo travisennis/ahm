@@ -76,15 +76,17 @@ that names the current status and the accepted ones.
 | ---- | ------------ | ------ |
 | `task accept` | Open | Pending |
 | `task start` | Pending | In Progress |
-| `task complete` | Open, Pending, In Progress, Blocked | Completed |
-| `task cancel` | Open, Pending, In Progress, Blocked | Cancelled |
+| `task complete` | Open, Pending, In Progress, Blocked, Tracking | Completed |
+| `task cancel` | Open, Pending, In Progress, Blocked, Tracking | Cancelled |
 | `task reopen` | Completed, Cancelled, Pending | Open |
-| `task block` | Open, Pending | Blocked |
+| `task block` | Open, Pending, Tracking | Blocked |
 | `task unblock` | Blocked | Pending |
 
 Reopening targets `Open`, not `Pending`: a reopened task re-enters triage, so
 `task accept` is required to queue it again. A task already in its verb's target
-status in the wrong bucket is repaired by the same command.
+status in the wrong bucket is repaired by the same command. A `Tracking`
+tracker is closed with `task complete`, abandoned with `task cancel`, or paused
+with `task block`; the other verbs reject `Tracking`.
 
 ## ID Resolution
 
@@ -400,7 +402,8 @@ Applies only to a `Pending` task.
 ### `task complete <id>`
 
 Sets task status to `Completed`. Applies to an `Open`, `Pending`,
-`In Progress`, or `Blocked` task.
+`In Progress`, `Blocked`, or `Tracking` task; completing a `Tracking` task
+closes a tracker.
 
 **Guarantees:**
 
@@ -420,7 +423,7 @@ Sets task status to `Completed`. Applies to an `Open`, `Pending`,
 ### `task cancel <id> --reason <text>`
 
 Sets task status to `Cancelled`. Applies to an `Open`, `Pending`,
-`In Progress`, or `Blocked` task.
+`In Progress`, `Blocked`, or `Tracking` task.
 
 **Guarantees:**
 
@@ -451,7 +454,8 @@ Sets task status to `Blocked` and records why in front matter: the required
 
 - `--reason` is required and must be non-empty after trimming; `--force` does
   not bypass it, matching `task cancel`.
-- Applies to an `Open` or `Pending` task; any other status is a usage error
+- Applies to an `Open`, `Pending`, or `Tracking` task; any other status is a
+  usage error
   (exit 2). Blocking an already `Blocked` task prints `<id> already Blocked`
   and writes nothing, so a recorded reason cannot be corrected in place: run
   `task unblock` and block again.

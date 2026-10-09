@@ -24,10 +24,10 @@ type taskStatusContract struct {
 var taskStatusContracts = map[string]taskStatusContract{
 	"accept":   {target: "Pending", from: []string{"Open"}},
 	"start":    {target: "In Progress", from: []string{"Pending"}},
-	"complete": {target: "Completed", from: []string{"Open", "Pending", "In Progress", "Blocked"}},
-	"cancel":   {target: "Cancelled", from: []string{"Open", "Pending", "In Progress", "Blocked"}},
+	"complete": {target: "Completed", from: []string{"Open", "Pending", "In Progress", "Blocked", "Tracking"}},
+	"cancel":   {target: "Cancelled", from: []string{"Open", "Pending", "In Progress", "Blocked", "Tracking"}},
 	"reopen":   {target: "Open", from: []string{"Completed", "Cancelled", "Pending"}},
-	"block":    {target: "Blocked", from: []string{"Open", "Pending"}},
+	"block":    {target: "Blocked", from: []string{"Open", "Pending", "Tracking"}},
 	"unblock":  {target: "Pending", from: []string{"Blocked"}},
 }
 

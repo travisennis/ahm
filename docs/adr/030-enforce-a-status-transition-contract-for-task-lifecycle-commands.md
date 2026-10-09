@@ -60,10 +60,10 @@ status and the accepted ones.
 | ---- | ------------ | ------ |
 | `accept` | Open | Pending |
 | `start` | Pending | In Progress |
-| `complete` | Open, Pending, In Progress, Blocked | Completed |
-| `cancel` | Open, Pending, In Progress, Blocked | Cancelled |
+| `complete` | Open, Pending, In Progress, Blocked, Tracking | Completed |
+| `cancel` | Open, Pending, In Progress, Blocked, Tracking | Cancelled |
 | `reopen` | Completed, Cancelled, Pending | Open |
-| `block` | Open, Pending | Blocked |
+| `block` | Open, Pending, Tracking | Blocked |
 | `unblock` | Blocked | Pending |
 
 Two changes follow from the table. `reopen` targets `Open` instead of `Pending`:
@@ -72,6 +72,13 @@ queue it again, and `reopen` is the inverse of `accept` for a `Pending` task.
 `block` and `unblock` no longer rewrite a task that already holds their target
 status; to correct a `Blocked` task's reason, release it with `unblock` and
 block it again.
+
+`Tracking` is a tracker status, not a work status: a tracker is created with
+`task create --status Tracking` and is listed in the ready queue once its
+children resolve. It is accepted by `complete` (close the tracker), `cancel`
+(abandon it), and `block` (pause it); `accept`, `start`, `reopen`, and `unblock`
+reject it. Omitting `Tracking` from `complete` would leave a tracker
+uncloseable, because no other command sets a task's status.
 
 ### Consequences
 

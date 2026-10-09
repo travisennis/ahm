@@ -210,9 +210,9 @@ Examples:
   ahm --dry-run task start 001`},
 		{use: "complete <id>", aliases: []string{"close"}, short: "Mark a task completed", verb: "complete", long: `Mark a task as Completed and regenerate indexes.
 
-Applies to an Open, Pending, In Progress, or Blocked task. Completing an
-already Completed task reports that it is already Completed; a Cancelled task
-is a usage error.
+Applies to an Open, Pending, In Progress, Blocked, or Tracking task.
+Completing an already Completed task reports that it is already Completed; a
+Cancelled task is a usage error.
 
 Examples:
   ahm task complete 001
@@ -220,8 +220,8 @@ Examples:
   ahm --dry-run task complete 001`},
 		{use: "cancel <id>", short: "Mark a task cancelled", verb: "cancel", long: `Mark a task as Cancelled with a required reason.
 
-Applies to an Open, Pending, In Progress, or Blocked task. Cancelling an
-already Cancelled task reports that it is already Cancelled; a Completed task
+Applies to an Open, Pending, In Progress, Blocked, or Tracking task. Cancelling
+an already Cancelled task reports that it is already Cancelled; a Completed task
 is a usage error. --reason is required whether or not the transition happens.
 
 Examples:
@@ -239,9 +239,10 @@ Examples:
 		{use: "block <id>", short: "Block a task with a reason", verb: "block", long: `Mark a task Blocked and record why, in the front-matter fields blocked_reason and blocked_ref.
 
 --reason is required; --ref records an optional external reference such as an
-issue URL. Applies to an Open or Pending task. Blocking an already Blocked task
-reports that it is already Blocked; release it with 'ahm task unblock' and block
-again to correct the reason. Any other status is a usage error.
+issue URL. Applies to an Open, Pending, or Tracking task. Blocking an already
+Blocked task reports that it is already Blocked; release it with 'ahm task
+unblock' and block again to correct the reason. Any other status is a usage
+error.
 
 Examples:
   ahm task block 042 --reason "Waiting on the storage decision"

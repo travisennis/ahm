@@ -79,6 +79,14 @@ func TestTaskStatusContracts(t *testing.T) {
 			t.Errorf("contract for %q has no registered subcommand", verb)
 		}
 	}
+
+	// A tracker is closed, abandoned, or paused; no other verb applies to it, and
+	// omitting Tracking from complete would leave a tracker uncloseable.
+	for _, verb := range []string{"complete", "cancel", "block"} {
+		if !slices.Contains(taskStatusContracts[verb].from, "Tracking") {
+			t.Errorf("%s must accept Tracking so a tracker can be closed or abandoned", verb)
+		}
+	}
 }
 
 // TestTaskStatusContractRejectsInapplicableState covers each verb invoked from a
@@ -92,11 +100,16 @@ func TestTaskStatusContractRejectsInapplicableState(t *testing.T) {
 	}{
 		{verb: "accept", status: "Blocked", wantFrom: "applies only to Open tasks"},
 		{verb: "start", status: "Open", wantFrom: "applies only to Pending tasks"},
-		{verb: "complete", status: "Cancelled", wantFrom: "applies only to Open, Pending, In Progress, or Blocked tasks"},
-		{verb: "cancel", status: "Completed", wantFrom: "applies only to Open, Pending, In Progress, or Blocked tasks"},
+		{verb: "complete", status: "Cancelled", wantFrom: "applies only to Open, Pending, In Progress, Blocked, or Tracking tasks"},
+		{verb: "cancel", status: "Completed", wantFrom: "applies only to Open, Pending, In Progress, Blocked, or Tracking tasks"},
 		{verb: "reopen", status: "In Progress", wantFrom: "applies only to Completed, Cancelled, or Pending tasks"},
-		{verb: "block", status: "Completed", wantFrom: "applies only to Open or Pending tasks"},
+		{verb: "block", status: "Completed", wantFrom: "applies only to Open, Pending, or Tracking tasks"},
 		{verb: "unblock", status: "Open", wantFrom: "applies only to Blocked tasks"},
+		// Tracking is a tracker status, so the work-item verbs reject it.
+		{verb: "accept", status: "Tracking", wantFrom: "applies only to Open tasks"},
+		{verb: "start", status: "Tracking", wantFrom: "applies only to Pending tasks"},
+		{verb: "reopen", status: "Tracking", wantFrom: "applies only to Completed, Cancelled, or Pending tasks"},
+		{verb: "unblock", status: "Tracking", wantFrom: "applies only to Blocked tasks"},
 	}
 	for _, tt := range tests {
 		for _, dryRun := range []bool{false, true} {
@@ -125,6 +138,21 @@ func TestTaskStatusContractRejectsInapplicableState(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestTaskCompleteClosesTrackingTracker covers the ADR 030 Tracking clause: a
+// Tracking tracker is closed with task complete, the flow the task workflow and
+// the task_tracking_children_complete warning describe.
+func TestTaskCompleteClosesTrackingTracker(t *testing.T) {
+	root := projectRoot(t)
+	writeContractTask(t, root, "001", "Tracking")
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "complete", "001")
+	if code != 0 {
+		t.Fatalf("complete tracking exit = %d, stdout = %s, stderr = %s", code, stdout, stderr)
+	}
+	assertContainsAll(t, stdout, "001 -> Completed")
+	assertFileContainsAll(t, filepath.Join(root, ".ahm", "tasks", "completed", "001.md"), "status: Completed")
 }
 
 // TestTaskStatusContractNoOpAtTarget covers each verb invoked when the task
