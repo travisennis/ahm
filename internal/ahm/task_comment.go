@@ -201,6 +201,13 @@ func appendComment(body string, comment string) string {
 				updated = append(updated, "")
 			}
 			updated = append(updated, comment)
+
+			// When a following heading ends the section, separate the new comment
+			// from it with a blank line so the heading is not flush against the
+			// comment text.
+			if end < len(lines) {
+				updated = append(updated, "")
+			}
 			updated = append(updated, lines[end:]...)
 			return strings.TrimSpace(strings.Join(updated, "\n"))
 		}
