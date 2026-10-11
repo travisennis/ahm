@@ -45,6 +45,21 @@ func TestAppendCommentEmptySectionBeforeHeading(t *testing.T) {
 	}
 }
 
+// TestAppendCommentSkipsFencedHeading guards against matching a `## Comments`
+// line that sits inside a fenced code block, which would split the fence.
+func TestAppendCommentSkipsFencedHeading(t *testing.T) {
+	ts := "**2026-06-24T12:00:00Z** — Test comment"
+
+	body := "# My Task\n\n## Comments\n\nOld comment.\n\n```\n## Comments\nfenced body\n```\n\n## Other\n\nTail.\n"
+	got := appendComment(body, ts)
+	assertContainsAll(t, got,
+		"```\n## Comments\nfenced body\n```",
+		"fenced body\n```\n\n"+ts,
+		"## Other\n\nTail.",
+	)
+	assertNotContains(t, got, "Old comment.\n\n"+ts)
+}
+
 // TestAppendCommentUnchangedCases pins the two paths task 290 must leave alone:
 // a ## Comments section that ends the body, and a body with no such section.
 func TestAppendCommentUnchangedCases(t *testing.T) {

@@ -32,14 +32,10 @@ func stripInlineCodeSpans(line string) string {
 // walkMarkdownLinks calls visit for each raw Markdown link target outside
 // fenced and inline code, with the target's one-based source line number.
 func walkMarkdownLinks(data []byte, visit func(lineNo int, target string)) {
-	inFence := false
-	for lineNo, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
+	lines := strings.Split(string(data), "\n")
+	fences := markdownFences(lines)
+	for lineNo, line := range lines {
+		if fences.inFence(lineNo) {
 			continue
 		}
 		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {

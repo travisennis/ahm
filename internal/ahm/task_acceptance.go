@@ -15,15 +15,20 @@ const (
 
 func parseAcceptanceNotes(body []byte) []taskAcceptanceFinding {
 	lines := strings.Split(strings.ReplaceAll(string(body), "\r\n", "\n"), "\n")
-	start, level := acceptanceSectionStart(lines)
+	start, sectionLevel := acceptanceSectionStart(lines)
 	if start < 0 {
 		return []taskAcceptanceFinding{taskAcceptanceMissing}
 	}
 
+	fences := markdownFences(lines)
 	hasPlaceholder := false
 	hasUnchecked := false
-	for _, line := range lines[start+1:] {
-		if headingLevel(line) > 0 && headingLevel(line) <= level {
+	for i := start + 1; i < len(lines); i++ {
+		if fences.inFence(i) {
+			continue
+		}
+		line := lines[i]
+		if level := headingLevel(line); level > 0 && level <= sectionLevel {
 			break
 		}
 		if !isUncheckedChecklistItem(line) {
@@ -47,7 +52,11 @@ func parseAcceptanceNotes(body []byte) []taskAcceptanceFinding {
 }
 
 func acceptanceSectionStart(lines []string) (int, int) {
+	fences := markdownFences(lines)
 	for i, line := range lines {
+		if fences.inFence(i) {
+			continue
+		}
 		trimmed := strings.TrimSpace(line)
 		level := headingLevel(trimmed)
 		if level != 2 && level != 3 {

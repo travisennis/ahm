@@ -234,7 +234,9 @@ is reachable.
   at all has an empty vocabulary, so an addition is accepted unchecked.
 - `--section <name>` replaces exactly that heading section, creating it at the
   end of the body when absent, and leaves every other section byte-identical.
-  The heading is matched case-insensitively at `##` or `###`. The name must be
+  The heading is matched case-insensitively at `##` or `###`. Fenced code
+  blocks are opaque: a `##`/`###` line inside a fenced code block is not a
+  heading and neither opens nor ends a section. The name must be
   non-empty, must not contain newlines, and must not contain `#`, since the
   name is spliced into a `## <name>` heading.
   A `--section` replacement builds the whole resulting body and passes it

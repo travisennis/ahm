@@ -43,6 +43,16 @@ func TestParseAcceptanceNotes(t *testing.T) {
 			body: "## Acceptance Notes\n\n### Follow-up\n\n- [ ] Verify nested item\n",
 			want: []taskAcceptanceFinding{taskAcceptanceUnchecked},
 		},
+		{
+			name: "fenced heading does not end the section",
+			body: "## Acceptance Notes\n\n```\n## Not a heading\n```\n\n- [ ] Real unchecked item\n",
+			want: []taskAcceptanceFinding{taskAcceptanceUnchecked},
+		},
+		{
+			name: "fenced placeholder is ignored",
+			body: "## Acceptance Notes\n\n```\n- [ ] TODO\n```\n\nDone.\n",
+			want: nil,
+		},
 	}
 
 	for _, tt := range tests {

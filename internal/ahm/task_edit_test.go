@@ -362,6 +362,27 @@ func TestTaskEditSectionReplacesOneSectionAndLeavesOthersIntact(t *testing.T) {
 	assertNotContains(t, content, "Change the thing.")
 }
 
+// TestTaskEditSectionSkipsFencedHeading reproduces the task 292 data-loss case:
+// a fenced example whose last line looks like the target heading must not be
+// treated as the real section.
+func TestTaskEditSectionSkipsFencedHeading(t *testing.T) {
+	root := projectRoot(t)
+	body := "## Problem\n\nExample:\n\n```text\nfirst line\n## Acceptance Notes\n```\n\nClosing paragraph.\n\n## Acceptance Notes\n\n- [x] Original.\n"
+	path := writeEditableTask(t, root, "270", "Fenced", "", body)
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Acceptance Notes", "--body", "- [x] Replaced.")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	content := mustRead(t, path)
+	assertContainsAll(t, content,
+		"```text\nfirst line\n## Acceptance Notes\n```",
+		"Closing paragraph.",
+		"## Acceptance Notes\n\n- [x] Replaced.",
+	)
+	assertNotContains(t, content, "- [x] Original.")
+}
+
 func TestTaskEditSectionCreatesMissingSection(t *testing.T) {
 	root := projectRoot(t)
 	path := writeEditableTask(t, root, "270", "Sectioned", "", "## Problem\n\nSomething is wrong.\n")

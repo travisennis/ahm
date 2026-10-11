@@ -428,26 +428,13 @@ func upsertADRSection(body string, heading string, content string) string {
 func upsertADRMoreInformationLine(body string, line string, match string) string {
 	newline := dominantNewline(body)
 	lines := splitLinesForEdit(body)
-	for i, current := range lines {
-		level := headingLevel(current)
-		if level != 2 && level != 3 {
-			continue
-		}
-		trimmedLine := strings.TrimSpace(current)
-		if !strings.EqualFold(strings.TrimSpace(trimmedLine[level:]), "More Information") {
-			continue
-		}
-		end := len(lines)
-		for j := i + 1; j < len(lines); j++ {
-			nextLevel := headingLevel(lines[j])
-			if nextLevel > 0 && nextLevel <= level {
-				end = j
-				break
-			}
-		}
-		section := append([]string{}, lines[i+1:end]...)
-		filtered := section[:0]
-		for _, existing := range section {
+	sections := locateHeadingSections(lines, []string{"More Information"})
+	if len(sections) > 0 {
+		// Preserve the established first-match behavior for repeated headings.
+		section := sections[0]
+		content := append([]string{}, lines[section.Start+1:section.End]...)
+		filtered := content[:0]
+		for _, existing := range content {
 			if strings.Contains(existing, match) {
 				continue
 			}
@@ -460,12 +447,12 @@ func upsertADRMoreInformationLine(body string, line string, match string) string
 			filtered = append(filtered, "")
 		}
 		filtered = append(filtered, line)
-		if end < len(lines) {
+		if section.End < len(lines) {
 			filtered = append(filtered, "")
 		}
-		updated := append([]string{}, lines[:i+1]...)
+		updated := append([]string{}, lines[:section.Start+1]...)
 		updated = append(updated, filtered...)
-		updated = append(updated, lines[end:]...)
+		updated = append(updated, lines[section.End:]...)
 		return joinLinesForEdit(updated, newline)
 	}
 	return upsertADRSection(body, "More Information", line)
