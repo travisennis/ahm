@@ -27,22 +27,41 @@ func TestAppendCommentBlankLineBeforeHeading(t *testing.T) {
 	}
 }
 
-// TestAppendCommentEmptySectionBeforeHeading covers the empty-section case, which
-// must also leave a blank line before a following heading. The comment sitting
-// flush under the empty ## Comments heading is pre-existing behavior, unchanged
-// here and asserted as-is.
-func TestAppendCommentEmptySectionBeforeHeading(t *testing.T) {
+// TestAppendCommentEmptySection covers the empty-section case. The new comment
+// starts after exactly one blank line, both under the heading and before any
+// following heading, matching the create-at-end path.
+func TestAppendCommentEmptySection(t *testing.T) {
 	ts := "**2026-06-24T12:00:00Z** — Test comment"
 
-	body := "# My Task\n\n## Comments\n\n## Other\n"
-	got := appendComment(body, ts)
-	want := "# My Task\n\n## Comments\n" + ts + "\n\n## Other"
-	if got != want {
-		t.Errorf("appendComment = %q, want %q", got, want)
-	}
-	if strings.Contains(got, ts+"\n## Other") {
-		t.Errorf("comment runs into following heading in %q", got)
-	}
+	t.Run("heading follows the section", func(t *testing.T) {
+		body := "# My Task\n\n## Comments\n\n## Other\n"
+		got := appendComment(body, ts)
+		want := "# My Task\n\n## Comments\n\n" + ts + "\n\n## Other"
+		if got != want {
+			t.Errorf("appendComment = %q, want %q", got, want)
+		}
+		if strings.Contains(got, ts+"\n## Other") {
+			t.Errorf("comment runs into following heading in %q", got)
+		}
+	})
+
+	t.Run("section ends the body", func(t *testing.T) {
+		body := "# My Task\n\n## Comments\n"
+		got := appendComment(body, ts)
+		want := "# My Task\n\n## Comments\n\n" + ts
+		if got != want {
+			t.Errorf("appendComment = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("section holds only blank lines", func(t *testing.T) {
+		body := "# My Task\n\n## Comments\n\n\n\n## Other\n"
+		got := appendComment(body, ts)
+		want := "# My Task\n\n## Comments\n\n" + ts + "\n\n## Other"
+		if got != want {
+			t.Errorf("appendComment = %q, want %q", got, want)
+		}
+	})
 }
 
 // TestAppendCommentSkipsFencedHeading guards against matching a `## Comments`

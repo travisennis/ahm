@@ -203,10 +203,10 @@ func appendComment(body string, comment string) string {
 			existing = trimTrailingBlankLines(existing)
 			updated = append(updated, existing...)
 
-			// Separate existing content from new comment with a blank line.
-			if len(existing) > 0 {
-				updated = append(updated, "")
-			}
+			// Separate the section content from the new comment with a blank
+			// line. When the section is empty, this still separates the heading
+			// itself from the comment, matching the create-at-end path.
+			updated = append(updated, "")
 			updated = append(updated, comment)
 
 			// When a following heading ends the section, separate the new comment
