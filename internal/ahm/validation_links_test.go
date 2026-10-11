@@ -57,7 +57,9 @@ func TestWalkMarkdownLinks(t *testing.T) {
 		"`[inline](ignored-inline.md)` [second](two.md)\n" +
 		"```md\n[fenced](ignored-backtick.md)\n```\n" +
 		"~~~md\n[fenced](ignored-tilde.md)\n~~~\n" +
-		"![image](image.png)\n")
+		"![image](image.png)\n" +
+		"\n" +
+		"    [indented](ignored-indented.md)\n")
 
 	type link struct {
 		lineNo int
@@ -85,12 +87,13 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	if err := installer.install(); err != nil {
 		t.Fatal(err)
 	}
-	// Quoted example links inside inline code spans and fenced code blocks must
-	// not be treated as navigation, but a real broken link on the same line
-	// (outside any backticks) must still be reported.
+	// Quoted example links inside inline code spans, fenced code blocks, and
+	// indented code blocks must not be treated as navigation, but a real broken
+	// link on the same line (outside any backticks) must still be reported.
 	writeLinkCarrierTask(t, root, "001",
 		"Span: `[ADRs](adr/index.md)` and span2: `[broken](also-missing.md)`.\n\n"+
 			"```md\n[fenced](fenced-missing.md)\n```\n\n"+
+			"    [indented](indented-missing.md)\n\n"+
 			"[real](real-missing.md)\n")
 
 	var out strings.Builder
@@ -106,6 +109,7 @@ func TestStatusReportsMarkdownLinksInWorkflowFilesWithCodeSpans(t *testing.T) {
 	assertNotContains(t, got, "adr/index.md")
 	assertNotContains(t, got, "also-missing.md")
 	assertNotContains(t, got, "fenced-missing.md")
+	assertNotContains(t, got, "indented-missing.md")
 }
 
 func TestValidateManagedRecordLinksByFamily(t *testing.T) {

@@ -95,8 +95,8 @@ Markdown link or an `ahm:` reference, for example `[ADR 023](ahm:adr/023)`,
 between lifecycle buckets and a home-store task that has no repository path;
 relative links keep their existing resolution and are not migrated. The
 [workflow specification](../workflow-spec.md) owns the scheme, its resolution
-rules, and the compatibility decision. Examples inside fenced code blocks and
-inline code spans are not treated as navigation.
+rules, and the compatibility decision. Examples inside fenced code blocks,
+indented code blocks, and inline code spans are not treated as navigation.
 
 ## Validation Findings
 

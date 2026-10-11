@@ -53,6 +53,26 @@ func TestParseAcceptanceNotes(t *testing.T) {
 			body: "## Acceptance Notes\n\n```\n- [ ] TODO\n```\n\nDone.\n",
 			want: nil,
 		},
+		{
+			name: "indented heading does not end the section",
+			body: "## Acceptance Notes\n\n    ## Not a heading\n\n- [ ] Real unchecked item\n",
+			want: []taskAcceptanceFinding{taskAcceptanceUnchecked},
+		},
+		{
+			name: "indented placeholder is ignored",
+			body: "## Acceptance Notes\n\n    - [ ] TODO\n\nDone.\n",
+			want: nil,
+		},
+		{
+			name: "four-space-indented acceptance heading is not a section start",
+			body: "    ## Acceptance Notes\n\n- [ ] Not acceptance\n",
+			want: []taskAcceptanceFinding{taskAcceptanceMissing},
+		},
+		{
+			name: "list-nested heading ends the section",
+			body: "## Acceptance Notes\n\n- item\n\n  ## Later\n\n- [ ] Not acceptance\n",
+			want: nil,
+		},
 	}
 
 	for _, tt := range tests {

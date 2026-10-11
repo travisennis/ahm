@@ -20,11 +20,11 @@ func parseAcceptanceNotes(body []byte) []taskAcceptanceFinding {
 		return []taskAcceptanceFinding{taskAcceptanceMissing}
 	}
 
-	fences := markdownFences(lines)
+	code := markdownCode(lines)
 	hasPlaceholder := false
 	hasUnchecked := false
 	for i := start + 1; i < len(lines); i++ {
-		if fences.inFence(i) {
+		if code.inCode(i) {
 			continue
 		}
 		line := lines[i]
@@ -52,9 +52,9 @@ func parseAcceptanceNotes(body []byte) []taskAcceptanceFinding {
 }
 
 func acceptanceSectionStart(lines []string) (int, int) {
-	fences := markdownFences(lines)
+	code := markdownCode(lines)
 	for i, line := range lines {
-		if fences.inFence(i) {
+		if code.inCode(i) {
 			continue
 		}
 		trimmed := strings.TrimSpace(line)

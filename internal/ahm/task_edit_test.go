@@ -383,6 +383,49 @@ func TestTaskEditSectionSkipsFencedHeading(t *testing.T) {
 	assertNotContains(t, content, "- [x] Original.")
 }
 
+// TestTaskEditSectionSkipsIndentedCodeHeading reproduces the same data-loss
+// class one indentation level over: an indented example whose last line looks
+// like the target heading must not be treated as the real section, or the
+// replacement deletes the text and heading after it.
+func TestTaskEditSectionSkipsIndentedCodeHeading(t *testing.T) {
+	root := projectRoot(t)
+	body := "## Problem\n\nExample:\n\n    first line\n    ## Acceptance Notes\n\nClosing paragraph.\n\n## Acceptance Notes\n\n- [x] Original.\n"
+	path := writeEditableTask(t, root, "270", "Indented", "", body)
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Acceptance Notes", "--body", "- [x] Replaced.")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	content := mustRead(t, path)
+	assertContainsAll(t, content,
+		"    first line\n    ## Acceptance Notes",
+		"Closing paragraph.",
+		"## Acceptance Notes\n\n- [x] Replaced.",
+	)
+	assertNotContains(t, content, "- [x] Original.")
+}
+
+// TestTaskEditSectionSkipsTabIndentedCodeHeading is the same collision with a
+// tab-indented example: a tab is an indented code block too, so the example's
+// heading-looking line must not become the section.
+func TestTaskEditSectionSkipsTabIndentedCodeHeading(t *testing.T) {
+	root := projectRoot(t)
+	body := "## Problem\n\nExample:\n\n\tfirst line\n\t## Acceptance Notes\n\nClosing paragraph.\n\n## Acceptance Notes\n\n- [x] Original.\n"
+	path := writeEditableTask(t, root, "270", "Tabbed", "", body)
+
+	_, stderr, code := runTaskEdit(t, root, "270", "--section", "Acceptance Notes", "--body", "- [x] Replaced.")
+	if code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
+	}
+	content := mustRead(t, path)
+	assertContainsAll(t, content,
+		"\tfirst line\n\t## Acceptance Notes",
+		"Closing paragraph.",
+		"## Acceptance Notes\n\n- [x] Replaced.",
+	)
+	assertNotContains(t, content, "- [x] Original.")
+}
+
 func TestTaskEditSectionCreatesMissingSection(t *testing.T) {
 	root := projectRoot(t)
 	path := writeEditableTask(t, root, "270", "Sectioned", "", "## Problem\n\nSomething is wrong.\n")

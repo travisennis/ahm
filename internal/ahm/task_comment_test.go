@@ -79,6 +79,21 @@ func TestAppendCommentSkipsFencedHeading(t *testing.T) {
 	assertNotContains(t, got, "Old comment.\n\n"+ts)
 }
 
+// TestAppendCommentSkipsIndentedCodeHeading guards against matching a
+// `## Comments` line that sits in an indented code block, which would attach
+// the new comment to the wrong section and split the code block.
+func TestAppendCommentSkipsIndentedCodeHeading(t *testing.T) {
+	ts := "**2026-06-24T12:00:00Z** — Test comment"
+
+	body := "# My Task\n\n## Summary\n\nText.\n\n    ## Comments\n    indented body\n\n## Comments\n\nOld comment.\n"
+	got := appendComment(body, ts)
+	assertContainsAll(t, got,
+		"    ## Comments\n    indented body",
+		"## Comments\n\nOld comment.\n\n"+ts,
+	)
+	assertNotContains(t, got, "indented body\n\n"+ts)
+}
+
 // TestAppendCommentUnchangedCases pins the two paths task 290 must leave alone:
 // a ## Comments section that ends the body, and a body with no such section.
 func TestAppendCommentUnchangedCases(t *testing.T) {

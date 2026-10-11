@@ -17,8 +17,8 @@ var markdownLinkSchemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 // inlineCodeSpanPattern matches inline code span content delimited by single
 // backticks. Quoted example links written inside backticks (for example a
 // span containing a markdown link) are text, not navigation, so the link
-// extractor strips them before matching link syntax. Fenced code blocks are
-// handled separately by the fence-tracking logic above this call.
+// extractor strips them before matching link syntax. Fenced and indented code
+// blocks are handled separately by the code-tracking logic above this call.
 var inlineCodeSpanPattern = regexp.MustCompile("`[^`]*`")
 
 // stripInlineCodeSpans removes inline code span content from a line so the
@@ -30,12 +30,12 @@ func stripInlineCodeSpans(line string) string {
 }
 
 // walkMarkdownLinks calls visit for each raw Markdown link target outside
-// fenced and inline code, with the target's one-based source line number.
+// code and inline code spans, with the target's one-based source line number.
 func walkMarkdownLinks(data []byte, visit func(lineNo int, target string)) {
 	lines := strings.Split(string(data), "\n")
-	fences := markdownFences(lines)
+	code := markdownCode(lines)
 	for lineNo, line := range lines {
-		if fences.inFence(lineNo) {
+		if code.inCode(lineNo) {
 			continue
 		}
 		for _, match := range markdownLinkPattern.FindAllStringSubmatch(stripInlineCodeSpans(line), -1) {

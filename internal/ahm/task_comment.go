@@ -169,10 +169,10 @@ func formatComment(timestamp string, author string, text string) string {
 func appendComment(body string, comment string) string {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	lines := strings.Split(body, "\n")
-	fences := markdownFences(lines)
+	code := markdownCode(lines)
 
 	for i, line := range lines {
-		if fences.inFence(i) {
+		if code.inCode(i) {
 			continue
 		}
 		trimmed := strings.TrimSpace(line)
@@ -182,7 +182,7 @@ func appendComment(body string, comment string) string {
 			// heading at level 2 or above, or end of body).
 			end := len(lines)
 			for j := i + 1; j < len(lines); j++ {
-				if fences.inFence(j) {
+				if code.inCode(j) {
 					continue
 				}
 				nextLevel := headingLevel(strings.TrimSpace(lines[j]))
