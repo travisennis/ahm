@@ -55,6 +55,22 @@ func validTaskStatus(status string) bool {
 	return containsString(statusOrder(), status)
 }
 
+// activeTaskStatuses returns the statuses whose records are still work in
+// progress: the default scope of a task search that does not opt into terminal
+// history with --all. It is statusOrder minus the terminal statuses, so a
+// status added to statusOrder joins the search default instead of being
+// silently dropped from it.
+func activeTaskStatuses() []string {
+	terminal := []string{"Completed", "Cancelled"}
+	active := make([]string, 0, len(statusOrder()))
+	for _, status := range statusOrder() {
+		if !containsString(terminal, status) {
+			active = append(active, status)
+		}
+	}
+	return active
+}
+
 func normalizeTaskPriority(priority string) (string, error) {
 	key := enumKey(priority)
 	for _, item := range priorityOrder() {

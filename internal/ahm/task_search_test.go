@@ -20,7 +20,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("returns a body-only hit", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -31,7 +31,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("body match is case-insensitive", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("HIJACK", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("HIJACK", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		assertContainsAll(t, out.String(), "001 [Pending]", "002 [Open]")
@@ -40,7 +40,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("lists title matches before body-only matches", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -64,7 +64,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("a task matching in both fields appears once", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		if n := strings.Count(out.String(), "002 [Open]"); n != 1 {
@@ -75,7 +75,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("body hit composes with status filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", []string{"Open"}, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", []string{"Open"}, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -86,7 +86,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("body hit composes with label filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, []string{"area:docs"}, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, []string{"area:docs"}, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -97,7 +97,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("json output carries the matched body", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root, json: true}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		// 001 matches only through its body, and its title has no "hijack",
@@ -108,7 +108,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 	t.Run("a miss matches no task", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("zebra", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("zebra", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		if strings.TrimSpace(out.String()) != "No tasks found." {
@@ -139,7 +139,7 @@ func TestTaskSearchANDTerms(t *testing.T) {
 	t.Run("every term must match", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack stall", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack stall", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -151,7 +151,7 @@ func TestTaskSearchANDTerms(t *testing.T) {
 		for _, query := range []string{"hijack slot", "slot hijack"} {
 			var out strings.Builder
 			a := app{opts: options{root: root}, out: &out}
-			if err := a.taskSearch(query, nil, nil, nil, nil, "", false); err != nil {
+			if err := a.taskSearch(query, nil, nil, nil, nil, "", false, false); err != nil {
 				t.Error(err)
 			}
 			got := out.String()
@@ -163,7 +163,7 @@ func TestTaskSearchANDTerms(t *testing.T) {
 	t.Run("multi-term match is case-insensitive", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("HIJACK STALL", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("HIJACK STALL", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		assertContainsAll(t, out.String(), "001 [Pending]", "005 [Pending]", "006 [Pending]")
@@ -172,7 +172,7 @@ func TestTaskSearchANDTerms(t *testing.T) {
 	t.Run("terms match inside words", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("ijack tall", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("ijack tall", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		assertContainsAll(t, out.String(), "001 [Pending]", "005 [Pending]", "006 [Pending]")
@@ -181,7 +181,7 @@ func TestTaskSearchANDTerms(t *testing.T) {
 	t.Run("title matches precede body matches", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack stall", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack stall", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		// 006 is a title match; 001 and 005 match without every term in the
@@ -198,7 +198,7 @@ func TestTaskSearchQuotedPhrase(t *testing.T) {
 	t.Run("quoted span matches an adjacent phrase", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch(`"hijack a slot"`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"hijack a slot"`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -209,13 +209,13 @@ func TestTaskSearchQuotedPhrase(t *testing.T) {
 	t.Run("phrase order is literal", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch(`"hijack a slot"`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"hijack a slot"`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		assertContainsAll(t, out.String(), "001 [Pending] P2 S Add timeout handling")
 
 		out.Reset()
-		if err := a.taskSearch(`"slot a hijack"`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"slot a hijack"`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		if strings.TrimSpace(out.String()) != "No tasks found." {
@@ -226,7 +226,7 @@ func TestTaskSearchQuotedPhrase(t *testing.T) {
 	t.Run("phrase matches in the title", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch(`"hijack stall"`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"hijack stall"`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -237,7 +237,7 @@ func TestTaskSearchQuotedPhrase(t *testing.T) {
 	t.Run("phrase is case-insensitive", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch(`"HIJACK A SLOT"`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"HIJACK A SLOT"`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		assertContainsAll(t, out.String(), "001 [Pending] P2 S Add timeout handling")
@@ -246,7 +246,7 @@ func TestTaskSearchQuotedPhrase(t *testing.T) {
 	t.Run("phrase composes with other terms", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch(`"hijack a slot" stall`, nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch(`"hijack a slot" stall`, nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -274,7 +274,7 @@ func TestTaskSearchQueryErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
 			a := app{opts: options{root: root}, out: &out}
-			err := a.taskSearch(tc.query, nil, nil, nil, nil, "", false)
+			err := a.taskSearch(tc.query, nil, nil, nil, nil, "", false, false)
 			if err == nil {
 				t.Fatalf("expected a usage error for %q", tc.query)
 			}
@@ -375,7 +375,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("priority filter keeps only the named priorities", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, []string{"P0"}, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, []string{"P0"}, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -386,7 +386,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("priority values are normalized", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, []string{"p0"}, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, []string{"p0"}, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -397,7 +397,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("priority composes with status and keeps the grouping", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", []string{"Pending"}, nil, []string{"P0", "P2"}, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", []string{"Pending"}, nil, []string{"P0", "P2"}, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -408,7 +408,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("invalid priority is a usage error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("hijack", nil, nil, []string{"P5"}, nil, "", false)
+		err := a.taskSearch("hijack", nil, nil, []string{"P5"}, nil, "", false, false)
 		if err == nil {
 			t.Fatal("expected a usage error for P5")
 		}
@@ -420,7 +420,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("effort filter keeps only the named efforts", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, []string{"XS"}, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, []string{"XS"}, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -431,7 +431,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("effort values are normalized and compose", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("timeout", nil, nil, nil, []string{"s", "M"}, "", false); err != nil {
+		if err := a.taskSearch("timeout", nil, nil, nil, []string{"s", "M"}, "", false, false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -442,7 +442,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("invalid effort is a usage error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("hijack", nil, nil, nil, []string{"XXL"}, "", false)
+		err := a.taskSearch("hijack", nil, nil, nil, []string{"XXL"}, "", false, false)
 		if err == nil {
 			t.Fatal("expected a usage error for XXL")
 		}
@@ -454,7 +454,7 @@ func TestTaskSearchPriorityEffortFilters(t *testing.T) {
 	t.Run("filters compose with sort in one query", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("hijack", []string{"Pending"}, []string{"area:cli"}, []string{"P0", "P2"}, []string{"S", "XS"}, "id", false)
+		err := a.taskSearch("hijack", []string{"Pending"}, []string{"area:cli"}, []string{"P0", "P2"}, []string{"S", "XS"}, "id", false, false)
 		if err != nil {
 			t.Error(err)
 		}
@@ -471,7 +471,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("default output keeps the title/body grouping", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
 			t.Error(err)
 		}
 		// 003 and 002 are title matches in priority order; the body-only
@@ -482,7 +482,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("sort replaces the grouping", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "id", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "id", false, false); err != nil {
 			t.Error(err)
 		}
 		// 001 is a body-only match and precedes the 002 title match under
@@ -495,7 +495,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("sort by priority orders the whole result set", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "priority", false); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "priority", false, false); err != nil {
 			t.Error(err)
 		}
 		assertOrderedStrings(t, out.String(), "003 [Pending]", "001 [Pending]", "002 [Open]")
@@ -504,7 +504,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("reverse reverses the sort order", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "priority", true); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "priority", true, false); err != nil {
 			t.Error(err)
 		}
 		assertOrderedStrings(t, out.String(), "002 [Open]", "001 [Pending]", "003 [Pending]")
@@ -513,7 +513,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("reverse reverses the id sort", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("hijack", nil, nil, nil, nil, "id", true); err != nil {
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "id", true, false); err != nil {
 			t.Error(err)
 		}
 		assertOrderedStrings(t, out.String(), "003 [Pending]", "002 [Open]", "001 [Pending]")
@@ -522,7 +522,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("sort field values match task list", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("hijack", nil, nil, nil, nil, "bogus", false)
+		err := a.taskSearch("hijack", nil, nil, nil, nil, "bogus", false, false)
 		if err == nil {
 			t.Fatal("expected a usage error for an unsupported sort field")
 		}
@@ -534,7 +534,7 @@ func TestTaskSearchSortAndReverse(t *testing.T) {
 	t.Run("reverse without sort is a usage error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("hijack", nil, nil, nil, nil, "", true)
+		err := a.taskSearch("hijack", nil, nil, nil, nil, "", true, false)
 		if err == nil {
 			t.Fatal("expected a usage error for --reverse without --sort")
 		}
@@ -577,4 +577,154 @@ func TestTaskSearchCLIFiltersAndSort(t *testing.T) {
 	if !strings.Contains(stderr, "unsupported task sort field") {
 		t.Errorf("unexpected stderr: %s", stderr)
 	}
+}
+
+// searchScopeFixtures writes records that share the term "hijack" across every
+// status so the active default and --all can be told apart. Active-status
+// records live in the active bucket; Completed and Cancelled records live in
+// the terminal buckets the listing scans.
+func searchScopeFixtures(t *testing.T, root string) {
+	t.Helper()
+	active := filepath.Join(root, ".ahm", "tasks", "active")
+	completed := filepath.Join(root, ".ahm", "tasks", "completed")
+	cancelled := filepath.Join(root, ".ahm", "tasks", "cancelled")
+	writeTaskFileWithBody(t, filepath.Join(active, "001.md"), "001", "Hijack timeout handling", "Pending", "P2", "type:feature, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(active, "002.md"), "002", "Hijack triage notes", "Open", "P3", "type:task, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(active, "003.md"), "003", "Hijack tracker", "Tracking", "P3", "type:task, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(active, "004.md"), "004", "Hijack review", "Blocked", "P3", "type:task, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(active, "005.md"), "005", "Hijack in progress", "In Progress", "P3", "type:task, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(completed, "006.md"), "006", "Hijack implementation", "Completed", "P2", "type:feature, area:cli", "Body context.")
+	writeTaskFileWithBody(t, filepath.Join(cancelled, "007.md"), "007", "Hijack experiment", "Cancelled", "P3", "type:task, area:cli", "Body context.")
+}
+
+func TestTaskSearchDefaultScope(t *testing.T) {
+	root := projectRoot(t)
+	searchScopeFixtures(t, root)
+
+	t.Run("bare search lists active records only", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending]", "002 [Open]", "003 [Tracking]", "004 [Blocked]", "005 [In Progress]")
+		assertNotContains(t, got, "006 [Completed]", "007 [Cancelled]")
+	})
+
+	t.Run("all widens the search to terminal records", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, true); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "001 [Pending] P2 S Hijack timeout handling", "006 [Completed] P2 S Hijack implementation", "007 [Cancelled] P3 S Hijack experiment")
+	})
+
+	t.Run("status replaces the default scope", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("hijack", []string{"Completed"}, nil, nil, nil, "", false, false); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got, "006 [Completed] P2 S Hijack implementation")
+		assertNotContains(t, got, "001 [Pending]", "002 [Open]", "003 [Tracking]", "007 [Cancelled]")
+	})
+
+	t.Run("all with status is a usage error", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		err := a.taskSearch("hijack", []string{"Open"}, nil, nil, nil, "", false, true)
+		if err == nil {
+			t.Fatal("expected a usage error for --all with --status")
+		}
+		if !strings.Contains(err.Error(), "--all cannot be combined with --status") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("json output follows the default scope", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root, json: true}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
+			t.Error(err)
+		}
+		assertContainsAll(t, out.String(), "Hijack timeout handling")
+		assertNotContains(t, out.String(), "Hijack implementation", "Hijack experiment")
+	})
+}
+
+// TestActiveTaskStatusesPartitionStatusOrder pins the search default to the
+// status vocabulary: every status is either active or terminal, so a status
+// added to statusOrder joins the default scope instead of being dropped from
+// it silently.
+func TestActiveTaskStatusesPartitionStatusOrder(t *testing.T) {
+	active := activeTaskStatuses()
+	for _, status := range statusOrder() {
+		inActive := containsString(active, status)
+		inTerminal := status == "Completed" || status == "Cancelled"
+		if inActive == inTerminal {
+			t.Errorf("status %q must be exactly one of active or terminal (active=%v terminal=%v)", status, inActive, inTerminal)
+		}
+	}
+	for _, status := range active {
+		if !containsString(statusOrder(), status) {
+			t.Errorf("active status %q is not in statusOrder", status)
+		}
+	}
+}
+
+func TestTaskSearchCLIScope(t *testing.T) {
+	root := projectRoot(t)
+	searchScopeFixtures(t, root)
+
+	stdout, stderr, code := runCLI(t, "--root", root, "task", "search", "hijack")
+	if code != 0 {
+		t.Fatalf("search exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 [Pending]", "005 [In Progress]")
+	assertNotContains(t, stdout, "006 [Completed]", "007 [Cancelled]")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "search", "hijack", "--all")
+	if code != 0 {
+		t.Fatalf("search --all exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 [Pending]", "006 [Completed]", "007 [Cancelled]")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "search", "hijack", "--status", "Completed")
+	if code != 0 {
+		t.Fatalf("search --status Completed exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "006 [Completed]")
+	assertNotContains(t, stdout, "001 [Pending]", "007 [Cancelled]")
+
+	// task list keeps its all-records default, so the two commands disagree on
+	// purpose and both help texts state the divergence.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "list")
+	if code != 0 {
+		t.Fatalf("list exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "006 [Completed]", "007 [Cancelled]")
+
+	_, stderr, code = runCLI(t, "--root", root, "task", "search", "hijack", "--all", "--status", "Open")
+	if code != 2 {
+		t.Errorf("all-with-status exit code = %d, stderr = %s", code, stderr)
+	}
+	if !strings.Contains(stderr, "--all cannot be combined with --status") {
+		t.Errorf("unexpected stderr: %s", stderr)
+	}
+
+	stdout, helpErr, helpCode := runCLI(t, "task", "search", "--help")
+	if helpCode != 0 {
+		t.Fatalf("task search --help exit code = %d, stderr = %s", helpCode, helpErr)
+	}
+	assertContainsAll(t, stdout, "defaults to active records", "--all", "task list keeps its all-records default")
+
+	stdout, helpErr, helpCode = runCLI(t, "task", "list", "--help")
+	if helpCode != 0 {
+		t.Fatalf("task list --help exit code = %d, stderr = %s", helpCode, helpErr)
+	}
+	assertContainsAll(t, stdout, "task search", "--all")
 }

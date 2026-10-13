@@ -57,7 +57,11 @@ reference.
 
 `task search` matches every whitespace-separated query term (AND) against the
 title or body, with a double-quoted span matching as one adjacent literal
-phrase; a query that misuses the quote delimiter is a usage error (exit 2). The
+phrase; a query that misuses the quote delimiter is a usage error (exit 2). It
+defaults to active records (`Open`, `Pending`, `In Progress`, `Blocked`,
+`Tracking`) and widens to every status with `--all`; `--status` replaces that
+default, and combining it with `--all` is a usage error (exit 2). `task list`
+keeps its all-records default, so the two commands differ on purpose. The
 `--status`, `--label`, `--priority`, and `--effort` filters scope the results.
 See the [task command reference](references/cli/task-commands.md#task-search-query).
 

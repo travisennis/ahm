@@ -341,7 +341,8 @@ Lists parsed tasks.
 
 - `--status <status>`: filters by one or more statuses. Comma-separated list
   or repeated flags. Case-insensitive. Accepts `in-progress` for `In Progress`.
-  Default: all statuses.
+  Default: all statuses, unlike [`task search`](#task-search-query), which
+  defaults to active records and reaches terminal history with `--all`.
 - `--label <label>`: filters by label. Comma-separated or repeated. AND logic
   across labels.
 - `--priority`, `--effort`: filter by enum value.
@@ -401,6 +402,14 @@ term that must appear as an adjacent literal phrase, so
 delimit a whole term: an unterminated quote, a quote glued to other text, an
 empty quoted span, or a whitespace-only query is a usage error (exit 2). Text
 containing a literal double quote is not searchable.
+
+Search defaults to active records: `Open`, `Pending`, `In Progress`, `Blocked`,
+and `Tracking`. `--all` widens the search to every status, including `Completed`
+and `Cancelled`; `--status` names an explicit set and replaces the default, so
+`--status Completed` on its own searches terminal history. `--all` together with
+`--status` is a usage error (exit 2) rather than a precedence rule. `task list`
+keeps its all-records default, so the two commands disagree on purpose: search
+is a lookup, where a terminal record is rarely the answer.
 
 A record is a title match when every term matches its title and a body match
 when every term matches somewhere but not all of them in the title. Without

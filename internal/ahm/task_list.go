@@ -236,7 +236,7 @@ func taskSearchMatch(task Task, terms []string) (titleMatch, match bool) {
 	return titleMatch, true
 }
 
-func (a *app) taskSearch(query string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool) error {
+func (a *app) taskSearch(query string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool, all bool) error {
 	terms, err := parseTaskSearchQuery(query)
 	if err != nil {
 		return err
@@ -245,6 +245,15 @@ func (a *app) taskSearch(query string, statuses []string, labels []string, prior
 	// selected order for --reverse to reverse.
 	if reverse && strings.TrimSpace(sortField) == "" {
 		return usageError("task search --reverse requires --sort\n  ahm task search <query> --sort <field> --reverse")
+	}
+	// --all widens the default scope and --status replaces it, so passing both
+	// has no defined meaning and is a usage error rather than a precedence rule.
+	if all && len(statuses) > 0 {
+		return usageError("task search --all cannot be combined with --status\n  ahm task search <query> --all\n  ahm task search <query> --status <status>")
+	}
+	searchStatuses := statuses
+	if len(searchStatuses) == 0 && !all {
+		searchStatuses = activeTaskStatuses()
 	}
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
@@ -269,7 +278,9 @@ func (a *app) taskSearch(query string, statuses []string, labels []string, prior
 	}
 	matched = append(matched, bodyMatches...)
 	filtered = matched
-	filtered, err = filterTasksByEnumValues(filtered, statuses, normalizeTaskStatus, filterTasksByStatus)
+	// The default scope is the active statuses; --status replaces it and --all
+	// widens it to every status, so the filter runs for both cases.
+	filtered, err = filterTasksByEnumValues(filtered, searchStatuses, normalizeTaskStatus, filterTasksByStatus)
 	if err != nil {
 		return err
 	}

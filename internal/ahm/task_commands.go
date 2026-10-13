@@ -74,6 +74,9 @@ Examples:
 
 	task.AddCommand(a.taskListCommand("list", []string{"ls"}, "List tasks", "all", `List parsed tasks, optionally filtered by status, labels, priority, or effort.
 
+Lists records in every status, including Completed and Cancelled. task search
+differs: it defaults to active records and reaches terminal history with --all.
+
 Examples:
   ahm task list
   ahm task list --status pending
@@ -156,6 +159,7 @@ Examples:
 	var searchEfforts []string
 	var searchSortField string
 	var searchReverse bool
+	var searchAll bool
 	search := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search tasks by title and body",
@@ -168,6 +172,13 @@ phrase "release workflow", while ahm task search release workflow matches
 records containing both words anywhere. A double quote must delimit a whole
 term, so a quote glued to other text, an unterminated quote, an empty quoted
 span, or a whitespace-only query is a usage error.
+
+Search defaults to active records: Open, Pending, In Progress, Blocked, and
+Tracking. --all widens the search to every status, including Completed and
+Cancelled; --status names an explicit set and replaces the default, so
+--status Completed searches terminal history on its own. --all with --status is
+a usage error. task list keeps its all-records default, so the two commands
+differ by design: use --all when a search should reach terminal records.
 
 A record is a title match when every term matches its title and a body match
 when every term matches somewhere but not all of them in the title. Without
@@ -183,6 +194,7 @@ Examples:
   ahm task search release workflow
   ahm task search '"release workflow"'
   ahm task search timeout --status Open
+  ahm task search timeout --all
   ahm task search timeout --priority P0,P1
   ahm task search timeout --sort updated --reverse
   ahm --json task search cli --label area:cli`,
@@ -196,7 +208,7 @@ Examples:
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskSearch(strings.Join(args, " "), searchStatuses, searchLabels, searchPriorities, searchEfforts, searchSortField, searchReverse)
+			return a.taskSearch(strings.Join(args, " "), searchStatuses, searchLabels, searchPriorities, searchEfforts, searchSortField, searchReverse, searchAll)
 		},
 	}
 	search.Flags().StringSliceVar(&searchStatuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
@@ -205,6 +217,7 @@ Examples:
 	search.Flags().StringSliceVar(&searchEfforts, "effort", nil, "Filter tasks by effort; valid: XS, S, M, L, XL (comma-separated or repeatable)")
 	search.Flags().StringVar(&searchSortField, "sort", "", "Sort by priority, id, created, updated, effort, status, or title; replaces the title/body grouping")
 	search.Flags().BoolVar(&searchReverse, "reverse", false, "Reverse the --sort order, including task ID tie-breakers (requires --sort)")
+	search.Flags().BoolVar(&searchAll, "all", false, "Search every status, including Completed and Cancelled (default: active statuses only; conflicts with --status)")
 	task.AddCommand(search)
 
 	for _, spec := range []struct {
