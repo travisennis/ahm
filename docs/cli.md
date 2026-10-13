@@ -53,6 +53,11 @@ guarantees.
 ordering through `--sort` and `--reverse`; the supported fields and rank rules
 are documented in the task command reference.
 
+`task search` matches every whitespace-separated query term (AND) against the
+title or body, with a double-quoted span matching as one adjacent literal
+phrase; a query that misuses the quote delimiter is a usage error (exit 2). See
+the [task command reference](references/cli/task-commands.md#task-search-query).
+
 `task edit <id>` replaces a task field when its flag is supplied and leaves the
 field alone when the flag is omitted. It refuses to write the `## Comments` and
 `## Cancellation Reason` body sections, which `task comment` and `task cancel`

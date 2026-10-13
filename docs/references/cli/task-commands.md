@@ -386,11 +386,23 @@ file; with several IDs, each file follows the previous one, separated by `---`.
 
 ### `task search <query>`
 
-Searches tasks by case-insensitive substring match on the title or body.
-Title matches are listed before body-only matches; within each group the
-result order is unchanged. Supports the `--status` and `--label` filters to
-scope results. Line format matches `task list`, and the text line does not mark
-which field matched, so `--json` consumers should read `body` to tell.
+Searches tasks case-insensitively by substring match. The query splits into
+whitespace-separated terms, and every term must appear in the record's title or
+body; a term matches anywhere, not only at word boundaries. Multi-word queries
+are therefore no longer one adjacent phrase: `ahm task search release workflow`
+matches records containing both words anywhere. A double-quoted span is one
+term that must appear as an adjacent literal phrase, so
+`ahm task search '"release workflow"'` matches that phrase. A double quote must
+delimit a whole term: an unterminated quote, a quote glued to other text, an
+empty quoted span, or a whitespace-only query is a usage error (exit 2). Text
+containing a literal double quote is not searchable.
+
+A record is a title match when every term matches its title and a body match
+when every term matches somewhere but not all of them in the title. Title
+matches are listed first, and within each group the order is priority then ID.
+Supports the `--status` and `--label` filters to scope results. Line format
+matches `task list`, and the text line does not mark which field matched, so
+`--json` consumers should read `body` to tell.
 
 ### `task labels`
 

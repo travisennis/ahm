@@ -157,18 +157,29 @@ Examples:
 		Short: "Search tasks by title and body",
 		Long: `Search tasks by case-insensitive substring match on the title or body.
 
-Title matches are listed before body-only matches. Line format matches task
-list: ID [Status] Priority Effort Title. Supports the --status and --label
-filters to scope results.
+The query splits into whitespace-separated terms, and every term must appear in
+the title or body. A double-quoted span is one term that must appear as an
+adjacent literal phrase: ahm task search '"release workflow"' matches the
+phrase "release workflow", while ahm task search release workflow matches
+records containing both words anywhere. A double quote must delimit a whole
+term, so a quote glued to other text, an unterminated quote, an empty quoted
+span, or a whitespace-only query is a usage error.
+
+A record is a title match when every term matches its title and a body match
+when every term matches somewhere but not all of them in the title. Title
+matches are listed first, and within each group the order is priority then ID.
+Line format matches task list: ID [Status] Priority Effort Title. Supports the
+--status and --label filters to scope results.
 
 Examples:
   ahm task search timeout
-  ahm task search "release workflow"
+  ahm task search release workflow
+  ahm task search '"release workflow"'
   ahm task search timeout --status Open
   ahm --json task search cli --label area:cli`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return usageError("task search requires a query\n  ahm task search <query>")
+				return usageError(taskSearchUsage)
 			}
 			return nil
 		},

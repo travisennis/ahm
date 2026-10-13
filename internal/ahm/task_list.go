@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func (a *app) taskListSorted(mode string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool) error {
@@ -181,9 +182,85 @@ func compareInts(a, b int) int {
 	}
 }
 
-func (a *app) taskSearch(query string, statuses []string, labels []string) error {
+// taskSearchUsage is the usage error for a missing or whitespace-only
+// search query; the command's Args validator and the query parser both report
+// it.
+const taskSearchUsage = "task search requires a query\n  ahm task search <query>"
+
+// parseTaskSearchQuery splits a query into the lowercase terms that every
+// match must contain. Whitespace separates terms, except inside a
+// double-quoted span, which is one term matched as an adjacent literal
+// substring. A double quote must delimit a whole term: it may open only at the
+// start of the query or after whitespace, and its closing partner must be
+// followed by whitespace or the end of the query. There is no escape sequence;
+// a query that breaks these rules is a usage error (exit 2).
+func parseTaskSearchQuery(query string) ([]string, error) {
 	if strings.TrimSpace(query) == "" {
-		return usageError("task search requires a query\n  ahm task search <query>")
+		return nil, usageError(taskSearchUsage)
+	}
+	runes := []rune(query)
+	var terms []string
+	for i := 0; i < len(runes); {
+		switch {
+		case unicode.IsSpace(runes[i]):
+			i++
+		case runes[i] == '"':
+			end := -1
+			for j := i + 1; j < len(runes); j++ {
+				if runes[j] == '"' {
+					end = j
+					break
+				}
+			}
+			if end < 0 {
+				return nil, usageError(fmt.Sprintf("invalid task search query %q: unterminated double quote", query))
+			}
+			span := string(runes[i+1 : end])
+			i = end + 1
+			if i < len(runes) && !unicode.IsSpace(runes[i]) {
+				return nil, usageError(fmt.Sprintf("invalid task search query %q: a double quote must delimit a whole term", query))
+			}
+			if span == "" {
+				return nil, usageError(fmt.Sprintf("invalid task search query %q: empty quoted term", query))
+			}
+			terms = append(terms, strings.ToLower(span))
+		default:
+			start := i
+			for i < len(runes) && !unicode.IsSpace(runes[i]) {
+				if runes[i] == '"' {
+					return nil, usageError(fmt.Sprintf("invalid task search query %q: a double quote must delimit a whole term", query))
+				}
+				i++
+			}
+			terms = append(terms, strings.ToLower(string(runes[start:i])))
+		}
+	}
+	return terms, nil
+}
+
+// taskSearchMatch reports whether every term matches the task and whether all
+// of them match the title. A task that matches but is not a title match is a
+// body-only match.
+func taskSearchMatch(task Task, terms []string) (titleMatch, match bool) {
+	title := strings.ToLower(task.Title)
+	body := strings.ToLower(task.Body)
+	titleMatch = true
+	for _, term := range terms {
+		if strings.Contains(title, term) {
+			continue
+		}
+		titleMatch = false
+		if !strings.Contains(body, term) {
+			return false, false
+		}
+	}
+	return titleMatch, true
+}
+
+func (a *app) taskSearch(query string, statuses []string, labels []string) error {
+	terms, err := parseTaskSearchQuery(query)
+	if err != nil {
+		return err
 	}
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
@@ -191,16 +268,18 @@ func (a *app) taskSearch(query string, statuses []string, labels []string) error
 		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	filtered := filterTasks(tasks, "all")
-	needle := strings.ToLower(query)
 	// Title matches are the stronger signal, so they are listed before
-	// body-only matches. Within each group the existing order is preserved.
+	// body-only matches. Within each group the existing priority-then-ID
+	// order is preserved.
 	var matched, bodyMatches []Task
 	for _, task := range filtered {
-		if strings.Contains(strings.ToLower(task.Title), needle) {
-			matched = append(matched, task)
+		titleMatch, match := taskSearchMatch(task, terms)
+		if !match {
 			continue
 		}
-		if strings.Contains(strings.ToLower(task.Body), needle) {
+		if titleMatch {
+			matched = append(matched, task)
+		} else {
 			bodyMatches = append(bodyMatches, task)
 		}
 	}
