@@ -152,6 +152,10 @@ Examples:
 
 	var searchStatuses []string
 	var searchLabels []string
+	var searchPriorities []string
+	var searchEfforts []string
+	var searchSortField string
+	var searchReverse bool
 	search := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search tasks by title and body",
@@ -166,16 +170,21 @@ term, so a quote glued to other text, an unterminated quote, an empty quoted
 span, or a whitespace-only query is a usage error.
 
 A record is a title match when every term matches its title and a body match
-when every term matches somewhere but not all of them in the title. Title
-matches are listed first, and within each group the order is priority then ID.
-Line format matches task list: ID [Status] Priority Effort Title. Supports the
---status and --label filters to scope results.
+when every term matches somewhere but not all of them in the title. Without
+--sort, title matches are listed first, and within each group the order is
+priority then ID. --sort replaces that grouping and orders the whole result
+set by the selected field; --reverse reverses that order and requires --sort,
+and --reverse without --sort is a usage error. Line format matches task list:
+ID [Status] Priority Effort Title. Supports the --status, --label, --priority,
+and --effort filters to scope results.
 
 Examples:
   ahm task search timeout
   ahm task search release workflow
   ahm task search '"release workflow"'
   ahm task search timeout --status Open
+  ahm task search timeout --priority P0,P1
+  ahm task search timeout --sort updated --reverse
   ahm --json task search cli --label area:cli`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -187,11 +196,15 @@ Examples:
 			if err := a.detectRoot(); err != nil {
 				return err
 			}
-			return a.taskSearch(strings.Join(args, " "), searchStatuses, searchLabels)
+			return a.taskSearch(strings.Join(args, " "), searchStatuses, searchLabels, searchPriorities, searchEfforts, searchSortField, searchReverse)
 		},
 	}
 	search.Flags().StringSliceVar(&searchStatuses, "status", nil, "Filter tasks by status; valid: Open, Pending, In Progress, Blocked, Tracking, Completed, Cancelled (comma-separated or repeatable)")
 	search.Flags().StringSliceVar(&searchLabels, "label", nil, "Filter tasks by label; all labels must match (comma-separated or repeatable)")
+	search.Flags().StringSliceVar(&searchPriorities, "priority", nil, "Filter tasks by priority; valid: P0, P1, P2, P3, P4 (comma-separated or repeatable)")
+	search.Flags().StringSliceVar(&searchEfforts, "effort", nil, "Filter tasks by effort; valid: XS, S, M, L, XL (comma-separated or repeatable)")
+	search.Flags().StringVar(&searchSortField, "sort", "", "Sort by priority, id, created, updated, effort, status, or title; replaces the title/body grouping")
+	search.Flags().BoolVar(&searchReverse, "reverse", false, "Reverse the --sort order, including task ID tie-breakers (requires --sort)")
 	task.AddCommand(search)
 
 	for _, spec := range []struct {

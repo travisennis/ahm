@@ -17,16 +17,9 @@ func (a *app) taskListSorted(mode string, statuses []string, labels []string, pr
 		a.addWarning("some task files could not be parsed and were skipped")
 	}
 	filtered := filterTasks(tasks, mode)
-	if len(statuses) > 0 {
-		allowed := make(map[string]bool, len(statuses))
-		for _, raw := range statuses {
-			normalized, err := normalizeTaskStatus(raw)
-			if err != nil {
-				return err
-			}
-			allowed[normalized] = true
-		}
-		filtered = filterTasksByStatus(filtered, allowed)
+	filtered, err = filterTasksByEnumValues(filtered, statuses, normalizeTaskStatus, filterTasksByStatus)
+	if err != nil {
+		return err
 	}
 	if len(labels) > 0 {
 		required, err := normalizeTaskLabels(labels)
@@ -35,27 +28,13 @@ func (a *app) taskListSorted(mode string, statuses []string, labels []string, pr
 		}
 		filtered = filterTasksByLabels(filtered, required)
 	}
-	if len(priorities) > 0 {
-		allowed := make(map[string]bool, len(priorities))
-		for _, raw := range priorities {
-			normalized, err := normalizeTaskPriority(raw)
-			if err != nil {
-				return err
-			}
-			allowed[normalized] = true
-		}
-		filtered = filterTasksByPriority(filtered, allowed)
+	filtered, err = filterTasksByEnumValues(filtered, priorities, normalizeTaskPriority, filterTasksByPriority)
+	if err != nil {
+		return err
 	}
-	if len(efforts) > 0 {
-		allowed := make(map[string]bool, len(efforts))
-		for _, raw := range efforts {
-			normalized, err := normalizeTaskEffort(raw)
-			if err != nil {
-				return err
-			}
-			allowed[normalized] = true
-		}
-		filtered = filterTasksByEffort(filtered, allowed)
+	filtered, err = filterTasksByEnumValues(filtered, efforts, normalizeTaskEffort, filterTasksByEffort)
+	if err != nil {
+		return err
 	}
 	if err := sortTaskList(filtered, sortField, reverse); err != nil {
 		return err
@@ -257,10 +236,15 @@ func taskSearchMatch(task Task, terms []string) (titleMatch, match bool) {
 	return titleMatch, true
 }
 
-func (a *app) taskSearch(query string, statuses []string, labels []string) error {
+func (a *app) taskSearch(query string, statuses []string, labels []string, priorities []string, efforts []string, sortField string, reverse bool) error {
 	terms, err := parseTaskSearchQuery(query)
 	if err != nil {
 		return err
+	}
+	// Without --sort the title/body grouping is the order, so there is no
+	// selected order for --reverse to reverse.
+	if reverse && strings.TrimSpace(sortField) == "" {
+		return usageError("task search --reverse requires --sort\n  ahm task search <query> --sort <field> --reverse")
 	}
 	defer a.emitWarnings()
 	tasks, err := a.getTasks()
@@ -285,16 +269,9 @@ func (a *app) taskSearch(query string, statuses []string, labels []string) error
 	}
 	matched = append(matched, bodyMatches...)
 	filtered = matched
-	if len(statuses) > 0 {
-		allowed := make(map[string]bool, len(statuses))
-		for _, raw := range statuses {
-			normalized, err := normalizeTaskStatus(raw)
-			if err != nil {
-				return err
-			}
-			allowed[normalized] = true
-		}
-		filtered = filterTasksByStatus(filtered, allowed)
+	filtered, err = filterTasksByEnumValues(filtered, statuses, normalizeTaskStatus, filterTasksByStatus)
+	if err != nil {
+		return err
 	}
 	if len(labels) > 0 {
 		required, err := normalizeTaskLabels(labels)
@@ -302,6 +279,21 @@ func (a *app) taskSearch(query string, statuses []string, labels []string) error
 			return err
 		}
 		filtered = filterTasksByLabels(filtered, required)
+	}
+	filtered, err = filterTasksByEnumValues(filtered, priorities, normalizeTaskPriority, filterTasksByPriority)
+	if err != nil {
+		return err
+	}
+	filtered, err = filterTasksByEnumValues(filtered, efforts, normalizeTaskEffort, filterTasksByEffort)
+	if err != nil {
+		return err
+	}
+	// An explicit sort replaces the title/body grouping and orders the whole
+	// result set.
+	if strings.TrimSpace(sortField) != "" {
+		if err := sortTaskList(filtered, sortField, reverse); err != nil {
+			return err
+		}
 	}
 	if len(filtered) == 0 {
 		if a.opts.json {
@@ -505,6 +497,25 @@ func filterTasksByStatus(tasks []Task, allowed map[string]bool) []Task {
 		}
 	}
 	return out
+}
+
+// filterTasksByEnumValues keeps the tasks whose field value normalizes into
+// values, normalizing every requested value first, so every command that
+// filters by an enum field validates the values and reports errors the same
+// way. An empty values slice keeps the tasks unchanged.
+func filterTasksByEnumValues(tasks []Task, values []string, normalize func(string) (string, error), keep func([]Task, map[string]bool) []Task) ([]Task, error) {
+	if len(values) == 0 {
+		return tasks, nil
+	}
+	allowed := make(map[string]bool, len(values))
+	for _, raw := range values {
+		normalized, err := normalize(raw)
+		if err != nil {
+			return nil, err
+		}
+		allowed[normalized] = true
+	}
+	return keep(tasks, allowed), nil
 }
 
 func filterTasksByLabels(tasks []Task, required []string) []Task {

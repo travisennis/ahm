@@ -49,14 +49,17 @@ entry for a directory that is not a project. See the
 [commands reference](references/cli/commands.md) for their output and
 guarantees.
 
-`task list`, `task ready`, and `task blocked` share configurable deterministic
-ordering through `--sort` and `--reverse`; the supported fields and rank rules
-are documented in the task command reference.
+`task list`, `task ready`, `task blocked`, and `task search` share configurable
+deterministic ordering through `--sort` and `--reverse`; for `task search`,
+`--sort` replaces the title/body grouping and `--reverse` requires `--sort`.
+The supported fields and rank rules are documented in the task command
+reference.
 
 `task search` matches every whitespace-separated query term (AND) against the
 title or body, with a double-quoted span matching as one adjacent literal
-phrase; a query that misuses the quote delimiter is a usage error (exit 2). See
-the [task command reference](references/cli/task-commands.md#task-search-query).
+phrase; a query that misuses the quote delimiter is a usage error (exit 2). The
+`--status`, `--label`, `--priority`, and `--effort` filters scope the results.
+See the [task command reference](references/cli/task-commands.md#task-search-query).
 
 `task edit <id>` replaces a task field when its flag is supplied and leaves the
 field alone when the flag is omitted. It refuses to write the `## Comments` and

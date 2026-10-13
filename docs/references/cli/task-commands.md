@@ -97,11 +97,12 @@ numeric value and optional letter suffix, so `1` matches `001` and `1a` matches
 which can match multiple tasks. If a prefix matches more than one task, the
 command lists the matching IDs and fails as ambiguous.
 
-## Shared List Sorting
+## Shared Sorting
 
-`task list`, `task ready`, and `task blocked` accept `--sort <field>` with
-values `priority`, `id`, `created`, `updated`, `effort`, `status`, `title`.
-Default is `priority`. `--reverse` reverses the complete selected ordering.
+`task list`, `task ready`, `task blocked`, and `task search` accept `--sort
+<field>` with values `priority`, `id`, `created`, `updated`, `effort`, `status`,
+`title`. For the list commands the default is `priority`. `--reverse` reverses
+the complete selected ordering.
 
 Priority sort order: `P0` → `P4`. Effort: `XS` → `XL`. Status: `Open` →
 `Cancelled`. IDs use numeric-aware ordering. Titles use case-insensitive
@@ -109,6 +110,10 @@ alphabetical order. Missing or invalid timestamps sort before valid ones.
 Every field except `id` uses the task ID as its deterministic tie-breaker.
 
 The selected order is the same in text and JSON output.
+
+`task search` differs in its default order: without `--sort` its title/body
+grouping stands (see [`task search`](#task-search-query)), and `--reverse`
+requires `--sort` because the grouping is not a selected sort order.
 
 `task next` always selects the highest-priority ready task without sort flags.
 
@@ -398,11 +403,16 @@ empty quoted span, or a whitespace-only query is a usage error (exit 2). Text
 containing a literal double quote is not searchable.
 
 A record is a title match when every term matches its title and a body match
-when every term matches somewhere but not all of them in the title. Title
-matches are listed first, and within each group the order is priority then ID.
-Supports the `--status` and `--label` filters to scope results. Line format
-matches `task list`, and the text line does not mark which field matched, so
-`--json` consumers should read `body` to tell.
+when every term matches somewhere but not all of them in the title. Without
+`--sort`, title matches are listed first, and within each group the order is
+priority then ID. An explicit `--sort <field>` replaces that grouping and
+orders the whole result set by the selected field under the shared sorting
+rules; `--reverse` reverses that order and requires `--sort`, and `--reverse`
+without `--sort` is a usage error (exit 2). Supports the `--status`, `--label`,
+`--priority`, and `--effort` filters to scope results; the filter values and
+validation match `task list`. Line format matches `task list`, and the text
+line does not mark which field matched, so `--json` consumers should read
+`body` to tell.
 
 ### `task labels`
 

@@ -1502,7 +1502,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("matches case-insensitive substring on title", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("timeout", nil, nil); err != nil {
+		if err := a.taskSearch("timeout", nil, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1513,7 +1513,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("composes status filter", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("timeout", []string{"Open"}, nil); err != nil {
+		if err := a.taskSearch("timeout", []string{"Open"}, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1524,7 +1524,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("composes status and label filters", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("timeout", []string{"Pending"}, []string{"area:cli"}); err != nil {
+		if err := a.taskSearch("timeout", []string{"Pending"}, []string{"area:cli"}, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		got := out.String()
@@ -1535,7 +1535,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("empty results print no tasks found", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		if err := a.taskSearch("nomatch", nil, nil); err != nil {
+		if err := a.taskSearch("nomatch", nil, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		if strings.TrimSpace(out.String()) != "No tasks found." {
@@ -1546,7 +1546,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("empty results in json mode print empty array", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root, json: true}, out: &out}
-		if err := a.taskSearch("nomatch", nil, nil); err != nil {
+		if err := a.taskSearch("nomatch", nil, nil, nil, nil, "", false); err != nil {
 			t.Error(err)
 		}
 		if strings.TrimSpace(out.String()) != "[]" {
@@ -1557,7 +1557,7 @@ func TestTaskSearch(t *testing.T) {
 	t.Run("blank query returns usage error", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root}, out: &out}
-		err := a.taskSearch("   ", nil, nil)
+		err := a.taskSearch("   ", nil, nil, nil, nil, "", false)
 		if err == nil {
 			t.Fatal("expected error for blank query")
 		}
