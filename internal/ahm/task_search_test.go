@@ -94,6 +94,48 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 		assertNotContains(t, got, "001 [Pending]", "004 [Pending]")
 	})
 
+	t.Run("text output marks body-only matches", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got,
+			"001 [Pending] P2 S Add timeout handling [body]",
+			"004 [Pending] P0 S Backfill worker [body]")
+		assertNotContains(t, got, "002 [Open] P2 S Document hijack behavior [body]")
+	})
+
+	t.Run("plain output keeps the unmarked line", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root, plain: true}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "", false, false); err != nil {
+			t.Error(err)
+		}
+		// Byte-identical to the pre-marker output: the task list line in the
+		// unchanged grouping order.
+		want := "002 [Open] P2 S Document hijack behavior\n" +
+			"004 [Pending] P0 S Backfill worker\n" +
+			"001 [Pending] P2 S Add timeout handling\n"
+		if out.String() != want {
+			t.Errorf("plain output changed:\n got: %q\nwant: %q", out.String(), want)
+		}
+	})
+
+	t.Run("an explicit sort keeps the marker", func(t *testing.T) {
+		var out strings.Builder
+		a := app{opts: options{root: root}, out: &out}
+		if err := a.taskSearch("hijack", nil, nil, nil, nil, "title", false, false); err != nil {
+			t.Error(err)
+		}
+		got := out.String()
+		assertContainsAll(t, got,
+			"001 [Pending] P2 S Add timeout handling [body]",
+			"004 [Pending] P0 S Backfill worker [body]")
+		assertNotContains(t, got, "002 [Open] P2 S Document hijack behavior [body]")
+	})
+
 	t.Run("json output carries the matched body", func(t *testing.T) {
 		var out strings.Builder
 		a := app{opts: options{root: root, json: true}, out: &out}
@@ -103,6 +145,7 @@ func TestTaskSearchMatchesBody(t *testing.T) {
 		// 001 matches only through its body, and its title has no "hijack",
 		// so this text can only appear if body search fed the JSON output.
 		assertContainsAll(t, out.String(), "\"body\":", "The worker can hijack a slot and stall.")
+		assertNotContains(t, out.String(), "[body]")
 	})
 
 	t.Run("a miss matches no task", func(t *testing.T) {
@@ -686,6 +729,21 @@ func TestTaskSearchCLIScope(t *testing.T) {
 	}
 	assertContainsAll(t, stdout, "001 [Pending]", "005 [In Progress]")
 	assertNotContains(t, stdout, "006 [Completed]", "007 [Cancelled]")
+
+	// Every fixture carries "context" only in its body, so the text output
+	// marks each row and --plain prints the byte-identical unmarked line.
+	stdout, stderr, code = runCLI(t, "--root", root, "task", "search", "context")
+	if code != 0 {
+		t.Fatalf("search context exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 [Pending] P2 S Hijack timeout handling [body]")
+
+	stdout, stderr, code = runCLI(t, "--root", root, "--plain", "task", "search", "context")
+	if code != 0 {
+		t.Fatalf("--plain search exit code = %d, stderr = %s", code, stderr)
+	}
+	assertContainsAll(t, stdout, "001 [Pending] P2 S Hijack timeout handling")
+	assertNotContains(t, stdout, "[body]")
 
 	stdout, stderr, code = runCLI(t, "--root", root, "task", "search", "hijack", "--all")
 	if code != 0 {

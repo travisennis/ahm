@@ -63,6 +63,9 @@ defaults to active records (`Open`, `Pending`, `In Progress`, `Blocked`,
 default, and combining it with `--all` is a usage error (exit 2). `task list`
 keeps its all-records default, so the two commands differ on purpose. The
 `--status`, `--label`, `--priority`, and `--effort` filters scope the results.
+The default text output marks a body-only match with a trailing `[body]`;
+`--plain` drops the marker, keeping its lines byte-identical to the
+`task list` line, and `--json` is unchanged.
 See the [task command reference](references/cli/task-commands.md#task-search-query).
 
 `task edit <id>` replaces a task field when its flag is supplied and leaves the

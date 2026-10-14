@@ -419,9 +419,11 @@ orders the whole result set by the selected field under the shared sorting
 rules; `--reverse` reverses that order and requires `--sort`, and `--reverse`
 without `--sort` is a usage error (exit 2). Supports the `--status`, `--label`,
 `--priority`, and `--effort` filters to scope results; the filter values and
-validation match `task list`. Line format matches `task list`, and the text
-line does not mark which field matched, so `--json` consumers should read
-`body` to tell.
+validation match `task list`. Line format matches `task list`, and the
+default text output marks a body-only match with a trailing `[body]` marker;
+a title match carries no marker. `--plain` prints the same lines without the
+marker, byte-identical to the `task list` line, and `--json` is unchanged: a
+structured consumer that needs the matched field reads `body`.
 
 ### `task labels`
 

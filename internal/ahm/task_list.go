@@ -263,8 +263,11 @@ func (a *app) taskSearch(query string, statuses []string, labels []string, prior
 	filtered := filterTasks(tasks, "all")
 	// Title matches are the stronger signal, so they are listed before
 	// body-only matches. Within each group the existing priority-then-ID
-	// order is preserved.
+	// order is preserved. Body-only matches are remembered by record path —
+	// duplicate IDs can exist on disk until validation reports them — for the
+	// text marker, which survives filtering and an explicit sort.
 	var matched, bodyMatches []Task
+	bodyOnly := make(map[string]bool)
 	for _, task := range filtered {
 		titleMatch, match := taskSearchMatch(task, terms)
 		if !match {
@@ -274,6 +277,7 @@ func (a *app) taskSearch(query string, statuses []string, labels []string, prior
 			matched = append(matched, task)
 		} else {
 			bodyMatches = append(bodyMatches, task)
+			bodyOnly[task.Path] = true
 		}
 	}
 	matched = append(matched, bodyMatches...)
@@ -317,7 +321,13 @@ func (a *app) taskSearch(query string, statuses []string, labels []string, prior
 		return a.emit(a.tasksForOutput(filtered))
 	}
 	for _, task := range filtered {
-		a.printTaskLine(task)
+		line := taskLine(task)
+		// Text output names the field that carried a body-only match;
+		// --plain keeps the line unmarked and parseable.
+		if bodyOnly[task.Path] && !a.opts.plain {
+			line += " [body]"
+		}
+		fmt.Fprintln(a.out, line)
 	}
 	return nil
 }
@@ -408,8 +418,14 @@ func (a *app) taskShow(argv []string) error {
 	return errors.Join(errs...)
 }
 
+// taskLine renders the one-line task summary shared by the task list
+// commands: `ID [Status] Priority Effort Title`.
+func taskLine(task Task) string {
+	return fmt.Sprintf("%s [%s] %s %s %s", task.ID, task.Status, task.Priority, task.Effort, task.Title)
+}
+
 func (a *app) printTaskLine(task Task) {
-	fmt.Fprintf(a.out, "%s [%s] %s %s %s\n", task.ID, task.Status, task.Priority, task.Effort, task.Title)
+	fmt.Fprintln(a.out, taskLine(task))
 }
 
 // taskForOutput renders one task for structured output: its record path is

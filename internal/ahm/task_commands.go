@@ -186,8 +186,10 @@ when every term matches somewhere but not all of them in the title. Without
 priority then ID. --sort replaces that grouping and orders the whole result
 set by the selected field; --reverse reverses that order and requires --sort,
 and --reverse without --sort is a usage error. Line format matches task list:
-ID [Status] Priority Effort Title. Supports the --status, --label, --priority,
-and --effort filters to scope results.
+ID [Status] Priority Effort Title, with a trailing [body] marker on a
+body-only match in text output. --plain prints the lines without the marker
+and --json is unchanged. Supports the --status, --label, --priority, and
+--effort filters to scope results.
 
 Examples:
   ahm task search timeout
