@@ -38,7 +38,7 @@ func TestStoreUnregisterRemovesTheEntryAndKeepsRecords(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("store unregister exited %d: %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "unregister "+paths.Key, "remove path "+paths.resolvedPath)
+	assertContainsAll(t, stdout, "unregister "+paths.Key, "remove path "+abbreviateHome(paths.resolvedPath))
 
 	reg, err := loadRegistry(storeHome)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestStoreUnregisterRemovesOneRecordedPath(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("store unregister --path exited %d: %s", code, stderr)
 	}
-	assertContainsAll(t, stdout, "unregister path "+stale, "from "+paths.Key, paths.resolvedPath)
+	assertContainsAll(t, stdout, "unregister path "+abbreviateHome(stale), "from "+paths.Key, abbreviateHome(paths.resolvedPath))
 
 	reg, err = loadRegistry(storeHome)
 	if err != nil {
