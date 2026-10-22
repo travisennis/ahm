@@ -96,7 +96,7 @@ func storeRoot() (string, error) {
 		}
 		root = filepath.Join(userHome, toolRecordsDirName)
 	}
-	if stat, err := os.Stat(root); err == nil && !stat.IsDir() {
+	if stat, err := os.Stat(root); err == nil && !stat.IsDir() { // #nosec G703 // root is AHM_HOME (validated absolute) or the user's home, not user input
 		return "", fmt.Errorf("store root %s is not a directory", root)
 	}
 	resolvedRootHook(root)

@@ -12,16 +12,16 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
       - uses: goreleaser/goreleaser-action@v7
         with:
-          version: v2.16.0
+          version: v2.18.3
           # A tag that has a matching docs/releases/<tag>.md file publishes
           # that file as the release body; any other tag falls back to the
           # changelog GoReleaser generates from the commit log.

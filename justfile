@@ -1,6 +1,6 @@
-golangci_lint_version := "v2.12.2"
-goreleaser_version := "v2.16.0"
-govulncheck_version := "v1.3.0"
+golangci_lint_version := "v2.15.0"
+goreleaser_version := "v2.18.3"
+govulncheck_version := "v1.9.0"
 
 # Reject branch names outside the <type>/<slug> convention.
 # just interpolates a recipe argument into shell source, so an otherwise legal
