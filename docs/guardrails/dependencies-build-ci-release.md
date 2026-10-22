@@ -36,7 +36,7 @@ The repository maintains one version number:
 Dependabot opens weekly dependency pull requests from
 `.github/dependabot.yml`; they are the repository's one automated PR source.
 Merge one with GitHub's rebase or squash so `master` stays linear, or apply the
-same bump locally with `just update-deps`.
+same bump locally with `just update-deps` for a Go module bump.
 
 ## Common Failure Modes
 
